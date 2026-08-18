@@ -4,7 +4,7 @@ import babel from '@rolldown/plugin-babel'
 
 // https://vite.dev/config/
 export default defineConfig({
-  base: '/m3south/',
+  base: '/development/m3south/',
   plugins: [
     react(),
     babel({

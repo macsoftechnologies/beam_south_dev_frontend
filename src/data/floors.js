@@ -57,10 +57,10 @@ export const FLOOR_MAPPING = {
   21: [
     "JS-ZoneJS",
   ],
-  // 22: [
-  //   "JE-Ground Floor",
-  //   "JE-1st Floor",
-  //   "JE-2nd Floor",
-  //   "JE-Roof Plan",
-  // ]
+  22: [
+    "JE-Ground Floor",
+    "JE-1st Floor",
+    "JE-2nd Floor",
+    "JE-Roof Plan",
+  ]
 };

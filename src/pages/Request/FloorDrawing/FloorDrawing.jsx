@@ -147,7 +147,15 @@ function FloorDrawing({
       {selectedZone && (
         <ZoneModal
           zone={selectedZone}
-          selectedRooms={selectedRooms}
+          selectedRooms={selectedRooms
+            .filter(r => {
+              if (typeof r === "string" && r.includes(":::")) {
+                const [zName] = r.split(":::");
+                return selectedZone && zName === selectedZone.name;
+              }
+              return true;
+            })
+            .map(r => (typeof r === "string" && r.includes(":::") ? r.split(":::")[1] : r))}
           onClose={() => setSelectedZone(null)}
           onConfirm={(rooms) => {
             if (onRoomsSelected) {

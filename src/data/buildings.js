@@ -35,8 +35,8 @@ export const BUILDINGS = [
     id: "21",
     name: "JS",
   },
-  // {
-  //   id: "22",
-  //   name: "JE",
-  // }
+  {
+    id: "22",
+    name: "JE",
+  }
 ];

@@ -108,9 +108,26 @@ export const getRequestCounts = async () => {
 };
 
 // Copy permit requests for consecutive dates
+// export const createByCount = async (payload) => {
+//   const res = await api.post("/requests/createbycount", payload);
+//   return res.data;
+// };
+
+// Copy permit requests for consecutive dates
 export const createByCount = async (payload) => {
   const res = await api.post("/requests/createbycount", payload);
-  return res.data;
+  const data = res.data;
+
+  // Backend returns HTTP 200 even on failure, embedding the real status
+  // and message inside the JSON body — normalize that into a thrown error
+  // so callers' try/catch and error toasts work correctly.
+  if (data && typeof data === "object" && data.status && Number(data.status) >= 400) {
+    const err = new Error(data.message || "Request failed");
+    err.response = { data, status: data.status };
+    throw err;
+  }
+
+  return data;
 };
 
 // Executive Dashboard Overview API

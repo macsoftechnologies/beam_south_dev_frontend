@@ -1296,12 +1296,16 @@ function NewRequest() {
     const active = selectedZones.filter(zone =>
       zone.rooms.some(room => {
         const roomName = typeof room === "object" ? room.name : room;
-        return selectedRooms.includes(roomName);
+        const roomKey = `${zone.name}:::${roomName}`;
+        return selectedRooms.includes(roomKey) || selectedRooms.includes(roomName);
       })
     );
-    if (active.length === 0 && selectedZone) {
-      const current = selectedZones.find(z => z.id === selectedZone.id || z.name === selectedZone.name);
-      return current ? [current] : [selectedZone];
+    if (active.length === 0) {
+      if (selectedZone) {
+        const current = selectedZones.find(z => z.id === selectedZone.id || z.name === selectedZone.name);
+        return current ? [current] : [selectedZone];
+      }
+      return selectedZones;
     }
     return active;
   }, [selectedZones, selectedRooms, selectedZone]);
@@ -1414,8 +1418,18 @@ function NewRequest() {
   }, [roomsList, zonesList]);
 
   const handleRoomsSelected = (rooms, zone) => {
-    setSelectedRooms(Array.from(new Set(rooms)));
-    setSelectedZone(zone);
+    setSelectedRooms(prev => {
+      const filtered = zone
+        ? prev.filter(r => (typeof r === "string" && r.includes(":::") ? r.split(":::")[0] !== zone.name : true))
+        : [];
+      const newEntries = zone
+        ? rooms.map(r => (typeof r === "string" && !r.includes(":::") ? `${zone.name}:::${r}` : r))
+        : rooms;
+      return Array.from(new Set([...filtered, ...newEntries]));
+    });
+    if (zone) {
+      setSelectedZone(zone);
+    }
   };
 
   const selectedBuildingName = useMemo(() => {
@@ -1731,7 +1745,8 @@ function NewRequest() {
     const selectedZoneObjects = selectedZones.filter((zone) =>
       zone.rooms.some((room) => {
         const roomName = typeof room === "object" ? room.name : room;
-        return selectedRooms.includes(roomName);
+        const key = `${zone.name}:::${roomName}`;
+        return selectedRooms.includes(key) || selectedRooms.includes(roomName);
       })
     );
     let zoneVal = selectedZoneObjects.map((z) => z.name).join(",");
@@ -1749,40 +1764,96 @@ function NewRequest() {
       Zone_Id = String(editRequest.Zone_Id);
     }
 
-    // Find Room IDs — multi-strategy matching
+    // Find Room IDs — multi-strategy matching strictly checking Building, Floor & Zone
     let Room_Nos = "";
     if (selectedRooms.length > 0) {
       const getRoomNameStr = (r) => String(r.room_name || r.room_nos || r.room_number || r.roomName || r.name || "").toLowerCase().trim();
+
+      // Collect target zone ID strings & zone names
+      const targetZoneIdStrs = (Zone_Id ? Zone_Id.split(',') : matchedZoneIds.map(String)).map(s => s.trim()).filter(Boolean);
+      const targetZoneNames = selectedZoneObjects.map(zo => (zo.name || "").toLowerCase().trim()).filter(Boolean);
+
       const resolvedTokens = selectedRooms.map(roomItem => {
         if (!roomItem) return null;
+        let itemZoneName = null;
+        let itemRoomName = roomItem;
+
         if (typeof roomItem === "object") {
           const directId = roomItem.room_id ?? roomItem.id;
           if (directId) return String(directId);
-          roomItem = roomItem.room_name || roomItem.name || roomItem.room_nos || "";
+          itemRoomName = roomItem.room_name || roomItem.name || roomItem.room_nos || "";
+        } else if (typeof roomItem === "string" && roomItem.includes(":::")) {
+          const parts = roomItem.split(":::");
+          itemZoneName = parts[0];
+          itemRoomName = parts[1];
         }
-        const roomStr = String(roomItem).trim();
+
+        const roomStr = String(itemRoomName).trim();
+        const targetZoneNamesToMatch = itemZoneName ? [itemZoneName.toLowerCase().trim()] : targetZoneNames;
+
+        const isZoneMatchLocal = (r) => {
+          if (targetZoneIdStrs.length > 0 && r.zone_id) {
+            if (targetZoneIdStrs.includes(String(r.zone_id))) return true;
+          }
+          if (targetZoneNamesToMatch.length > 0) {
+            const dbZone = zonesList.find(z => String(z.id ?? z.zoneStatusId) === String(r.zone_id));
+            const zName = dbZone ? (dbZone.zone || dbZone.zone_name) : (r.zone_name || "");
+            if (zName && targetZoneNamesToMatch.includes(zName.toLowerCase().trim())) return true;
+          }
+          return false;
+        };
+
+        // Step 1: Check if roomStr is a numeric room_id that actually exists in roomsList for the target building/floor/zone
         if (/^\d+$/.test(roomStr)) {
-          return roomStr;
+          const exactIdMatch = roomsList.find(r =>
+            String(r.room_id ?? r.id) === roomStr &&
+            (Building_Id ? String(r.building_id) === String(Building_Id) : true) &&
+            (Floor_Id ? String(r.fl_id || r.floor_id) === String(Floor_Id) : true) &&
+            (targetZoneIdStrs.length > 0 || targetZoneNamesToMatch.length > 0 ? isZoneMatchLocal(r) : true)
+          );
+          if (exactIdMatch) {
+            return String(exactIdMatch.room_id ?? exactIdMatch.id);
+          }
         }
+
         const roomNameLower = roomStr.toLowerCase();
+
+        // Step 2: Match room by name + Building + Floor + Zone
         let matched = roomsList.find(r =>
           getRoomNameStr(r) === roomNameLower &&
+          (Building_Id ? String(r.building_id) === String(Building_Id) : true) &&
           (Floor_Id ? String(r.fl_id || r.floor_id) === String(Floor_Id) : true) &&
-          (Building_Id ? String(r.building_id) === String(Building_Id) : true)
+          isZoneMatchLocal(r)
         );
+
+        // Step 3: Match room by name + Building + Floor
+        if (!matched) {
+          matched = roomsList.find(r =>
+            getRoomNameStr(r) === roomNameLower &&
+            (Building_Id ? String(r.building_id) === String(Building_Id) : true) &&
+            (Floor_Id ? String(r.fl_id || r.floor_id) === String(Floor_Id) : true)
+          );
+        }
+
+        // Step 4: Match room by name + Building
         if (!matched) {
           matched = roomsList.find(r =>
             getRoomNameStr(r) === roomNameLower &&
             (Building_Id ? String(r.building_id) === String(Building_Id) : true)
           );
         }
+
+        // Step 5: Match room by name alone
         if (!matched) {
           matched = roomsList.find(r => getRoomNameStr(r) === roomNameLower);
         }
+
+        // Step 6: Fallback clean string match
         if (!matched) {
           const cleanLower = roomNameLower.replace(/[^a-z0-9]/g, "");
           matched = roomsList.find(r => getRoomNameStr(r).replace(/[^a-z0-9]/g, "") === cleanLower);
         }
+
         return matched ? String(matched.room_id ?? matched.id) : roomStr;
       }).filter(Boolean);
 
@@ -2217,11 +2288,16 @@ function NewRequest() {
     }
   };
 
-  const toggleRoomSelection = (roomName) => {
+  const toggleRoomSelection = (roomName, zoneName) => {
+    const key = zoneName ? `${zoneName}:::${roomName}` : roomName;
     setSelectedRooms(prev => {
-      const updated = prev.includes(roomName)
-        ? prev.filter(r => r !== roomName)
-        : [...prev, roomName];
+      const exists = prev.includes(key);
+      let updated;
+      if (exists) {
+        updated = prev.filter(r => r !== key);
+      } else {
+        updated = [...prev, key];
+      }
       return Array.from(new Set(updated));
     });
   };
@@ -2676,7 +2752,18 @@ function NewRequest() {
                   className="df-input"
                   style={{ cursor: "pointer", background: "rgba(255, 255, 255, 0.02)" }}
                   placeholder="Click to select rooms..."
-                  value={selectedRooms.length > 0 ? selectedRooms.join(", ") : ""}
+                  value={(() => {
+                    if (!selectedRooms || selectedRooms.length === 0) return "";
+                    const roomNames = selectedRooms.map(r => (typeof r === "string" && r.includes(":::") ? r.split(":::")[1] : String(r)));
+                    const hasDupes = new Set(roomNames).size !== roomNames.length;
+                    return selectedRooms.map(r => {
+                      if (typeof r === "string" && r.includes(":::")) {
+                        const [zName, rName] = r.split(":::");
+                        return hasDupes ? `${zName}: ${rName}` : rName;
+                      }
+                      return String(r);
+                    }).join(", ");
+                  })()}
                   readOnly
                   onClick={() => setIsDropdownOpen(prev => !prev)}
                 />
@@ -2693,14 +2780,15 @@ function NewRequest() {
                       <div style={{ display: "flex", flexDirection: "column", gap: "12px", paddingLeft: "8px" }}>
                         {zoneToDraw.rooms.map((room) => {
                           const roomName = typeof room === "object" ? room.name : room;
-                          const isChecked = selectedRooms.includes(roomName);
+                          const roomKey = `${zoneToDraw.name}:::${roomName}`;
+                          const isChecked = selectedRooms.includes(roomKey) || selectedRooms.includes(roomName);
                           return (
                             <label key={roomName} className="custom-checkbox-label" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                               <input
                                 type="checkbox"
                                 className="custom-checkbox-input"
                                 checked={isChecked}
-                                onChange={() => toggleRoomSelection(roomName)}
+                                onChange={() => toggleRoomSelection(roomName, zoneToDraw.name)}
                               />
                               <span>{roomName}</span>
                             </label>

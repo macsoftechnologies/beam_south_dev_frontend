@@ -1357,7 +1357,7 @@ const Reports = () => {
       searchPayload.area = filters.area.length > 0 ? filters.area.join(",") : "";
       searchPayload.permit_type = filters.permitType || "";
       searchPayload.permit_under = filters.permitUnder || "";
-      searchPayload.night_shift = filters.nightShift ? "1" : "0";
+      searchPayload.night_shift = filters.nightShift ? "1" : "";
       searchPayload.Type_Of_Activity_Id = filters.typeOfActivityId || null;
       searchPayload.PermitNo = filters.permitNo || null;
       searchPayload.Activity = filters.keyword || null;

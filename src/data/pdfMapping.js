@@ -109,11 +109,11 @@ export const FLOOR_PDFS = {
   {
     "JS": JSZONEJSPDF,
   },
-  // "22":
-  // {
-  //   "JE-Ground Floor": JEGROUNDFLOORPDF,
-  //   "JE-1st Floor": JE1FLOORPDF,
-  //   "JE-2nd Floor": JE2NDFLOORPDF,
-  //   "JE-Roof Plan": JEROOFPLANPDF,
-  // }
+  "22":
+  {
+    "JE-Ground Floor": JEGROUNDFLOORPDF,
+    "JE-1st Floor": JE1FLOORPDF,
+    "JE-2nd Floor": JE2NDFLOORPDF,
+    "JE-Roof Plan": JEROOFPLANPDF,
+  }
 };

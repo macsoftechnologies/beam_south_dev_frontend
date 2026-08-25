@@ -1,0 +1,47 @@
+/* ── IMDashboard specific styles ── */
+
+.im-dashboard {}
+
+/* ── Category progress bars ── */
+.im-category-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.im-cat-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.im-cat-name {
+  font-size: 0.82rem;
+  color: var(--text-main, #111827);
+  min-width: 140px;
+  font-weight: 500;
+}
+
+.im-cat-bar-wrap {
+  flex: 1;
+  height: 8px;
+  background: var(--bg-dark, #F3F4F6);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.im-cat-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #2563EB, #7C3AED);
+  border-radius: 4px;
+  transition: width 0.4s ease;
+  min-width: 4px;
+}
+
+.im-cat-count {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-muted, #6B7280);
+  min-width: 20px;
+  text-align: right;
+}

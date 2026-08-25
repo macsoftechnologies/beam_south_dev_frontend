@@ -1,0 +1,54 @@
+/* Recordable & Lost-Time Rates panel (ported from Incident dashboard) */
+.rate-panel { background:var(--bg-card); border:1px solid var(--border-color); border-radius:12px; margin-bottom:20px; overflow:hidden; }
+.rate-panel-head { display:flex; align-items:center; justify-content:space-between; padding:14px 18px; border-bottom:1px solid var(--border-color); }
+.rate-panel-head .t { font-size:14px; font-weight:700; color:var(--text-main); }
+.rate-panel-head .s { font-size:12px; color:var(--text-muted); font-weight:600; }
+.rate-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; padding:16px 18px; }
+@media (max-width:520px){ .rate-grid { grid-template-columns:1fr; } }
+/* KPI cards — aligned to the Incidents dashboard style */
+.im-kpis { display:grid; grid-template-columns:repeat(6,1fr); gap:14px; margin-bottom:20px; }
+@media (max-width:1200px){ .im-kpis { grid-template-columns:repeat(3,1fr); } }
+@media (max-width:640px){ .im-kpis { grid-template-columns:repeat(2,1fr); } }
+.im-stat { position:relative; background:var(--bg-card); border:1px solid var(--border-color); border-radius:12px; padding:14px 16px; overflow:hidden; }
+.im-stat::before { content:''; position:absolute; left:0; top:0; bottom:0; width:4px; background:var(--a); }
+.im-stat-top { display:flex; align-items:center; justify-content:space-between; }
+.im-stat-label { font-size:11px; font-weight:700; letter-spacing:.03em; text-transform:uppercase; color:var(--text-muted); }
+.im-stat-val { font-size:30px; font-weight:800; line-height:1; margin-top:8px; letter-spacing:-0.02em; color:var(--text-main); }
+.im-stat-sub { font-size:11px; color:var(--text-muted); margin-top:6px; }
+.im-hero { background:var(--accent-primary); color:var(--text-white, #fff); border-radius:12px; padding:14px 16px; }
+.im-hero-label { font-size:11px; font-weight:700; letter-spacing:.03em; text-transform:uppercase; color:rgba(255,255,255,0.85); }
+.im-hero-val { font-size:34px; font-weight:800; line-height:1; margin-top:6px; letter-spacing:-0.02em; color:var(--text-white, #fff); }
+.im-hero-track { height:6px; border-radius:4px; background:rgba(255,255,255,0.18); margin:9px 0 7px; overflow:hidden; }
+.im-hero-fill { height:100%; border-radius:4px; background:var(--color-safe); }
+.im-hero-metrics { display:flex; gap:14px; font-size:10.5px; color:rgba(255,255,255,0.8); }
+.im-hero-metrics b { color:var(--text-white, #fff); }
+th.ith { position:relative; user-select:none; }
+th.ith:hover { color:var(--accent-primary); }
+th.ith.sorted-asc::after { content:' \25B2'; font-size:9px; }
+th.ith.sorted-desc::after { content:' \25BC'; font-size:9px; }
+/* 3-stage status tracker in the incidents table */
+.st-track { display:flex; align-items:center; gap:0; white-space:nowrap; }
+.st-dot { flex:0 0 auto; width:20px; height:20px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:10px; font-weight:800; z-index:1; }
+.st-dot.st-done { background:var(--color-safe); color:#fff; }
+.st-dot.st-current { background:var(--color-risk); color:#fff; box-shadow:0 0 0 3px var(--color-risk-bg); }
+.st-dot.st-pending { background:var(--bg-card); color:var(--text-muted); border:1.5px dashed var(--border-color); }
+.st-line { flex:0 0 14px; height:3px; background:var(--border-color); border-radius:2px; }
+.st-line.on { background:var(--color-safe); }
+.st-label { margin-left:9px; font-size:11px; font-weight:700; }
+.st-label.st-label-live { color:var(--color-risk); }
+.st-label.st-label-closed { color:var(--color-safe); }
+
+/* Dashboard layout additions */
+.grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.mb-6 { margin-bottom: 24px; }
+.progress-bar { height:6px; border-radius:4px; background:var(--bg-card-hover); overflow:hidden; }
+.progress-fill { height:100%; border-radius:4px; }
+.stat-bar { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+.stat-bar-label { flex:0 0 160px; font-size:11px; font-weight:600; color:var(--text-muted); text-align:right; }
+.stat-bar-track { flex:1; height:8px; border-radius:4px; background:var(--bg-card-hover); overflow:hidden; }
+.stat-bar-fill { height:100%; border-radius:4px; }
+.stat-bar-value { flex:0 0 30px; font-size:12px; font-weight:700; color:var(--text-main); }
+.filter-bar { display:flex; gap:8px; padding:12px; background:var(--bg-card); border:1px solid var(--border-color); border-radius:8px; margin-bottom:16px; overflow-x:auto; }
+.filter-chip { padding:6px 14px; border-radius:99px; font-size:12px; font-weight:600; cursor:pointer; white-space:nowrap; background:var(--bg-card-hover); color:var(--text-muted); }
+.filter-chip:hover { background:var(--border-color); }
+.filter-chip.active { background:var(--accent-primary); color:var(--text-white, #fff); }

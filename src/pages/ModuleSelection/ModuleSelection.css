@@ -1,0 +1,332 @@
+/* ════════════════════════════════════════════
+   ModuleSelection.css — Safety Tracker Landing (Premium Glassmorphism)
+════════════════════════════════════════════ */
+
+@keyframes floatOrb1 {
+  0% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(30px, -50px) scale(1.1); }
+  66% { transform: translate(-20px, 20px) scale(0.9); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+
+@keyframes floatOrb2 {
+  0% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(-30px, 50px) scale(1.15); }
+  66% { transform: translate(20px, -20px) scale(0.85); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+
+.ms-root {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  position: relative;
+  overflow: hidden;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  color: #0f172a;
+}
+
+/* ── Animated Background Orbs ── */
+.ms-bg-pattern {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(148, 163, 184, 0.15) 1px, transparent 1px);
+  background-size: 32px 32px;
+  z-index: 0;
+}
+
+.ms-bg-top-left {
+  position: absolute;
+  top: -150px;
+  left: -100px;
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(59,130,246,0.15) 0%, rgba(59,130,246,0) 70%);
+  border-radius: 50%;
+  z-index: 0;
+  animation: floatOrb1 18s ease-in-out infinite;
+  filter: blur(40px);
+}
+
+.ms-bg-bottom-right {
+  position: absolute;
+  bottom: -200px;
+  right: -100px;
+  width: 800px;
+  height: 800px;
+  background: radial-gradient(circle, rgba(16,185,129,0.12) 0%, rgba(16,185,129,0) 70%);
+  border-radius: 50%;
+  z-index: 0;
+  animation: floatOrb2 22s ease-in-out infinite;
+  filter: blur(60px);
+}
+
+/* ── Container ── */
+.ms-container {
+  position: relative;
+  z-index: 1;
+  max-width: 1100px;
+  width: 100%;
+}
+
+/* ── Header ── */
+.ms-header {
+  margin-bottom: 32px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.ms-header-top {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.ms-logo-icon {
+  width: 68px;
+  height: 68px;
+  flex-shrink: 0;
+}
+
+.ms-logo-icon svg {
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 8px 12px rgba(30, 58, 138, 0.15));
+}
+
+.ms-header-text {
+  text-align: left;
+}
+
+.ms-title {
+  font-size: clamp(2.2rem, 4.5vw, 2.8rem);
+  font-weight: 900;
+  color: #0f172a;
+  margin: 0 0 6px 0;
+  letter-spacing: -1px;
+  line-height: 1;
+  background: linear-gradient(to right, #0f172a, #334155);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.ms-badge {
+  display: inline-block;
+  background: linear-gradient(135deg, #2563EB, #3B82F6);
+  color: #FFFFFF;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  padding: 4px 14px;
+  border-radius: 20px;
+  text-transform: uppercase;
+  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.2);
+}
+
+.ms-desc {
+  font-size: 1.05rem;
+  color: #475569;
+  line-height: 1.6;
+  margin: 0;
+  max-width: 600px;
+}
+
+/* ── Cards Grid ── */
+.ms-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+
+/* ── Single Card ── */
+.ms-card {
+  background: rgba(255, 255, 255, 0.65);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 24px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04), inset 0 0 0 1px rgba(255,255,255,0.5);
+  cursor: pointer;
+}
+
+.ms-card:hover {
+  transform: translateY(-12px) scale(1.02);
+  background: rgba(255, 255, 255, 0.85);
+  border-color: #ffffff;
+  box-shadow: 
+    0 24px 48px rgba(0, 0, 0, 0.08), 
+    0 12px 24px var(--theme-color)20 !important;
+}
+
+/* ── Card Curve Background ── */
+.ms-card-curve {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 130px;
+  z-index: 0;
+}
+
+.curve-svg {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 50px;
+  transform: scaleY(-1);
+}
+
+/* ── Card Content Container ── */
+.ms-card-content {
+  padding: 24px 24px 20px 24px;
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Card Icon ── */
+.ms-card-icon-wrap {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+  box-shadow: 0 6px 12px rgba(0,0,0,0.1);
+}
+
+.ms-card-icon-wrap svg {
+  width: 24px;
+  height: 24px;
+  color: #FFFFFF;
+  stroke: #FFFFFF;
+}
+
+/* ── Card Text ── */
+.ms-card-title {
+  font-size: 1.25rem;
+  font-weight: 800;
+  margin: 0 0 6px 0;
+  line-height: 1.2;
+}
+
+.ms-card-line {
+  width: 24px;
+  height: 3px;
+  border-radius: 2px;
+  margin-bottom: 12px;
+}
+
+.ms-card-desc {
+  font-size: 0.9rem;
+  color: #334155;
+  margin: 0 0 16px 0;
+  line-height: 1.4;
+}
+
+/* ── Features List ── */
+.ms-card-features {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+}
+
+.ms-card-features li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: #475569;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+/* ── Watermark Icon ── */
+.ms-card-watermark {
+  position: absolute;
+  bottom: 10px;
+  right: -10px;
+  width: 110px;
+  height: 110px;
+  opacity: 0.05;
+  z-index: -1;
+  pointer-events: none;
+}
+
+.ms-card-watermark svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* ── Bottom Button ── */
+.ms-card-btn {
+  margin: 0 20px 20px 20px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  border: none;
+  color: #ffffff;
+  font-size: 0.95rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.2s;
+  z-index: 1;
+}
+
+.ms-card-btn:hover {
+  opacity: 0.9;
+  transform: scale(1.02);
+}
+
+.ms-card-btn:active {
+  transform: scale(0.98);
+}
+
+/* ── Responsive ── */
+@media (max-width: 992px) {
+  .ms-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .ms-root {
+    min-height: auto;
+    padding: 40px 24px;
+  }
+  .ms-cards {
+    grid-template-columns: 1fr;
+  }
+  
+  .ms-header-top {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+  
+  .ms-title {
+    font-size: 2.2rem;
+  }
+}

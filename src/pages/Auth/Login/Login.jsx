@@ -8,18 +8,18 @@ import "./Login.css";
 
 export default function Login() {
   if (isTokenValid()) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/modules" replace />;
   }
 
   useEffect(() => {
     const handleCheck = () => {
       if (isTokenValid()) {
-        navigateTo("/dashboard", true);
+        navigateTo("/modules", true);
       }
     };
 
     if (isTokenValid()) {
-      navigateTo("/dashboard", true);
+      navigateTo("/modules", true);
     }
 
     window.addEventListener("pageshow", handleCheck);

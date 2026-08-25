@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import "./Navbar.css";
 import { logout, sendChangePasswordOtp, verifyAndChangePassword } from "../../../services/authService";
 import { navigateTo } from "../../../config/basePath";
@@ -197,6 +197,90 @@ function ThemeSwitcher({ theme, onThemeChange }) {
       )}
     </div>
   )
+}
+
+/* ── Module Switcher ── */
+const MODULES = [
+  { id: 'ptw', label: 'Permit to Work', path: '/dashboard' },
+  { id: 'im', label: 'Incident Management', path: '/incident-management/dashboard' },
+  { id: 'so', label: 'Safety Observations', path: '/safety-observations/dashboard' }
+];
+
+function ModuleSwitcher() {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const getActiveModule = () => {
+    if (location.pathname.includes('/safety-observations')) return MODULES[2];
+    if (location.pathname.includes('/incident-management')) return MODULES[1];
+    return MODULES[0];
+  };
+  const currentModule = getActiveModule();
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <h4
+        onClick={() => setOpen(!open)}
+        style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', margin: 0, userSelect: 'none' }}
+        title="Switch Module"
+      >
+        {currentModule.label}
+        <i className="ti ti-chevron-down" style={{ fontSize: '14px', opacity: 0.6, marginTop: '2px' }} />
+      </h4>
+      {open && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, marginTop: '8px',
+          background: 'var(--bg-card, #ffffff)', border: '1px solid var(--border-color, #e2e8f0)',
+          borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.2)', zIndex: 100, minWidth: '220px',
+          padding: '4px'
+        }}>
+          {MODULES.map(m => (
+            <div
+              key={m.id}
+              onClick={() => {
+                navigate(m.path);
+                setOpen(false);
+              }}
+              style={{
+                padding: '10px 14px', cursor: 'pointer',
+                background: currentModule.id === m.id ? 'var(--bg-card-hover, rgba(0,0,0,0.04))' : 'transparent',
+                color: currentModule.id === m.id ? 'var(--accent-primary, #3B82F6)' : 'var(--text-main, #1e293b)',
+                fontWeight: currentModule.id === m.id ? '600' : 'normal',
+                borderRadius: '6px',
+                fontSize: '14px',
+                transition: 'background 0.2s',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                userSelect: 'none'
+              }}
+              onMouseEnter={(e) => {
+                if (currentModule.id !== m.id) e.currentTarget.style.background = 'var(--bg-card-hover, rgba(0,0,0,0.04))';
+              }}
+              onMouseLeave={(e) => {
+                if (currentModule.id !== m.id) e.currentTarget.style.background = 'transparent';
+              }}
+            >
+              {m.label}
+              {currentModule.id === m.id && (
+                <i className="ti ti-check" style={{ fontSize: '14px' }} />
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 /* ════════════════════════════════════════════ */
@@ -522,9 +606,9 @@ function Navbar({ toggleSidebar, theme, onThemeChange }) {
         </button>
         <div className="navbar-title">
           <div className="beam20-title-row">
-<h4>M3 South Dashboard</h4>
-<span className="beam20-nav-badge">BEAM 2.0</span>
-</div>
+            <ModuleSwitcher />
+            <span className="beam20-nav-badge">BEAM 2.0</span>
+          </div>
           <p>Operational Overview &amp; System Analytics</p>
         </div>
       </div>

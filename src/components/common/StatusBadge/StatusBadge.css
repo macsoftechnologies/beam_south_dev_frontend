@@ -1,0 +1,83 @@
+/* ── StatusBadge ── */
+.hse-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 20px;
+  white-space: nowrap;
+  letter-spacing: 0.3px;
+}
+
+.badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ── Open ── */
+.badge-open         { background: rgba(37,99,235,0.12);  color: #2563EB; }
+.badge-open .badge-dot { background: #2563EB; }
+
+/* ── In Progress ── */
+.badge-inprogress   { background: rgba(217,119,6,0.12);  color: #D97706; }
+.badge-inprogress .badge-dot { background: #D97706; }
+
+/* ── Investigating ── */
+.badge-investigating { background: rgba(139,92,246,0.12); color: #7C3AED; }
+.badge-investigating .badge-dot { background: #7C3AED; }
+
+/* ── Closed ── */
+.badge-closed       { background: rgba(75,85,99,0.12);   color: #4B5563; }
+.badge-closed .badge-dot { background: #4B5563; }
+
+/* ── Resolved ── */
+.badge-resolved     { background: rgba(5,150,105,0.12);  color: #059669; }
+.badge-resolved .badge-dot { background: #059669; }
+
+/* ── Critical ── */
+.badge-critical     { background: rgba(220,38,38,0.15);  color: #DC2626; }
+.badge-critical .badge-dot { background: #DC2626; }
+
+/* ── High ── */
+.badge-high         { background: rgba(239,68,68,0.12);  color: #EF4444; }
+.badge-high .badge-dot { background: #EF4444; }
+
+/* ── Medium ── */
+.badge-medium       { background: rgba(245,158,11,0.12); color: #B45309; }
+.badge-medium .badge-dot { background: #F59E0B; }
+
+/* ── Low ── */
+.badge-low          { background: rgba(5,150,105,0.12);  color: #059669; }
+.badge-low .badge-dot { background: #059669; }
+
+/* ── Pending ── */
+.badge-pending      { background: rgba(217,119,6,0.12);  color: #D97706; }
+.badge-pending .badge-dot { background: #D97706; }
+
+/* ── In Review ── */
+.badge-reviewing    { background: rgba(99,102,241,0.12); color: #4F46E5; }
+.badge-reviewing .badge-dot { background: #4F46E5; }
+
+/* ── Completed ── */
+.badge-completed    { background: rgba(5,150,105,0.12);  color: #059669; }
+.badge-completed .badge-dot { background: #059669; }
+
+/* ── Approved ── */
+.badge-approved     { background: rgba(5,150,105,0.12);  color: #059669; }
+.badge-approved .badge-dot { background: #059669; }
+
+/* ── Rejected ── */
+.badge-rejected     { background: rgba(220,38,38,0.12);  color: #DC2626; }
+.badge-rejected .badge-dot { background: #DC2626; }
+
+/* ── Draft ── */
+.badge-draft        { background: rgba(107,114,128,0.12);color: #6B7280; }
+.badge-draft .badge-dot { background: #6B7280; }
+
+/* ── Default ── */
+.badge-default      { background: rgba(107,114,128,0.12);color: #6B7280; }
+.badge-default .badge-dot { background: #6B7280; }

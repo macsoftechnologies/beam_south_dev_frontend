@@ -1,0 +1,118 @@
+/* ════════════════════════════════════════════════════════
+   Sidebar.module.css — Module-aware sidebar additions
+   (imported alongside Sidebar.css in Sidebar.jsx)
+════════════════════════════════════════════════════════ */
+
+/* ── "← All Modules" back button ── */
+.sidebar-back-modules {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 18px;
+  margin: 6px 10px 0;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--sb-text-muted, rgba(255,255,255,0.55));
+  text-decoration: none;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+  cursor: pointer;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.sidebar-back-modules:hover {
+  background: rgba(255,255,255,0.10);
+  color: #fff;
+  border-color: rgba(255,255,255,0.15);
+}
+
+.sidebar-back-modules .ti {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+/* Hide the label text when sidebar is collapsed */
+.sidebar-collapsed .sidebar-back-modules .nav-label {
+  display: none;
+}
+
+.sidebar-collapsed .sidebar-back-modules {
+  justify-content: center;
+  padding: 9px 0;
+  margin: 6px auto 0;
+  width: 36px;
+  height: 36px;
+}
+
+/* ── IM module accent (warm orange-red) ── */
+.sidebar-im .sidebar-brand.brand-accent-im .brand-sub {
+  color: #FCA5A5;
+}
+
+.sidebar-im .nav-link.active,
+.sidebar-im .nav-link-parent.active {
+  background: rgba(239,68,68,0.18) !important;
+  border-left-color: #EF4444 !important;
+}
+
+.sidebar-im .nav-link.active .ti,
+.sidebar-im .nav-link-parent.active .ti {
+  color: #EF4444 !important;
+}
+
+.sidebar-im .sub-active {
+  color: #EF4444 !important;
+}
+
+.sidebar-im .sub-active .sub-dot {
+  background: #EF4444 !important;
+  box-shadow: 0 0 0 3px rgba(239,68,68,0.2) !important;
+}
+
+/* ── SO module accent (emerald green) ── */
+.sidebar-so .sidebar-brand.brand-accent-so .brand-sub {
+  color: #6EE7B7;
+}
+
+.sidebar-so .nav-link.active,
+.sidebar-so .nav-link-parent.active {
+  background: rgba(5,150,105,0.18) !important;
+  border-left-color: #059669 !important;
+}
+
+.sidebar-so .nav-link.active .ti,
+.sidebar-so .nav-link-parent.active .ti {
+  color: #10B981 !important;
+}
+
+.sidebar-so .sub-active {
+  color: #10B981 !important;
+}
+
+.sidebar-so .sub-active .sub-dot {
+  background: #10B981 !important;
+  box-shadow: 0 0 0 3px rgba(16,185,129,0.2) !important;
+}
+
+/* ── Light theme overrides for back button ── */
+html[data-theme="light"] .sidebar-back-modules {
+  color: rgba(0,0,0,0.5);
+  background: rgba(0,0,0,0.04);
+  border-color: rgba(0,0,0,0.08);
+}
+
+html[data-theme="light"] .sidebar-back-modules:hover {
+  background: rgba(0,0,0,0.08);
+  color: rgba(0,0,0,0.8);
+}
+
+html[data-theme="light"] .sidebar-im .sidebar-brand.brand-accent-im .brand-sub {
+  color: #DC2626;
+}
+
+html[data-theme="light"] .sidebar-so .sidebar-brand.brand-accent-so .brand-sub {
+  color: #059669;
+}

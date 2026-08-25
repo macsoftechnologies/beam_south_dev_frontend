@@ -8,6 +8,7 @@ import {
 import Layout from "../components/adminlayout/Layout";
 
 import PortalSelection from "../pages/PortalSelection/PortalSelection";
+import ModuleSelection from "../pages/ModuleSelection/ModuleSelection";
 
 import Login from "../pages/Auth/Login/Login";
 import Otp from "../pages/Auth/OTP/OTP";
@@ -32,6 +33,22 @@ import LogsReports from "../pages/LogsReports/LogsReports";
 import LogHistory from "../pages/LogHistroy/LogHistroy";
 import ExecutiveDashboard from "../pages/ExecutiveDashboard/ExecutiveDashboard";
 
+// ── Incident Management module ──
+import IMDashboard from "../modules/incident-management/pages/IMDashboard";
+import IMList from "../modules/incident-management/pages/IMList";
+import IMCreate from "../modules/incident-management/pages/IMCreate";
+import IMDetails from "../modules/incident-management/pages/IMDetails";
+import IMInvestigation from "../modules/incident-management/pages/IMInvestigation";
+import IMReports from "../modules/incident-management/pages/IMReports";
+
+// ── Safety Observations module ──
+import SODashboard from "../modules/safety-observations/pages/SODashboard";
+import SOList from "../modules/safety-observations/pages/SOList";
+import SOCreate from "../modules/safety-observations/pages/SOCreate";
+import SODetails from "../modules/safety-observations/pages/SODetails";
+import SOCorrectiveActions from "../modules/safety-observations/pages/SOCorrectiveActions";
+import SOReports from "../modules/safety-observations/pages/SOReports";
+
 
 import ProtectedRoute from "../components/common/ProtectedRoute";
 import PublicRoute from "../components/common/PublicRoute";
@@ -45,6 +62,7 @@ function AppRoutes() {
 
         {/* Public Routes - restricted if user has valid token */}
         <Route path="/" element={<PortalSelection />} />
+        <Route path="/modules" element={<ProtectedRoute><ModuleSelection /></ProtectedRoute>} />
         <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
         <Route path="/otp" element={<PublicRoute><Otp /></PublicRoute>} />
         <Route path="/forgot-password" element={<PublicRoute><ForgotPassword /></PublicRoute>} />
@@ -204,6 +222,23 @@ function AppRoutes() {
               </ProtectedRoute>
             }
           />
+
+          {/* ── Incident Management Routes ── */}
+          <Route path="/incident-management/dashboard" element={<IMDashboard />} />
+          <Route path="/incident-management/list" element={<IMList />} />
+          <Route path="/incident-management/create" element={<IMCreate />} />
+          <Route path="/incident-management/details/:id" element={<IMDetails />} />
+          <Route path="/incident-management/investigation/:id" element={<IMInvestigation />} />
+          <Route path="/incident-management/reports" element={<IMReports />} />
+
+          {/* ── Safety Observations Routes ── */}
+          <Route path="/safety-observations/dashboard" element={<SODashboard />} />
+          <Route path="/safety-observations/list" element={<SOList />} />
+          <Route path="/safety-observations/create" element={<SOCreate />} />
+          <Route path="/safety-observations/details/:id" element={<SODetails />} />
+          <Route path="/safety-observations/corrective-actions" element={<SOCorrectiveActions />} />
+          <Route path="/safety-observations/reports" element={<SOReports />} />
+
         </Route>
 
         {/* <Route
@@ -222,3 +257,4 @@ function AppRoutes() {
 }
 
 export default AppRoutes;
+// cache bust

@@ -32,7 +32,7 @@ const OTP_LENGTH = 6;
 
 export default function OTP() {
   if (isTokenValid()) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/modules" replace />;
   }
 
   const tempUserStr = localStorage.getItem("tempUser");
@@ -43,14 +43,14 @@ export default function OTP() {
   useEffect(() => {
     const handleCheck = () => {
       if (isTokenValid()) {
-        navigateTo("/dashboard", true);
+        navigateTo("/modules", true);
       } else if (!localStorage.getItem("tempUser")) {
         navigateTo("/login", true);
       }
     };
 
     if (isTokenValid()) {
-      navigateTo("/dashboard", true);
+      navigateTo("/modules", true);
       return;
     }
     if (!localStorage.getItem("tempUser")) {
@@ -189,7 +189,7 @@ export default function OTP() {
 
         setTimeout(() => {
           setLoading(false);
-          navigateTo("/dashboard", true);
+          navigateTo("/modules", true);
         }, 1500);
       } else {
         setLoading(false);

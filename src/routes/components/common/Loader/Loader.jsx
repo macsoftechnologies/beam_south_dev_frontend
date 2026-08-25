@@ -23,7 +23,7 @@ function Loader({
 
       <img
         className="ssw-loader__logo"
-        src="/m3south/safesiteworks-logo.png"
+        src="/development/m3south/safesiteworks-logo.png"
         alt="SafeSiteWorks"
       />
 

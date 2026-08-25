@@ -57,7 +57,7 @@ const formatCompanyLogoUrl = (logoVal) => {
   }
   const cleanPath = str.startsWith("/") ? str.slice(1) : str;
   if (cleanPath.startsWith("subcontractors/")) {
-    return `https://api.beam.safesiteworks.com/m3south/${cleanPath}`;
+    return `https://api.beam.safesiteworks.com/development/m3south/${cleanPath}`;
   }
   return `https://api.beam.safesiteworks.com/south/subcontractors/${cleanPath}`;
 };

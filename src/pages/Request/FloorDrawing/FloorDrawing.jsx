@@ -207,6 +207,7 @@ function FloorDrawing({
           selectedRooms={selectedRooms
             .filter(r => {
               if (typeof r === "string" && r.includes(":::")) {
+<<<<<<< HEAD
                 const parts = r.split(":::");
                 if (parts.length === 3) {
                   const [lName, zName] = parts;
@@ -221,6 +222,14 @@ function FloorDrawing({
               return true;
             })
             .map(r => (typeof r === "string" && r.includes(":::") ? r.split(":::").pop() : r))}
+=======
+                const [zName] = r.split(":::");
+                return selectedZone && zName === selectedZone.name;
+              }
+              return true;
+            })
+            .map(r => (typeof r === "string" && r.includes(":::") ? r.split(":::")[1] : r))}
+>>>>>>> 1113d05089950f8dc6d08371072500b4c3c6fde2
           onClose={() => setSelectedZone(null)}
           onConfirm={(rooms) => {
             if (onRoomsSelected) {

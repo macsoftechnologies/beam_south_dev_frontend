@@ -1,8 +1,9 @@
 <!doctype html>
 <html lang="en">
-  <head>
+
+<head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/m3south/safesiteworks-favicon.png" />
+    <link rel="icon" type="image/png" href="/development/m3south/safesiteworks-favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>BEAM - M3 South</title>
 
@@ -11,108 +12,107 @@
     <meta http-equiv="Expires" content="0" />
 
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
-<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-  </head>
-  <body>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+</head>
 
-<!-- SAFESITEWORKS-LOADER-START -->
-<style>
-#safesiteworks-loader {
-    position: fixed;
-    inset: 0;
-    z-index: 2147483647;
+<body>
 
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    <!-- SAFESITEWORKS-LOADER-START -->
+    <style>
+        #safesiteworks-loader {
+            position: fixed;
+            inset: 0;
+            z-index: 2147483647;
 
-    background: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
 
-    transition:
-        opacity .30s ease,
-        visibility .30s ease;
-}
+            background: #ffffff;
 
-#safesiteworks-loader.is-hidden {
-    opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
-}
+            transition:
+                opacity .30s ease,
+                visibility .30s ease;
+        }
 
-#safesiteworks-loader img {
-    width: min(280px, 68vw);
-    height: auto;
+        #safesiteworks-loader.is-hidden {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
 
-    animation:
-        sswBootPulse 1.25s
-        ease-in-out infinite;
-}
+        #safesiteworks-loader img {
+            width: min(280px, 68vw);
+            height: auto;
 
-@keyframes sswBootPulse {
-    0%,100% {
-        opacity: .65;
-        transform: scale(.97);
-    }
+            animation:
+                sswBootPulse 1.25s ease-in-out infinite;
+        }
 
-    50% {
-        opacity: 1;
-        transform: scale(1);
-    }
-}
-</style>
+        @keyframes sswBootPulse {
 
-<div
-    id="safesiteworks-loader"
-    aria-label="Loading SafeSiteWorks"
->
-    <img
-        src="/m3south/safesiteworks-logo.png"
-        alt="SafeSiteWorks"
-    >
-</div>
-
-<script>
-(function () {
-
-    function removeLoader() {
-
-        var loader =
-            document.getElementById(
-                "safesiteworks-loader"
-            );
-
-        if (!loader) return;
-
-        loader.classList.add("is-hidden");
-
-        setTimeout(function () {
-
-            if (
-                loader &&
-                loader.parentNode
-            ) {
-                loader.parentNode
-                    .removeChild(loader);
+            0%,
+            100% {
+                opacity: .65;
+                transform: scale(.97);
             }
 
-        }, 350);
-    }
+            50% {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+    </style>
 
-    window.addEventListener(
-        "load",
-        removeLoader
-    );
+    <div id="safesiteworks-loader" aria-label="Loading SafeSiteWorks">
+        <img src="/development/m3south/safesiteworks-logo.png" alt="SafeSiteWorks">
+    </div>
 
-    setTimeout(
-        removeLoader,
-        6000
-    );
+    <script>
+        (function () {
 
-})();
-</script>
-<!-- SAFESITEWORKS-LOADER-END -->
+            function removeLoader() {
+
+                var loader =
+                    document.getElementById(
+                        "safesiteworks-loader"
+                    );
+
+                if (!loader) return;
+
+                loader.classList.add("is-hidden");
+
+                setTimeout(function () {
+
+                    if (
+                        loader &&
+                        loader.parentNode
+                    ) {
+                        loader.parentNode
+                            .removeChild(loader);
+                    }
+
+                }, 350);
+            }
+
+            window.addEventListener(
+                "load",
+                removeLoader
+            );
+
+            setTimeout(
+                removeLoader,
+                6000
+            );
+
+        })();
+    </script>
+    <!-- SAFESITEWORKS-LOADER-END -->
 
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
-  </body>
+</body>
+
 </html>

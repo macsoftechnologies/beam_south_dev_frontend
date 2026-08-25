@@ -286,6 +286,9 @@ function ModuleSwitcher() {
 /* ════════════════════════════════════════════ */
 function Navbar({ toggleSidebar, theme, onThemeChange }) {
   const navigate = useNavigate();
+  const location = useLocation();
+  const isPermitToWork = !location.pathname.includes('/incident-management') && !location.pathname.includes('/safety-observations');
+  
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const dropdownRef = useRef(null)
 
@@ -625,73 +628,75 @@ function Navbar({ toggleSidebar, theme, onThemeChange }) {
         <ThemeSwitcher theme={theme} onThemeChange={onThemeChange} />
 
         {/* Bell with badge */}
-        <div className="bell-wrap" ref={bellRef}>
-          <button
-            className="navbar-bell"
-            title="Notifications"
-            aria-label="Notifications"
-            onClick={handleToggleNotifications}
-          >
-            <i className="ti ti-bell" />
-            {unreadCount > 0 && <span className="bell-badge">{unreadCount}</span>}
-          </button>
+        {isPermitToWork && (
+          <div className="bell-wrap" ref={bellRef}>
+            <button
+              className="navbar-bell"
+              title="Notifications"
+              aria-label="Notifications"
+              onClick={handleToggleNotifications}
+            >
+              <i className="ti ti-bell" />
+              {unreadCount > 0 && <span className="bell-badge">{unreadCount}</span>}
+            </button>
 
-          {notificationsOpen && (
-            <div className="notifications-dropdown">
-              <div className="nd-header">
-                <h5 className="nd-title">Notifications</h5>
-                {unreadCount > 0 && (
-                  <button className="nd-mark-read" onClick={handleMarkAllRead}>
-                    Mark all as read
-                  </button>
-                )}
-              </div>
-              <div className="nd-list">
-                {notifications.length === 0 ? (
-                  <div className="nd-empty">
-                    {isLoading ? "Loading..." : "No notifications"}
-                  </div>
-                ) : (
-                  notifications.map((n) => {
-                    const styleInfo = getNotificationStyleInfo(n.title, n.message);
-                    const permitNo = extractPermitNo(n);
-                    return (
-                      <button
-                        key={n.id}
-                        className={`nd-item ${n.isRead === 0 ? "unread" : ""} ${styleInfo.typeClass}`}
-                        onClick={() => handleNotificationClick(n)}
-                      >
-                        {n.isRead === 0 && <span className="nd-item-dot" />}
-                        <div className="nd-item-header">
-                          <span className="nd-status-badge">{styleInfo.badgeText}</span>
-                          <span className="nd-item-time">{formatCopenhagenTime(n.createdAt)}</span>
-                        </div>
-                        {permitNo && (
-                          <div className="nd-item-permit">
-                            <span className="nd-permit-label">Permit No:</span> <span className="nd-permit-value">#{permitNo}</span>
-                          </div>
-                        )}
-                        <span className="nd-item-title">{n.title}</span>
-                        <span className="nd-item-msg">{n.message}</span>
-                      </button>
-                    );
-                  })
-                )}
-              </div>
-              {hasMore && (
-                <div className="nd-footer">
-                  <button
-                    className="nd-load-more"
-                    onClick={() => fetchNotificationsList(page + 1, true)}
-                    disabled={isLoading}
-                  >
-                    {isLoading ? "Loading..." : "Load older notifications"}
-                  </button>
+            {notificationsOpen && (
+              <div className="notifications-dropdown">
+                <div className="nd-header">
+                  <h5 className="nd-title">Notifications</h5>
+                  {unreadCount > 0 && (
+                    <button className="nd-mark-read" onClick={handleMarkAllRead}>
+                      Mark all as read
+                    </button>
+                  )}
                 </div>
-              )}
-            </div>
-          )}
-        </div>
+                <div className="nd-list">
+                  {notifications.length === 0 ? (
+                    <div className="nd-empty">
+                      {isLoading ? "Loading..." : "No notifications"}
+                    </div>
+                  ) : (
+                    notifications.map((n) => {
+                      const styleInfo = getNotificationStyleInfo(n.title, n.message);
+                      const permitNo = extractPermitNo(n);
+                      return (
+                        <button
+                          key={n.id}
+                          className={`nd-item ${n.isRead === 0 ? "unread" : ""} ${styleInfo.typeClass}`}
+                          onClick={() => handleNotificationClick(n)}
+                        >
+                          {n.isRead === 0 && <span className="nd-item-dot" />}
+                          <div className="nd-item-header">
+                            <span className="nd-status-badge">{styleInfo.badgeText}</span>
+                            <span className="nd-item-time">{formatCopenhagenTime(n.createdAt)}</span>
+                          </div>
+                          {permitNo && (
+                            <div className="nd-item-permit">
+                              <span className="nd-permit-label">Permit No:</span> <span className="nd-permit-value">#{permitNo}</span>
+                            </div>
+                          )}
+                          <span className="nd-item-title">{n.title}</span>
+                          <span className="nd-item-msg">{n.message}</span>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+                {hasMore && (
+                  <div className="nd-footer">
+                    <button
+                      className="nd-load-more"
+                      onClick={() => fetchNotificationsList(page + 1, true)}
+                      disabled={isLoading}
+                    >
+                      {isLoading ? "Loading..." : "Load older notifications"}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Avatar + name + dropdown */}
         <div className="avatar-wrap" ref={dropdownRef}>
@@ -730,13 +735,15 @@ function Navbar({ toggleSidebar, theme, onThemeChange }) {
                 >
                   <i className="ti ti-lock" /> Change Password
                 </button>
-                <button
-                  className="pd-item"
-                  onClick={handleOpenSettings}
-                  style={{ background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer' }}
-                >
-                  <i className="ti ti-settings" /> Notification Settings
-                </button>
+                {isPermitToWork && (
+                  <button
+                    className="pd-item"
+                    onClick={handleOpenSettings}
+                    style={{ background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer' }}
+                  >
+                    <i className="ti ti-settings" /> Notification Settings
+                  </button>
+                )}
               </div>
 
               <div className="pd-divider" />

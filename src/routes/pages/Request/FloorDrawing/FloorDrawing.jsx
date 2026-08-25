@@ -139,21 +139,21 @@ function FloorDrawing({
                       {(() => {
                         const countInZone = zone.rooms
                           ? zone.rooms.filter((r) => {
-                              const rName = (typeof r === "object" ? r.name : r).toLowerCase().trim();
-                              return selectedRooms.some((token) => {
-                                const str = String(token);
-                                const parts = str.split(":::");
-                                const tokenRoomName = parts.pop().toLowerCase().trim();
-                                const tokenZoneName = parts.length > 0 ? parts[parts.length - 1].toLowerCase().trim() : "";
-                                const tokenLevelName = parts.length > 1 ? parts[0].toLowerCase().trim() : "";
+                            const rName = (typeof r === "object" ? r.name : r).toLowerCase().trim();
+                            return selectedRooms.some((token) => {
+                              const str = String(token);
+                              const parts = str.split(":::");
+                              const tokenRoomName = parts.pop().toLowerCase().trim();
+                              const tokenZoneName = parts.length > 0 ? parts[parts.length - 1].toLowerCase().trim() : "";
+                              const tokenLevelName = parts.length > 1 ? parts[0].toLowerCase().trim() : "";
 
-                                const matchesRoom = tokenRoomName === rName;
-                                const matchesZone = !tokenZoneName || tokenZoneName === zone.name.toLowerCase().trim();
-                                const matchesLevel = !tokenLevelName || !level || tokenLevelName === level.toLowerCase().trim();
+                              const matchesRoom = tokenRoomName === rName;
+                              const matchesZone = !tokenZoneName || tokenZoneName === zone.name.toLowerCase().trim();
+                              const matchesLevel = !tokenLevelName || !level || tokenLevelName === level.toLowerCase().trim();
 
-                                return matchesRoom && matchesZone && matchesLevel;
-                              });
-                            }).length
+                              return matchesRoom && matchesZone && matchesLevel;
+                            });
+                          }).length
                           : 0;
 
                         if (countInZone > 0) {
@@ -207,7 +207,6 @@ function FloorDrawing({
           selectedRooms={selectedRooms
             .filter(r => {
               if (typeof r === "string" && r.includes(":::")) {
-<<<<<<< HEAD
                 const parts = r.split(":::");
                 if (parts.length === 3) {
                   const [lName, zName] = parts;
@@ -222,14 +221,6 @@ function FloorDrawing({
               return true;
             })
             .map(r => (typeof r === "string" && r.includes(":::") ? r.split(":::").pop() : r))}
-=======
-                const [zName] = r.split(":::");
-                return selectedZone && zName === selectedZone.name;
-              }
-              return true;
-            })
-            .map(r => (typeof r === "string" && r.includes(":::") ? r.split(":::")[1] : r))}
->>>>>>> 1113d05089950f8dc6d08371072500b4c3c6fde2
           onClose={() => setSelectedZone(null)}
           onConfirm={(rooms) => {
             if (onRoomsSelected) {

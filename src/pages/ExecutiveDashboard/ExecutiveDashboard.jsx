@@ -59,7 +59,7 @@ const formatCompanyLogoUrl = (logoVal) => {
   if (cleanPath.startsWith("subcontractors/")) {
     return `https://api.beam.safesiteworks.com/development/m3south/${cleanPath}`;
   }
-  return `https://api.beam.safesiteworks.com/south/subcontractors/${cleanPath}`;
+  return `https://api.beam.safesiteworks.com/development/m3south/subcontractors/${cleanPath}`;
 };
 
 const CompanyLogo = ({ logo, name, code, color, size = 22, style = {}, className = "mini-company-badge" }) => {

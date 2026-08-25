@@ -1622,7 +1622,6 @@ function NewRequest() {
   };
 
   const handleRoomsSelected = (rooms, zone) => {
-<<<<<<< HEAD
     if (!level || !zone) return;
     const currentLevelClean = level.trim();
     const currentZoneClean = zone.name.trim();
@@ -1654,16 +1653,6 @@ function NewRequest() {
       });
 
       return Array.from(new Set([...filtered, ...newTokens]));
-=======
-    setSelectedRooms(prev => {
-      const filtered = zone
-        ? prev.filter(r => (typeof r === "string" && r.includes(":::") ? r.split(":::")[0] !== zone.name : true))
-        : [];
-      const newEntries = zone
-        ? rooms.map(r => (typeof r === "string" && !r.includes(":::") ? `${zone.name}:::${r}` : r))
-        : rooms;
-      return Array.from(new Set([...filtered, ...newEntries]));
->>>>>>> 1113d05089950f8dc6d08371072500b4c3c6fde2
     });
     if (zone) {
       setSelectedZone(zone);
@@ -1983,7 +1972,6 @@ function NewRequest() {
     // 1. Tally selected location items across multiple levels to resolve database IDs
     const Building_Id = building ? Number(building) : null;
 
-<<<<<<< HEAD
     const allSelectedLevelNames = new Set();
 
     selectedRooms.forEach(token => {
@@ -2078,18 +2066,6 @@ function NewRequest() {
         const isBuildingMatch = String(z.building_id || z.build_id || "") === String(building);
         const zName = (z.zone || z.zone_name || "").toLowerCase().trim();
         return selectedZoneNamesLower.length > 0 ? selectedZoneNamesLower.includes(zName) : true;
-=======
-    const matchedFloor = floorsList.find(
-      (f) => String(f.build_id) === String(building) && (f.floor_name === level || f.floor_status === level)
-    );
-    const Floor_Id = matchedFloor ? matchedFloor.fl_id : null;
-    // Find zone IDs and zone names
-    const selectedZoneObjects = selectedZones.filter((zone) =>
-      zone.rooms.some((room) => {
-        const roomName = typeof room === "object" ? room.name : room;
-        const key = `${zone.name}:::${roomName}`;
-        return selectedRooms.includes(key) || selectedRooms.includes(roomName);
->>>>>>> 1113d05089950f8dc6d08371072500b4c3c6fde2
       })
       .map(z => String(z.id ?? z.zoneStatusId));
 
@@ -2099,16 +2075,11 @@ function NewRequest() {
 
     const Zone_Id = Array.from(new Set(matchedZoneIds)).join(",");
 
-<<<<<<< HEAD
     // Resolve Room IDs across selected levels
-=======
-    // Find Room IDs — multi-strategy matching strictly checking Building, Floor & Zone
->>>>>>> 1113d05089950f8dc6d08371072500b4c3c6fde2
     let Room_Nos = "";
     if (selectedRooms.length > 0) {
       const getRoomNameStr = (r) => String(r.room_name || r.room_nos || r.room_number || r.roomName || r.name || "").toLowerCase().trim();
 
-<<<<<<< HEAD
       const resolvedTokens = selectedRooms.map(roomItem => {
         if (!roomItem) return null;
         const parsed = parseRoomToken(roomItem, level);
@@ -2123,90 +2094,23 @@ function NewRequest() {
         });
         const targetFloorId = matchedFloor ? String(matchedFloor.fl_id ?? matchedFloor.id ?? matchedFloor.floor_id) : null;
 
-=======
-      // Collect target zone ID strings & zone names
-      const targetZoneIdStrs = (Zone_Id ? Zone_Id.split(',') : matchedZoneIds.map(String)).map(s => s.trim()).filter(Boolean);
-      const targetZoneNames = selectedZoneObjects.map(zo => (zo.name || "").toLowerCase().trim()).filter(Boolean);
-
-      const resolvedTokens = selectedRooms.map(roomItem => {
-        if (!roomItem) return null;
-        let itemZoneName = null;
-        let itemRoomName = roomItem;
-
-        if (typeof roomItem === "object") {
-          const directId = roomItem.room_id ?? roomItem.id;
-          if (directId) return String(directId);
-          itemRoomName = roomItem.room_name || roomItem.name || roomItem.room_nos || "";
-        } else if (typeof roomItem === "string" && roomItem.includes(":::")) {
-          const parts = roomItem.split(":::");
-          itemZoneName = parts[0];
-          itemRoomName = parts[1];
-        }
-
-        const roomStr = String(itemRoomName).trim();
-        const targetZoneNamesToMatch = itemZoneName ? [itemZoneName.toLowerCase().trim()] : targetZoneNames;
-
-        const isZoneMatchLocal = (r) => {
-          if (targetZoneIdStrs.length > 0 && r.zone_id) {
-            if (targetZoneIdStrs.includes(String(r.zone_id))) return true;
-          }
-          if (targetZoneNamesToMatch.length > 0) {
-            const dbZone = zonesList.find(z => String(z.id ?? z.zoneStatusId) === String(r.zone_id));
-            const zName = dbZone ? (dbZone.zone || dbZone.zone_name) : (r.zone_name || "");
-            if (zName && targetZoneNamesToMatch.includes(zName.toLowerCase().trim())) return true;
-          }
-          return false;
-        };
-
-        // Step 1: Check if roomStr is a numeric room_id that actually exists in roomsList for the target building/floor/zone
->>>>>>> 1113d05089950f8dc6d08371072500b4c3c6fde2
         if (/^\d+$/.test(roomStr)) {
           const exactIdMatch = roomsList.find(r =>
             String(r.room_id ?? r.id) === roomStr &&
             (Building_Id ? String(r.building_id) === String(Building_Id) : true) &&
-<<<<<<< HEAD
             (targetFloorId ? String(r.fl_id || r.floor_id) === String(targetFloorId) : true)
           );
           if (exactIdMatch) return String(exactIdMatch.room_id ?? exactIdMatch.id);
-=======
-            (Floor_Id ? String(r.fl_id || r.floor_id) === String(Floor_Id) : true) &&
-            (targetZoneIdStrs.length > 0 || targetZoneNamesToMatch.length > 0 ? isZoneMatchLocal(r) : true)
-          );
-          if (exactIdMatch) {
-            return String(exactIdMatch.room_id ?? exactIdMatch.id);
-          }
->>>>>>> 1113d05089950f8dc6d08371072500b4c3c6fde2
         }
 
         const roomNameLower = roomStr.toLowerCase();
 
-<<<<<<< HEAD
         let matched = roomsList.find(r =>
           getRoomNameStr(r) === roomNameLower &&
           (Building_Id ? String(r.building_id) === String(Building_Id) : true) &&
           (targetFloorId ? String(r.fl_id || r.floor_id) === String(targetFloorId) : true)
         );
 
-=======
-        // Step 2: Match room by name + Building + Floor + Zone
-        let matched = roomsList.find(r =>
-          getRoomNameStr(r) === roomNameLower &&
-          (Building_Id ? String(r.building_id) === String(Building_Id) : true) &&
-          (Floor_Id ? String(r.fl_id || r.floor_id) === String(Floor_Id) : true) &&
-          isZoneMatchLocal(r)
-        );
-
-        // Step 3: Match room by name + Building + Floor
-        if (!matched) {
-          matched = roomsList.find(r =>
-            getRoomNameStr(r) === roomNameLower &&
-            (Building_Id ? String(r.building_id) === String(Building_Id) : true) &&
-            (Floor_Id ? String(r.fl_id || r.floor_id) === String(Floor_Id) : true)
-          );
-        }
-
-        // Step 4: Match room by name + Building
->>>>>>> 1113d05089950f8dc6d08371072500b4c3c6fde2
         if (!matched) {
           matched = roomsList.find(r =>
             getRoomNameStr(r) === roomNameLower &&
@@ -2214,23 +2118,10 @@ function NewRequest() {
           );
         }
 
-<<<<<<< HEAD
-=======
-        // Step 5: Match room by name alone
->>>>>>> 1113d05089950f8dc6d08371072500b4c3c6fde2
         if (!matched) {
           matched = roomsList.find(r => getRoomNameStr(r) === roomNameLower);
         }
 
-<<<<<<< HEAD
-=======
-        // Step 6: Fallback clean string match
-        if (!matched) {
-          const cleanLower = roomNameLower.replace(/[^a-z0-9]/g, "");
-          matched = roomsList.find(r => getRoomNameStr(r).replace(/[^a-z0-9]/g, "") === cleanLower);
-        }
-
->>>>>>> 1113d05089950f8dc6d08371072500b4c3c6fde2
         return matched ? String(matched.room_id ?? matched.id) : roomStr;
       }).filter(Boolean);
 
@@ -2669,23 +2560,6 @@ function NewRequest() {
     }
   };
 
-<<<<<<< HEAD
-=======
-  const toggleRoomSelection = (roomName, zoneName) => {
-    const key = zoneName ? `${zoneName}:::${roomName}` : roomName;
-    setSelectedRooms(prev => {
-      const exists = prev.includes(key);
-      let updated;
-      if (exists) {
-        updated = prev.filter(r => r !== key);
-      } else {
-        updated = [...prev, key];
-      }
-      return Array.from(new Set(updated));
-    });
-  };
-
->>>>>>> 1113d05089950f8dc6d08371072500b4c3c6fde2
   if (isnewrequestcreated) {
 
     return (
@@ -3141,7 +3015,6 @@ function NewRequest() {
                   placeholder="Click to select rooms..."
                   value={(() => {
                     if (!selectedRooms || selectedRooms.length === 0) return "";
-<<<<<<< HEAD
                     return selectedRooms.map(token => {
                       const parsed = parseRoomToken(token, level);
                       if (parsed.level && parsed.zone) {
@@ -3150,16 +3023,6 @@ function NewRequest() {
                         return `${parsed.zone} - ${parsed.roomName}`;
                       }
                       return parsed.roomName;
-=======
-                    const roomNames = selectedRooms.map(r => (typeof r === "string" && r.includes(":::") ? r.split(":::")[1] : String(r)));
-                    const hasDupes = new Set(roomNames).size !== roomNames.length;
-                    return selectedRooms.map(r => {
-                      if (typeof r === "string" && r.includes(":::")) {
-                        const [zName, rName] = r.split(":::");
-                        return hasDupes ? `${zName}: ${rName}` : rName;
-                      }
-                      return String(r);
->>>>>>> 1113d05089950f8dc6d08371072500b4c3c6fde2
                     }).join(", ");
                   })()}
                   readOnly
@@ -3181,7 +3044,6 @@ function NewRequest() {
                       <div style={{ display: "flex", flexDirection: "column", gap: "8px", paddingLeft: "8px" }}>
                         {zGroup.rooms.map((room) => {
                           const roomName = typeof room === "object" ? room.name : room;
-<<<<<<< HEAD
                           const isChecked = selectedRooms.some(token => {
                             const parsed = parseRoomToken(token, level);
                             return (
@@ -3191,21 +3053,13 @@ function NewRequest() {
                             );
                           });
 
-=======
-                          const roomKey = `${zoneToDraw.name}:::${roomName}`;
-                          const isChecked = selectedRooms.includes(roomKey) || selectedRooms.includes(roomName);
->>>>>>> 1113d05089950f8dc6d08371072500b4c3c6fde2
                           return (
                             <label key={roomName} className="custom-checkbox-label" style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}>
                               <input
                                 type="checkbox"
                                 className="custom-checkbox-input"
                                 checked={isChecked}
-<<<<<<< HEAD
                                 onChange={() => toggleRoomSelection(roomName, zGroup.zoneName, zGroup.levelName)}
-=======
-                                onChange={() => toggleRoomSelection(roomName, zoneToDraw.name)}
->>>>>>> 1113d05089950f8dc6d08371072500b4c3c6fde2
                               />
                               <span style={{ fontSize: "13px", color: isChecked ? "#60a5fa" : "#d1d5db" }}>
                                 {roomName}

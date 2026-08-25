@@ -289,14 +289,6 @@ function Sidebar({ sidebarOpen, toggleSidebar }) {
         </div>
       </div>
 
-      {/* ── "← Back to Modules" — shown only inside IM / SO ── */}
-      {moduleConf && (
-        <Link to="/modules" className="sidebar-back-modules" title="Back to Module Selection">
-          <i className="ti ti-arrow-left" />
-          <span className="nav-label">All Modules</span>
-        </Link>
-      )}
-
       {/* ── Scrollable nav ── */}
       <div className="sidebar-inner">
         <nav>

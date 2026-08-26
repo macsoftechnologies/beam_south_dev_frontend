@@ -707,56 +707,94 @@ export default function IMDetails() {
     } catch (e) { return { date: dStr, time: "—" }; }
   };
 
-  const renderAuditCard = (step, index, totalSteps) => {
-    const { title, type, user, role, timestamp, signature, iconSvg, color } = step;
-    if (!user || !timestamp) return null;
-    const { date, time } = formatDateTimeObj(timestamp);
-    const isLast = index === totalSteps - 1;
-    return (
-      <div key={index} style={{ position: "relative", paddingLeft: 40, marginBottom: isLast ? 0 : 24 }}>
-        <div style={{ position: "absolute", left: -10, top: 20, width: 20, height: 20, background: color, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid var(--bg-card, #fff)", zIndex: 2 }}>
-          {type === "APPROVED" ? (
-             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 13l4 4L19 7" /></svg>
-          ) : (
-             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-          )}
-        </div>
-        {!isLast && <div style={{ position: "absolute", left: -1, top: 40, bottom: -44, width: 2, background: "var(--border-color)", zIndex: 1 }}></div>}
-        <div style={{ position: "relative", background: "var(--bg-card, #fff)", border: "1px solid var(--border-color)", borderRadius: 8, padding: 16, display: "flex", gap: 16, alignItems: "center", boxShadow: "var(--shadow-sm, 0 1px 3px rgba(0,0,0,0.05))" }}>
-          <div style={{ position: "absolute", left: -6, top: 24, width: 10, height: 10, background: "var(--bg-card, #fff)", borderLeft: "1px solid var(--border-color)", borderBottom: "1px solid var(--border-color)", transform: "rotate(45deg)", borderRight: "none", borderTop: "none" }}></div>
-          <div style={{ width: 64, height: 64, background: color + "1a", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            {iconSvg}
+  
+    const renderSignatureCard = (step, index) => {
+      const { user, role, signature, color } = step;
+      if (!user) return null;
+      
+      const getInitials = (name) => {
+        const parts = name.split(" ");
+        if (parts.length >= 2) return parts[0][0].toUpperCase() + parts[1][0].toUpperCase();
+        return name.substring(0, 2).toUpperCase();
+      };
+      const initials = getInitials(user);
+
+      return (
+        <div key={`sig-${index}`} style={{ display: "flex", alignItems: "center", gap: 16, padding: "16px", background: "var(--bg-card, #fff)", borderRadius: 8, border: "1px solid var(--border-color)", marginBottom: 0, boxShadow: "0 1px 2px rgba(0,0,0,0.05)", width: "280px", flexShrink: 0 }}>
+          <div style={{ width: 40, height: 40, borderRadius: "50%", background: color + "1a", color: color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, flexShrink: 0 }}>
+            {initials}
           </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 16, fontWeight: 700, color: color, marginBottom: 4 }}>{title}</div>
-            <div style={{ display: "inline-flex", alignItems: "center", gap: 4, background: color + "1a", color: color, padding: "2px 8px", borderRadius: 12, fontSize: 12, fontWeight: 600, marginBottom: 8 }}>
-              {type === "APPROVED" ? (<span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: 4, verticalAlign: 'middle', marginTop: '-2px'}}><path d="M5 13l4 4L19 7" /></svg>Marked OK & Signed Off</span>) : "Submitted"}
-            </div>
-            <div style={{ fontSize: 13, color: "var(--text-main)", marginBottom: 8 }}>
-              {type === "APPROVED" ? "Signed by" : "Submitted by"} <b>{user}</b> <span style={{ color: "var(--text-muted)" }}>({role})</span>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 16, fontSize: 12, color: "var(--text-muted)" }}>
-              <span style={{ display: "flex", alignItems: "center", gap: 6 }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg> {date}</span>
-              <span style={{ display: "flex", alignItems: "center", gap: 6, borderLeft: "1px solid var(--border-color)", paddingLeft: 16 }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><line x1="12" y1="6" x2="12" y2="12" /><line x1="12" y1="12" x2="16" y2="14" /></svg> {time}</span>
-            </div>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minWidth: 160, borderLeft: "1px solid var(--border-color)", paddingLeft: 16 }}>
-            <div style={{ width: 140, height: 60, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 8, background: "#fff", borderRadius: 6, padding: 4 }}>
+          <div style={{ flex: 1, borderLeft: "1px solid var(--border-color)", paddingLeft: 16, display: "flex", flexDirection: "column" }}>
+            <div style={{ height: 40, display: "flex", alignItems: "center", marginBottom: 4 }}>
               {signature && (signature.startsWith("data:image") || signature.startsWith("http") || signature.startsWith("/")) ? (
-                <img src={signature} alt="Signature" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
+                <img src={signature} alt="Signature" style={{ maxHeight: "100%", maxWidth: "120px", objectFit: "contain" }} />
               ) : (
-                <svg width="100%" height="100%" viewBox="0 0 500 120" preserveAspectRatio="xMidYMid meet"><path d="M50,80 Q100,20 150,60 T250,80 T350,40 T450,70" fill="none" stroke="#000" strokeWidth="6" strokeLinecap="round" /></svg>
+                <svg width="80" height="30" viewBox="0 0 500 120" preserveAspectRatio="xMidYMid meet"><path d="M50,80 Q100,20 150,60 T250,80 T350,40 T450,70" fill="none" stroke="#000" strokeWidth="6" strokeLinecap="round" /></svg>
               )}
             </div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-main)", textAlign: "center" }}>{user}</div>
-            <div style={{ fontSize: 11, color: "var(--text-muted)", textAlign: "center" }}>({role})</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-main)" }}>{user}</div>
+            <div style={{ fontSize: 11, color: "var(--text-muted)" }}>({role})</div>
           </div>
         </div>
-      </div>
-    );
-  };
+      );
+    };
 
-  const huAudit = [];
+    const renderAuditCard = (step, index, totalSteps) => {
+      const { title, type, user, role, timestamp, color } = step;
+      if (!user || !timestamp) return null;
+      const { date, time } = formatDateTimeObj(timestamp);
+      const isLast = index === totalSteps - 1;
+      const stepNumber = String(index + 1).padStart(2, '0');
+      
+      return (
+        <div key={index} style={{ display: "flex", alignItems: "flex-start", gap: 16, position: "relative", paddingBottom: isLast ? 0 : 24 }}>
+          {/* Connector Line */}
+          {!isLast && <div style={{ position: "absolute", left: 24, top: 48, bottom: -8, width: 2, background: "var(--border-color)", zIndex: 1 }}></div>}
+          
+          {/* Icon Circle */}
+          <div style={{ width: 48, height: 48, borderRadius: "50%", background: color, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2, flexShrink: 0, marginTop: 4 }}>
+            {type === "APPROVED" ? (
+               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
+            ) : type === "SUBMITTED" && title.includes("Investigation") ? (
+               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            ) : title.includes("Initial") ? (
+               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+            ) : (
+               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+            )}
+          </div>
+          
+          <div style={{ display: "flex", alignItems: "center", flex: 1, padding: "8px 16px", background: "var(--bg-card, #fff)", borderRadius: 8, border: "1px solid var(--border-color)", boxShadow: "0 1px 2px rgba(0,0,0,0.05)" }}>
+            {/* Number */}
+            <div style={{ fontSize: 24, fontWeight: 800, color: color, marginRight: 24 }}>{stepNumber}</div>
+            
+            {/* Content */}
+            <div style={{ flex: 1 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
+                <span style={{ fontSize: 16, fontWeight: 700, color: color }}>{title}</span>
+                <span style={{ background: color + "1a", color: color, padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 600 }}>
+                  {type === "APPROVED" ? "Marked OK & Signed Off" : "Submitted"}
+                </span>
+              </div>
+              <div style={{ fontSize: 13, color: "var(--text-main)", marginBottom: 6 }}>
+                {type === "APPROVED" ? "Signed by" : "Submitted by"} <b>{user}</b> <span style={{ color: "var(--text-muted)" }}>({role})</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 16, fontSize: 12, color: "var(--text-muted)" }}>
+                <span style={{ display: "flex", alignItems: "center", gap: 6 }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg> {date}</span>
+                <span style={{ display: "flex", alignItems: "center", gap: 6 }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><line x1="12" y1="6" x2="12" y2="12" /><line x1="12" y1="12" x2="16" y2="14" /></svg> {time}</span>
+              </div>
+            </div>
+            
+            {/* Arrow */}
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+          </div>
+          
+          {renderSignatureCard(step, index)}
+        </div>
+      );
+    };
+
+    const huAudit = [];
   if (headsUpData && (headsUpData.submittedBy || headsUpData.signature)) {
     huAudit.push({
       title: "Heads-Up Notification (2hr)", type: "SUBMITTED",
@@ -780,19 +818,19 @@ export default function IMDetails() {
   if (initialReportData && (initialReportData.submittedBy || initialReportData.signature || initialReportSubmitted)) {
     irAudit.push({
       title: "Initial Incident Report (24hr)", type: "SUBMITTED",
-      user: initialReportData.submittedBy || incident?.reporterName || incident?.reportedBy || "User", role: initialReportData.submitterRole || "Reporter",
-      timestamp: initialReportData.submittedTime || initialReportData.createdTime, signature: initialReportData.signature,
-      iconSvg: <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>,
-      color: "#3b82f6"
+        user: initialReportData.submittedBy || incident?.reporterName || incident?.reportedBy || "User", role: initialReportData.submitterRole || "Reporter",
+        timestamp: initialReportData.submittedTime || initialReportData.createdTime, signature: initialReportData.signature,
+        iconSvg: <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#eab308" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>,
+        color: "#eab308"
     });
   }
   if (initialReportApproved) {
     irAudit.push({
       title: "Initial Incident Report (24hr)", type: "APPROVED",
-      user: initialReportData?.approvedBy || "Reviewer", role: initialReportData?.approverRole || "Customer Approver",
-      timestamp: initialReportData?.approvedTime || initialReportData?.updatedTime, signature: initialReportData?.approverSignature || initialReportData?.signature,
-      iconSvg: <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--color-safe, #10b981)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>,
-      color: "var(--color-safe, #10b981)"
+        user: initialReportData?.approvedBy || "Reviewer", role: initialReportData?.approverRole || "Customer Approver",
+        timestamp: initialReportData?.approvedTime || initialReportData?.updatedTime, signature: initialReportData?.approverSignature || initialReportData?.signature,
+        iconSvg: <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>,
+        color: "#8b5cf6"
     });
   }
 
@@ -802,20 +840,20 @@ export default function IMDetails() {
     if (investigationSubmitted || invSubSig || investigationData.submittedBy) {
       invAudit.push({
         title: "Incident Investigation Report (7 days)", type: "SUBMITTED",
-        user: invSubSig ? invSubSig.name : (investigationData.submittedBy || incident?.investigatorName || "Investigator"), role: invSubSig ? invSubSig.role : (investigationData.submitterRole || "Investigator"),
-        timestamp: investigationData.submittedTime || investigationData.completedTime || investigationData.createdTime, signature: invSubSig ? invSubSig.signature : investigationData.signature,
-        iconSvg: <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>,
-        color: "#3b82f6"
+        user: investigationData.submittedBy || incident?.investigatorName || "User", role: investigationData.submitterRole || "HSE Investigator",
+        timestamp: investigationData.submittedTime || investigationData.createdTime, signature: investigationData.signature,
+        iconSvg: <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#ec4899" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>,
+        color: "#ec4899"
       });
     }
   }
   if (investigationApproved) {
     invAudit.push({
       title: "Incident Investigation Report (7 days)", type: "APPROVED",
-      user: investigationData?.reviewedBy || investigationData?.approvedBy || "Reviewer", role: investigationData?.reviewerRole || investigationData?.approverRole || "Reviewer",
-      timestamp: investigationData?.reviewedTime || investigationData?.approvedTime || investigationData?.updatedTime, signature: investigationData?.reviewerSignature || investigationData?.approverSignature || investigationData?.signature,
-      iconSvg: <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--color-safe, #10b981)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>,
-      color: "var(--color-safe, #10b981)"
+        user: investigationData?.reviewedBy || "Reviewer", role: investigationData?.reviewerRole || "Leader",
+        timestamp: investigationData?.reviewedTime || investigationData?.updatedTime, signature: investigationData?.reviewerSignature || investigationData?.signature,
+        iconSvg: <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#14b8a6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="M9 12l2 2 4-4" /></svg>,
+        color: "#14b8a6"
     });
   }
 
@@ -968,7 +1006,9 @@ export default function IMDetails() {
             <div className="mod-card-body" style={{ padding: "24px 16px" }}>
               {allAuditSteps.length > 0 ? (
                 <div style={{ position: "relative", paddingLeft: 16 }}>
-                  {allAuditSteps.map((step, i) => renderAuditCard(step, i, allAuditSteps.length))}
+                  <div style={{ position: "relative", paddingLeft: 16 }}>
+                    {allAuditSteps.map((step, i) => renderAuditCard(step, i, allAuditSteps.length))}
+                  </div>
                 </div>
               ) : (
                 <div style={{ fontSize: 14, color: "var(--text-muted)", fontStyle: "italic", padding: "16px", background: "var(--bg-dark, #f8fafc)", borderRadius: 8, border: "1px dashed var(--border-color)", textAlign: "center" }}>No audit events yet.</div>
@@ -1114,7 +1154,9 @@ export default function IMDetails() {
                 </div>
                 <div className="mod-card-body" style={{ padding: "24px 16px" }}>
                   <div style={{ position: "relative", paddingLeft: 16 }}>
-                    {huAudit.map((step, i) => renderAuditCard(step, i, huAudit.length))}
+                    <div style={{ position: "relative", paddingLeft: 16 }}>
+                      {huAudit.map((step, i) => renderAuditCard(step, i, huAudit.length))}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1190,7 +1232,9 @@ export default function IMDetails() {
                       </div>
                       <div className="mod-card-body" style={{ padding: "24px 16px" }}>
                         <div style={{ position: "relative", paddingLeft: 16 }}>
-                          {irAudit.map((step, i) => renderAuditCard(step, i, irAudit.length))}
+                          <div style={{ position: "relative", paddingLeft: 16 }}>
+                            {irAudit.map((step, i) => renderAuditCard(step, i, irAudit.length))}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -1602,7 +1646,9 @@ export default function IMDetails() {
                       </div>
                       <div className="mod-card-body" style={{ padding: "24px 16px" }}>
                         <div style={{ position: "relative", paddingLeft: 16 }}>
-                          {invAudit.map((step, i) => renderAuditCard(step, i, invAudit.length))}
+                          <div style={{ position: "relative", paddingLeft: 16 }}>
+                            {invAudit.map((step, i) => renderAuditCard(step, i, invAudit.length))}
+                          </div>
                         </div>
                       </div>
                     </div>

@@ -720,12 +720,12 @@ export default function IMDetails() {
       const initials = getInitials(user);
 
       return (
-        <div key={`sig-${index}`} style={{ display: "flex", alignItems: "center", gap: 16, padding: "16px", background: "var(--bg-card, #fff)", borderRadius: 8, border: "1px solid var(--border-color)", marginBottom: 0, boxShadow: "0 1px 2px rgba(0,0,0,0.05)", width: "280px", flexShrink: 0 }}>
+        <div key={`sig-${index}`} style={{ display: "flex", alignItems: "center", gap: 16, padding: "12px 16px", background: "var(--bg-card, #fff)", borderRadius: 8, border: "1px solid var(--border-color)", marginBottom: 0, boxShadow: "0 1px 2px rgba(0,0,0,0.05)", width: "280px", flexShrink: 0, height: "auto" }}>
           <div style={{ width: 40, height: 40, borderRadius: "50%", background: color + "1a", color: color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, flexShrink: 0 }}>
             {initials}
           </div>
           <div style={{ flex: 1, borderLeft: "1px solid var(--border-color)", paddingLeft: 16, display: "flex", flexDirection: "column" }}>
-            <div style={{ height: 40, display: "flex", alignItems: "center", marginBottom: 4 }}>
+            <div style={{ height: 32, display: "flex", alignItems: "center", marginBottom: 4 }}>
               {signature && (signature.startsWith("data:image") || signature.startsWith("http") || signature.startsWith("/")) ? (
                 <img src={signature} alt="Signature" style={{ maxHeight: "100%", maxWidth: "120px", objectFit: "contain" }} />
               ) : (
@@ -747,12 +747,12 @@ export default function IMDetails() {
       const stepNumber = String(index + 1).padStart(2, '0');
       
       return (
-        <div key={index} style={{ display: "flex", alignItems: "flex-start", gap: 16, position: "relative", paddingBottom: isLast ? 0 : 24 }}>
+        <div key={index} style={{ display: "flex", alignItems: "stretch", gap: 16, position: "relative", paddingBottom: isLast ? 0 : 24 }}>
           {/* Connector Line */}
           {!isLast && <div style={{ position: "absolute", left: 24, top: 48, bottom: -8, width: 2, background: "var(--border-color)", zIndex: 1 }}></div>}
           
           {/* Icon Circle */}
-          <div style={{ width: 48, height: 48, borderRadius: "50%", background: color, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2, flexShrink: 0, marginTop: 4 }}>
+          <div style={{ width: 48, height: 48, borderRadius: "50%", background: color, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2, flexShrink: 0, marginTop: 4, alignSelf: "center" }}>
             {type === "APPROVED" ? (
                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
             ) : type === "SUBMITTED" && title.includes("Investigation") ? (
@@ -764,7 +764,7 @@ export default function IMDetails() {
             )}
           </div>
           
-          <div style={{ display: "flex", alignItems: "center", flex: 1, padding: "8px 16px", background: "var(--bg-card, #fff)", borderRadius: 8, border: "1px solid var(--border-color)", boxShadow: "0 1px 2px rgba(0,0,0,0.05)" }}>
+          <div style={{ display: "flex", alignItems: "center", flex: 1, padding: "8px 16px", background: "var(--bg-card, #fff)", borderRadius: 8, border: "1px solid var(--border-color)", boxShadow: "0 1px 2px rgba(0,0,0,0.05)", height: "auto" }}>
             {/* Number */}
             <div style={{ fontSize: 24, fontWeight: 800, color: color, marginRight: 24 }}>{stepNumber}</div>
             

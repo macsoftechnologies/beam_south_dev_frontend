@@ -1,7 +1,7 @@
 import React, { useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Chart, registerables } from "chart.js";
-import { INCIDENTS, IM_STATS } from "../data/incidents";
+import { getIncidents } from "../../../services/incidentService";
 import PageHeader from "../../../components/common/PageHeader/PageHeader";
 import StatCard from "../../../components/common/StatCard/StatCard";
 import "../../../styles/module-shared.css";
@@ -24,17 +24,25 @@ const MONTHLY = [
 
 function IMReports() {
   const navigate = useNavigate();
+  const [incidents, setIncidents] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+
+  useEffect(() => {
+    getIncidents().then(data => {
+      setIncidents(data);
+    }).catch(err => console.error(err)).finally(() => setLoading(false));
+  }, []);
   const trendRef = useRef(null);
   const catRef = useRef(null);
   const trendInst = useRef(null);
   const catInst = useRef(null);
 
   const catData = Object.entries(
-    INCIDENTS.reduce((acc, i) => { acc[i.category] = (acc[i.category] || 0) + 1; return acc; }, {})
+    incidents.reduce((acc, i) => { acc[i.category] = (acc[i.category] || 0) + 1; return acc; }, {})
   ).sort((a, b) => b[1] - a[1]).slice(0, 6);
 
   useEffect(() => {
-    if (!trendRef.current) return;
+    if (!trendRef.current || loading) return;
     if (trendInst.current) trendInst.current.destroy();
     trendInst.current = new Chart(trendRef.current.getContext("2d"), {
       type: "line",
@@ -58,34 +66,37 @@ function IMReports() {
         },
       },
     });
-    return () => { if (trendInst.current) trendInst.current.destroy(); };
-  }, []);
 
-  useEffect(() => {
     if (!catRef.current) return;
     if (catInst.current) catInst.current.destroy();
     catInst.current = new Chart(catRef.current.getContext("2d"), {
-      type: "bar",
+      type: "doughnut",
       data: {
-        labels: catData.map(([c]) => c),
+        labels: catData.map(d => d[0]),
         datasets: [{
-          label: "Count",
-          data: catData.map(([, v]) => v),
-          backgroundColor: ["#2563EB", "#7C3AED", "#059669", "#D97706", "#DC2626", "#0891B2"],
-          borderRadius: 6, borderSkipped: false,
+          data: catData.map(d => d[1]),
+          backgroundColor: ["#131E40", "#2563EB", "#7C3AED", "#E11D48", "#F59E0B", "#10B981"],
+          borderWidth: 0,
+          hoverOffset: 4
         }],
       },
       options: {
         responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: {
-          y: { beginAtZero: true, ticks: { color: "#6B7280", precision: 0 }, grid: { color: "rgba(107,114,128,0.12)" } },
-          x: { ticks: { color: "#6B7280", maxRotation: 20 }, grid: { display: false } },
+        cutout: "75%",
+        plugins: {
+          legend: { display: false },
         },
-      },
+      }
     });
-    return () => { if (catInst.current) catInst.current.destroy(); };
-  }, []);
+    return () => { 
+      if (trendInst.current) trendInst.current.destroy();
+      if (catInst.current) catInst.current.destroy(); 
+    };
+  }, [catData, loading]);
+
+  if (loading) {
+    return <div className="mod-page"><div className="mod-card" style={{ padding: 60, textAlign: "center" }}>Loading Reports...</div></div>;
+  }
 
   return (
     <div className="mod-page">

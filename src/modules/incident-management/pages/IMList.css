@@ -37,7 +37,9 @@ th.ith.sorted-desc::after { content:' \25BC'; font-size:9px; }
 .st-label { margin-left:9px; font-size:11px; font-weight:700; }
 .st-label.st-label-live { color:var(--color-risk); }
 .st-label.st-label-closed { color:var(--color-safe); }
-
+.st-dot.st-opened { background:#f97316; color:#fff; }
+.st-line.on-opened { background:#f97316; }
+.st-label.st-label-opened { color:#c2410c; }
 /* Dashboard layout additions */
 .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
 .mb-6 { margin-bottom: 24px; }

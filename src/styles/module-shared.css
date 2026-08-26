@@ -219,8 +219,8 @@
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  background: #0f172a;
-  color: #fff;
+  background: var(--accent-primary, #2563EB);
+  color: var(--text-white, #fff);
   border: none;
   border-radius: 8px;
   padding: 4px 16px;
@@ -233,8 +233,8 @@
 }
 
 .mod-btn-primary:hover {
-  background: var(--accent-hover, #1e293b);
-  color: #fff;
+  background: var(--accent-hover, #1D4ED8);
+  color: var(--text-white, #fff);
 }
 
 .mod-btn-primary svg {
@@ -380,6 +380,13 @@
   background: var(--bg-card, #fff);
 }
 
+.mod-form-input::placeholder,
+.mod-form-textarea::placeholder,
+.mod-form-select::placeholder {
+  color: var(--text-muted, #9CA3AF);
+  opacity: 1;
+}
+
 .mod-form-textarea {
   resize: vertical;
   min-height: 100px;
@@ -495,4 +502,14 @@ html[data-theme="light"] .mod-detail-item {
 
 html[data-theme="light"] .mod-description-box {
   background: #F3F4F6 !important;
+}
+
+/* Incident Management Specific Primary Button Override */
+.im-btn-primary {
+  background: #111827 !important;
+  color: #fff !important;
+}
+
+.im-btn-primary:hover {
+  background: #1f2937 !important;
 }

@@ -1,6 +1,6 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { INCIDENTS } from "../data/incidents";
+import { getIncidentById } from "../../../services/incidentService";
 import PageHeader from "../../../components/common/PageHeader/PageHeader";
 import StatusBadge from "../../../components/common/StatusBadge/StatusBadge";
 import "../../../styles/module-shared.css";
@@ -23,14 +23,33 @@ const INVESTIGATION_STEPS = [
 function IMInvestigation() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const incident = INCIDENTS.find(i => i.id === id);
+  const [incident, setIncident] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchIncident = async () => {
+      try {
+        const data = await getIncidentById(id);
+        setIncident(data);
+      } catch (err) {
+        console.error("Failed to load incident:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchIncident();
+  }, [id]);
+
+  if (loading) {
+    return <div className="mod-page"><div className="mod-card" style={{ padding: 60, textAlign: "center" }}>Loading...</div></div>;
+  }
 
   if (!incident) {
     return (
       <div className="mod-page">
         <div className="mod-card" style={{ padding: "60px 32px", textAlign: "center" }}>
           <p style={{ color: "var(--text-muted)" }}>Incident not found.</p>
-          <button className="mod-btn-primary" style={{ marginTop: 16 }} onClick={() => navigate("/incident-management/list")}>← Back to List</button>
+          <button className="mod-btn-primary im-btn-primary" style={{ marginTop: 16 }} onClick={() => navigate("/incident-management/list")}>← Back to List</button>
         </div>
       </div>
     );

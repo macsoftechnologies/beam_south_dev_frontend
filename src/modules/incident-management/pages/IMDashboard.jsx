@@ -1,7 +1,7 @@
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Chart, registerables } from "chart.js";
-import { INCIDENTS, IM_STATS } from "../data/incidents";
+import { getIncidents } from "../../../services/incidentService";
 import StatCard from "../../../components/common/StatCard/StatCard";
 import PageHeader from "../../../components/common/PageHeader/PageHeader";
 import StatusBadge from "../../../components/common/StatusBadge/StatusBadge";
@@ -57,42 +57,64 @@ const Icons = {
   ),
 };
 
-/* ── Recent table (5 latest) ── */
-const recent = [...INCIDENTS].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 8);
-
-/* ── Category distribution ── */
-const categoryCounts = INCIDENTS.reduce((acc, inc) => {
-  acc[inc.category] = (acc[inc.category] || 0) + 1;
-  return acc;
-}, {});
-
-const topCategories = Object.entries(categoryCounts)
-  .sort((a, b) => b[1] - a[1])
-  .slice(0, 6);
-
 function IMDashboard() {
   const navigate = useNavigate();
   const barRef = useRef(null);
   const doughnutRef = useRef(null);
   const barInst = useRef(null);
   const doughnutInst = useRef(null);
+  
+  const [incidents, setIncidents] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const res = await getIncidents();
+        setIncidents(Array.isArray(res) ? res : (res.data || []));
+      } catch (e) {
+        console.error("Failed to load dashboard data", e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
+  }, []);
+
+  const stats = {
+    total: incidents.length,
+    open: incidents.filter(i => i.stage !== "CLOSED" && i.status !== "Closed").length,
+    closed: incidents.filter(i => i.stage === "CLOSED" || i.status === "Closed").length,
+    highSeverity: incidents.filter(i => String(i.potentialSeverity) === "4" || String(i.potentialSeverity) === "5").length
+  };
+
+  const recent = [...incidents].sort((a, b) => new Date(b.createdAt || b.date) - new Date(a.createdAt || a.date)).slice(0, 8);
+
+  const categoryCounts = incidents.reduce((acc, inc) => {
+    const cat = inc.category || inc.classification || "Uncategorized";
+    acc[cat] = (acc[cat] || 0) + 1;
+    return acc;
+  }, {});
+  const topCategories = Object.entries(categoryCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6);
 
   // ── Bar Chart: status breakdown ──
   useEffect(() => {
-    if (!barRef.current) return;
+    if (!barRef.current || loading) return;
     if (barInst.current) { barInst.current.destroy(); }
 
     barInst.current = new Chart(barRef.current.getContext("2d"), {
       type: "bar",
       data: {
-        labels: ["Open", "In Progress", "Investigating", "Closed"],
+        labels: ["Heads-Up", "Initial Report", "Investigation", "Closed"],
         datasets: [{
           label: "Incidents",
           data: [
-            INCIDENTS.filter(i => i.status === "Open").length,
-            INCIDENTS.filter(i => i.status === "In Progress").length,
-            INCIDENTS.filter(i => i.status === "Investigating").length,
-            INCIDENTS.filter(i => i.status === "Closed").length,
+            incidents.filter(i => i.stage === "HEADS_UP" || i.pipeline === "Heads-Up").length,
+            incidents.filter(i => i.stage === "INITIAL_REPORT" || i.pipeline === "Initial").length,
+            incidents.filter(i => i.stage === "INVESTIGATION" || i.pipeline === "Investigation").length,
+            incidents.filter(i => i.stage === "CLOSED" || i.pipeline === "Closed").length,
           ],
           backgroundColor: ["#2563EB", "#D97706", "#7C3AED", "#059669"],
           borderRadius: 6,
@@ -109,25 +131,25 @@ function IMDashboard() {
       },
     });
     return () => { if (barInst.current) barInst.current.destroy(); };
-  }, []);
+  }, [incidents, loading]);
 
   // ── Doughnut Chart: severity ──
   useEffect(() => {
-    if (!doughnutRef.current) return;
+    if (!doughnutRef.current || loading) return;
     if (doughnutInst.current) { doughnutInst.current.destroy(); }
 
     doughnutInst.current = new Chart(doughnutRef.current.getContext("2d"), {
       type: "doughnut",
       data: {
-        labels: ["Critical", "High", "Medium", "Low"],
+        labels: ["Critical (4-5)", "Moderate (3)", "Minor (2)", "Insignificant (1)"],
         datasets: [{
           data: [
-            INCIDENTS.filter(i => i.severity === "Critical").length,
-            INCIDENTS.filter(i => i.severity === "High").length,
-            INCIDENTS.filter(i => i.severity === "Medium").length,
-            INCIDENTS.filter(i => i.severity === "Low").length,
+            incidents.filter(i => String(i.actualSeverity) === "4" || String(i.actualSeverity) === "5").length,
+            incidents.filter(i => String(i.actualSeverity) === "3").length,
+            incidents.filter(i => String(i.actualSeverity) === "2").length,
+            incidents.filter(i => String(i.actualSeverity) === "1").length,
           ],
-          backgroundColor: ["#DC2626", "#EF4444", "#F59E0B", "#059669"],
+          backgroundColor: ["#DC2626", "#F59E0B", "#3B82F6", "#059669"],
           borderWidth: 0, hoverOffset: 10,
         }],
       },
@@ -140,7 +162,7 @@ function IMDashboard() {
       },
     });
     return () => { if (doughnutInst.current) doughnutInst.current.destroy(); };
-  }, []);
+  }, [incidents, loading]);
 
   return (
     <div className="mod-page im-dashboard">
@@ -150,7 +172,7 @@ function IMDashboard() {
         icon={<Icons.IMIcon />}
         breadcrumbs={[{ label: "Home" }, { label: "Incident Management" }, { label: "Dashboard" }]}
         actions={
-          <button className="mod-btn-primary" id="im-create-btn" onClick={() => navigate("/incident-management/create")}>
+          <button className="mod-btn-primary im-btn-primary" id="im-create-btn" onClick={() => navigate("/incident-management/create")}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             Report Incident
           </button>
@@ -159,10 +181,10 @@ function IMDashboard() {
 
       {/* ── Stat Cards ── */}
       <div className="mod-stats-row">
-        <StatCard icon={<Icons.Total />} label="Total Incidents" value={IM_STATS.total} colorClass="purple" />
-        <StatCard icon={<Icons.Open />}  label="Open / Active"  value={IM_STATS.open}  colorClass="caution" />
-        <StatCard icon={<Icons.Closed />} label="Closed"        value={IM_STATS.closed} colorClass="safe" />
-        <StatCard icon={<Icons.High />}  label="High Severity"  value={IM_STATS.highSeverity} colorClass="risk" />
+        <StatCard icon={<Icons.Total />} label="Total Incidents" value={stats.total} colorClass="purple" />
+        <StatCard icon={<Icons.Open />}  label="Open / Active"  value={stats.open}  colorClass="caution" />
+        <StatCard icon={<Icons.Closed />} label="Closed"        value={stats.closed} colorClass="safe" />
+        <StatCard icon={<Icons.High />}  label="High Severity"  value={stats.highSeverity} colorClass="risk" />
       </div>
 
       {/* ── Charts ── */}
@@ -197,7 +219,7 @@ function IMDashboard() {
               <div key={cat} className="im-cat-row">
                 <span className="im-cat-name">{cat}</span>
                 <div className="im-cat-bar-wrap">
-                  <div className="im-cat-bar" style={{ width: `${(count / INCIDENTS.length) * 100}%` }} />
+                  <div className="im-cat-bar" style={{ width: `${Math.max((count / Math.max(incidents.length, 1)) * 100, 2)}%` }} />
                 </div>
                 <span className="im-cat-count">{count}</span>
               </div>
@@ -226,8 +248,8 @@ function IMDashboard() {
                   <td className="id-cell">{inc.id}</td>
                   <td className="title-cell">{inc.title}</td>
                   <td>{inc.category}</td>
-                  <td><StatusBadge status={inc.severity.toLowerCase()} /></td>
-                  <td><StatusBadge status={inc.status.toLowerCase()} /></td>
+                  <td><StatusBadge status={String(inc.severity || "").toLowerCase()} /></td>
+                  <td><StatusBadge status={String(inc.status || "").toLowerCase()} /></td>
                   <td>{inc.date}</td>
                   <td>
                     <button className="mod-table action-btn" onClick={() => navigate(`/incident-management/details/${inc.id}`)}>

@@ -46,7 +46,8 @@ html[data-theme] .page-content {
         --sb-surface now #1F2937 (matches --bg-card-hover)
 ════════════════════════════════════════════════════════ */
 :root,
-html[data-theme="default-dark"] {
+html[data-theme="default-dark"],
+html[data-theme="dark"] {
 
   --main-bg:          #080B12;
   --navbar-bg:        #111827;

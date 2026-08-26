@@ -1,9 +1,15 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { INCIDENTS } from "../data/incidents";
+import Swal from "sweetalert2";
 import PageHeader from "../../../components/common/PageHeader/PageHeader";
+import { getIncidentById, approveHeadsUp, submitInitialReport, approveInitialReport, getActionItems, addActionItem, updateActionItem, deleteActionItem, saveInvestigation, reviewInvestigation, closeIncident } from "../../../services/incidentService";
+import { showSuccess, showError } from "../../../components/common/Toast/Toast";
+import Loader from "../../../components/common/Loader/Loader";
+import nneLogo from "../../../assets/images/nne_logo.png";
+import novoLogo from "../../../assets/images/Logo.jpeg";
 import "../../../styles/module-shared.css";
 import "./IMDetails.css";
+import { AnalogTimePicker } from "./IMCreate";
 
 const DetailIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -63,12 +69,14 @@ const SignaturePad = ({ value, onChange, onClear }) => {
     const ctx = canvasRef.current.getContext('2d');
     ctx.lineTo(x, y);
     ctx.stroke();
-    if (!value && onChange) onChange(true);
   };
 
   const stopDrawing = (e) => {
     if (isDrawing) {
       setIsDrawing(false);
+      if (onChange && canvasRef.current) {
+        onChange(canvasRef.current.toDataURL("image/png"));
+      }
     }
   };
 
@@ -83,19 +91,19 @@ const SignaturePad = ({ value, onChange, onClear }) => {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      <div 
-        style={{ 
-          position: "relative", 
-          border: "1px dashed var(--border-color)", 
-          borderRadius: 6, 
-          height: 120, 
-          background: "#f8fafc", 
-          touchAction: "none", 
-          overflow: "hidden" 
+      <div
+        style={{
+          position: "relative",
+          border: "1px dashed var(--border-color)",
+          borderRadius: 6,
+          height: 120,
+          background: "#f8fafc",
+          touchAction: "none",
+          overflow: "hidden"
         }}
       >
         {!value && <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", color: "var(--text-muted)", pointerEvents: "none", fontSize: 14 }}>Draw your signature here</div>}
-        <canvas 
+        <canvas
           ref={canvasRef}
           width={800}
           height={120}
@@ -110,9 +118,9 @@ const SignaturePad = ({ value, onChange, onClear }) => {
           onTouchCancel={stopDrawing}
         />
       </div>
-      <button 
-        type="button" 
-        style={{ alignSelf: "flex-start", color: "#e11d48", background: "transparent", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 500, padding: 0 }} 
+      <button
+        type="button"
+        style={{ alignSelf: "flex-start", color: "#e11d48", background: "transparent", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 500, padding: 0 }}
         onClick={handleClear}
       >
         Clear signature
@@ -124,16 +132,52 @@ const SignaturePad = ({ value, onChange, onClear }) => {
 export default function IMDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const incident = INCIDENTS.find(i => i.id === id);
+
+  const [rawIncident, setRawIncident] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  React.useEffect(() => {
+    const fetchIncident = async () => {
+      try {
+        const data = await getIncidentById(id);
+        const resData = data?.data || data;
+        setRawIncident(resData);
+        if (resData?.headsUp?.approvedBy) setHeadsUpApproved(true);
+
+        // Sync Initial Report states
+        if (resData?.initialReport?.approvedBy) {
+          setInitialReportApproved(true);
+          setInitialReportSubmitted(true);
+        } else if (resData?.stage === "INVESTIGATION" || resData?.stage === "CLOSED" || resData?.initialReport?.id) {
+          setInitialReportSubmitted(true);
+        }
+
+        // Sync Investigation states
+        if (resData?.investigation?.reviewedBy || resData?.investigation?.approvedBy) {
+          setInvestigationApproved(true);
+          setInvestigationSubmitted(true);
+        } else if (resData?.stage === "CLOSED" || resData?.investigation?.id) {
+          setInvestigationSubmitted(true);
+        }
+      } catch (err) {
+        console.error("Failed to load incident details:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchIncident();
+  }, [id]);
   const [activeTab, setActiveTab] = useState("headsUp");
   const [headsUpApproved, setHeadsUpApproved] = useState(false);
   const [signature, setSignature] = useState(false);
   const [markedOk, setMarkedOk] = useState(false);
+  const [reviewerName, setReviewerName] = useState("");
 
   const [initialReportSubmitted, setInitialReportSubmitted] = useState(false);
   const [initialReportApproved, setInitialReportApproved] = useState(false);
   const [irSignature, setIrSignature] = useState(false);
   const [irMarkedOk, setIrMarkedOk] = useState(false);
+  const [irReviewerName, setIrReviewerName] = useState("");
 
   // New states for Step 2 interactivity
   const [isCameraActive, setIsCameraActive] = useState(false);
@@ -188,7 +232,7 @@ export default function IMDetails() {
       };
       reader.readAsDataURL(file);
     }
-    e.target.value = null; 
+    e.target.value = null;
   };
 
   const removePhoto = (idx) => {
@@ -198,23 +242,97 @@ export default function IMDetails() {
   const [bodyParts, setBodyParts] = useState([]);
   const [manualBodyPart, setManualBodyPart] = useState("");
   const [immActions, setImmActions] = useState([]);
+  const [showActionTimePicker, setShowActionTimePicker] = useState(null);
+  const [tempActionTime, setTempActionTime] = useState("");
 
   // Corrective Actions Tab State
-  const [actionsList, setActionsList] = useState([{
-    action: incident?.correctiveAction || "Investigation required",
-    owner: "HSE Team",
-    due: "TBD",
-    priority: "High",
-    status: "Assigned"
-  }]);
+  const [actionsList, setActionsList] = useState([]);
   const [showAddAction, setShowAddAction] = useState(false);
-  const [newAction, setNewAction] = useState({ action: "", owner: "", due: "", priority: "Medium", status: "Pending" });
+  const [editingActionId, setEditingActionId] = useState(null);
+  const [newAction, setNewAction] = useState({ action: "", responsible: "", targetDate: "", status: "PENDING" });
 
-  const addActionToList = () => {
-    if (!newAction.action) return;
-    setActionsList([...actionsList, newAction]);
-    setNewAction({ action: "", owner: "", due: "", priority: "Medium", status: "Pending" });
-    setShowAddAction(false);
+  const [loadingActions, setLoadingActions] = useState(false);
+  const [actionPage, setActionPage] = useState(1);
+  const actionsPerPage = 5;
+
+  const loadActions = async () => {
+    if (!id) return;
+    setLoadingActions(true);
+    try {
+      const res = await getActionItems(id);
+      setActionsList(Array.isArray(res) ? res : (res.data || []));
+    } catch (err) {
+      console.error("Failed to fetch actions", err);
+    } finally {
+      setLoadingActions(false);
+    }
+  };
+
+  useEffect(() => {
+    if (id) {
+      loadActions();
+    }
+  }, [id]);
+
+  const addActionToList = async () => {
+    if (!newAction.action || !newAction.responsible) return;
+    try {
+      const payload = {
+        action: newAction.action,
+        responsible: newAction.responsible,
+        targetDate: newAction.targetDate,
+        status: newAction.status
+      };
+      if (editingActionId) {
+        await updateActionItem(id, editingActionId, newAction);
+        showSuccess("Action Item Updated Successfully!");
+      } else {
+        await addActionItem(id, newAction);
+        showSuccess("Action Item Added Successfully!");
+      }
+      setShowAddAction(false);
+      setEditingActionId(null);
+      setNewAction({ action: "", responsible: "", targetDate: "", status: "PENDING" });
+      loadActions();
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || "Failed to save action";
+      showError(Array.isArray(msg) ? msg[0] : msg);
+    }
+  };
+
+  const deleteAction = async (itemId) => {
+    const result = await Swal.fire({
+      title: "Are you sure?",
+      text: "This action item will be deleted permanently!",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Yes, delete",
+      cancelButtonText: "Cancel",
+      confirmButtonColor: "#8f1e1e",
+      cancelButtonColor: "#6c757d",
+    });
+    if (!result.isConfirmed) return;
+
+    try {
+      await deleteActionItem(id, itemId);
+      showSuccess("Action Item Deleted Successfully!");
+      loadActions();
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || "Failed to delete action";
+      showError(Array.isArray(msg) ? msg[0] : msg);
+    }
+  };
+
+  const editAction = (action) => {
+    setNewAction({
+      action: action.action || "",
+      responsible: action.responsible || "",
+      targetDate: action.targetDate ? action.targetDate.substring(0, 10) : "",
+      status: action.status || "PENDING"
+    });
+    setEditingActionId(action.id);
+    setShowAddAction(true);
+    window.scrollTo(0, document.body.scrollHeight);
   };
 
   const toggleBodyPart = (part) => {
@@ -242,11 +360,11 @@ export default function IMDetails() {
   const [investigationStarted, setInvestigationStarted] = useState(false);
   const [investigationSubmitted, setInvestigationSubmitted] = useState(false);
   const [investigationApproved, setInvestigationApproved] = useState(false);
-  
+
   const [invTeam, setInvTeam] = useState([]);
   const [invDetails, setInvDetails] = useState("");
   const [invWitnesses, setInvWitnesses] = useState([]);
-  
+
   const FISHBONE_CATS = [
     { key: "people", label: "People", color: "#131E40", hint: "e.g. complacency, behaviour, training, etc." },
     { key: "machine", label: "Machine / Equipment", color: "#594274", hint: "" },
@@ -255,17 +373,17 @@ export default function IMDetails() {
     { key: "environment", label: "Environmental Conditions", color: "#4F866A", hint: "e.g. weather conditions, space, density of workforce" },
     { key: "measurement", label: "Measurement", color: "#8F1B32", hint: "e.g. monitoring / site supervision" }
   ];
-  
+
   const [fishbone, setFishbone] = useState({
     people: [], machine: [], method: [], materials: [], environment: [], measurement: []
   });
-  
+
   const [invEffect, setInvEffect] = useState("");
   const [invProblem, setInvProblem] = useState("");
   const [fiveWhys, setFiveWhys] = useState({});
   const [invRootCauses, setInvRootCauses] = useState([]);
   const [invFactors, setInvFactors] = useState([]);
-  
+
   const [invPreSev, setInvPreSev] = useState(null);
   const [invPostSev, setInvPostSev] = useState(null);
   const SEVERITY_SCALE = [
@@ -275,18 +393,18 @@ export default function IMDetails() {
     { level: 4, label: "Critical", color: "#E32B50" },
     { level: 5, label: "Catastrophic", color: "#8F1B32" }
   ];
-  
+
   const [invCorrective, setInvCorrective] = useState([]);
   const [invLessons, setInvLessons] = useState("");
   const [invPrevention, setInvPrevention] = useState("");
-  
+
   const [invPhotos, setInvPhotos] = useState([]);
   const [isInvCameraActive, setIsInvCameraActive] = useState(false);
   const invVideoRef = useRef(null);
   const invCanvasRef = useRef(null);
   const invFileInputRef = useRef(null);
   const invStreamRef = useRef(null);
-  
+
   const INV_MANDATORY_ATTACHMENTS = [
     "Witness Statement(s)",
     "Post-Incident Drug & Alcohol test result (if applicable)",
@@ -298,14 +416,15 @@ export default function IMDetails() {
   ];
   const [invAttachments, setInvAttachments] = useState(Array(INV_MANDATORY_ATTACHMENTS.length).fill(false));
   const [invMissingExplain, setInvMissingExplain] = useState("");
-  
+
   const [invInvName, setInvInvName] = useState("");
   const [invInvRole, setInvInvRole] = useState("");
   const [invInvDate, setInvInvDate] = useState("");
   const [invInvSignature, setInvInvSignature] = useState(false);
   const [invInvMarkedOk, setInvInvMarkedOk] = useState(false);
-  
   const [invRevSignature, setInvRevSignature] = useState(false);
+  const [invReviewerName, setInvReviewerName] = useState("");
+  const [invReviewerRole, setInvReviewerRole] = useState("");
   const [invRevMarkedOk, setInvRevMarkedOk] = useState(false);
 
   // Helper functions for Investigation arrays
@@ -413,12 +532,27 @@ export default function IMDetails() {
     investigation: { label: "Incident Investigation Report (7 days)", priority: "STANDARD", dueLabel: "30/06/2026 14:58" }
   });
 
-  if (!incident) {
+  if (loading) {
+    return (
+      <div className="mod-page">
+        <div style={{ padding: "60px 32px", textAlign: "center", color: "var(--text-muted)" }}>
+          Loading incident details...
+        </div>
+      </div>
+    );
+  }
+
+  const incident = rawIncident?.incident || rawIncident;
+  const headsUpData = rawIncident?.headsUp || {};
+  const initialReportData = rawIncident?.initialReport || {};
+  const investigationData = rawIncident?.investigation || {};
+
+  if (!rawIncident) {
     return (
       <div className="mod-page">
         <div className="mod-card" style={{ padding: "60px 32px", textAlign: "center" }}>
           <p style={{ color: "var(--text-muted)" }}>Incident <strong>{id}</strong> not found.</p>
-          <button className="mod-btn-primary" style={{ marginTop: 16 }} onClick={() => navigate("/incident-management/list")}>← Back to List</button>
+          <button className="mod-btn-primary im-btn-primary" style={{ marginTop: 16 }} onClick={() => navigate("/incident-management/list")}>← Back to List</button>
         </div>
       </div>
     );
@@ -436,19 +570,19 @@ export default function IMDetails() {
         <svg viewBox={`0 0 ${W} ${H}`} style={{ display: "block", minWidth: 800, width: "100%", height: "auto" }}>
           <defs>
             <marker id="fbArrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
-              <path d="M0,0 L10,5 L0,10 z" fill="#0f172a"/>
+              <path d="M0,0 L10,5 L0,10 z" fill="#0f172a" />
             </marker>
           </defs>
-          
+
           {/* Fish Tail */}
           <path d={`M ${spineX1},${spineY} C ${spineX1 - 90},${spineY - 90} ${spineX1 - 110},${spineY - 70} ${spineX1 - 100},${spineY} C ${spineX1 - 110},${spineY + 70} ${spineX1 - 90},${spineY + 90} ${spineX1},${spineY} Z`} fill="#0f172a" />
-          
+
           {/* Spine */}
           <line x1={spineX1} y1={spineY} x2={spineX2} y2={spineY} stroke="#0f172a" strokeWidth="8" />
-          
+
           {/* Fish Head */}
           <path d={`M ${spineX2},${spineY} C ${spineX2 + 20},${spineY - 100} ${spineX2 + 120},${spineY - 80} ${spineX2 + 160},${spineY} C ${spineX2 + 120},${spineY + 80} ${spineX2 + 20},${spineY + 100} ${spineX2},${spineY} Z`} fill="#0f172a" />
-          
+
           {/* Fish Eye */}
           <circle cx={spineX2 + 100} cy={spineY - 30} r="8" fill="#fff" />
           <circle cx={spineX2 + 102} cy={spineY - 30} r="4" fill="#0f172a" />
@@ -457,52 +591,52 @@ export default function IMDetails() {
           <path d={`M ${spineX2 + 160},${spineY} Q ${spineX2 + 140},${spineY + 10} ${spineX2 + 150},${spineY + 30} Z`} fill="#f8fafc" />
 
           {/* Effect Box inside/near Head */}
-          <rect x={spineX2 + 30} y={spineY - 45} width="180" height="90" rx="8" fill="#fff" stroke="#dc2626" strokeWidth="4"/>
+          <rect x={spineX2 + 30} y={spineY - 45} width="180" height="90" rx="8" fill="#fff" stroke="#dc2626" strokeWidth="4" />
           <text x={spineX2 + 120} y={spineY - 15} fill="#dc2626" fontSize="15" fontWeight="800" textAnchor="middle">{effectLabel}</text>
           <text x={spineX2 + 120} y={spineY + 15} fill="#0f172a" fontSize="14" fontWeight="700" textAnchor="middle">
             {effectStr.length > 22 ? effectStr.substring(0, 20) + '...' : effectStr}
           </text>
-          
+
           {FISHBONE_CATS.map((cat, c) => {
             const isTop = c < 3;
             const baseX = isTop ? topXs[c] : botXs[c - 3];
             const endX = baseX - 110;
             const endY = isTop ? (spineY - 150) : (spineY + 150);
-            
+
             // Category Box at the end of bone
             const boxW = 190;
             const boxH = 40;
-            const boxX = endX - boxW/2;
+            const boxX = endX - boxW / 2;
             const boxY = isTop ? endY - boxH : endY;
 
             const arr = fishbone[cat.key] || [];
-            
+
             return (
               <g key={cat.key}>
                 {/* Diagonal Bone pointing to spine */}
-                <line x1={endX} y1={endY} x2={baseX} y2={spineY} stroke="#0f172a" strokeWidth="4" markerEnd="url(#fbArrow)"/>
-                
+                <line x1={endX} y1={endY} x2={baseX} y2={spineY} stroke="#0f172a" strokeWidth="4" markerEnd="url(#fbArrow)" />
+
                 {/* Category Box */}
                 <rect x={boxX} y={boxY} width={boxW} height={boxH} rx="8" fill="#0f172a" />
                 <text x={endX} y={boxY + 24} fill="#fff" fontSize="14" fontWeight="800" textAnchor="middle" letterSpacing="0.5px">{cat.label}</text>
-                
+
                 {/* Causes along the bone */}
                 {arr.slice(0, 5).map((cause, i) => {
                   const t = (i + 1) / 6; // evenly space up to 5 causes
                   const tx = endX + (baseX - endX) * t;
                   const ty = endY + (spineY - endY) * t;
                   const txt = cause.text + (cause.score ? ` [${cause.score}]` : '');
-                  
+
                   // Tick mark (horizontal line pointing to the cause)
                   const tickLen = 70;
                   const tickX1 = tx;
                   const tickX2 = tx - tickLen; // pointing left
-                  
+
                   return (
                     <g key={i}>
-                      <line x1={tx} y1={ty} x2={tickX2} y2={ty} stroke="#0f172a" strokeWidth="2.5"/>
+                      <line x1={tx} y1={ty} x2={tickX2} y2={ty} stroke="#0f172a" strokeWidth="2.5" />
                       <text x={tickX2 - 6} y={ty + 4} fill="#1e293b" fontSize="12" fontWeight="600" textAnchor="end">{txt.substring(0, 24)}</text>
-                      {cause.probable && <circle cx={tx} cy={ty} r="8" fill="#fee2e2" stroke="#dc2626" strokeWidth="2.5" strokeDasharray="4,2"/>}
+                      {cause.probable && <circle cx={tx} cy={ty} r="8" fill="#fee2e2" stroke="#dc2626" strokeWidth="2.5" strokeDasharray="4,2" />}
                     </g>
                   );
                 })}
@@ -528,7 +662,7 @@ export default function IMDetails() {
     const s = [
       { key: "headsUp", num: 1, st: stages.headsUp, state: headsUpApproved ? "done" : "current" },
       { key: "initialReport", num: 2, st: stages.initialReport, state: initialReportApproved ? "done" : headsUpApproved ? "current" : "pending" },
-      { key: "investigation", num: 3, st: stages.investigation, state: investigationApproved ? "done" : initialReportApproved ? "current" : "pending" }
+      { key: "investigation", num: 3, st: stages.investigation, state: investigationApproved ? ((incident?.closedBy || incident?.status === 2 || String(incident?.stage).toUpperCase() === "CLOSED") ? "done" : "opened") : initialReportApproved ? "current" : "pending" }
     ];
 
     return (
@@ -546,10 +680,12 @@ export default function IMDetails() {
               <div className={`inv-body body-${stg.state}`}>
                 <div className="inv-title-row">
                   <span className="inv-title">{stg.st.label}</span>
-                  {stg.state === "done" ? <span className="inv-chip chip-done">Completed</span> :
-                   stg.state === "current" ? <span className="inv-chip chip-current">In progress</span> :
-                   <span className="inv-chip chip-upcoming">Pending</span>}
-                  <span className={`inv-prio prio-${stg.st.priority.toLowerCase()}`}>{stg.st.priority}</span>
+                  {stg.state === "opened" ?
+                    <span className="inv-chip" style={{ background: "#fef08a", color: "#854d0e", border: "1px solid #fde047" }}>Pending Closure</span> :
+                    stg.state === "done" ? <span className="inv-chip chip-done">Completed</span> :
+                      stg.state === "current" ? <span className="inv-chip chip-current">In progress</span> :
+                        <span className="inv-chip chip-upcoming">Pending</span>}
+                  <span className={`inv-prio prio-${String(stg.st.priority || "").toLowerCase()}`}>{stg.st.priority}</span>
                 </div>
                 <div className="inv-sub">Deadline: {stg.st.dueLabel}</div>
               </div>
@@ -560,49 +696,216 @@ export default function IMDetails() {
     );
   };
 
+  const formatDateTimeObj = (dStr) => {
+    if (!dStr) return { date: "—", time: "—" };
+    try {
+      const d = new Date(dStr);
+      if (isNaN(d.getTime())) return { date: dStr.split("T")[0] || dStr, time: dStr.split("T")[1] || "—" };
+      const date = d.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+      const time = d.toLocaleString('en-GB', { hour: '2-digit', minute: '2-digit' });
+      return { date, time };
+    } catch (e) { return { date: dStr, time: "—" }; }
+  };
+
+  const renderAuditCard = (step, index, totalSteps) => {
+    const { title, type, user, role, timestamp, signature, iconSvg, color } = step;
+    if (!user || !timestamp) return null;
+    const { date, time } = formatDateTimeObj(timestamp);
+    const isLast = index === totalSteps - 1;
+    return (
+      <div key={index} style={{ position: "relative", paddingLeft: 40, marginBottom: isLast ? 0 : 24 }}>
+        <div style={{ position: "absolute", left: -10, top: 20, width: 20, height: 20, background: color, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid var(--bg-card, #fff)", zIndex: 2 }}>
+          {type === "APPROVED" ? (
+             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 13l4 4L19 7" /></svg>
+          ) : (
+             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          )}
+        </div>
+        {!isLast && <div style={{ position: "absolute", left: -1, top: 40, bottom: -44, width: 2, background: "var(--border-color)", zIndex: 1 }}></div>}
+        <div style={{ position: "relative", background: "var(--bg-card, #fff)", border: "1px solid var(--border-color)", borderRadius: 8, padding: 16, display: "flex", gap: 16, alignItems: "center", boxShadow: "var(--shadow-sm, 0 1px 3px rgba(0,0,0,0.05))" }}>
+          <div style={{ position: "absolute", left: -6, top: 24, width: 10, height: 10, background: "var(--bg-card, #fff)", borderLeft: "1px solid var(--border-color)", borderBottom: "1px solid var(--border-color)", transform: "rotate(45deg)", borderRight: "none", borderTop: "none" }}></div>
+          <div style={{ width: 64, height: 64, background: color + "1a", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            {iconSvg}
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: color, marginBottom: 4 }}>{title}</div>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 4, background: color + "1a", color: color, padding: "2px 8px", borderRadius: 12, fontSize: 12, fontWeight: 600, marginBottom: 8 }}>
+              {type === "APPROVED" ? (<span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: 4, verticalAlign: 'middle', marginTop: '-2px'}}><path d="M5 13l4 4L19 7" /></svg>Marked OK & Signed Off</span>) : "Submitted"}
+            </div>
+            <div style={{ fontSize: 13, color: "var(--text-main)", marginBottom: 8 }}>
+              {type === "APPROVED" ? "Signed by" : "Submitted by"} <b>{user}</b> <span style={{ color: "var(--text-muted)" }}>({role})</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 16, fontSize: 12, color: "var(--text-muted)" }}>
+              <span style={{ display: "flex", alignItems: "center", gap: 6 }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg> {date}</span>
+              <span style={{ display: "flex", alignItems: "center", gap: 6, borderLeft: "1px solid var(--border-color)", paddingLeft: 16 }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><line x1="12" y1="6" x2="12" y2="12" /><line x1="12" y1="12" x2="16" y2="14" /></svg> {time}</span>
+            </div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minWidth: 160, borderLeft: "1px solid var(--border-color)", paddingLeft: 16 }}>
+            <div style={{ width: 140, height: 60, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 8, background: "#fff", borderRadius: 6, padding: 4 }}>
+              {signature && (signature.startsWith("data:image") || signature.startsWith("http") || signature.startsWith("/")) ? (
+                <img src={signature} alt="Signature" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
+              ) : (
+                <svg width="100%" height="100%" viewBox="0 0 500 120" preserveAspectRatio="xMidYMid meet"><path d="M50,80 Q100,20 150,60 T250,80 T350,40 T450,70" fill="none" stroke="#000" strokeWidth="6" strokeLinecap="round" /></svg>
+              )}
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-main)", textAlign: "center" }}>{user}</div>
+            <div style={{ fontSize: 11, color: "var(--text-muted)", textAlign: "center" }}>({role})</div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const huAudit = [];
+  if (headsUpData && (headsUpData.submittedBy || headsUpData.signature)) {
+    huAudit.push({
+      title: "Heads-Up Notification (2hr)", type: "SUBMITTED",
+      user: headsUpData.submittedBy || incident?.reportedBy || "User", role: headsUpData.submitterRole || "Submitter",
+      timestamp: headsUpData.submittedTime || headsUpData.createdTime || incident?.createdTime, signature: headsUpData.signature,
+      iconSvg: <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>,
+      color: "#3b82f6"
+    });
+  }
+  if (headsUpApproved) {
+    huAudit.push({
+      title: "Heads-Up Notification (2hr)", type: "APPROVED",
+      user: headsUpData?.approvedBy || "Reviewer", role: headsUpData?.approverRole || "NNE Peer Reviewer",
+      timestamp: headsUpData?.approvedTime || headsUpData?.updatedTime, signature: headsUpData?.approverSignature || headsUpData?.signature,
+      iconSvg: <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--color-safe, #10b981)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>,
+      color: "var(--color-safe, #10b981)"
+    });
+  }
+
+  const irAudit = [];
+  if (initialReportData && (initialReportData.submittedBy || initialReportData.signature || initialReportSubmitted)) {
+    irAudit.push({
+      title: "Initial Incident Report (24hr)", type: "SUBMITTED",
+      user: initialReportData.submittedBy || incident?.reporterName || incident?.reportedBy || "User", role: initialReportData.submitterRole || "Reporter",
+      timestamp: initialReportData.submittedTime || initialReportData.createdTime, signature: initialReportData.signature,
+      iconSvg: <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>,
+      color: "#3b82f6"
+    });
+  }
+  if (initialReportApproved) {
+    irAudit.push({
+      title: "Initial Incident Report (24hr)", type: "APPROVED",
+      user: initialReportData?.approvedBy || "Reviewer", role: initialReportData?.approverRole || "Customer Approver",
+      timestamp: initialReportData?.approvedTime || initialReportData?.updatedTime, signature: initialReportData?.approverSignature || initialReportData?.signature,
+      iconSvg: <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--color-safe, #10b981)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>,
+      color: "var(--color-safe, #10b981)"
+    });
+  }
+
+  const invAudit = [];
+  if (investigationData) {
+    const invSubSig = investigationData.signatures && investigationData.signatures.length > 0 ? investigationData.signatures[0] : null;
+    if (investigationSubmitted || invSubSig || investigationData.submittedBy) {
+      invAudit.push({
+        title: "Incident Investigation Report (7 days)", type: "SUBMITTED",
+        user: invSubSig ? invSubSig.name : (investigationData.submittedBy || incident?.investigatorName || "Investigator"), role: invSubSig ? invSubSig.role : (investigationData.submitterRole || "Investigator"),
+        timestamp: investigationData.submittedTime || investigationData.completedTime || investigationData.createdTime, signature: invSubSig ? invSubSig.signature : investigationData.signature,
+        iconSvg: <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>,
+        color: "#3b82f6"
+      });
+    }
+  }
+  if (investigationApproved) {
+    invAudit.push({
+      title: "Incident Investigation Report (7 days)", type: "APPROVED",
+      user: investigationData?.reviewedBy || investigationData?.approvedBy || "Reviewer", role: investigationData?.reviewerRole || investigationData?.approverRole || "Reviewer",
+      timestamp: investigationData?.reviewedTime || investigationData?.approvedTime || investigationData?.updatedTime, signature: investigationData?.reviewerSignature || investigationData?.approverSignature || investigationData?.signature,
+      iconSvg: <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--color-safe, #10b981)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>,
+      color: "var(--color-safe, #10b981)"
+    });
+  }
+
+  const allAuditSteps = [...huAudit, ...irAudit, ...invAudit];
+
   return (
-    <div className="mod-page" style={{ "--accent-primary": "#0f172a", "--accent-hover": "#1e293b" }}>
-      <div style={{ marginBottom: "14px" }}>
-        <button onClick={() => navigate("/incident-management/list")} style={{ background: "none", border: "none", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px", color: "var(--accent-primary)", fontWeight: 600, fontSize: "14px" }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+    <div className="mod-page">
+
+      {/* ── Print-only Header ── */}
+      <div className="print-only-header">
+        {(incident.stage === "CLOSED" || incident.status === "Closed" || incident.pipeline === "Closed" || incident.stage === "Closed") && (
+          <div style={{ textAlign: "right", fontSize: "14px", fontWeight: "bold", marginBottom: "16px", color: "#333" }}>
+            Completed Date: {incident.updatedTime ? new Date(incident.updatedTime).toLocaleString() : new Date().toLocaleString()}
+          </div>
+        )}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "2px solid #e2e8f0", paddingBottom: "24px", marginBottom: "32px" }}>
+          <img src={novoLogo} alt="Novo Nordisk" style={{ height: "60px", objectFit: "contain" }} />
+          <img src={nneLogo} alt="NNE" style={{ height: "40px", objectFit: "contain" }} />
+        </div>
+        <div style={{ textAlign: "center", marginBottom: "32px" }}>
+          <h1 style={{ fontSize: "28px", margin: "0 0 12px 0", color: "#1e293b" }}>Incident Report {incident.caseNumber || incident.id}</h1>
+          <h2 style={{ fontSize: "18px", margin: "0", color: "#64748b", fontWeight: "normal" }}>{incident.title || "—"}</h2>
+        </div>
+      </div>
+      {/* ── End Print-only Header ── */}
+
+      <div className="hide-on-print" style={{ marginBottom: "16px", display: "flex", justifyContent: "flex-end" }}>
+        <button onClick={() => navigate("/incident-management/list")} style={{ background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "6px", padding: "8px 16px", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "8px", color: "var(--text-main)", fontWeight: 600, fontSize: "13px", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
           Back to Incidents List
         </button>
       </div>      <div className="inc-head" style={{ background: "var(--bg-card, #fff)", padding: "24px", borderRadius: "12px", border: "1px solid var(--border-color)", boxShadow: "0 4px 12px rgba(0,0,0,0.03)", marginBottom: "32px", display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "20px" }}>
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px", flexWrap: "wrap" }}>
-            <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--text-muted)", background: "var(--bg-dark)", padding: "4px 10px", borderRadius: "6px", border: "1px solid var(--border-color)" }}>{incident.id}</span>
-            <span className={`inc-pill ${incident.severity === "Critical" ? "pill-sev-critical" : "pill-sev-high"}`} style={{ borderRadius: "6px", fontWeight: 700, padding: "4px 10px", fontSize: "11px" }}>{incident.severity}</span>
-            <span className={`inc-pill ${incident.status === "Closed" ? "pill-closed" : "pill-open"}`} style={{ borderRadius: "6px", fontWeight: 700, padding: "4px 10px", fontSize: "11px" }}>{incident.status}</span>
-            {incident.hipo && <span className="inc-pill" style={{ background: "#dc2626", color: "#fff", borderRadius: "6px", fontWeight: 700, padding: "4px 10px", fontSize: "11px" }}>HiPo</span>}
-            {incident.investigation && (
+            <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--text-muted)", background: "var(--bg-dark)", padding: "4px 10px", borderRadius: "6px", border: "1px solid var(--border-color)" }}>{incident.caseNumber || incident.id}</span>
+
+            {(() => {
+              const level = incident.actualSeverity || incident.severity;
+              if (!level) return null;
+              const meta = {
+                1: { label: "Insignificant", color: "#2D9E5A" },
+                2: { label: "Minor", color: "#C07D10" },
+                3: { label: "Moderate", color: "#D97706" },
+                4: { label: "Critical", color: "#E32B50" },
+                5: { label: "Catastrophic", color: "#8F1B32" }
+              };
+              const m = meta[level] || { label: "", color: "#A1A5B3" };
+              return (
+                <span className="inc-pill" style={{ background: m.color, color: "#fff", borderRadius: "6px", fontWeight: 700, padding: "4px 10px", fontSize: "11px" }}>
+                  {m.label.toUpperCase()}
+                </span>
+              );
+            })()}
+
+            {incident.stage && (
+              <span className="inc-pill" style={{ background: "rgba(227, 43, 80, 0.1)", color: "#E32B50", borderRadius: "6px", fontWeight: 700, padding: "4px 10px", fontSize: "11px", border: "1px solid rgba(227, 43, 80, 0.3)" }}>
+                {incident.stage === "INVESTIGATION" ? "INVESTIGATING" : incident.stage.replace("_", " ")}
+              </span>
+            )}
+
+            {incident.isHipo && <span className="inc-pill" style={{ background: "#dc2626", color: "#fff", borderRadius: "6px", fontWeight: 700, padding: "4px 10px", fontSize: "11px" }}>HIPO</span>}
+
+            {incident.investigationLevel && (
               <span className="inc-pill" title="Investigation required" style={{ background: "rgba(192, 125, 16, 0.14)", color: "#d97706", borderRadius: "6px", fontWeight: 700, padding: "4px 10px", fontSize: "11px", border: "1px solid rgba(192, 125, 16, 0.3)" }}>
-                Investigation {incident.investigation}
+                INVESTIGATION {incident.investigationLevel.toUpperCase()}
               </span>
             )}
           </div>
-          <div style={{ fontSize: "24px", fontWeight: 800, color: "var(--text-main)", marginBottom: "12px", letterSpacing: "-0.5px" }}>{incident.title}</div>
+          <div style={{ fontSize: "24px", fontWeight: 800, color: "var(--text-main)", marginBottom: "12px", letterSpacing: "-0.5px" }}>{incident.categories?.[0] || incident.title || incident.caseNumber}</div>
           <div style={{ display: "flex", alignItems: "center", gap: "12px", fontSize: "14px", color: "var(--text-muted)", fontWeight: 500 }}>
             <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
-              {incident.location}
+              {incident.buildingName ? `${incident.buildingName}${incident.floorLevel ? ' - ' + incident.floorLevel : ''}` : (incident.location || "—")}
             </span>
             <span style={{ color: "var(--border-color)" }}>|</span>
             <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"></path></svg>
-              {incident.type}
+              {incident.origin || incident.type || "—"}
             </span>
           </div>
         </div>
-        <div className="inc-head-actions" style={{ display: "flex", gap: "10px" }}>
-          <button className="mod-btn-outline" style={{ fontSize: "13px", padding: "8px 16px", borderRadius: "8px", fontWeight: 600 }}>Export PDF</button>
-          <button className="mod-btn-primary" style={{ fontSize: "13px", padding: "8px 16px", borderRadius: "8px", fontWeight: 600 }}>Close Incident</button>
+        <div className="inc-head-actions hide-on-print" style={{ display: "flex", gap: "10px" }}>
+          <button className="mod-btn-outline" onClick={() => window.print()} style={{ fontSize: "13px", padding: "8px 16px", borderRadius: "8px", fontWeight: 600 }}>Export PDF</button>
         </div>
       </div>
 
-      {incident.hipo && (
+      {incident.isHipo && (
         <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "12px 16px", marginBottom: "20px", borderRadius: "8px", background: "var(--color-risk-bg)", borderLeft: "4px solid var(--color-risk)", color: "var(--color-risk)", fontWeight: 600, fontSize: "13px" }}>
           <span style={{ fontSize: "16px" }}>⚠️</span>
-          <span>High-Potential (HiPo) incident {incident.investigation ? `· Investigation Level ${incident.investigation} (L1 = basic, L2 = intermediate, L3 = full / serious)` : ""}</span>
+          <span>High-Potential (HiPo) incident {incident.investigationLevel ? `· Investigation Level ${incident.investigationLevel} (L1 = basic, L2 = intermediate, L3 = full / serious)` : ""}</span>
         </div>
       )}
 
@@ -612,8 +915,18 @@ export default function IMDetails() {
       <div className="inc-tabs">
         {[
           { id: "overview", label: "Overview" },
-          { id: "headsUp", label: "Step 1: Heads-Up (2hr)", tabBadge: "IN PROGRESS", tabBadgeClass: "chip-inprogress" },
-          { id: "initialReport", label: "Step 2: Initial Report (24hr)", tabBadge: "PENDING", tabBadgeClass: "chip-upcoming" },
+          {
+            id: "headsUp",
+            label: "Step 1: Heads-Up (2hr)",
+            tabBadge: (incident.stage === "HEADS_UP" && !headsUpApproved) ? "IN PROGRESS" : "COMPLETED",
+            tabBadgeClass: (incident.stage === "HEADS_UP" && !headsUpApproved) ? "chip-inprogress" : "chip-approved"
+          },
+          {
+            id: "initialReport",
+            label: "Step 2: Initial Report (24hr)",
+            tabBadge: incident.stage === "HEADS_UP" ? "PENDING" : (initialReportApproved || (incident.stage !== "HEADS_UP" && incident.stage !== "INITIAL_REPORT") ? "COMPLETED" : "IN PROGRESS"),
+            tabBadgeClass: incident.stage === "HEADS_UP" ? "chip-upcoming" : (initialReportApproved || (incident.stage !== "HEADS_UP" && incident.stage !== "INITIAL_REPORT") ? "chip-approved" : "chip-inprogress")
+          },
           { id: "investigation", label: "Step 3: Investigation Report (7 days)" },
           { id: "actions", label: "Actions" }
         ].map(t => (
@@ -625,88 +938,129 @@ export default function IMDetails() {
       </div>
 
       <div id="inc-panels">
-        {activeTab === "overview" && (
-          <div className="inc-tab-panel active">
-            <div className="mod-card">
-              <div className="mod-card-header"><span className="mod-card-title">Incident Details</span></div>
-              <div className="mod-card-body">
-                <dl className="detail-meta" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-                  <div><dt style={{ color: "var(--text-muted)", fontSize: "12px", marginBottom: "4px" }}>Incident Code</dt><dd style={{ fontWeight: 600 }}>{incident.id}</dd></div>
-                  <div><dt style={{ color: "var(--text-muted)", fontSize: "12px", marginBottom: "4px" }}>Date / Time</dt><dd style={{ fontWeight: 600 }}>{incident.date}</dd></div>
-                  <div><dt style={{ color: "var(--text-muted)", fontSize: "12px", marginBottom: "4px" }}>Classification</dt><dd style={{ fontWeight: 600 }}>{incident.category}</dd></div>
-                  <div><dt style={{ color: "var(--text-muted)", fontSize: "12px", marginBottom: "4px" }}>Location</dt><dd style={{ fontWeight: 600 }}>{incident.location}</dd></div>
-                  <div><dt style={{ color: "var(--text-muted)", fontSize: "12px", marginBottom: "4px" }}>Reporter</dt><dd style={{ fontWeight: 600 }}>{incident.reportedBy}</dd></div>
-                  <div><dt style={{ color: "var(--text-muted)", fontSize: "12px", marginBottom: "4px" }}>Status</dt><dd style={{ fontWeight: 600 }}>{incident.status}</dd></div>
-                  <div style={{ gridColumn: "1 / -1" }}><dt style={{ color: "var(--text-muted)", fontSize: "12px", marginBottom: "4px" }}>Description</dt><dd style={{ fontWeight: 600 }}>{incident.description}</dd></div>
-                </dl>
-              </div>
+        <div className={`inc-tab-panel ${activeTab === "overview" ? "active" : ""}`}>
+          <div className="mod-card">
+            <div className="mod-card-header"><span className="mod-card-title">Incident Details</span></div>
+            <div className="mod-card-body">
+              <dl className="detail-meta" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+                <div><dt style={{ color: "var(--text-muted)", fontSize: "12px", marginBottom: "4px" }}>Incident Code</dt><dd style={{ fontWeight: 600 }}>{incident.caseNumber || incident.id || "—"}</dd></div>
+                <div><dt style={{ color: "var(--text-muted)", fontSize: "12px", marginBottom: "4px" }}>Date / Time</dt><dd style={{ fontWeight: 600 }}>{incident.incidentDate || "—"} {incident.incidentTime || ""}</dd></div>
+                <div><dt style={{ color: "var(--text-muted)", fontSize: "12px", marginBottom: "4px" }}>Classification</dt><dd style={{ fontWeight: 600 }}>{incident.categories ? (Array.isArray(incident.categories) ? incident.categories.join(", ") : incident.categories) : incident.category || "—"}</dd></div>
+                <div><dt style={{ color: "var(--text-muted)", fontSize: "12px", marginBottom: "4px" }}>Location</dt><dd style={{ fontWeight: 600 }}>{[incident.buildingName, incident.floorLevel, incident.specificLocation].filter(Boolean).join(" - ") || incident.location || "—"}</dd></div>
+                <div><dt style={{ color: "var(--text-muted)", fontSize: "12px", marginBottom: "4px" }}>Reporter</dt><dd style={{ fontWeight: 600 }}>{incident.reporterName || incident.reportedBy || incident.createdBy || incident.investigatorName || "—"}</dd></div>
+                <div><dt style={{ color: "var(--text-muted)", fontSize: "12px", marginBottom: "4px" }}>Status</dt><dd style={{ fontWeight: 600 }}>{(incident.status === 2 || incident.closedBy || String(incident.stage).toUpperCase() === "CLOSED") ? "Closed" : "Open"}</dd></div>
+                <div style={{ gridColumn: "1 / -1" }}><dt style={{ color: "var(--text-muted)", fontSize: "12px", marginBottom: "4px" }}>Description</dt><dd style={{ fontWeight: 600 }}>{headsUpData?.descriptionWhatHappened || headsUpData?.whatHappened || headsUpData?.descriptionConsequence || incident.description || incident.details || "—"}</dd></div>
+              </dl>
             </div>
-
-            {/* Audit Trail & Sign-Off Log */}
-            <div className="mod-card" style={{ marginTop: 24 }}>
-              <div className="mod-card-header"><span className="mod-card-title">Audit Trail & Sign-Off Log</span></div>
-              <div className="mod-card-body">
-                {headsUpApproved && (
-                   <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "9px 11px", border: "1px solid rgba(123,190,151,0.5)", background: "rgba(123,190,151,0.06)", borderRadius: 8, marginBottom: 10 }}>
-                     <div style={{ width: 120, height: 40, background: "#fff", border: "1px solid var(--border-color)", borderRadius: 5 }}>
-                        <svg width="100%" height="100%" viewBox="0 0 500 120" preserveAspectRatio="none">
-                          <path d="M50,80 Q100,20 150,60 T250,80 T350,40 T450,70" fill="none" stroke="var(--text-main)" strokeWidth="3" />
-                          
-                        </svg>
-                     </div>
-                     <div style={{ fontSize: 12, color: "var(--text-main)" }}>
-                       <b style={{ color: "#2D7A4F" }}>Heads-Up Notification (2hr) — Marked OK</b><br/>
-                       Signed by Reviewer · 19/08/2026, 11:39
-                     </div>
-                   </div>
-                )}
-                {initialReportApproved && (
-                   <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "9px 11px", border: "1px solid rgba(123,190,151,0.5)", background: "rgba(123,190,151,0.06)", borderRadius: 8, marginBottom: 10 }}>
-                     <div style={{ width: 120, height: 40, background: "#fff", border: "1px solid var(--border-color)", borderRadius: 5 }}>
-                        <svg width="100%" height="100%" viewBox="0 0 500 120" preserveAspectRatio="none">
-                          <path d="M50,80 Q100,20 150,60 T250,80 T350,40 T450,70" fill="none" stroke="var(--text-main)" strokeWidth="3" />
-                          
-                        </svg>
-                     </div>
-                     <div style={{ fontSize: 12, color: "var(--text-main)" }}>
-                       <b style={{ color: "#2D7A4F" }}>Initial Incident Report (24hr) — Marked OK</b><br/>
-                       Signed by Reviewer · 19/08/2026, 11:44
-                     </div>
-                   </div>
-                )}
-                {investigationApproved && (
-                   <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "9px 11px", border: "1px solid rgba(123,190,151,0.5)", background: "rgba(123,190,151,0.06)", borderRadius: 8, marginBottom: 10 }}>
-                     <div style={{ width: 120, height: 40, background: "#fff", border: "1px solid var(--border-color)", borderRadius: 5 }}>
-                        <svg width="100%" height="100%" viewBox="0 0 500 120" preserveAspectRatio="none">
-                          <path d="M50,80 Q100,20 150,60 T250,80 T350,40 T450,70" fill="none" stroke="var(--text-main)" strokeWidth="3" />
-                          
-                        </svg>
-                     </div>
-                     <div style={{ fontSize: 12, color: "var(--text-main)" }}>
-                       <b style={{ color: "#2D7A4F" }}>Incident Investigation Report (7 days) — Marked OK</b><br/>
-                       Signed by Reviewer · 19/08/2026, 11:57
-                     </div>
-                   </div>
-                )}
-                {(!headsUpApproved && !initialReportApproved && !investigationApproved) && (
-                  <div style={{ fontSize: 12, color: "var(--text-muted)", fontStyle: "italic" }}>No audit events yet.</div>
-                )}
-                <div style={{ marginTop: 16 }}>
-                  {investigationApproved && <div style={{ fontSize: 12, marginBottom: 4 }}><span style={{ color: "var(--text-muted)" }}>● Incident closed — Anders Henriksen, 19/08/2026, 11:58</span></div>}
-                  {investigationApproved && <div style={{ fontSize: 12, marginBottom: 4 }}><span style={{ color: "var(--color-safe)" }}>● Investigation Report marked OK & signed off</span> — mani, 19/08/2026, 11:57</div>}
-                  {investigationSubmitted && <div style={{ fontSize: 12, marginBottom: 4 }}><span style={{ color: "var(--text-main)" }}>● Investigation Report submitted</span> — Anders Henriksen, 19/08/2026, 11:56</div>}
-                  {initialReportApproved && <div style={{ fontSize: 12, marginBottom: 4 }}><span style={{ color: "var(--color-safe)" }}>● Initial Incident Report marked OK & signed off</span> — Reviewer, 19/08/2026, 11:44</div>}
-                  {initialReportSubmitted && <div style={{ fontSize: 12, marginBottom: 4 }}><span style={{ color: "var(--text-main)" }}>● Initial Incident Report submitted</span> — Anders Henriksen, 19/08/2026, 11:44</div>}
-                  {headsUpApproved && <div style={{ fontSize: 12, marginBottom: 4 }}><span style={{ color: "var(--text-main)" }}>● Heads-Up Notification marked OK & approved (signed)</span> — Reviewer, 19/08/2026, 11:39</div>}
-                </div>
-              </div>
-            </div>
-
           </div>
-        )}
 
-        {activeTab === "headsUp" && (
-          <div className="inc-tab-panel active">
+          {/* Audit Trail & Sign-Off Log */}
+          <div className="mod-card" style={{ marginTop: 24 }}>
+            <div className="mod-card-header" style={{ paddingBottom: 4, display: "flex", flexDirection: "column", gap: 4 }}>
+              <span className="mod-card-title" style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "18px", color: "var(--text-main)" }}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="M9 12l2 2 4-4" />
+                </svg>
+                Audit Trail & Sign-Off Log
+              </span>
+              <div style={{ fontSize: 13, color: "var(--text-muted)", marginLeft: 32 }}>Track all sign-offs and approvals in the incident management process.</div>
+            </div>
+            <div className="mod-card-body" style={{ padding: "24px 16px" }}>
+              {allAuditSteps.length > 0 ? (
+                <div style={{ position: "relative", paddingLeft: 16 }}>
+                  {allAuditSteps.map((step, i) => renderAuditCard(step, i, allAuditSteps.length))}
+                </div>
+              ) : (
+                <div style={{ fontSize: 14, color: "var(--text-muted)", fontStyle: "italic", padding: "16px", background: "var(--bg-dark, #f8fafc)", borderRadius: 8, border: "1px dashed var(--border-color)", textAlign: "center" }}>No audit events yet.</div>
+              )}
+            </div>
+          </div>
+
+          {/* Event Log */}
+          <div className="mod-card" style={{ marginTop: 24 }}>
+            <div className="mod-card-header" style={{ paddingBottom: 16 }}>
+              <span className="mod-card-title" style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "18px", color: "var(--text-main)" }}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+                  <path d="M9 14h6" /><path d="M9 10h6" /><path d="M9 18h6" />
+                </svg>
+                Event Log
+              </span>
+            </div>
+            <div className="mod-card-body" style={{ padding: 0 }}>
+              {(() => {
+                const formatDateTime = (dStr) => {
+                  if (!dStr) return "—";
+                  try {
+                    const d = new Date(dStr);
+                    if (isNaN(d.getTime())) return dStr.replace("T", " ");
+                    return d.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(',', '');
+                  } catch (e) { return dStr; }
+                };
+
+                const allEvents = [];
+                if (incident?.closedBy || incident?.status === 2 || String(incident?.stage).toUpperCase() === "CLOSED") {
+                  allEvents.push({ text: "Incident closed", user: incident?.closedBy || "System", date: formatDateTime(incident?.updatedTime) });
+                }
+                if (investigationApproved) {
+                  allEvents.push({ text: "Investigation Report marked OK & signed off", user: investigationData.reviewedBy || investigationData.approvedBy || "Reviewer", date: formatDateTime(investigationData.updatedTime || investigationData.createdTime) });
+                }
+                if (investigationSubmitted) {
+                  allEvents.push({ text: "Investigation Report submitted", user: incident?.investigatorName || incident?.reportedBy || "Investigator", date: formatDateTime(investigationData.createdTime || incident?.updatedTime) });
+                }
+                if (initialReportApproved) {
+                  allEvents.push({ text: "Initial Incident Report marked OK & signed off", user: initialReportData.approvedBy || "Reviewer", date: formatDateTime(initialReportData.approvedTime || initialReportData.createdTime) });
+                }
+                if (initialReportSubmitted) {
+                  allEvents.push({ text: "Initial Incident Report submitted", user: incident?.reporterName || incident?.reportedBy || "Reporter", date: formatDateTime(initialReportData.createdTime) });
+                }
+                if (headsUpApproved) {
+                  allEvents.push({ text: "Heads-Up Notification marked OK & approved", user: headsUpData.approvedBy || "Reviewer", date: formatDateTime(headsUpData.approvedTime) });
+                }
+                
+                if (allEvents.length === 0) {
+                  return <div style={{ padding: 16, color: "var(--text-muted)", fontStyle: "italic", textAlign: "center" }}>No events found.</div>;
+                }
+
+                return (
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, textAlign: "left" }}>
+                    <thead>
+                      <tr style={{ background: "var(--bg-dark, #f4f6f8)", borderBottom: "1px solid var(--border-color)", color: "var(--text-main)" }}>
+                        <th style={{ padding: "12px 16px", width: 60, fontWeight: 700 }}>#</th>
+                        <th style={{ padding: "12px 16px", fontWeight: 700 }}>EVENT</th>
+                        <th style={{ padding: "12px 16px", fontWeight: 700 }}>BY</th>
+                        <th style={{ padding: "12px 16px", fontWeight: 700 }}>DATE & TIME</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {allEvents.map((ev, i) => (
+                        <tr key={i} style={{ borderBottom: "1px solid var(--border-color)" }}>
+                          <td style={{ padding: "12px 16px" }}>
+                            <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, background: "rgba(59, 130, 246, 0.1)", color: "#3b82f6", borderRadius: 4, fontWeight: 700 }}>{i + 1}</span>
+                          </td>
+                          <td style={{ padding: "12px 16px", color: "var(--text-main)", fontWeight: 500 }}>{ev.text}</td>
+                          <td style={{ padding: "12px 16px", color: "var(--text-muted)" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                              {ev.user}
+                            </div>
+                          </td>
+                          <td style={{ padding: "12px 16px", color: "var(--text-muted)" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                              {ev.date}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+        <div className={`inc-tab-panel ${activeTab === "headsUp" ? "active" : ""}`}>
             <div className="mod-card mb-4">
               <div className="mod-card-header">
                 <span className="mod-card-title">Step 1: Heads-Up Notification (2hr)</span>
@@ -717,40 +1071,50 @@ export default function IMDetails() {
                 )}
               </div>
               <div className="mod-card-body">
-                <div style={{ fontSize: "12px", color: "var(--text-muted)", marginBottom: "16px" }}>Submitted by <b>{incident.reportedBy}</b> on <b>{incident.createdAt || incident.date}</b></div>
+                <div style={{ fontSize: "12px", color: "var(--text-muted)", marginBottom: "16px" }}>Submitted by <b>{incident.reportedBy || incident.gatekeeperName || "User"}</b> on <b>{incident.createdTime ? incident.createdTime.split("T")[0] : (incident.createdAt || incident.date || "—")}</b></div>
                 <div className="grid-2">
-                  <div className="mod-form-group"><label className="mod-form-label">Incident Type</label><div className="readonly-box">{incident.category}</div></div>
-                  <div className="mod-form-group"><label className="mod-form-label">Severity</label><div className="readonly-box">
-                    <span className="inc-pill pill-sev-high" style={{ padding: "2px 8px", fontSize: "10px" }}>{incident.severity.toUpperCase()}</span>
+                  <div className="mod-form-group"><label className="mod-form-label">Incident Type</label><div className="readonly-box">{incident.categories?.[0] || incident.category || "—"}</div></div>
+                  <div className="mod-form-group"><label className="mod-form-label">Severity</label><div className="readonly-box" style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                    {(() => {
+                      const level = incident.actualSeverity || incident.severity;
+                      if (!level) return <span style={{ color: "var(--text-muted)" }}>—</span>;
+                      const meta = {
+                        1: { label: "Insignificant", color: "#2D9E5A" },
+                        2: { label: "Minor", color: "#C07D10" },
+                        3: { label: "Moderate", color: "#D97706" },
+                        4: { label: "Critical", color: "#E32B50" },
+                        5: { label: "Catastrophic", color: "#8F1B32" }
+                      };
+                      const m = meta[level] || { label: "", color: "#A1A5B3" };
+                      return (
+                        <span className="badge" style={{ background: `${m.color}22`, color: m.color, fontWeight: 700 }}>
+                          {level} {m.label}
+                        </span>
+                      );
+                    })()}
+                    {incident.isHipo && <span className="badge" style={{ background: "var(--color-risk)", color: "#fff" }}>HiPo</span>}
                   </div></div>
-                  <div className="mod-form-group"><label className="mod-form-label">Location</label><div className="readonly-box">{incident.building || incident.location}</div></div>
-                  <div className="mod-form-group"><label className="mod-form-label">Date / Time</label><div className="readonly-box">{incident.date}</div></div>
+                  <div className="mod-form-group"><label className="mod-form-label">Location</label><div className="readonly-box">{incident.buildingName ? `${incident.buildingName}${incident.floorLevel ? ' - ' + incident.floorLevel : ''}` : (incident.building || incident.location || "—")}</div></div>
+                  <div className="mod-form-group"><label className="mod-form-label">Date / Time</label><div className="readonly-box">{incident.incidentDate || incident.date || "—"} {incident.incidentTime || ""}</div></div>
                 </div>
-                <div className="mod-form-group" style={{ marginTop: "16px" }}><label className="mod-form-label">Description</label><div className="readonly-box">{incident.description}</div></div>
+                <div className="mod-form-group" style={{ marginTop: "16px" }}><label className="mod-form-label">Description</label><div className="readonly-box">{headsUpData?.descriptionWhatHappened || headsUpData?.whatHappened || headsUpData?.descriptionConsequence || incident.description || incident.details || "—"}</div></div>
               </div>
             </div>
 
                         {/* Review Section */}
-            {headsUpApproved && (
-              <div className="mod-card mb-4">
+            {huAudit.length > 0 && (
+              <div className="mod-card mb-4" style={{ marginTop: 24 }}>
                 <div className="mod-card-header">
-                  <span className="mod-card-title">Review: Heads-Up Notification {incident.id}</span>
-                  <span className="inv-chip chip-approved">APPROVED</span>
+                  <span className="mod-card-title" style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "18px", color: "var(--text-main)" }}>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="M9 12l2 2 4-4" />
+                    </svg>
+                    Audit Trail & Sign-Off Log
+                  </span>
                 </div>
-                <div className="mod-card-body">
-                  <div style={{ padding: "16px", background: "rgba(123,190,151,0.1)", border: "1px solid rgba(123,190,151,0.5)", borderRadius: "8px", color: "#2D7A4F", marginBottom: "16px" }}>
-                    This Heads-Up Notification has been approved. The Initial Incident Report has been unlocked.
-                  </div>
-                  <div style={{ padding: "16px", border: "1px solid var(--border-color)", borderRadius: "8px", display: "flex", gap: "16px", alignItems: "center" }}>
-                    <div style={{ width: 120, height: 40, border: "1px solid var(--border-color)", borderRadius: 5, background: "#f8fafc" }}>
-                      <svg width="100%" height="100%" viewBox="0 0 500 120" preserveAspectRatio="none">
-                        <path d="M50,80 Q100,20 150,60 T250,80 T350,40 T450,70" fill="none" stroke="#0f172a" strokeWidth="3" />
-                      </svg>
-                    </div>
-                    <div style={{ fontSize: "12px", color: "var(--text-main)" }}>
-                      <b style={{ color: "#2D7A4F" }}>Marked OK & signed by Reviewer</b><br/>
-                      19/08/2026, 11:39
-                    </div>
+                <div className="mod-card-body" style={{ padding: "24px 16px" }}>
+                  <div style={{ position: "relative", paddingLeft: 16 }}>
+                    {huAudit.map((step, i) => renderAuditCard(step, i, huAudit.length))}
                   </div>
                 </div>
               </div>
@@ -765,7 +1129,7 @@ export default function IMDetails() {
                   </div>
                   <div className="mod-form-group" style={{ marginTop: 16 }}>
                     <label className="mod-form-label" style={{ textTransform: "uppercase" }}>Reviewer Name</label>
-                    <input type="text" className="mod-form-input" placeholder="Type your full name" />
+                    <input type="text" className="mod-form-input" placeholder="Type your full name" value={reviewerName} onChange={(e) => setReviewerName(e.target.value)} />
                   </div>
                   <div className="mod-form-group" style={{ marginTop: 16 }}>
                     <label className="mod-form-label" style={{ textTransform: "uppercase" }}>Digital Signature</label>
@@ -780,19 +1144,25 @@ export default function IMDetails() {
                   </div>
                   <div style={{ display: "flex", gap: "12px", marginTop: "24px" }}>
                     <button className="mod-btn-outline" style={{ color: "var(--color-risk)", borderColor: "var(--color-risk-bg)" }}>Return for Revision</button>
-                    <button className="mod-btn-primary" disabled={!markedOk || !signature} onClick={() => {
-                      setHeadsUpApproved(true);
-                      setActiveTab("initialReport");
+                    <button className="mod-btn-primary im-btn-primary" disabled={!markedOk || !signature || !reviewerName} onClick={async () => {
+                      try {
+                        await approveHeadsUp(id, { signature, approvedBy: reviewerName });
+                        setHeadsUpApproved(true);
+                        setActiveTab("initialReport");
+                        // Refresh incident
+                        const data = await getIncidentById(id);
+                        setRawIncident(data?.data || data);
+                      } catch (err) {
+                        console.error("Failed to approve Heads Up", err);
+                      }
                     }}>Approve & Sign Off</button>
                   </div>
                 </div>
               </div>
             )}
           </div>
-        )}
 
-        {activeTab === "initialReport" && (
-          <div className="inc-tab-panel active">
+        <div className={`inc-tab-panel ${activeTab === "initialReport" ? "active" : ""}`}>
             {!headsUpApproved ? (
                <div className="mod-card"><div className="mod-card-body"><div className="locked-state">
                  <div className="locked-icon">
@@ -807,41 +1177,25 @@ export default function IMDetails() {
                  </div>
                </div></div></div>
             ) : initialReportSubmitted ? (
-              <div>
-                <div className="mod-card mb-4">
-                  <div className="mod-card-header"><span className="mod-card-title">Initial Incident Report Submitted</span><span className="inv-chip chip-approved" style={{background: 'var(--color-safe-bg)', color: 'var(--color-safe)'}}>SUBMITTED</span></div>
-                  <div className="mod-card-body">
-                    <div className="readonly-box" style={{ background: "var(--bg-dark)" }}>
-                      The Initial Incident Report was submitted by {incident.reportedBy} on {incident.date}. It is now pending HSE review.
-                    </div>
-                  </div>
-                </div>
-                
-                                {initialReportApproved && (
-                <div className="mod-card mb-4" style={{ marginTop: 24 }}>
-                  <div className="mod-card-header">
-                    <span className="mod-card-title">Review & Sign-Off: Initial Incident Report {incident.id}</span>
-                    <span className="inv-chip chip-approved">APPROVED</span>
-                  </div>
-                  <div className="mod-card-body">
-                    <div style={{ padding: "16px", background: "rgba(123,190,151,0.1)", border: "1px solid rgba(123,190,151,0.5)", borderRadius: "8px", color: "#2D7A4F", marginBottom: "16px" }}>
-                      The Initial Incident Report has been approved. The Investigation Report has been unlocked.
-                    </div>
-                    <div style={{ padding: "16px", border: "1px solid var(--border-color)", borderRadius: "8px", display: "flex", gap: "16px", alignItems: "center" }}>
-                      <div style={{ width: 120, height: 40, border: "1px solid var(--border-color)", borderRadius: 5, background: "#f8fafc" }}>
-                        <svg width="100%" height="100%" viewBox="0 0 500 120" preserveAspectRatio="none">
-                          <path d="M50,80 Q100,20 150,60 T250,80 T350,40 T450,70" fill="none" stroke="#0f172a" strokeWidth="3" />
-                        </svg>
+                <div>
+                  {irAudit.length > 0 && (
+                    <div className="mod-card mb-4" style={{ marginTop: 24 }}>
+                      <div className="mod-card-header">
+                        <span className="mod-card-title" style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "18px", color: "var(--text-main)" }}>
+                          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="M9 12l2 2 4-4" />
+                          </svg>
+                          Audit Trail & Sign-Off Log
+                        </span>
                       </div>
-                      <div style={{ fontSize: "12px", color: "var(--text-main)" }}>
-                        <b style={{ color: "#2D7A4F" }}>Marked OK & signed by Reviewer</b><br/>
-                        19/08/2026, 11:44
+                      <div className="mod-card-body" style={{ padding: "24px 16px" }}>
+                        <div style={{ position: "relative", paddingLeft: 16 }}>
+                          {irAudit.map((step, i) => renderAuditCard(step, i, irAudit.length))}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </div>
-                )}
-                {!initialReportApproved && (
+                  )}
+                  {!initialReportApproved && (
                 <div className="mod-card mb-4">
                   <div className="mod-card-header"><span className="mod-card-title">Review: Initial Incident Report {incident.id}</span></div>
                   <div className="mod-card-body">
@@ -851,7 +1205,7 @@ export default function IMDetails() {
                     </div>
                     <div className="mod-form-group" style={{ marginTop: 16 }}>
                       <label className="mod-form-label" style={{ textTransform: "uppercase" }}>Reviewer Name</label>
-                      <input type="text" className="mod-form-input" placeholder="Type your full name" />
+                      <input type="text" className="mod-form-input" placeholder="Type your full name" value={irReviewerName} onChange={(e) => setIrReviewerName(e.target.value)} />
                     </div>
                     <div className="mod-form-group" style={{ marginTop: 16 }}>
                       <label className="mod-form-label" style={{ textTransform: "uppercase" }}>Digital Signature</label>
@@ -866,10 +1220,19 @@ export default function IMDetails() {
                     </div>
                     <div style={{ display: "flex", gap: "12px", marginTop: "24px" }}>
                       <button className="mod-btn-outline" style={{ color: "var(--color-risk)", borderColor: "var(--color-risk-bg)" }}>Return for Revision</button>
-                      <button className="mod-btn-primary" disabled={!irMarkedOk || !irSignature} onClick={() => {
-                        setInitialReportApproved(true);
-                        setActiveTab("investigation");
-                        window.scrollTo(0, 0);
+                      <button className="mod-btn-primary im-btn-primary" disabled={!irMarkedOk || !irSignature || !irReviewerName} onClick={async () => {
+                        try {
+                          await approveInitialReport(id, { signature: irSignature, approvedBy: irReviewerName });
+                          showSuccess("Initial Report Approved!");
+                          setInitialReportApproved(true);
+                          setActiveTab("investigation");
+                          window.scrollTo(0, 0);
+                          const data = await getIncidentById(id);
+                          setRawIncident(data?.data || data);
+                        } catch (err) {
+                          const msg = err.response?.data?.message || err.message || "Failed to approve initial report";
+                          showError(Array.isArray(msg) ? msg[0] : msg);
+                        }
                       }}>Approve & Sign Off</button>
                     </div>
                   </div>
@@ -883,10 +1246,10 @@ export default function IMDetails() {
                   {/* A. Heads-Up Summary */}
                   <div className="fsec"><div className="fsec-title">A. Heads-Up Summary</div>
                     <div className="readonly-box">
-                      <div><b>Type:</b> {incident.category}</div>
-                      <div><b>Severity:</b> {incident.severity}</div>
-                      <div><b>Location:</b> {incident.location}</div>
-                      <div><b>Description:</b> {incident.description}</div>
+                      <div><b>Type:</b> {incident.categories?.[0] || incident.category || "—"}</div>
+                      <div><b>Severity:</b> {incident.actualSeverity || incident.severity || "—"}</div>
+                      <div><b>Location:</b> {incident.buildingName ? `${incident.buildingName}${incident.floorLevel ? ' - ' + incident.floorLevel : ''}` : (incident.building || incident.location || "—")}</div>
+                      <div><b>Description:</b> {headsUpData?.descriptionWhatHappened || headsUpData?.whatHappened || headsUpData?.descriptionConsequence || incident.description || incident.details || "—"}</div>
                     </div>
                   </div>
 
@@ -918,7 +1281,7 @@ export default function IMDetails() {
                     <div className="grid-2">
                       <div className="mod-form-group">
                         <label className="mod-form-label">Actual Severity Level & Rating</label>
-                        <select className="mod-form-select" defaultValue={incident.actualSeverity}>
+                        <select id="select-actual-severity" className="mod-form-select" defaultValue={incident.actualSeverity || ""}>
                           <option value="">Use the severity table from Risk Matrix...</option>
                           {SEVERITY_RATINGS.map(s => <option key={s} value={s.split(" ")[0]}>{s}</option>)}
                         </select>
@@ -926,7 +1289,7 @@ export default function IMDetails() {
                       </div>
                       <div className="mod-form-group">
                         <label className="mod-form-label">Potential Severity Level & Rating</label>
-                        <select className="mod-form-select" defaultValue={incident.potentialSeverity}>
+                        <select id="select-potential-severity" className="mod-form-select" defaultValue={incident.potentialSeverity || ""}>
                           <option value="">What could realistically have happened...</option>
                           {SEVERITY_RATINGS.map(s => <option key={s} value={s.split(" ")[0]}>{s}</option>)}
                         </select>
@@ -962,7 +1325,7 @@ export default function IMDetails() {
                           <canvas ref={canvasRef} style={{ display: 'none' }}></canvas>
                         </div>
                         <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 12 }}>
-                          <button onClick={capturePhoto} style={{ background: "var(--nne-brand-blue, #131E40)", color: "#fff", border: "none", borderRadius: 6, padding: "6px 16px", fontWeight: 700, cursor: "pointer" }}>Capture</button>
+                          <button onClick={capturePhoto} style={{ background: "var(--accent-primary)", color: "#fff", border: "none", borderRadius: 6, padding: "6px 16px", fontWeight: 700, cursor: "pointer" }}>Capture</button>
                           <button className="mod-btn-outline" onClick={stopCamera} style={{ padding: "6px 16px" }}>Stop Camera</button>
                         </div>
                         <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 8 }}>{photos.length}/20 photos</div>
@@ -1135,13 +1498,25 @@ export default function IMDetails() {
                               </div>
                               <div className="mod-form-group" style={{ flex: 1 }}>
                                 <label className="mod-form-label" style={{ textTransform: "uppercase", fontSize: 11, fontWeight: 700 }}>Time Implemented</label>
-                                <input type="time" className="mod-form-input" placeholder="e.g. 15:10" value={act.time} onChange={e => { const updated = [...immActions]; updated[idx].time = e.target.value; setImmActions(updated); }} />
+                                <input type="text" readOnly className="mod-form-input" placeholder="Select time" value={act.time || ""} style={{ cursor: "pointer" }} onClick={() => { setTempActionTime(act.time || "12:00"); setShowActionTimePicker(idx); }} />
                               </div>
                               <button style={{ padding: "6px 12px", border: "1px solid var(--color-risk-bg)", background: "var(--bg-card)", color: "var(--color-risk)", borderRadius: 6, fontSize: 12, cursor: "pointer", height: 36 }} onClick={() => setImmActions(immActions.filter((_, i) => i !== idx))}>Remove</button>
                             </div>
                           </div>
                         ))}
                       </div>
+                    )}
+                    {showActionTimePicker !== null && (
+                      <AnalogTimePicker 
+                        initialTime={tempActionTime} 
+                        onSave={(val) => { 
+                          const updated = [...immActions]; 
+                          updated[showActionTimePicker].time = val; 
+                          setImmActions(updated);
+                          setShowActionTimePicker(null); 
+                        }} 
+                        onCancel={() => setShowActionTimePicker(null)} 
+                      />
                     )}
                   </div>
 
@@ -1169,10 +1544,28 @@ export default function IMDetails() {
                   <div className="fsec">
                     <div className="fsec-note">Distribution: NNE Site HSE, NNE Construction Management</div>
                     <div style={{ display: "flex", gap: "12px", marginTop: "16px" }}>
-                      <button className="mod-btn-primary" onClick={() => { 
-                        alert("Initial Report Submitted!"); 
-                        setInitialReportSubmitted(true);
-                        window.scrollTo(0,0);
+                      <button className="mod-btn-primary im-btn-primary" onClick={async () => { 
+                        try {
+                          const formData = new FormData();
+                          formData.append("natureOfInjury", "Some injury data"); // In a real app we'd map this from state
+                          
+                          const actSev = document.getElementById("select-actual-severity")?.value;
+                          const potSev = document.getElementById("select-potential-severity")?.value;
+                          
+                          if (actSev) formData.append("actualSeverity", Number(actSev));
+                          if (potSev) formData.append("potentialSeverity", Number(potSev));
+                          
+                          // If photos exist, add them (assuming base64 data URLs for now, need conversion if backend expects files)
+                          // In a real app, we convert Data URL to blob. For now, sending as string if backend accepts or skipping.
+                          
+                          await submitInitialReport(id, formData);
+                          setInitialReportSubmitted(true);
+                          window.scrollTo(0,0);
+                          const data = await getIncidentById(id);
+                          setRawIncident(data?.data || data);
+                        } catch (err) {
+                          console.error("Failed to submit initial report", err);
+                        }
                       }}>Submit Initial Incident Report</button>
                       <button className="mod-btn-outline">Save Draft</button>
                     </div>
@@ -1181,10 +1574,8 @@ export default function IMDetails() {
               </div>
             )}
           </div>
-        )}
 
-        {activeTab === "investigation" && (
-          <div className="inc-tab-panel active">
+        <div className={`inc-tab-panel ${activeTab === "investigation" ? "active" : ""}`}>
              {!initialReportApproved ? (
                <div className="mod-card"><div className="mod-card-body"><div className="locked-state">
                   <div className="locked-icon"><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg></div>
@@ -1195,53 +1586,60 @@ export default function IMDetails() {
                <div className="mod-card" style={{ padding: "80px 32px", textAlign: "center", borderTop: "4px solid var(--accent-primary)" }}>
                   <div style={{ fontSize: 20, fontWeight: 700, color: "var(--text-main)", marginBottom: 12 }}>Incident Investigation Report (7 days)</div>
                   <div style={{ color: "var(--text-muted)", marginBottom: 24, fontSize: 14 }}>The Initial Incident Report is complete. You can now begin the full investigation report.</div>
-                  <button className="mod-btn-primary" style={{ padding: "10px 24px", fontSize: 14 }} onClick={() => { setInvestigationStarted(true); window.scrollTo(0,0); }}>Start Investigation Report</button>
+                  <button className="mod-btn-primary im-btn-primary" style={{ padding: "10px 24px", fontSize: 14 }} onClick={() => { setInvestigationStarted(true); window.scrollTo(0,0); }}>Start Investigation Report</button>
                </div>
              ) : investigationSubmitted ? (
-               <div>
-                  <div className="mod-card mb-4">
-                    <div className="mod-card-header"><span className="mod-card-title">Investigation Report Submitted</span><span className="inv-chip chip-approved" style={{background: 'var(--color-safe-bg)', color: 'var(--color-safe)'}}>SUBMITTED</span></div>
-                    <div className="mod-card-body">
-                      <div className="readonly-box" style={{ background: "var(--bg-dark)" }}>
-                        The Incident Investigation Report was submitted by Anders Henriksen. It is now pending final HSE sign-off.
+                 <div>
+                  {invAudit.length > 0 && (
+                    <div className="mod-card mb-4" style={{ marginTop: 24 }}>
+                      <div className="mod-card-header">
+                        <span className="mod-card-title" style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "18px", color: "var(--text-main)" }}>
+                          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="M9 12l2 2 4-4" />
+                          </svg>
+                          Audit Trail & Sign-Off Log
+                        </span>
+                      </div>
+                      <div className="mod-card-body" style={{ padding: "24px 16px" }}>
+                        <div style={{ position: "relative", paddingLeft: 16 }}>
+                          {invAudit.map((step, i) => renderAuditCard(step, i, invAudit.length))}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  
-                  <div className="mod-card mb-4">
-                    <div className="mod-card-header">
-                      <span className="mod-card-title">Review & Sign-Off: Investigation Report {incident.id}</span>
-                      {investigationApproved && <span className="inv-chip chip-approved" style={{background: 'var(--color-safe-bg)', color: 'var(--color-safe)'}}>APPROVED</span>}
+                  )}
+                  {investigationApproved && (
+                    <div style={{ marginTop: 16 }}>
+                      <button className="mod-btn-primary im-btn-primary" style={{ background: "var(--color-risk)", fontWeight: 600 }} onClick={async () => {
+                              try {
+                                await closeIncident(id, { closedBy: "Site HSE Admin" });
+                                showSuccess("Incident Closed Successfully!");
+                                const data = await getIncidentById(id);
+                                setRawIncident(data?.data || data);
+                              } catch (err) {
+                                const msg = err.response?.data?.message || err.response?.data?.error || err.message || "Failed to close incident";
+                                showError(Array.isArray(msg) ? msg[0] : msg);
+                              }
+                            }}>Close Incident</button>
                     </div>
-                    <div className="mod-card-body">
-                      {investigationApproved ? (
-                        <>
-                          <div className="readonly-box" style={{ borderColor: "rgba(123,190,151,0.4)", background: "rgba(123,190,151,0.08)", marginBottom: 16 }}>
-                            The Investigation Report has been <b>approved and signed off</b>. The investigation is complete — you may now close the incident.
-                          </div>
-                          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", border: "1px solid rgba(123,190,151,0.5)", background: "rgba(123,190,151,0.08)", borderRadius: 8, marginBottom: 16 }}>
-                            <div style={{ width: 120, height: 44, background: "#fff", border: "1px solid var(--border-color)", borderRadius: 5, overflow: "hidden" }}>
-                               <svg width="100%" height="100%" viewBox="0 0 500 120" preserveAspectRatio="none">
-                                 <path d="M50,80 Q100,20 150,60 T250,80 T350,40 T450,70" fill="none" stroke="var(--text-main)" strokeWidth="3" />
-                                 
-                               </svg>
-                            </div>
-                            <div style={{ fontSize: 12, color: "var(--text-main)" }}>
-                              <b style={{ color: "#2D7A4F" }}>Marked OK</b> & signed by Reviewer<br/>
-                              19/08/2026, 11:57
-                            </div>
-                          </div>
-                          <button className="mod-btn-primary" style={{ background: "#131E40" }} onClick={() => alert("Incident Closed!")}>Close Incident</button>
-                        </>
-                      ) : (
-                        <>
-                          <div className="mod-form-group">
+                  )}
+                  {!investigationApproved && (
+                    <div className="mod-card mb-4">
+                      <div className="mod-card-header">
+                        <span className="mod-card-title">Review & Sign-Off: Investigation Report {incident.id}</span>
+                      </div>
+                      <div className="mod-card-body">
+                          <>
+                            <div className="mod-form-group">
                             <label className="mod-form-label">Review Comments</label>
                             <textarea className="mod-form-textarea" placeholder="Add review comments..." rows="3"></textarea>
                           </div>
                           <div className="mod-form-group" style={{ marginTop: 16 }}>
                             <label className="mod-form-label" style={{ textTransform: "uppercase" }}>Reviewer Name</label>
-                            <input type="text" className="mod-form-input" placeholder="Type your full name" />
+                            <input type="text" className="mod-form-input" placeholder="Type your full name" value={invReviewerName} onChange={(e) => setInvReviewerName(e.target.value)} />
+                          </div>
+                          <div className="mod-form-group" style={{ marginTop: 16 }}>
+                            <label className="mod-form-label" style={{ textTransform: "uppercase" }}>Reviewer Role</label>
+                            <input type="text" className="mod-form-input" placeholder="e.g. Lead Reviewer" value={invReviewerRole} onChange={(e) => setInvReviewerRole(e.target.value)} />
                           </div>
                           <div className="mod-form-group" style={{ marginTop: 16 }}>
                             <label className="mod-form-label" style={{ textTransform: "uppercase" }}>Digital Signature</label>
@@ -1256,15 +1654,26 @@ export default function IMDetails() {
                           </div>
                           <div style={{ display: "flex", gap: "12px", marginTop: "24px" }}>
                             <button className="mod-btn-outline" style={{ color: "var(--color-risk)", borderColor: "var(--color-risk-bg)" }}>Return for Revision</button>
-                            <button className="mod-btn-primary" disabled={!invRevMarkedOk || !invRevSignature} onClick={() => {
-                              setInvestigationApproved(true);
-                              window.scrollTo(0, 0);
+                            <button className="mod-btn-primary im-btn-primary" disabled={!invRevMarkedOk || !invRevSignature || !invReviewerName || !invReviewerRole} onClick={async () => {
+                              try {
+                                await reviewInvestigation(id, { 
+                                  signature: invRevSignature, 
+                                  reviewedBy: invReviewerName,
+                                  reviewerRole: invReviewerRole 
+                                });
+                                setInvestigationApproved(true);
+                                window.scrollTo(0, 0);
+                                const data = await getIncidentById(id);
+                                setRawIncident(data?.data || data);
+                              } catch (err) {
+                                console.error("Failed to approve investigation", err);
+                              }
                             }}>Approve & Sign Off</button>
                           </div>
                         </>
-                      )}
+                      </div>
                     </div>
-                  </div>
+                  )}
                </div>
              ) : (
                <div className="mod-card">
@@ -1331,7 +1740,7 @@ export default function IMDetails() {
                      </div>
                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16, marginTop: 16 }}>
                        {FISHBONE_CATS.map(cat => (
-                         <div key={cat.key} style={{ borderTop: `4px solid ${cat.color}`, background: "#fff", border: "1px solid var(--border-color)", borderTopColor: cat.color, padding: 16, borderRadius: 8, overflow: "hidden", boxShadow: "0 2px 4px rgba(0,0,0,0.02)" }}>
+                         <div key={cat.key} style={{ borderTop: `4px solid ${cat.color}`, background: "var(--bg-card, #fff)", border: "1px solid var(--border-color)", borderTopColor: cat.color, padding: 16, borderRadius: 8, overflow: "hidden", boxShadow: "var(--shadow-sm, 0 2px 4px rgba(0,0,0,0.02))" }}>
                            <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-main)", marginBottom: 2 }}>{cat.label}</div>
                            <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 12 }}>{cat.hint}</div>
                            <div style={{ display: "flex", gap: 8, marginBottom: 16, alignItems: "stretch" }}>
@@ -1340,19 +1749,19 @@ export default function IMDetails() {
                                value={fishboneInput[cat.key]} 
                                onChange={e => setFishboneInput({...fishboneInput, [cat.key]: e.target.value})} 
                                onKeyDown={e => e.key === 'Enter' && addFishboneCause(cat.key)}
-                               style={{ flex: 1, padding: "10px 12px", fontSize: 13, border: "1px solid #e2e8f0", borderRadius: 6, background: "#fff", outline: "none", color: "var(--text-main)" }}
+                               style={{ flex: 1, padding: "10px 12px", fontSize: 13, border: "1px solid var(--border-color, #e2e8f0)", borderRadius: 6, background: "var(--bg-dark, #fff)", outline: "none", color: "var(--text-main)" }}
                              />
                              <button 
-                               style={{ background: "#0f172a", border: "none", color: "#fff", padding: "0 16px", borderRadius: 6, cursor: "pointer", fontSize: 18, fontWeight: 500, display: "flex", alignItems: "center", justifyContent: "center" }} 
+                               style={{ background: "var(--accent-primary, #0f172a)", border: "none", color: "#fff", padding: "0 16px", borderRadius: 6, cursor: "pointer", fontSize: 18, fontWeight: 500, display: "flex", alignItems: "center", justifyContent: "center" }} 
                                onClick={() => addFishboneCause(cat.key)}
                              >+</button>
                            </div>
                            {fishbone[cat.key].map((cause, i) => (
-                             <div key={i} style={{ border: "1px solid var(--border-color)", padding: 12, borderRadius: 8, marginBottom: 10, background: cause.probable ? "#fff1f2" : "#fff", borderColor: cause.probable ? "#f43f5e" : "#e2e8f0" }}>
+                             <div key={i} style={{ border: "1px solid var(--border-color)", padding: 12, borderRadius: 8, marginBottom: 10, background: cause.probable ? "var(--color-risk-bg, #fff1f2)" : "var(--bg-dark, #fff)", borderColor: cause.probable ? "var(--color-risk, #f43f5e)" : "var(--border-color, #e2e8f0)" }}>
                                <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-                                 <input type="checkbox" checked={cause.probable} onChange={() => toggleFishboneProbable(cat.key, i)} style={{ marginTop: 2, accentColor: "#e11d48", width: 16, height: 16, cursor: "pointer" }} />
+                                 <input type="checkbox" checked={cause.probable} onChange={() => toggleFishboneProbable(cat.key, i)} style={{ marginTop: 2, accentColor: "var(--color-risk, #e11d48)", width: 16, height: 16, cursor: "pointer" }} />
                                  <span style={{ flex: 1, fontSize: 13, color: "var(--text-main)", lineHeight: 1.4 }}>{cause.text}</span>
-                                 <button style={{ background: "#f1f5f9", border: "none", color: "#64748b", cursor: "pointer", width: 24, height: 24, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }} onClick={() => removeFishboneCause(cat.key, i)}>×</button>
+                                 <button style={{ background: "var(--color-gray-bg, #f1f5f9)", border: "none", color: "var(--text-muted, #64748b)", cursor: "pointer", width: 24, height: 24, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }} onClick={() => removeFishboneCause(cat.key, i)}>×</button>
                                </div>
                                <div style={{ display: "flex", gap: 6, marginTop: 12, alignItems: "center" }}>
                                  <span style={{ fontSize: 12, color: "var(--text-muted)", marginRight: 4 }}>Score:</span>
@@ -1361,9 +1770,9 @@ export default function IMDetails() {
                                      key={s} 
                                      style={{ 
                                        width: 26, height: 26, padding: 0, 
-                                       border: `1px solid ${cause.score===s ? '#0f172a' : '#e2e8f0'}`, 
-                                       background: cause.score===s ? '#0f172a' : '#fff', 
-                                       color: cause.score===s ? '#fff' : '#64748b', 
+                                       border: `1px solid ${cause.score===s ? 'var(--accent-primary, #0f172a)' : 'var(--border-color, #e2e8f0)'}`, 
+                                       background: cause.score===s ? 'var(--accent-primary, #0f172a)' : 'var(--bg-card, #fff)', 
+                                       color: cause.score===s ? '#fff' : 'var(--text-muted, #64748b)', 
                                        borderRadius: 4, cursor: "pointer", fontSize: 12, fontWeight: 600
                                      }} 
                                      onClick={() => setFishboneScore(cat.key, i, s)}
@@ -1372,7 +1781,7 @@ export default function IMDetails() {
                                </div>
                                {cause.probable && (
                                  <div style={{ marginTop: 12 }}>
-                                   <span style={{ fontSize: 10, fontWeight: 800, color: "#fff", background: "#e11d48", padding: "4px 10px", borderRadius: 12, letterSpacing: "0.5px" }}>SELECTED FOR 5 WHYS</span>
+                                   <span style={{ fontSize: 10, fontWeight: 800, color: "#fff", background: "var(--color-risk, #e11d48)", padding: "4px 10px", borderRadius: 12, letterSpacing: "0.5px" }}>SELECTED FOR 5 WHYS</span>
                                  </div>
                                )}
                              </div>
@@ -1401,13 +1810,13 @@ export default function IMDetails() {
                    {/* 7. Probable Causes Banner */}
                    <div className="fsec">
                      <div style={{ background: "rgba(227,43,80,0.06)", border: "1px solid rgba(227,43,80,0.35)", padding: 16, borderRadius: 8 }}>
-                       <div style={{ fontSize: 13, fontWeight: 800, color: "var(--nne-brand-red)" }}>Causes Selected for 5 Whys ({getProbableCauses().length})</div>
+                       <div style={{ fontSize: 13, fontWeight: 800, color: "var(--color-risk)" }}>Causes Selected for 5 Whys ({getProbableCauses().length})</div>
                        {getProbableCauses().length === 0 ? (
                          <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 8 }}>No causes selected yet. Tick any cause above – in any category – to analyse it.</div>
                        ) : (
                          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
                            {getProbableCauses().map(c => (
-                             <span key={c.id} style={{ display: "inline-flex", background: "#fff", border: "1px solid rgba(227,43,80,0.4)", color: "var(--nne-brand-red)", padding: "4px 12px", borderRadius: 999, fontSize: 12, fontWeight: 600 }}>{c.text} (Score: {c.score || '-'})</span>
+                             <span key={c.id} style={{ display: "inline-flex", background: "var(--bg-card)", border: "1px solid var(--color-risk)", color: "var(--color-risk)", padding: "4px 12px", borderRadius: 999, fontSize: 12, fontWeight: 600 }}>{c.text} (Score: {c.score || '-'})</span>
                            ))}
                          </div>
                        )}
@@ -1423,8 +1832,8 @@ export default function IMDetails() {
                          {getProbableCauses().map(c => {
                            const whys = fiveWhys[c.id] || [];
                            return (
-                             <div key={c.id} style={{ border: "1px solid var(--border-color)", padding: 16, borderRadius: 8, background: "#fff" }}>
-                               <div style={{ fontSize: 12, fontWeight: 800, color: "var(--nne-brand-blue, #131E40)", textTransform: "uppercase", borderBottom: "1px solid var(--border-color)", paddingBottom: 8, marginBottom: 12 }}>CAUSE: {c.text}</div>
+                             <div key={c.id} style={{ border: "1px solid var(--border-color)", padding: 16, borderRadius: 8, background: "var(--bg-card)" }}>
+                               <div style={{ fontSize: 12, fontWeight: 800, color: "var(--text-main)", textTransform: "uppercase", borderBottom: "1px solid var(--border-color)", paddingBottom: 8, marginBottom: 12 }}>CAUSE: {c.text}</div>
                                {[0,1,2,3,4].map(w => (
                                  <div key={w} className="mod-form-group" style={{ marginBottom: 12 }}>
                                    <label className="mod-form-label">Why {w+1}</label>
@@ -1449,7 +1858,7 @@ export default function IMDetails() {
                    </div>
                    {invRootCauses.length === 0 ? <div className="muted-empty" style={{ fontStyle: "italic", fontSize: 13, color: "var(--text-muted)", padding: "8px 0" }}>No root causes added yet.</div> : invRootCauses.map((rc, i) => (
                      <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center" }}>
-                       <span style={{ fontWeight: 700, color: "var(--nne-brand-blue, #131E40)", width: 24 }}>{i+1}.</span>
+                       <span style={{ fontWeight: 700, color: "var(--accent-primary)", width: 24 }}>{i+1}.</span>
                        <input className="mod-form-input" style={{ flex: 1 }} value={rc} onChange={e => updateInvRootCause(i, e.target.value)} />
                        <button className="subcard-remove" style={{ color: "var(--color-risk)", background: "transparent", border: "1px solid var(--border-color)", padding: "4px 8px", borderRadius: 4, cursor: "pointer", fontSize: 12 }} onClick={() => removeInvRootCause(i)}>Remove</button>
                      </div>
@@ -1464,7 +1873,7 @@ export default function IMDetails() {
                    <div className="fsec-note">e.g. Human Factor, Environmental Factor, Procedural Factor</div>
                    {invFactors.length === 0 ? <div className="muted-empty" style={{ fontStyle: "italic", fontSize: 13, color: "var(--text-muted)", padding: "8px 0" }}>No contributing factors added yet.</div> : invFactors.map((f, i) => (
                      <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center" }}>
-                       <span style={{ fontWeight: 700, color: "var(--nne-brand-blue, #131E40)", width: 24 }}>{i+1}.</span>
+                       <span style={{ fontWeight: 700, color: "var(--accent-primary)", width: 24 }}>{i+1}.</span>
                        <input className="mod-form-input" style={{ flex: 1 }} value={f} onChange={e => updateInvFactor(i, e.target.value)} />
                        <button className="subcard-remove" style={{ color: "var(--color-risk)", background: "transparent", border: "1px solid var(--border-color)", padding: "4px 8px", borderRadius: 4, cursor: "pointer", fontSize: 12 }} onClick={() => removeInvFactor(i)}>Remove</button>
                      </div>
@@ -1499,8 +1908,8 @@ export default function IMDetails() {
                        </div>
                      </div>
                      {invPreSev && invPostSev && (
-                       <div style={{ marginTop: 16, background: "rgba(123,190,151,0.1)", border: "1px solid rgba(123,190,151,0.5)", padding: 12, borderRadius: 8, color: "#2D7A4F", fontWeight: 700 }}>
-                         Severity Reduction: {invPreSev} ({SEVERITY_SCALE.find(s=>s.level===invPreSev).label}) → {invPostSev} ({SEVERITY_SCALE.find(s=>s.level===invPostSev).label})
+                       <div style={{ marginTop: 16, background: "var(--color-safe-bg, rgba(123,190,151,0.1))", border: "1px solid var(--color-safe, rgba(123,190,151,0.5))", padding: 12, borderRadius: 8, color: "var(--color-safe, #2D7A4F)", fontWeight: 700 }}>
+                         Severity Reduction: {invPreSev} ({SEVERITY_SCALE.find(s=>s.level===invPreSev)?.label}) → {invPostSev} ({SEVERITY_SCALE.find(s=>s.level===invPostSev)?.label})
                        </div>
                      )}
                    </div>
@@ -1564,7 +1973,7 @@ export default function IMDetails() {
                        <div className="cam-wrap" style={{ marginTop: 12 }}>
                          <video ref={invVideoRef} autoPlay playsInline style={{ width: "100%", maxWidth: 420, borderRadius: 8, background: "#000" }}></video>
                          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                           <button className="mod-btn-primary" style={{ padding: "4px 12px", fontSize: 13 }} onClick={() => {
+                           <button className="mod-btn-primary im-btn-primary" style={{ padding: "4px 12px", fontSize: 13 }} onClick={() => {
                              const v = invVideoRef.current;
                              const c = invCanvasRef.current;
                              if (!v || !c) return;
@@ -1590,7 +1999,7 @@ export default function IMDetails() {
                        {invPhotos.map((p, i) => (
                          <div key={i} className="photo-thumb" style={{ position: "relative", width: 96, height: 96, borderRadius: 8, overflow: "hidden", border: "1px solid var(--border-color)", background: "var(--bg-dark)" }}>
                            <img src={p} alt={`photo ${i+1}`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                           <button style={{ position: "absolute", top: 2, right: 2, width: 20, height: 20, borderRadius: "50%", border: "none", background: "var(--nne-brand-red)", color: "#fff", cursor: "pointer", fontSize: 12, lineHeight: 1 }} onClick={() => setInvPhotos(invPhotos.filter((_, idx) => idx !== i))}>×</button>
+                           <button style={{ position: "absolute", top: 2, right: 2, width: 20, height: 20, borderRadius: "50%", border: "none", background: "var(--color-risk)", color: "#fff", cursor: "pointer", fontSize: 12, lineHeight: 1 }} onClick={() => setInvPhotos(invPhotos.filter((_, idx) => idx !== i))}>×</button>
                          </div>
                        ))}
                      </div>
@@ -1616,14 +2025,6 @@ export default function IMDetails() {
                      </div>
                    </div>
 
-                   {/* 16. Distribution List */}
-                   <div className="fsec"><div className="fsec-title">16. Distribution List</div>
-                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 24px" }}>
-                       {["NNE Site HSE", "NNE Construction Management", "NNE Commissioning Management", "Client Representative", "Principal Contractor"].map((d, i) => (
-                         <div key={i} style={{ fontSize: 13, color: "var(--text-muted)", padding: "6px 0", borderBottom: "1px dashed var(--border-color)" }}>{d}</div>
-                       ))}
-                     </div>
-                   </div>
 
                    {/* 17. Signature */}
                    <div className="fsec"><div className="fsec-title">17. Signature</div>
@@ -1650,10 +2051,62 @@ export default function IMDetails() {
                    {/* Footer */}
                    <div className="fsec">
                      <div style={{ display: "flex", gap: "12px", marginTop: "16px" }}>
-                       <button className="mod-btn-primary" onClick={() => { 
-                         alert("Investigation Report Submitted!"); 
-                         setInvestigationSubmitted(true);
-                         window.scrollTo(0,0);
+                       <button className="mod-btn-primary im-btn-primary" onClick={async () => { 
+                         try {
+                           const fishboneDataPayload = Object.keys(fishbone).map(catKey => ({
+                             category: catKey,
+                             causes: (fishbone[catKey] || []).map(c => ({
+                               causeText: c.text || "",
+                               score: c.score ? Number(c.score) : 0,
+                               isSelectedForFiveWhys: c.probable || false
+                             }))
+                           }));
+
+                           const fiveWhysDataPayload = getProbableCauses().map(c => {
+                             const whys = fiveWhys[c.id] || [];
+                             return {
+                               fishboneCauseText: c.text || "",
+                               why1: whys[0] || "",
+                               why2: whys[1] || "",
+                               why3: whys[2] || "",
+                               why4: whys[3] || "",
+                               why5: whys[4] || "",
+                               rootCauseSummary: ""
+                             };
+                           });
+
+                           const payload = {
+                             investigationDetails: invDetails,
+                             problemStatement: invProblem,
+                             fishboneData: fishboneDataPayload,
+                             fiveWhysData: fiveWhysDataPayload,
+                             rootCauses: invRootCauses,
+                             contributingFactors: invFactors,
+                             mandatoryAttachments: {
+                               witnessStatement: invAttachments[0] || false,
+                               rams: invAttachments[2] || false,
+                               trainingRecords: invAttachments[5] || false,
+                               permitsToWork: invAttachments[4] || false,
+                               safePlanOfAction: invAttachments[3] || false
+                             },
+                             signatures: [
+                               {
+                                 role: invInvRole || "Site HSE Investigator",
+                                 name: invInvName,
+                                 signature: invInvSignature,
+                                 date: invInvDate
+                               }
+                             ]
+                           };
+                           await saveInvestigation(id, payload);
+                           await Swal.fire({ title: "Success!", text: "Investigation Report Submitted!", icon: "success", confirmButtonColor: "#0f172a" });
+                           setInvestigationSubmitted(true);
+                           window.scrollTo(0,0);
+                           const data = await getIncidentById(id);
+                           setRawIncident(data?.data || data);
+                         } catch (err) {
+                           console.error("Failed to submit investigation", err);
+                         }
                        }}>Submit Investigation Report</button>
                        <button className="mod-btn-outline">Save Draft</button>
                      </div>
@@ -1663,14 +2116,33 @@ export default function IMDetails() {
                </div>
              )}
           </div>
-        )}
 
-        {activeTab === "actions" && (
-          <div className="inc-tab-panel active">
+        <div className={`inc-tab-panel ${activeTab === "actions" ? "active" : ""}`}>
              <div className="mod-card">
-               <div className="mod-card-header">
-                 <span className="mod-card-title">Corrective Actions</span>
-                 <button className="mod-btn-primary" style={{ padding: "4px 12px", fontSize: "12px" }} onClick={() => setShowAddAction(!showAddAction)}>{showAddAction ? 'Cancel' : '+ Add Action'}</button>
+               <div className="mod-card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span className="mod-card-title">Corrective Actions</span>
+                  <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                    <button className="mod-btn-primary im-btn-primary" style={{ background: "var(--color-risk)", padding: "6px 16px", fontSize: "13px", fontWeight: 600 }} onClick={async () => {
+                      try {
+                        await closeIncident(id, { closedBy: "Site HSE Admin" });
+                        showSuccess("Incident Closed Successfully!");
+                        const data = await getIncidentById(id);
+                        setRawIncident(data?.data || data);
+                      } catch (err) {
+                        const msg = err.response?.data?.message || err.response?.data?.error || err.message || "Failed to close incident";
+                        showError(Array.isArray(msg) ? msg[0] : msg);
+                      }
+                    }}>Close Incident</button>
+                    <button className="mod-btn-primary im-btn-primary" style={{ padding: "4px 12px", fontSize: "12px" }} onClick={() => {
+                      if (showAddAction) {
+                        setShowAddAction(false);
+                        setEditingActionId(null);
+                        setNewAction({ action: "", responsible: "", targetDate: "", status: "PENDING" });
+                      } else {
+                        setShowAddAction(true);
+                      }
+                    }}>{showAddAction ? 'Cancel' : '+ Add Action'}</button>
+                  </div>
                </div>
                {showAddAction && (
                  <div style={{ padding: "16px", borderBottom: "1px solid var(--border-color)", background: "var(--bg-dark)" }}>
@@ -1681,64 +2153,83 @@ export default function IMDetails() {
                      </div>
                      <div className="mod-form-group">
                        <label className="mod-form-label">Owner</label>
-                       <input className="mod-form-input" value={newAction.owner} onChange={e => setNewAction({...newAction, owner: e.target.value})} placeholder="e.g. HSE Team" />
+                       <input className="mod-form-input" value={newAction.responsible} onChange={e => setNewAction({...newAction, responsible: e.target.value})} placeholder="e.g. HSE Team" />
                      </div>
                      <div className="mod-form-group">
-                       <label className="mod-form-label">Due Date</label>
-                       <input type="text" className="mod-form-input" value={newAction.due} onChange={e => setNewAction({...newAction, due: e.target.value})} placeholder="e.g. 30 Jun 2026" />
-                     </div>
-                     <div className="mod-form-group">
-                       <label className="mod-form-label">Priority</label>
-                       <select className="mod-form-select" value={newAction.priority} onChange={e => setNewAction({...newAction, priority: e.target.value})}>
-                         <option value="Low">Low</option>
-                         <option value="Medium">Medium</option>
-                         <option value="High">High</option>
-                         <option value="Critical">Critical</option>
-                       </select>
+                       <label className="mod-form-label">Target Date</label>
+                       <input type="date" className="mod-form-input" value={newAction.targetDate} onChange={e => setNewAction({...newAction, targetDate: e.target.value})} />
                      </div>
                      <div className="mod-form-group">
                        <label className="mod-form-label">Status</label>
                        <select className="mod-form-select" value={newAction.status} onChange={e => setNewAction({...newAction, status: e.target.value})}>
-                         <option value="Pending">Pending</option>
-                         <option value="Assigned">Assigned</option>
-                         <option value="In Progress">In Progress</option>
-                         <option value="Completed">Completed</option>
+                         <option value="PENDING">Pending</option>
+                         <option value="IN_PROGRESS">In Progress</option>
+                         <option value="COMPLETED">Completed</option>
                        </select>
                      </div>
                      <div className="mod-form-group" style={{ gridColumn: "1 / -1", display: "flex", justifyContent: "flex-end", marginTop: "8px" }}>
-                       <button type="button" className="mod-btn-primary" style={{ padding: "0 24px", height: "36px", width: "max-content", flexShrink: 0 }} onClick={addActionToList}>Save Action</button>
+                       <button type="button" className="mod-btn-primary im-btn-primary" style={{ padding: "0 24px", height: "36px", width: "max-content", flexShrink: 0 }} onClick={addActionToList}>Save Action</button>
                      </div>
                    </div>
                  </div>
                )}
-               <div className="mod-table-wrap">
-                 <table className="mod-table">
-                   <thead><tr><th>Action</th><th>Owner</th><th>Due</th><th>Priority</th><th>Status</th></tr></thead>
-                   <tbody>
-                     {actionsList.map((a, i) => {
-                       const prioColor = a.priority === 'High' || a.priority === 'Critical' ? { bg: '#fecaca', text: '#dc2626' } : a.priority === 'Medium' ? { bg: '#fed7aa', text: '#ea580c' } : { bg: '#f1f5f9', text: '#64748b' };
-                       const statusColor = a.status === 'Completed' ? { bg: '#dcfce7', text: '#16a34a' } : a.status === 'In Progress' ? { bg: '#fef08a', text: '#ca8a04' } : a.status === 'Assigned' ? { bg: '#dbeafe', text: '#2563eb' } : { bg: '#f1f5f9', text: '#64748b' };
-                       return (
-                         <tr key={i}>
-                           <td>{a.action}</td>
-                           <td>{a.owner}</td>
-                           <td>{a.due}</td>
-                           <td>
-                             <span style={{ display: "inline-block", padding: "4px 10px", borderRadius: "999px", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", background: prioColor.bg, color: prioColor.text }}>{a.priority}</span>
-                           </td>
-                           <td>
-                             <span style={{ display: "inline-block", padding: "4px 10px", borderRadius: "999px", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", background: statusColor.bg, color: statusColor.text }}>{a.status}</span>
-                           </td>
-                         </tr>
-                       );
-                     })}
-                   </tbody>
-                 </table>
-               </div>
+               
+               {(() => {
+                 const totalPages = Math.ceil(actionsList.length / actionsPerPage);
+                 const currentActions = actionsList.slice((actionPage - 1) * actionsPerPage, actionPage * actionsPerPage);
+                 
+                 return (
+                   <>
+                     <div className="mod-table-wrap">
+                       <table className="mod-table">
+                         <thead><tr><th>Action</th><th>Owner</th><th>Due</th><th>Status</th><th style={{ width: 100, textAlign: "right" }}>Actions</th></tr></thead>
+                         <tbody>
+                           {loadingActions ? (
+                             <tr><td colSpan="5" style={{ textAlign: "center", padding: "48px 0" }}><Loader size="md" text="Loading Actions..." /></td></tr>
+                           ) : currentActions.length === 0 ? (
+                             <tr><td colSpan="5" style={{ textAlign: "center", padding: "48px 0", color: "var(--text-muted)" }}>No actions found</td></tr>
+                           ) : currentActions.map((a, i) => {
+                             const statusColor = a.status === 'COMPLETED' ? { bg: '#dcfce7', text: '#16a34a' } : a.status === 'IN_PROGRESS' ? { bg: '#fef08a', text: '#ca8a04' } : { bg: '#f1f5f9', text: '#64748b' };
+                             return (
+                               <tr key={a.id || i}>
+                                 <td>{a.action}</td>
+                                 <td>{a.responsible}</td>
+                                 <td>{a.targetDate ? new Date(a.targetDate).toLocaleDateString() : '—'}</td>
+                                 <td>
+                                   <span style={{ display: "inline-block", padding: "4px 10px", borderRadius: "999px", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", background: statusColor.bg, color: statusColor.text }}>{a.status?.replace('_', ' ')}</span>
+                                 </td>
+                                 <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                                   <button onClick={() => editAction(a)} style={{ background: "var(--color-caution-bg)", border: "none", color: "var(--color-caution)", cursor: "pointer", marginRight: 8, padding: "6px", borderRadius: "6px", display: "inline-flex", alignItems: "center", justifyContent: "center" }} title="Edit">
+                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                                   </button>
+                                   <button onClick={() => deleteAction(a.id)} style={{ background: "var(--color-risk-bg)", border: "none", color: "var(--color-risk)", cursor: "pointer", padding: "6px", borderRadius: "6px", display: "inline-flex", alignItems: "center", justifyContent: "center" }} title="Delete">
+                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                                   </button>
+                                 </td>
+                               </tr>
+                             );
+                           })}
+                         </tbody>
+                       </table>
+                     </div>
+                     
+                     {!loadingActions && totalPages > 1 && (
+                       <div className="beam-pagination">
+                         <button className="beam-page-btn" disabled={actionPage === 1} onClick={() => setActionPage(actionPage - 1)}>←</button>
+                         {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                           <button key={page} className={`beam-page-number ${actionPage === page ? "beam-page-number--active" : ""}`} onClick={() => setActionPage(page)}>
+                             {page}
+                           </button>
+                         ))}
+                         <button className="beam-page-btn" disabled={actionPage === totalPages} onClick={() => setActionPage(actionPage + 1)}>→</button>
+                       </div>
+                     )}
+                   </>
+                 );
+               })()}
              </div>
-          </div>
-        )}
+        </div>
       </div>
-    </div>
-  );
+          </div>
+          );
 }

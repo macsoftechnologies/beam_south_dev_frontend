@@ -2,16 +2,16 @@ import React, { useState, useEffect, useRef } from "react";
 import ReactDOM from "react-dom";
 import { useNavigate } from "react-router-dom";
 import PageHeader from "../../../components/common/PageHeader/PageHeader";
-import { IM_CATEGORIES, INCIDENTS } from "../data/incidents";
+import { createHeadsUp } from "../../../services/incidentService";
 import "../../../styles/module-shared.css";
 import "./IMList.css";
 import FloorDrawing from "../../../pages/Request/FloorDrawing/FloorDrawing";
 import { FLOOR_PDFS } from "../../../data/pdfMapping";
 import { ZONE_MAPPING } from "../../../data/zones";
 import { BUILDINGS } from "../../../data/buildings";
-import { getBuildings, getRooms, getFloors } from "../../../services/authService";
+import { getBuildings, getRooms, getFloors, getContractors } from "../../../services/authService";
 
-const AnalogTimePicker = ({ initialTime, onSave, onCancel }) => {
+export const AnalogTimePicker = ({ initialTime, onSave, onCancel }) => {
   const [hour, setHour] = useState(12);
   const [minute, setMinute] = useState(0);
   const [mode, setMode] = useState("hour"); 
@@ -183,12 +183,14 @@ const SignaturePad = ({ value, onChange, onClear }) => {
     const ctx = canvasRef.current.getContext('2d');
     ctx.lineTo(x, y);
     ctx.stroke();
-    if (!value && onChange) onChange(true);
   };
 
   const stopDrawing = (e) => {
     if (isDrawing) {
       setIsDrawing(false);
+      if (onChange && canvasRef.current) {
+        onChange(canvasRef.current.toDataURL("image/png"));
+      }
     }
   };
 
@@ -255,11 +257,6 @@ const projects = [
   { id: "m3-infra", name: "M3 Infrastructure", buildings: ["Basement", "Workshop", "Block D", "Zone A", "Block F"] }
 ];
 
-const contractors = [
-  { id: "c01", name: "Alpha Construction Ltd" },
-  { id: "c02", name: "Beta Builders Inc" },
-  { id: "c03", name: "Gamma Engineering" }
-];
 
 const incidentCategories = [
   "Near Miss", "No Treatment Injury", "First Aid Injury", "Medical Treatment Injury",
@@ -268,7 +265,7 @@ const incidentCategories = [
 ];
 
 const initialForm = {
-  project: "", title: "", date: "", time: "", location: "", floor: "", specificLocation: "", contractor: "",
+  project: "M3 South", title: "", date: "", time: "", location: "", floor: "", specificLocation: "", contractor: "",
   categories: [], actual: "", potential: "", description: "", consequence: "",
   envSpillType: [], envSpillOther: "", envSpilledWhat: "", envCause: "", envQuantity: "", envSpecify: [], envSpecifyOther: "",
   immActions: [{ action: "", responsible: "", date: "", time: "", implemented: false }],
@@ -294,20 +291,23 @@ function IMCreate() {
   const [buildingsList, setBuildingsList] = useState([]);
   const [floorsList, setFloorsList] = useState([]);
   const [roomsList, setRoomsList] = useState([]);
+  const [contractorsList, setContractorsList] = useState([]);
   const [isLoadingSelectors, setIsLoadingSelectors] = useState(true);
   const [roomStatusMap, setRoomStatusMap] = useState({});
 
   useEffect(() => {
     const loadSelectors = async () => {
       try {
-        const [buildingsRes, floorsRes, roomsRes] = await Promise.all([
+        const [buildingsRes, floorsRes, roomsRes, contractorsRes] = await Promise.all([
           getBuildings(1, 1000),
           getFloors(1, 1000),
-          getRooms(1, 20000)
+          getRooms(1, 20000),
+          getContractors(1, 1000)
         ]);
         setBuildingsList(buildingsRes?.data ?? []);
         setFloorsList(floorsRes?.data ?? []);
         setRoomsList(roomsRes?.data?.rows ?? roomsRes?.data ?? roomsRes ?? []);
+        setContractorsList(contractorsRes?.data?.rows ?? contractorsRes?.data ?? contractorsRes ?? []);
       } catch (err) {
         console.error("Failed to load request form selector data", err);
       } finally {
@@ -417,13 +417,54 @@ function IMCreate() {
     });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const errs = validate();
     if (Object.keys(errs).length) { setErrors(errs); return; }
     
-    setSubmitted(true);
-    setTimeout(() => navigate("/incident-management/list"), 2000);
+    setIsLoadingSelectors(true); // Reusing for loading indicator
+    try {
+      const payload = {
+        projectName: form.project,
+        projectId: 1, // Dynamic if list exists
+        incidentDate: form.date,
+        incidentTime: form.time,
+        buildingId: Number(building),
+        buildingName: buildingsList.find(b => String(b.build_id) === String(building))?.building_name || "",
+        origin: "Direct",
+        floorLevel: level,
+        specificLocation: form.specificLocation,
+        contractorsInvolved: form.contractor,
+        categories: form.categories,
+        descriptionWhatHappened: form.whatHappened,
+        descriptionConsequence: form.consequence,
+        isEnvironmental: form.categories.includes("Environmental Incident"),
+        spillType: form.envTypes,
+        spillSubstance: form.substances,
+        spillCause: form.cause,
+        spillQuantity: form.quantity,
+        spillSystemEntered: form.systems,
+        immediateActions: form.immActions.map(a => ({
+          action: a.action,
+          responsible: a.responsible,
+          timeImplemented: a.time,
+          targetDate: form.date
+        })),
+        gatekeeperInformed: form.gatekeeper,
+        gatekeeperName: form.gatekeeperName,
+        submittedBy: "Current User",
+        signature: form.signature
+      };
+
+      await createHeadsUp(payload);
+      setSubmitted(true);
+      setTimeout(() => navigate("/incident-management/list"), 2000);
+    } catch (err) {
+      console.error("Failed to submit Heads-Up Notification", err);
+      setErrors({ api: "Failed to submit. Please try again." });
+    } finally {
+      setIsLoadingSelectors(false);
+    }
   };
 
   const isEnv = form.categories.includes("Environmental Incident");
@@ -447,7 +488,7 @@ function IMCreate() {
   }
 
   return (
-    <div className="mod-page" style={{ "--accent-primary": "#0f172a", "--accent-hover": "#1e293b" }}>
+    <div className="mod-page">
       <PageHeader
         title="Report New Incident"
         subtitle="Heads-Up Notification"
@@ -455,14 +496,15 @@ function IMCreate() {
         breadcrumbs={[{ label: "Home" }, { label: "Incident Management" }, { label: "Report Incident" }]}
         actions={
           <button className="mod-btn-outline" onClick={() => navigate("/incident-management/list")}>
-            ? Back to List
+            ← Back to List
           </button>
         }
       />
 
       <div className="mod-card">
         <div className="mod-card-header">
-          <h3 className="mod-card-title">Heads-Up Notification</h3>
+          <h3 className="mod-card-title">1. Location & Identification</h3>
+          {errors.api && <div style={{ color: "#DC2626", marginTop: "8px", fontSize: "0.875rem" }}>{errors.api}</div>}
           <div style={{ fontSize: "13px", color: "#b45309", background: "#fef3c7", border: "1px solid #fde68a", padding: "10px 16px", borderRadius: "8px", fontWeight: "600", display: "flex", overflow: "hidden", whiteSpace: "nowrap", marginTop: "8px" }}>
             <marquee scrollamount="5">⚠️ Must be completed within 2 hours of the incident occurrence.</marquee>
           </div>
@@ -479,10 +521,7 @@ function IMCreate() {
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
                   <div className="mod-form-group">
                     <label className="mod-form-label">Project Name <span style={{ color: "#DC2626" }}>*</span></label>
-                    <select name="project" className="mod-form-select" value={form.project} onChange={handleChange}>
-                      <option value="">Select...</option>
-                      {projects.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
-                    </select>
+                    <input name="project" type="text" className="mod-form-input" value={form.project} readOnly style={{ backgroundColor: "var(--bg-dark)", cursor: "not-allowed", color: "var(--text-muted)", opacity: 0.8 }} />
                     {errors.project && <span style={{ fontSize: "0.75rem", color: "#DC2626" }}>{errors.project}</span>}
                   </div>
                   <div className="mod-form-group">
@@ -561,7 +600,7 @@ function IMCreate() {
                     <label className="mod-form-label">Contractor(s) involved</label>
                     <select name="contractor" className="mod-form-select" value={form.contractor} onChange={handleChange}>
                       <option value="">Select...</option>
-                      {contractors.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                      {contractorsList.map(c => <option key={c.id || c.subcontractor_id || c._id} value={c.subContractorName || c.name}>{c.subContractorName || c.name}</option>)}
                     </select>
                   </div>
                 </div>
@@ -756,7 +795,7 @@ function IMCreate() {
 
               <div className="mod-form-actions" style={{ marginTop: 24, paddingTop: 16, borderTop: "1px solid var(--border-color)", display: "flex", justifyContent: "flex-end", gap: "12px" }}>
                 <button type="button" className="mod-btn-outline" onClick={() => navigate("/incident-management/list")}>Cancel</button>
-                <button type="submit" className="mod-btn-primary" style={{ background: "#1e293b" }}>Submit Heads-Up Notification</button>
+                <button type="submit" className="mod-btn-primary im-btn-primary" style={{ background: "#1e293b" }}>Submit Heads-Up Notification</button>
               </div>
             </div>
           </form>

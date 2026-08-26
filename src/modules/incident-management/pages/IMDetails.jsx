@@ -223,6 +223,44 @@ export default function IMDetails() {
     }
   };
 
+  const startInvCamera = async () => {
+    setIsInvCameraActive(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      invStreamRef.current = stream;
+      if (invVideoRef.current) {
+        invVideoRef.current.srcObject = stream;
+      }
+    } catch (err) {
+      console.error("Error accessing camera:", err);
+      alert("Could not access camera.");
+      setIsInvCameraActive(false);
+    }
+  };
+
+  const stopInvCamera = () => {
+    if (invStreamRef.current) {
+      invStreamRef.current.getTracks().forEach(track => track.stop());
+      invStreamRef.current = null;
+    }
+    setIsInvCameraActive(false);
+  };
+
+  const captureInvPhoto = () => {
+    if (invVideoRef.current && invCanvasRef.current) {
+      const video = invVideoRef.current;
+      const canvas = invCanvasRef.current;
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL('image/png');
+      if (invPhotos.length < 20) {
+        setInvPhotos([...invPhotos, dataUrl]);
+      }
+    }
+  };
+
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -1391,9 +1429,8 @@ export default function IMDetails() {
 
                   {/* G. Injury / Illness Information */}
                   <div className="fsec">
-                    <div className="fsec-title" style={{ justifyContent: "space-between" }}>
+                    <div className="fsec-title">
                       <span>G. Injury / Illness Information</span>
-                      <label className="chk" style={{ fontSize: 12, textTransform: "none", fontWeight: 600 }}><input type="checkbox" /><span>Not Applicable</span></label>
                     </div>
                     <div className="mod-form-group"><label className="mod-form-label">Nature of Injury</label>
                       <textarea className="mod-form-textarea" placeholder="e.g. Laceration to left hand, sprained ankle..."></textarea>
@@ -2000,7 +2037,7 @@ export default function IMDetails() {
                    <div className="fsec"><div className="fsec-title">14. Photos from the incident location</div>
                      <div className="fsec-note">Minimum of 2 photos. For environmental incidents, include one photo before the spill is contained/treated and one after.</div>
                      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-                       <button className="mod-btn-outline" style={{ fontSize: 13 }} onClick={() => setIsInvCameraActive(true)}>Take Photo</button>
+                       <button className="mod-btn-outline" style={{ fontSize: 13 }} onClick={startInvCamera}>Take Photo</button>
                        <button className="mod-btn-outline" style={{ fontSize: 13 }} onClick={() => invFileInputRef.current?.click()}>Upload File</button>
                        <input type="file" ref={invFileInputRef} accept="image/*" multiple style={{ display: "none" }} onChange={(e) => {
                          const files = e.target.files;
@@ -2019,23 +2056,8 @@ export default function IMDetails() {
                        <div className="cam-wrap" style={{ marginTop: 12 }}>
                          <video ref={invVideoRef} autoPlay playsInline style={{ width: "100%", maxWidth: 420, borderRadius: 8, background: "#000" }}></video>
                          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                           <button className="mod-btn-primary im-btn-primary" style={{ padding: "4px 12px", fontSize: 13 }} onClick={() => {
-                             const v = invVideoRef.current;
-                             const c = invCanvasRef.current;
-                             if (!v || !c) return;
-                             const w = v.videoWidth || 640, h = v.videoHeight || 480;
-                             c.width = w; c.height = h;
-                             c.getContext('2d').drawImage(v, 0, 0, w, h);
-                             const data = c.toDataURL('image/jpeg', 0.8);
-                             if (invPhotos.length < 20) setInvPhotos([...invPhotos, data]);
-                           }}>Capture</button>
-                           <button className="mod-btn-outline" style={{ padding: "4px 12px", fontSize: 13 }} onClick={() => {
-                             setIsInvCameraActive(false);
-                             if (invStreamRef.current) {
-                               invStreamRef.current.getTracks().forEach(t => t.stop());
-                               invStreamRef.current = null;
-                             }
-                           }}>Stop Camera</button>
+                           <button className="mod-btn-primary im-btn-primary" style={{ padding: "4px 12px", fontSize: 13 }} onClick={captureInvPhoto}>Capture</button>
+                           <button className="mod-btn-outline" style={{ padding: "4px 12px", fontSize: 13 }} onClick={stopInvCamera}>Stop Camera</button>
                          </div>
                          <canvas ref={invCanvasRef} style={{ display: "none" }}></canvas>
                        </div>

@@ -34,7 +34,62 @@ const SevPill = ({ level }) => {
   );
 };
 
-const StatusTracker = ({ pipeline, isPendingClosure }) => {
+const StatusTracker = ({ inc, pipeline, isPendingClosure: initialIsPendingClosure }) => {
+  const [realStage, setRealStage] = React.useState(String(pipeline).toUpperCase());
+  const [realIsPendingClosure, setRealIsPendingClosure] = React.useState(initialIsPendingClosure);
+
+  React.useEffect(() => {
+    let isMounted = true;
+    const checkRealStatus = async () => {
+      try {
+        const { getIncidentById } = await import("../../../services/incidentService");
+        const res = await getIncidentById(inc.id);
+        if (!isMounted) return;
+        const data = res?.data || res;
+        if (!data) return;
+        
+        let latestStage = data.stage ? String(data.stage).toUpperCase() : realStage;
+        
+        // Backend doesn't reliably update the stage property, so we infer from nested approval signatures
+        if (data.initialReport?.approvedBy) {
+           latestStage = "INVESTIGATION";
+        } else if (data.headsUp?.approvedBy) {
+           if (latestStage === "HEADS_UP" || latestStage === "HEADS-UP") {
+               latestStage = "INITIAL_REPORT";
+           }
+        }
+        
+        const isPending = typeof data.investigation === 'object' && !!(data.investigation?.reviewedBy || data.investigation?.approvedBy);
+        if (isPending !== realIsPendingClosure) {
+            setRealIsPendingClosure(isPending);
+        }
+        
+        if (latestStage !== realStage) {
+          setRealStage(latestStage);
+        }
+      } catch (err) {
+        console.error("StatusTracker fetch failed", err);
+      }
+    };
+    
+    // Only fetch if the list says it's in an early stage (to save API calls for closed/completed ones)
+    if (realStage === "HEADS_UP" || realStage === "INITIAL_REPORT" || realStage === "INITIAL" || realStage === "INVESTIGATION") {
+      checkRealStatus();
+    }
+    
+    return () => { isMounted = false; };
+  }, [inc.id, pipeline, realIsPendingClosure, realStage]);
+
+  let normalizedPipeline = realStage;
+  if (normalizedPipeline === "INITIAL") normalizedPipeline = "INITIAL_REPORT";
+  
+  // In case the list API gave us clear signals, we still use them
+  if (typeof inc?.investigation === 'object' && Object.keys(inc.investigation).length > 0) {
+      if (normalizedPipeline === "INITIAL_REPORT" || normalizedPipeline === "HEADS_UP") {
+          normalizedPipeline = "INVESTIGATION";
+      }
+  }
+
   const steps = [
     { key: "Heads-Up", title: "Heads-Up Notification" },
     { key: "Initial", title: "Initial Incident Report" },
@@ -46,15 +101,14 @@ const StatusTracker = ({ pipeline, isPendingClosure }) => {
     "INVESTIGATION": 2, "Investigation": 2, 
     "CLOSED": 3, "Closed": 3 
   };
-  const normalizedPipeline = String(pipeline).toUpperCase();
   let curIdx = 0;
   if (order.hasOwnProperty(normalizedPipeline)) curIdx = order[normalizedPipeline];
   else if (order.hasOwnProperty(pipeline)) curIdx = order[pipeline];
 
   const closed = normalizedPipeline === "CLOSED" || pipeline === "Closed";
-  const isOpenedState = !closed && curIdx === 2; // Investigation stage but not closed
+  const isOpenedState = !closed && curIdx === 2 && realIsPendingClosure;
   
-  const label = closed ? "Closed" : isOpenedState ? "Opened" : (steps[curIdx] ? steps[curIdx].title : pipeline);
+  const label = closed ? "Closed" : isOpenedState ? "Pending Closure" : (steps[curIdx] ? steps[curIdx].title : pipeline);
 
   const checkS = (
     <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="#fff" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round">
@@ -67,13 +121,14 @@ const StatusTracker = ({ pipeline, isPendingClosure }) => {
       {steps.map((step, i) => {
         let state = "pending";
         if (closed) state = "done";
-        else if (isOpenedState) state = "opened";
         else if (i < curIdx) state = "done";
-        else if (i === curIdx) state = "current";
+        else if (i === curIdx) {
+            state = isOpenedState ? "opened" : "current";
+        }
 
         return (
           <React.Fragment key={step.key}>
-            <span className={`st-line ${isOpenedState && i > 0 ? "on-opened" : i <= curIdx || closed ? "on" : ""}`} style={i === 0 ? { visibility: "hidden" } : {}}></span>
+            <span className={`st-line ${i <= curIdx || closed ? "on" : ""}`} style={i === 0 ? { visibility: "hidden" } : {}}></span>
             <span className={`st-dot st-${state}`} title={step.title}>
               {state === "done" ? checkS : (i + 1)}
             </span>
@@ -440,7 +495,7 @@ function IMList() {
                     )}
                   </td>
                   <td><span style={{ whiteSpace: "nowrap" }}>{inc.origin || "Direct"}</span></td>
-                  <td style={{ position: "sticky", right: 0, zIndex: 1, background: "var(--bg-card, #fff)", borderLeft: "1px solid var(--border-color)", boxShadow: "-4px 0 12px rgba(0,0,0,0.02)" }}><StatusTracker pipeline={inc.stage || inc.pipeline || "Closed"} isPendingClosure={typeof inc.investigation === 'object' && !!(inc.investigation?.reviewedBy || inc.investigation?.approvedBy)} /></td>
+                  <td style={{ position: "sticky", right: 0, zIndex: 1, background: "var(--bg-card, #fff)", borderLeft: "1px solid var(--border-color)", boxShadow: "-4px 0 12px rgba(0,0,0,0.02)" }}><StatusTracker inc={inc} pipeline={inc.stage || inc.pipeline || "Closed"} isPendingClosure={typeof inc.investigation === 'object' && !!(inc.investigation?.reviewedBy || inc.investigation?.approvedBy)} /></td>
                 </tr>
               ))}
             </tbody>

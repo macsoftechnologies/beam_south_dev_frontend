@@ -110,6 +110,16 @@ const StatusTracker = ({ inc, pipeline, isPendingClosure: initialIsPendingClosur
   
   const label = closed ? "Closed" : isOpenedState ? "Pending Closure" : (steps[curIdx] ? steps[curIdx].title : pipeline);
 
+  const getStageColor = () => {
+    if (closed) return "#059669"; // Green
+    if (isOpenedState) return "#ea580c"; // Orange
+    if (curIdx === 0) return "#dc2626"; // Red
+    if (curIdx === 1) return "#2563eb"; // Blue
+    if (curIdx === 2) return "#7c3aed"; // Purple
+    return "#dc2626";
+  };
+  const activeColor = getStageColor();
+
   const checkS = (
     <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="#fff" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round">
       <path d="m5 13 4 4L19 7" />
@@ -126,16 +136,29 @@ const StatusTracker = ({ inc, pipeline, isPendingClosure: initialIsPendingClosur
             state = isOpenedState ? "opened" : "current";
         }
 
+        const dotStyle = (state === "current" || state === "opened") ? { background: activeColor, boxShadow: `0 0 0 3px ${activeColor}33` } : {};
+
         return (
           <React.Fragment key={step.key}>
             <span className={`st-line ${i <= curIdx || closed ? "on" : ""}`} style={i === 0 ? { visibility: "hidden" } : {}}></span>
-            <span className={`st-dot st-${state}`} title={step.title}>
+            <span className={`st-dot st-${state}`} title={step.title} style={dotStyle}>
               {state === "done" ? checkS : (i + 1)}
             </span>
           </React.Fragment>
         );
       })}
-      <span className={`st-label ${closed ? "st-label-closed" : isOpenedState ? "st-label-opened" : "st-label-live"}`}>{label}</span>
+      <span className="st-label" style={{ 
+        color: activeColor, 
+        background: `${activeColor}1A`, 
+        padding: "4px 10px", 
+        borderRadius: "12px", 
+        fontWeight: 700, 
+        fontSize: "12px", 
+        display: "inline-block",
+        lineHeight: 1
+      }}>
+        {label}
+      </span>
     </div>
   );
 };

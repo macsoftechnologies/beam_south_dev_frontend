@@ -920,7 +920,17 @@ export default function IMDetails() {
         <div className="section-title" style={{ marginTop: 8, marginBottom: 16 }}>Investigation Timeline</div>
         <div className="inv-timeline">
           {s.map((stg, i) => (
-            <div key={stg.key} className={`inv-stage state-${stg.state}`}>
+            <div 
+              key={stg.key} 
+              className={`inv-stage state-${stg.state}`}
+              onClick={() => {
+                setActiveTab(stg.key);
+                setTimeout(() => {
+                  document.getElementById('inc-panels')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 100);
+              }}
+              style={{ cursor: "pointer" }}
+            >
               <div className="inv-marker">
                 <div className={`inv-num ${stg.state}`}>
                   {stg.state === "done" ? <CheckIcon /> : stg.num}

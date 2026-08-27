@@ -131,9 +131,6 @@ function SOList() {
           </p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button className="mod-btn-outline" onClick={() => window.print()}>
-            Print
-          </button>
           <button className="mod-btn-primary" onClick={() => navigate("/safety-observations/create")}>
             + New Observation
           </button>

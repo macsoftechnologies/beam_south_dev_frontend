@@ -121,8 +121,8 @@ html[data-theme="light"] {
   --text-muted:       #6B7280;
   --text-dark:        #9CA3AF;
 
-  --accent-primary:   #2563EB;
-  --accent-hover:     #1D4ED8;
+  --accent-primary:   #111827;
+  --accent-hover:     #1F2937;
 
   --color-safe:       #059669;
   --color-safe-bg:    rgba(5, 150, 105, 0.10);

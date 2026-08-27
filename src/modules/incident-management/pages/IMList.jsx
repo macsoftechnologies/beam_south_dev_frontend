@@ -381,12 +381,11 @@ function IMList() {
           <table className="mod-table">
             <thead>
               <tr>
-                <th className="ith">ID</th>
+                <th className="ith">TITLE</th>
                 <th className="ith">OCCURRED</th>
                 <th className="ith">DATE CREATED</th>
                 <th className="ith">LAST EDITED</th>
                 <th className="ith">CLASSIFICATION</th>
-                <th className="ith">TITLE</th>
                 <th className="ith">BUILDING</th>
                 <th className="ith">ACTUAL</th>
                 <th className="ith">POTENTIAL</th>
@@ -396,77 +395,7 @@ function IMList() {
                 <th className="ith">ORIGIN</th>
                 <th className="ith" style={{ minWidth: 190, position: "sticky", right: 0, zIndex: 3, background: "var(--bg-card, #fff)" }}>STATUS</th>
               </tr>
-              <tr style={{ background: "var(--bg-card)" }}>
-                <th colSpan="4"></th>
-                <th>
-                  <select className="mod-form-select" style={{ padding: "4px 24px 4px 8px", fontSize: "11px", height: "auto" }} value={filters.category} onChange={e => handleFilterChange('category', e.target.value)}>
-                    <option value="">All</option>
-                    {orderClass.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </th>
-                <th></th>
-                <th>
-                  <select className="mod-form-select" style={{ padding: "4px 24px 4px 8px", fontSize: "11px", height: "auto" }} value={filters.building} onChange={e => handleFilterChange('building', e.target.value)}>
-                    <option value="">All</option>
-                    {buildings.map((b, i) => {
-                      const bName = b.building_name || b.buildingName || b.name || (typeof b === 'string' ? b : String(b.build_id || i));
-                      return <option key={i} value={bName}>{bName}</option>;
-                    })}
-                  </select>
-                </th>
-                <th>
-                  <select className="mod-form-select" style={{ padding: "4px 24px 4px 8px", fontSize: "11px", height: "auto" }} value={filters.actualSeverity} onChange={e => handleFilterChange('actualSeverity', e.target.value)}>
-                    <option value="">All</option>
-                    <option value="1">1</option>
-                    <option value="2">2</option>
-                    <option value="3">3</option>
-                    <option value="4">4</option>
-                    <option value="5">5</option>
-                  </select>
-                </th>
-                <th>
-                  <select className="mod-form-select" style={{ padding: "4px 24px 4px 8px", fontSize: "11px", height: "auto" }} value={filters.potentialSeverity} onChange={e => handleFilterChange('potentialSeverity', e.target.value)}>
-                    <option value="">All</option>
-                    <option value="1">1</option>
-                    <option value="2">2</option>
-                    <option value="3">3</option>
-                    <option value="4">4</option>
-                    <option value="5">5</option>
-                  </select>
-                </th>
-                <th>
-                  <select className="mod-form-select" style={{ padding: "4px 24px 4px 8px", fontSize: "11px", height: "auto" }} value={filters.isHipo} onChange={e => handleFilterChange('isHipo', e.target.value)}>
-                    <option value="">All</option>
-                    <option value="true">Yes</option>
-                    <option value="false">No</option>
-                  </select>
-                </th>
-                <th>
-                  <select className="mod-form-select" style={{ padding: "4px 24px 4px 8px", fontSize: "11px", height: "auto" }} value={filters.investigationLevel} onChange={e => handleFilterChange('investigationLevel', e.target.value)}>
-                    <option value="">All</option>
-                    <option value="L1">L1</option>
-                    <option value="L2">L2</option>
-                    <option value="L3">L3</option>
-                  </select>
-                </th>
-                <th>
-                  <select className="mod-form-select" style={{ padding: "4px 24px 4px 8px", fontSize: "11px", height: "auto" }} value={filters.contractor} onChange={e => handleFilterChange('contractor', e.target.value)}>
-                    <option value="">All</option>
-                    {contractors.map((c, i) => {
-                      const cName = c.subContractorName || c.name || (typeof c === 'string' ? c : String(c.id || i));
-                      return <option key={i} value={cName}>{cName}</option>;
-                    })}
-                  </select>
-                </th>
-                <th>
-                  <select className="mod-form-select" style={{ padding: "4px 24px 4px 8px", fontSize: "11px", height: "auto" }} value={filters.origin} onChange={e => handleFilterChange('origin', e.target.value)}>
-                    <option value="">All</option>
-                    <option value="Direct">Direct</option>
-                    <option value="Observation">Observation</option>
-                  </select>
-                </th>
-                <th style={{ position: "sticky", right: 0, zIndex: 3, background: "var(--bg-card, #fff)" }}></th>
-              </tr>
+
             </thead>
             <tbody>
               {loading ? (
@@ -475,12 +404,11 @@ function IMList() {
                 <tr><td colSpan="14" style={{ textAlign: "center", padding: "48px 0", color: "var(--text-muted)" }}>No incidents found</td></tr>
               ) : currentIncidents.map(inc => (
                 <tr key={inc.id} onClick={() => navigate(`/incident-management/details/${inc.id}`)} style={{ cursor: "pointer" }}>
-                  <td className="id-cell">{inc.id}</td>
+                  <td style={{ maxWidth: "180px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontWeight: 600 }}>{inc.caseNumber || inc.title || "—"}</td>
                   <td style={{ whiteSpace: "nowrap" }}>{inc.incidentDate || inc.date || "—"}</td>
                   <td style={{ whiteSpace: "nowrap", fontSize: "12px" }}>{inc.createdTime ? inc.createdTime.split("T")[0] : inc.createdAt || "—"}</td>
                   <td style={{ whiteSpace: "nowrap", fontSize: "12px" }}>{inc.updatedTime ? inc.updatedTime.split("T")[0] : inc.editedAt || "—"}</td>
                   <td style={{ whiteSpace: "nowrap" }}>{inc.categories?.[0] || inc.category || "—"}</td>
-                  <td style={{ maxWidth: "180px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{inc.caseNumber || inc.title || "—"}</td>
                   <td>{inc.buildingName || inc.building || "—"}</td>
                   <td><SevPill level={inc.actualSeverity} /></td>
                   <td><SevPill level={inc.potentialSeverity} /></td>

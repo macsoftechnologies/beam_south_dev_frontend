@@ -548,12 +548,3 @@ html[data-theme="light"] .mod-description-box {
   background: #F3F4F6 !important;
 }
 
-/* Incident Management Specific Primary Button Override */
-.im-btn-primary {
-  background: #111827 !important;
-  color: #fff !important;
-}
-
-.im-btn-primary:hover {
-  background: #1f2937 !important;
-}

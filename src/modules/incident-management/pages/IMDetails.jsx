@@ -12,6 +12,26 @@ import "../../../styles/module-shared.css";
 import "./IMDetails.css";
 import { AnalogTimePicker } from "./IMCreate";
 
+const severityMeta = (level) => {
+  const meta = {
+    1: { level: 1, label: "Low", color: "#FBBF24" },
+    2: { level: 2, label: "Minor", color: "#C07D10" },
+    3: { level: 3, label: "Moderate", color: "#D97706" },
+    4: { level: 4, label: "Critical", color: "#E32B50" },
+    5: { level: 5, label: "Catastrophic", color: "#8F1B32" }
+  };
+  return meta[level] || { level: level || 1, label: "", color: "#A1A5B3" };
+};
+
+const SevPill = ({ level }) => {
+  const m = severityMeta(level);
+  return (
+    <span className="badge" style={{ background: `${m.color}22`, color: m.color, fontWeight: 700 }}>
+      {m.level} {m.label ? `· ${m.label}` : ""}
+    </span>
+  );
+};
+
 const DetailIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <circle cx="12" cy="12" r="10" />
@@ -972,19 +992,20 @@ export default function IMDetails() {
           {initials}
         </div>
         <div style={{ flex: 1, borderLeft: "1px solid var(--border-color)", paddingLeft: 16, display: "flex", flexDirection: "column" }}>
-          <div style={{ height: 38, display: "flex", alignItems: "center", marginBottom: 4 }}>
+          <div style={{ height: 50, display: "flex", alignItems: "center", marginBottom: 4 }}>
             {sigUrl ? (
               <img
+                className="signature-img"
                 src={sigUrl}
                 alt="Signature"
-                style={{ maxHeight: "100%", maxWidth: "140px", objectFit: "contain" }}
+                style={{ maxHeight: "100%", maxWidth: "200px", objectFit: "contain" }}
                 onError={(e) => {
                   e.target.onerror = null;
                   e.target.style.display = "none";
                 }}
               />
             ) : (
-              <div style={{ fontFamily: "'Brush Script MT', cursive, sans-serif", fontSize: 18, color: "#002868", fontWeight: 700 }}>
+              <div style={{ fontFamily: "'Brush Script MT', cursive, sans-serif", fontSize: 18, color: "var(--text-main)", fontWeight: 700 }}>
                 {user}
               </div>
             )}
@@ -1218,7 +1239,6 @@ export default function IMDetails() {
             >
               Export PDF
             </button>
-            <button className="mod-btn-primary" style={{ fontSize: "13px", padding: "8px 16px", borderRadius: "8px", fontWeight: 600 }}>Close Incident</button>
           </div>
         </div>
       </div>
@@ -1263,14 +1283,84 @@ export default function IMDetails() {
           <div className="mod-card">
             <div className="mod-card-header"><span className="mod-card-title">Incident Details</span></div>
             <div className="mod-card-body">
-              <dl className="detail-meta" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-                <div><dt style={{ color: "var(--text-muted)", fontSize: "12px", marginBottom: "4px" }}>Incident Code</dt><dd style={{ fontWeight: 600 }}>{incident.caseNumber || incident.id || "—"}</dd></div>
-                <div><dt style={{ color: "var(--text-muted)", fontSize: "12px", marginBottom: "4px" }}>Date / Time</dt><dd style={{ fontWeight: 600 }}>{incident.incidentDate || "—"} {incident.incidentTime || ""}</dd></div>
-                <div><dt style={{ color: "var(--text-muted)", fontSize: "12px", marginBottom: "4px" }}>Classification</dt><dd style={{ fontWeight: 600 }}>{incident.categories ? (Array.isArray(incident.categories) ? incident.categories.join(", ") : incident.categories) : incident.category || "—"}</dd></div>
-                <div><dt style={{ color: "var(--text-muted)", fontSize: "12px", marginBottom: "4px" }}>Location</dt><dd style={{ fontWeight: 600 }}>{[incident.buildingName, incident.floorLevel, incident.specificLocation].filter(Boolean).join(" - ") || incident.location || "—"}</dd></div>
-                <div><dt style={{ color: "var(--text-muted)", fontSize: "12px", marginBottom: "4px" }}>Reporter</dt><dd style={{ fontWeight: 600 }}>{incident.reporterName || incident.reportedBy || incident.createdBy || incident.investigatorName || "—"}</dd></div>
-                <div><dt style={{ color: "var(--text-muted)", fontSize: "12px", marginBottom: "4px" }}>Status</dt><dd style={{ fontWeight: 600 }}>{(incident.status === 2 || incident.closedBy || String(incident.stage).toUpperCase() === "CLOSED") ? "Closed" : "Open"}</dd></div>
-                <div style={{ gridColumn: "1 / -1" }}><dt style={{ color: "var(--text-muted)", fontSize: "12px", marginBottom: "4px" }}>Description</dt><dd style={{ fontWeight: 600 }}>{headsUpData?.descriptionWhatHappened || headsUpData?.whatHappened || headsUpData?.descriptionConsequence || incident.description || incident.details || "—"}</dd></div>
+              <dl className="detail-meta" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px 16px" }}>
+                {/* Left Column Fields */}
+                <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+                  <div>
+                    <dt style={{ color: "var(--text-muted)", fontSize: "11px", fontWeight: 700, letterSpacing: "0.5px", textTransform: "uppercase", marginBottom: "4px" }}>Incident Code</dt>
+                    <dd style={{ fontWeight: 600, fontSize: "14px", color: "var(--text-main)" }}>{incident.caseNumber || incident.id || "—"}</dd>
+                  </div>
+                  <div>
+                    <dt style={{ color: "var(--text-muted)", fontSize: "11px", fontWeight: 700, letterSpacing: "0.5px", textTransform: "uppercase", marginBottom: "4px" }}>Classification</dt>
+                    <dd style={{ fontWeight: 500, fontSize: "14px", color: "var(--text-main)" }}>{incident.categories ? (Array.isArray(incident.categories) ? incident.categories.join(", ") : incident.categories) : incident.category || "—"}</dd>
+                  </div>
+                  <div>
+                    <dt style={{ color: "var(--text-muted)", fontSize: "11px", fontWeight: 700, letterSpacing: "0.5px", textTransform: "uppercase", marginBottom: "4px" }}>Contractor</dt>
+                    <dd style={{ fontWeight: 500, fontSize: "14px", color: "var(--text-main)", display: "flex", alignItems: "center", gap: "6px" }}>
+                      {incident.contractorsInvolved ? (
+                        <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 20L12 4 2 20h20z"/><path d="M12 20v-8"/></svg>{incident.contractorsInvolved}</>
+                      ) : "—"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt style={{ color: "var(--text-muted)", fontSize: "11px", fontWeight: 700, letterSpacing: "0.5px", textTransform: "uppercase", marginBottom: "4px" }}>Status</dt>
+                    <dd style={{ fontWeight: 500, fontSize: "14px", color: "var(--text-main)" }}>
+                      <span style={{ display: "inline-block", padding: "2px 8px", background: "var(--bg-card-hover)", borderRadius: "12px", fontSize: "12px" }}>
+                        {(incident.status === 2 || incident.closedBy || String(incident.stage).toUpperCase() === "CLOSED") ? "Closed" : "Open"}
+                      </span>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt style={{ color: "var(--text-muted)", fontSize: "11px", fontWeight: 700, letterSpacing: "0.5px", textTransform: "uppercase", marginBottom: "4px" }}>Potential Severity</dt>
+                    <dd style={{ fontWeight: 500, fontSize: "14px", color: "var(--text-main)" }}><SevPill level={incident.potentialSeverity} /></dd>
+                  </div>
+                  <div>
+                    <dt style={{ color: "var(--text-muted)", fontSize: "11px", fontWeight: 700, letterSpacing: "0.5px", textTransform: "uppercase", marginBottom: "4px" }}>Investigation Level</dt>
+                    <dd style={{ fontWeight: 500, fontSize: "14px", color: "var(--text-main)", display: "flex", alignItems: "center", gap: "8px" }}>
+                      {incident.investigationLevel ? (
+                        <><span style={{ display: "inline-block", padding: "2px 8px", background: "#fef3c7", color: "#d97706", borderRadius: "4px", fontSize: "12px", fontWeight: 600 }}>{incident.investigationLevel}</span> <span style={{ color: "var(--text-muted)", fontSize: "13px" }}>{incident.investigationLevel === "L2" ? "(Fishbone + 5 Whys)" : incident.investigationLevel === "L3" ? "(Root Cause Analysis)" : "(Standard)"}</span></>
+                      ) : "—"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt style={{ color: "var(--text-muted)", fontSize: "11px", fontWeight: 700, letterSpacing: "0.5px", textTransform: "uppercase", marginBottom: "4px" }}>Required Approval</dt>
+                    <dd style={{ fontWeight: 500, fontSize: "14px", color: "var(--text-main)" }}>Site HSE Lead + Overall PM</dd>
+                  </div>
+                </div>
+
+                {/* Right Column Fields */}
+                <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+                  <div>
+                    <dt style={{ color: "var(--text-muted)", fontSize: "11px", fontWeight: 700, letterSpacing: "0.5px", textTransform: "uppercase", marginBottom: "4px" }}>Date / Time</dt>
+                    <dd style={{ fontWeight: 500, fontSize: "14px", color: "var(--text-main)" }}>
+                      {incident.incidentDate ? new Date(incident.incidentDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : "—"} {incident.incidentTime || ""}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt style={{ color: "var(--text-muted)", fontSize: "11px", fontWeight: 700, letterSpacing: "0.5px", textTransform: "uppercase", marginBottom: "4px" }}>Location</dt>
+                    <dd style={{ fontWeight: 500, fontSize: "14px", color: "var(--text-main)" }}>{[incident.buildingName, incident.floorLevel, incident.specificLocation].filter(Boolean).join(" - ") || incident.location || "—"}</dd>
+                  </div>
+                  <div>
+                    <dt style={{ color: "var(--text-muted)", fontSize: "11px", fontWeight: 700, letterSpacing: "0.5px", textTransform: "uppercase", marginBottom: "4px" }}>Reporter</dt>
+                    <dd style={{ fontWeight: 500, fontSize: "14px", color: "var(--text-main)" }}>{headsUpData?.submittedBy || incident.reporterName || incident.reportedBy || incident.createdBy || incident.investigatorName || "Site HSE"}</dd>
+                  </div>
+                  <div>
+                    <dt style={{ color: "var(--text-muted)", fontSize: "11px", fontWeight: 700, letterSpacing: "0.5px", textTransform: "uppercase", marginBottom: "4px" }}>Actual Severity</dt>
+                    <dd style={{ fontWeight: 500, fontSize: "14px", color: "var(--text-main)" }}><SevPill level={incident.actualSeverity} /></dd>
+                  </div>
+                  <div>
+                    <dt style={{ color: "var(--text-muted)", fontSize: "11px", fontWeight: 700, letterSpacing: "0.5px", textTransform: "uppercase", marginBottom: "4px" }}>High-Potential</dt>
+                    <dd style={{ fontWeight: 500, fontSize: "14px", color: "var(--text-main)" }}>{incident.isHipo ? "Yes" : "No"}</dd>
+                  </div>
+                  <div>
+                    <dt style={{ color: "var(--text-muted)", fontSize: "11px", fontWeight: 700, letterSpacing: "0.5px", textTransform: "uppercase", marginBottom: "4px" }}>Investigation Team</dt>
+                    <dd style={{ fontWeight: 500, fontSize: "14px", color: "var(--text-main)" }}>Site HSE, contractor rep, AMO (if injury)</dd>
+                  </div>
+                  <div>
+                    <dt style={{ color: "var(--text-muted)", fontSize: "11px", fontWeight: 700, letterSpacing: "0.5px", textTransform: "uppercase", marginBottom: "4px" }}>Description</dt>
+                    <dd style={{ fontWeight: 500, fontSize: "14px", color: "var(--text-main)" }}>{headsUpData?.descriptionWhatHappened || headsUpData?.whatHappened || headsUpData?.descriptionConsequence || incident.description || incident.details || "—"}</dd>
+                  </div>
+                </div>
               </dl>
             </div>
           </div>
@@ -1326,7 +1416,7 @@ export default function IMDetails() {
                   allEvents.push({ text: "Incident closed", user: incident?.closedBy || "System", date: formatDateTime(incident?.updatedTime) });
                 }
                 if (investigationApproved) {
-                  allEvents.push({ text: "Investigation Report marked OK & signed off", user: investigationData.reviewedBy || investigationData.approvedBy || "Reviewer", date: formatDateTime(investigationData.updatedTime || investigationData.createdTime) });
+                  allEvents.push({ text: "Investigation Report marked OK & signed off", user: investigationData.reviewedBy || investigationData.approvedBy || "Reviewer", date: formatDateTime(investigationData.reviewedTime || investigationData.approvedTime || investigationData.updatedTime || investigationData.createdTime) });
                 }
                 if (investigationSubmitted || (investigationData && (investigationData.signatures?.length > 0 || investigationData.submittedBy))) {
                   const invSigUser = (investigationData?.signatures && investigationData.signatures[0]?.name) || investigationData?.submittedBy || invInvName || incident?.investigatorName || "Investigator";
@@ -1704,7 +1794,6 @@ export default function IMDetails() {
                 <div className="fsec">
                   <div className="fsec-title" style={{ justifyContent: "space-between" }}>
                     <span>G. Injury / Illness Information</span>
-                    <label className="chk" style={{ fontSize: 12, textTransform: "none", fontWeight: 600 }}><input type="checkbox" /><span>Not Applicable</span></label>
                   </div>
                   <div className="mod-form-group"><label className="mod-form-label">Nature of Injury</label>
                     <textarea className="mod-form-textarea" placeholder="e.g. Laceration to left hand, sprained ankle..."></textarea>
@@ -2129,22 +2218,7 @@ export default function IMDetails() {
                   </div>
                 </div>
               )}
-              {investigationApproved && (
-                <div style={{ marginTop: 16 }}>
-                  <button className="mod-btn-primary im-btn-primary" style={{ background: "var(--color-risk)", fontWeight: 600 }} onClick={async () => {
-                    try {
-                      const userName = getLoggedInUser() || "Site HSE Admin";
-                      await closeIncident(id, { closedBy: userName });
-                      showSuccess("Incident Closed Successfully!");
-                      const data = await getIncidentById(id);
-                      setRawIncident(data?.data || data);
-                    } catch (err) {
-                      const msg = err.response?.data?.message || err.response?.data?.error || err.message || "Failed to close incident";
-                      showError(Array.isArray(msg) ? msg[0] : msg);
-                    }
-                  }}>Close Incident</button>
-                </div>
-              )}
+
               {!investigationApproved && (
                 <div className="mod-card mb-4">
                   <div className="mod-card-header">
@@ -2478,7 +2552,7 @@ export default function IMDetails() {
                 <div className="fsec"><div className="fsec-title">14. Photos from the incident location</div>
                   <div className="fsec-note">Minimum of 2 photos. For environmental incidents, include one photo before the spill is contained/treated and one after.</div>
                   <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-                    <button className="mod-btn-outline" style={{ fontSize: 13 }} onClick={() => setIsInvCameraActive(true)}>Take Photo</button>
+                    <button className="mod-btn-outline" style={{ fontSize: 13 }} onClick={startInvCamera}>Take Photo</button>
                     <button className="mod-btn-outline" style={{ fontSize: 13 }} onClick={() => invFileInputRef.current?.click()}>Upload File</button>
                     <input type="file" ref={invFileInputRef} accept="image/*" multiple style={{ display: "none" }} onChange={(e) => {
                       const files = e.target.files;
@@ -2566,19 +2640,20 @@ export default function IMDetails() {
                                 {sig.name ? sig.name.substring(0, 2).toUpperCase() : "SIG"}
                               </div>
                               <div style={{ flex: 1, borderLeft: "1px solid var(--border-color)", paddingLeft: 16, display: "flex", flexDirection: "column" }}>
-                                <div style={{ height: 38, display: "flex", alignItems: "center", marginBottom: 4 }}>
+                                <div style={{ height: 50, display: "flex", alignItems: "center", marginBottom: 4 }}>
                                   {sigUrl ? (
                                     <img
+                                      className="signature-img"
                                       src={sigUrl}
                                       alt="Signature"
-                                      style={{ maxHeight: "100%", maxWidth: "150px", objectFit: "contain" }}
+                                      style={{ maxHeight: "100%", maxWidth: "220px", objectFit: "contain" }}
                                       onError={(e) => {
                                         e.target.onerror = null;
                                         e.target.style.display = "none";
                                       }}
                                     />
                                   ) : (
-                                    <div style={{ fontFamily: "'Brush Script MT', cursive, sans-serif", fontSize: 18, color: "#002868", fontWeight: 700 }}>
+                                    <div style={{ fontFamily: "'Brush Script MT', cursive, sans-serif", fontSize: 18, color: "var(--text-main)", fontWeight: 700 }}>
                                       {sig.name || "Signed"}
                                     </div>
                                   )}
@@ -2687,7 +2762,7 @@ export default function IMDetails() {
             <div className="mod-card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span className="mod-card-title">Corrective Actions</span>
               <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-                <button className="mod-btn-primary im-btn-primary" style={{ background: "var(--color-risk)", padding: "6px 16px", fontSize: "13px", fontWeight: 600 }} onClick={async () => {
+                <button className="mod-btn-primary im-btn-primary" disabled={incident?.closedBy || incident?.status === 2 || String(incident?.stage).toUpperCase() === "CLOSED"} style={{ background: "var(--color-risk)", padding: "6px 16px", fontSize: "13px", fontWeight: 600, opacity: (incident?.closedBy || incident?.status === 2 || String(incident?.stage).toUpperCase() === "CLOSED") ? 0.5 : 1, cursor: (incident?.closedBy || incident?.status === 2 || String(incident?.stage).toUpperCase() === "CLOSED") ? "not-allowed" : "pointer" }} onClick={async () => {
                   try {
                     const userName = getLoggedInUser() || "Site HSE Admin";
                     await closeIncident(id, { closedBy: userName });
@@ -2699,7 +2774,7 @@ export default function IMDetails() {
                     showError(Array.isArray(msg) ? msg[0] : msg);
                   }
                 }}>Close Incident</button>
-                <button className="mod-btn-primary im-btn-primary" style={{ padding: "4px 12px", fontSize: "12px" }} onClick={() => {
+                <button className="mod-btn-primary im-btn-primary" disabled={incident?.closedBy || incident?.status === 2 || String(incident?.stage).toUpperCase() === "CLOSED"} style={{ padding: "4px 12px", fontSize: "12px", opacity: (incident?.closedBy || incident?.status === 2 || String(incident?.stage).toUpperCase() === "CLOSED") ? 0.5 : 1, cursor: (incident?.closedBy || incident?.status === 2 || String(incident?.stage).toUpperCase() === "CLOSED") ? "not-allowed" : "pointer" }} onClick={() => {
                   if (showAddAction) {
                     setShowAddAction(false);
                     setEditingActionId(null);

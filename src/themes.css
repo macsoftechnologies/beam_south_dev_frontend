@@ -1280,3 +1280,11 @@ html[data-theme="light"] .df-select.df-readonly {
   opacity: 0.7 !important;
   cursor: not-allowed !important;
 }
+
+/* Invert signatures on dark themes */
+html[data-theme="dark"] .signature-img,
+html[data-theme="default-dark"] .signature-img,
+html[data-theme="midnight-blue"] .signature-img,
+html[data-theme="steel-gray"] .signature-img {
+  filter: invert(1) brightness(1.5);
+}

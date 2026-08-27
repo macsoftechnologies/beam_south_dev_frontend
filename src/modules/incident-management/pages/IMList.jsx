@@ -395,7 +395,76 @@ function IMList() {
                 <th className="ith">ORIGIN</th>
                 <th className="ith" style={{ minWidth: 190, position: "sticky", right: 0, zIndex: 3, background: "var(--bg-card, #fff)" }}>STATUS</th>
               </tr>
-
+              <tr style={{ background: "var(--bg-card)" }}>
+                <th colSpan="4"></th>
+                <th>
+                  <select className="mod-form-select" style={{ padding: "4px 24px 4px 8px", fontSize: "11px", height: "auto" }} value={filters.category} onChange={e => handleFilterChange('category', e.target.value)}>
+                    <option value="">All</option>
+                    {orderClass.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </th>
+                <th>
+                  <select className="mod-form-select" style={{ padding: "4px 24px 4px 8px", fontSize: "11px", height: "auto" }} value={filters.building} onChange={e => handleFilterChange('building', e.target.value)}>
+                    <option value="">All</option>
+                    {buildings.map((b, i) => {
+                      const bName = b.building_name || b.buildingName || b.name || (typeof b === 'string' ? b : String(b.build_id || i));
+                      return <option key={i} value={bName}>{bName}</option>;
+                    })}
+                  </select>
+                </th>
+                <th>
+                  <select className="mod-form-select" style={{ padding: "4px 24px 4px 8px", fontSize: "11px", height: "auto" }} value={filters.actualSeverity} onChange={e => handleFilterChange('actualSeverity', e.target.value)}>
+                    <option value="">All</option>
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                    <option value="4">4</option>
+                    <option value="5">5</option>
+                  </select>
+                </th>
+                <th>
+                  <select className="mod-form-select" style={{ padding: "4px 24px 4px 8px", fontSize: "11px", height: "auto" }} value={filters.potentialSeverity} onChange={e => handleFilterChange('potentialSeverity', e.target.value)}>
+                    <option value="">All</option>
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                    <option value="4">4</option>
+                    <option value="5">5</option>
+                  </select>
+                </th>
+                <th>
+                  <select className="mod-form-select" style={{ padding: "4px 24px 4px 8px", fontSize: "11px", height: "auto" }} value={filters.isHipo} onChange={e => handleFilterChange('isHipo', e.target.value)}>
+                    <option value="">All</option>
+                    <option value="true">Yes</option>
+                    <option value="false">No</option>
+                  </select>
+                </th>
+                <th>
+                  <select className="mod-form-select" style={{ padding: "4px 24px 4px 8px", fontSize: "11px", height: "auto" }} value={filters.investigationLevel} onChange={e => handleFilterChange('investigationLevel', e.target.value)}>
+                    <option value="">All</option>
+                    <option value="L1">L1</option>
+                    <option value="L2">L2</option>
+                    <option value="L3">L3</option>
+                  </select>
+                </th>
+                <th>
+                  <select className="mod-form-select" style={{ padding: "4px 24px 4px 8px", fontSize: "11px", height: "auto" }} value={filters.contractor} onChange={e => handleFilterChange('contractor', e.target.value)}>
+                    <option value="">All</option>
+                    {contractors.map((c, i) => {
+                      const cName = c.subContractorName || c.name || (typeof c === 'string' ? c : String(c.id || i));
+                      return <option key={i} value={cName}>{cName}</option>;
+                    })}
+                  </select>
+                </th>
+                <th>
+                  <select className="mod-form-select" style={{ padding: "4px 24px 4px 8px", fontSize: "11px", height: "auto" }} value={filters.origin} onChange={e => handleFilterChange('origin', e.target.value)}>
+                    <option value="">All</option>
+                    <option value="Direct">Direct</option>
+                    <option value="Observation">Observation</option>
+                  </select>
+                </th>
+                <th style={{ position: "sticky", right: 0, zIndex: 3, background: "var(--bg-card, #fff)" }}></th>
+              </tr>
             </thead>
             <tbody>
               {loading ? (

@@ -264,13 +264,24 @@ const incidentCategories = [
   "Occupational Illness", "Environmental Incident", "Property Damage"
 ];
 
+const getLoggedInUser = () => {
+  try {
+    const u = localStorage.getItem("user");
+    if (!u) return "";
+    const parsed = JSON.parse(u);
+    return parsed.name || parsed.username || parsed.email || parsed.userName || parsed.firstName || u;
+  } catch (e) {
+    return localStorage.getItem("user") || "";
+  }
+};
+
 const initialForm = {
   project: "M3 South", title: "", date: "", time: "", location: "", floor: "", specificLocation: "", contractor: "",
   categories: [], actual: "", potential: "", description: "", consequence: "",
   envSpillType: [], envSpillOther: "", envSpilledWhat: "", envCause: "", envQuantity: "", envSpecify: [], envSpecifyOther: "",
   immActions: [{ action: "", responsible: "", date: "", time: "", implemented: false }],
   gatekeeperInformed: null, gatekeeperName: "",
-  submitterName: "", signature: false
+  submitterName: getLoggedInUser(), signature: false
 };
 
 function IMCreate() {
@@ -459,23 +470,26 @@ function IMCreate() {
         specificLocation: form.specificLocation,
         contractorsInvolved: form.contractor,
         categories: form.categories,
-        descriptionWhatHappened: form.whatHappened,
+        actualSeverity: form.actual ? Number(form.actual) : undefined,
+        potentialSeverity: form.potential ? Number(form.potential) : undefined,
+        isHipo: Number(form.potential) >= 4 || Number(form.actual) >= 4,
+        descriptionWhatHappened: form.description,
         descriptionConsequence: form.consequence,
         isEnvironmental: form.categories.includes("Environmental Incident"),
-        spillType: form.envTypes,
-        spillSubstance: form.substances,
-        spillCause: form.cause,
-        spillQuantity: form.quantity,
-        spillSystemEntered: form.systems,
+        spillType: form.envSpillType,
+        spillSubstance: form.envSpilledWhat,
+        spillCause: form.envCause,
+        spillQuantity: form.envQuantity,
+        spillSystemEntered: form.envSpecify,
         immediateActions: form.immActions.map(a => ({
           action: a.action,
           responsible: a.responsible,
           timeImplemented: a.time,
           targetDate: form.date
         })),
-        gatekeeperInformed: form.gatekeeper,
+        gatekeeperInformed: form.gatekeeperInformed,
         gatekeeperName: form.gatekeeperName,
-        submittedBy: "Current User",
+        submittedBy: form.submitterName || getLoggedInUser() || "User",
         signature: form.signature
       };
 

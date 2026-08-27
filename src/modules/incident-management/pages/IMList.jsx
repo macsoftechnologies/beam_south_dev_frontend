@@ -90,7 +90,9 @@ function IMList() {
   const [incidents, setIncidents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
 
   // 9 Column Filters + 1 top chip filter
   const [filters, setFilters] = useState({
@@ -112,13 +114,17 @@ function IMList() {
   const fetchIncidents = async () => {
     setLoading(true);
     try {
-      const apiFilters = {};
+      const apiFilters = {
+        page: currentPage,
+        limit: itemsPerPage === "all" ? "all" : itemsPerPage,
+      };
+
       if (filters.category) apiFilters.category = filters.category;
       if (filters.building) apiFilters.building = filters.building;
       if (filters.actualSeverity) apiFilters.actualSeverity = filters.actualSeverity;
       if (filters.potentialSeverity) apiFilters.potentialSeverity = filters.potentialSeverity;
       
-      // Combine chip hipo filter and column hipo filter
+      if (filters.statusChip && filters.statusChip !== "all") apiFilters.statusChip = filters.statusChip;
       if (filters.isHipo === "true" || filters.statusChip === "hipo") apiFilters.isHipo = "true";
       if (filters.isHipo === "false") apiFilters.isHipo = "false";
       
@@ -128,7 +134,19 @@ function IMList() {
       if (filters.origin) apiFilters.origin = filters.origin;
 
       const response = await getIncidents(apiFilters);
-      setIncidents(Array.isArray(response) ? response : (response.data || []));
+      
+      if (response && response.data && Array.isArray(response.data)) {
+        setIncidents(response.data);
+        const tot = response.total !== undefined ? response.total : response.data.length;
+        setTotalItems(tot);
+        const limitVal = itemsPerPage === "all" ? tot : Number(itemsPerPage);
+        setTotalPages(response.totalPages !== undefined ? response.totalPages : Math.ceil(tot / (limitVal || 1)));
+      } else if (Array.isArray(response)) {
+        setIncidents(response);
+        setTotalItems(response.length);
+        const limitVal = itemsPerPage === "all" ? response.length : Number(itemsPerPage);
+        setTotalPages(Math.ceil(response.length / (limitVal || 1)));
+      }
     } catch (err) {
       console.error("Failed to load incidents", err);
     } finally {
@@ -154,36 +172,25 @@ function IMList() {
 
   useEffect(() => {
     fetchIncidents();
-  }, [filters]);
+  }, [currentPage, itemsPerPage, filters]);
 
   const handleFilterChange = (key, value) => {
+    setCurrentPage(1);
     setFilters(prev => ({ ...prev, [key]: value }));
   };
-
-  const filteredIncidents = useMemo(() => {
-    // Top chip status filtering (Open/Closed) since API 'stage' filter might be different
-    let result = incidents.filter(inc => {
-      if (filters.statusChip === "open") return inc.stage !== "CLOSED" && inc.status !== "Closed";
-      if (filters.statusChip === "closed") return inc.stage === "CLOSED" || inc.status === "Closed";
-      return true;
-    });
-    return result;
-  }, [incidents, filters.statusChip]);
-
-  const totalPages = Math.ceil(filteredIncidents.length / itemsPerPage);
-  const currentIncidents = filteredIncidents.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   const handlePageChange = (page) => {
     setCurrentPage(page);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  // KPIs
-  const total = filteredIncidents.length;
-  const openCount = filteredIncidents.filter(i => i.stage !== "CLOSED" && i.status !== "Closed").length;
-  const invCount = filteredIncidents.filter(i => i.stage === "INITIAL_REPORT" || i.stage === "INVESTIGATION" || i.pipeline === "Initial" || i.pipeline === "Investigation").length;
-  const hipoCount = filteredIncidents.filter(i => i.isHipo === true || String(i.isHipo) === "true" || i.hipo).length;
-  const ltiCount = filteredIncidents.filter(i => i.category === "Lost Time Injury" || i.type === "LTI" || i.classification === "Lost Time Injury").length;
+  const filteredIncidents = incidents;
+  const currentIncidents = incidents;
+  const total = totalItems;
+  const openCount = incidents.filter(i => i.stage !== "CLOSED" && i.status !== "Closed").length;
+  const invCount = incidents.filter(i => i.stage === "INITIAL_REPORT" || i.stage === "INVESTIGATION" || i.pipeline === "Initial" || i.pipeline === "Investigation").length;
+  const hipoCount = incidents.filter(i => i.isHipo === true || String(i.isHipo) === "true" || i.hipo).length;
+  const ltiCount = incidents.filter(i => i.category === "Lost Time Injury" || i.type === "LTI" || i.classification === "Lost Time Injury").length;
 
   // Pipeline Stages
   const pipelineStages = [
@@ -448,15 +455,54 @@ function IMList() {
         </div>
         
         {/* ── Pagination ── */}
-        {!loading && totalPages > 1 && (
-          <div className="beam-pagination">
-            <button className="beam-page-btn" disabled={currentPage === 1} onClick={() => handlePageChange(currentPage - 1)}>←</button>
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-              <button key={page} className={`beam-page-number ${currentPage === page ? "beam-page-number--active" : ""}`} onClick={() => handlePageChange(page)}>
-                {page}
-              </button>
-            ))}
-            <button className="beam-page-btn" disabled={currentPage === totalPages} onClick={() => handlePageChange(currentPage + 1)}>→</button>
+        {!loading && totalItems > 0 && (
+          <div className="beam-pagination" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px", borderTop: "1px solid var(--border-color)", flexWrap: "wrap", gap: "12px" }}>
+            <div style={{ fontSize: "12px", color: "var(--text-muted)", display: "flex", alignItems: "center", gap: "12px" }}>
+              <span>
+                Showing {totalItems === 0 ? 0 : (currentPage - 1) * (itemsPerPage === "all" ? totalItems : itemsPerPage) + 1} to {itemsPerPage === "all" ? totalItems : Math.min(currentPage * itemsPerPage, totalItems)} of {totalItems} incidents
+              </span>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <span>Per page:</span>
+                <select
+                  value={itemsPerPage}
+                  onChange={(e) => {
+                    const val = e.target.value === "all" ? "all" : Number(e.target.value);
+                    setItemsPerPage(val);
+                    setCurrentPage(1);
+                  }}
+                  style={{ padding: "4px 8px", fontSize: "12px", borderRadius: "4px", border: "1px solid var(--border-color)", background: "var(--bg-card)", color: "var(--text-main)" }}
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                  <option value="all">All</option>
+                </select>
+              </div>
+            </div>
+
+            {totalPages > 1 && itemsPerPage !== "all" && (
+              <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
+                <button className="beam-page-btn" disabled={currentPage === 1} onClick={() => handlePageChange(currentPage - 1)}>←</button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
+                  .reduce((acc, page, i, arr) => {
+                    if (i > 0 && page - arr[i - 1] > 1) {
+                      acc.push('ellipsis-' + page);
+                    }
+                    acc.push(page);
+                    return acc;
+                  }, [])
+                  .map(item => typeof item === 'string' ? (
+                    <span key={item} style={{ padding: "0 6px", color: "var(--text-muted)", fontSize: "12px" }}>...</span>
+                  ) : (
+                    <button key={item} className={`beam-page-number ${currentPage === item ? "beam-page-number--active" : ""}`} onClick={() => handlePageChange(item)}>
+                      {item}
+                    </button>
+                  ))}
+                <button className="beam-page-btn" disabled={currentPage === totalPages} onClick={() => handlePageChange(currentPage + 1)}>→</button>
+              </div>
+            )}
           </div>
         )}
       </div>

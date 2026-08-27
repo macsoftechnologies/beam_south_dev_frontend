@@ -101,3 +101,34 @@ export const getIncidents = async (filters = {}) => {
   const response = await api.get(`/incidents/?${query.toString()}`);
   return response.data;
 };
+
+// Get Incident Dashboard Aggregated Stats (Optimized for lakhs of records)
+export const getIncidentStats = async (filters = {}) => {
+  const query = new URLSearchParams();
+  Object.keys(filters).forEach(key => {
+    if (filters[key] !== undefined && filters[key] !== null && filters[key] !== "") {
+      query.append(key, filters[key]);
+    }
+  });
+  const response = await api.get(`/incidents/stats?${query.toString()}`);
+  return response.data;
+};
+
+// Export / Download Incident PDF from backend
+export const exportIncidentPdf = async (incidentId) => {
+  try {
+    const response = await api.get(`/incidents/${incidentId}/export-pdf/`, {
+      responseType: "blob"
+    });
+    return response.data;
+  } catch (err) {
+    if (err.response?.status === 404) {
+      const response = await api.get(`/incidents/${incidentId}/export-pdf`, {
+        responseType: "blob"
+      });
+      return response.data;
+    }
+    throw err;
+  }
+};
+

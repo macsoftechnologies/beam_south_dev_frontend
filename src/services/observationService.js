@@ -96,6 +96,14 @@ export const observationService = {
     const response = await api.post(`observations/${id}/escalate`, payload);
     return response.data;
   },
+
+  /**
+   * Get aggregated Safety Observations statistics (KPIs, weekly trends, contractor compliance, categories, risk distribution, body parts)
+   */
+  async getObservationStats(params = {}) {
+    const response = await api.get("observations/stats", { params });
+    return response.data;
+  },
 };
 
 export default observationService;

@@ -2,7 +2,8 @@ import React, { useState, useRef, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import PageHeader from "../../../components/common/PageHeader/PageHeader";
-import { getIncidentById, approveHeadsUp, submitInitialReport, approveInitialReport, getActionItems, addActionItem, updateActionItem, deleteActionItem, saveInvestigation, reviewInvestigation, closeIncident } from "../../../services/incidentService";
+import { getIncidentById, approveHeadsUp, submitInitialReport, approveInitialReport, getActionItems, addActionItem, updateActionItem, deleteActionItem, saveInvestigation, reviewInvestigation, closeIncident, exportIncidentPdf } from "../../../services/incidentService";
+import { getContractors } from "../../../services/authService";
 import { showSuccess, showError } from "../../../components/common/Toast/Toast";
 import Loader from "../../../components/common/Loader/Loader";
 import nneLogo from "../../../assets/images/nne_logo.png";
@@ -29,6 +30,93 @@ const SevPill = ({ level }) => {
     <span className="badge" style={{ background: `${m.color}22`, color: m.color, fontWeight: 700 }}>
       {m.level} {m.label ? `· ${m.label}` : ""}
     </span>
+  );
+};
+
+const getLogoUrl = (logoVal) => {
+  if (!logoVal) return null;
+  if (logoVal.startsWith("data:") || logoVal.startsWith("http://") || logoVal.startsWith("https://")) return logoVal;
+  const baseUrl = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/+$/, "");
+  return `${baseUrl}/subcontractors/${logoVal}`;
+};
+
+const findContractorLogo = (contractorName, contractorsList = []) => {
+  if (!contractorName || contractorName === 'Unassigned' || contractorName === '—') return null;
+  const match = (contractorsList || []).find(c => {
+    const cName = c.company_name || c.companyName || c.subContractorName || c.subcontractor_name || c.name || '';
+    return cName.toLowerCase().trim() === String(contractorName).toLowerCase().trim() ||
+           cName.toLowerCase().includes(String(contractorName).toLowerCase().trim()) ||
+           String(contractorName).toLowerCase().includes(cName.toLowerCase().trim());
+  });
+  return match?.logo || match?.logo_url || match?.company_logo || match?.logoFile || null;
+};
+
+const ContractorLogo = ({ logoVal, name, size = 22 }) => {
+  const [hasError, setHasError] = useState(false);
+
+  const getInitials = (n) => {
+    if (!n) return "??";
+    let cleanName = String(n).replace(/&\w+;/g, "").replace(/#\s*\w+;/g, "");
+    cleanName = cleanName.replace(/[^a-zA-Z0-9\s]/g, "").trim();
+    const words = cleanName.split(/\s+/).filter(w => w.length > 0);
+    if (words.length === 0) return "??";
+    if (words.length === 1) return words[0].substring(0, 2).toUpperCase();
+    return (words[0][0] + (words[1] ? words[1][0] : "")).toUpperCase();
+  };
+
+  const getColor = (n) => {
+    if (!n) return "#3B82F6";
+    const colors = ["#3B82F6", "#10B981", "#F59E0B", "#8B5CF6", "#EC4899", "#6366F1", "#06B6D4", "#14B8A6"];
+    let hash = 0;
+    for (let i = 0; i < n.length; i++) {
+      hash = n.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return colors[Math.abs(hash) % colors.length];
+  };
+
+  const logoUrl = getLogoUrl(logoVal);
+
+  if (logoUrl && !hasError) {
+    return (
+      <img
+        src={logoUrl}
+        alt={`${name} logo`}
+        style={{
+          width: `${size}px`,
+          height: `${size}px`,
+          objectFit: "contain",
+          borderRadius: "50%",
+          flexShrink: 0,
+          background: "#ffffff",
+          border: "1px solid var(--border-color, #E5E7EB)",
+          padding: "1px"
+        }}
+        onError={() => setHasError(true)}
+      />
+    );
+  }
+
+  const bgCol = getColor(name);
+  return (
+    <div
+      style={{
+        width: `${size}px`,
+        height: `${size}px`,
+        borderRadius: "50%",
+        backgroundColor: bgCol,
+        color: "#FFFFFF",
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontWeight: "700",
+        fontSize: `${Math.max(9, Math.floor(size * 0.42))}px`,
+        flexShrink: 0,
+        letterSpacing: "0.5px"
+      }}
+      title={name}
+    >
+      {getInitials(name)}
+    </div>
   );
 };
 
@@ -185,6 +273,57 @@ export default function IMDetails() {
 
   const [rawIncident, setRawIncident] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [contractorsList, setContractorsList] = useState([]);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+
+  const handleExportPdf = async () => {
+    const incObj = rawIncident?.incident || rawIncident || {};
+    const incId = incObj?.id || id;
+    if (!incId) return;
+
+    try {
+      setDownloadingPdf(true);
+      showSuccess("Downloading incident PDF report from backend...");
+      const blobData = await exportIncidentPdf(incId);
+
+      const blob = new Blob([blobData], { type: "application/pdf" });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      const caseNo = incObj?.caseNumber || incObj?.id || id;
+      link.setAttribute("download", `Incident_Report_${caseNo}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Failed to download PDF from backend:", err);
+      showError("Could not download PDF from backend API directly.");
+      const baseUrl = (import.meta.env.VITE_API_BASE_URL || "https://api.beam.safesiteworks.com/development/m3south").replace(/\/+$/, "");
+      const downloadUrl = `${baseUrl}/incidents/${incId}/export-pdf`;
+      const a = document.createElement("a");
+      a.href = downloadUrl;
+      a.download = `Incident_Report_${incObj?.caseNumber || incId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
+
+  useEffect(() => {
+    const fetchContractors = async () => {
+      try {
+        const cRes = await getContractors(1, 1000);
+        const rawC = cRes?.data?.rows || cRes?.data || cRes?.subContractors || cRes || [];
+        setContractorsList(Array.isArray(rawC) ? rawC : []);
+      } catch (err) {
+        console.error("Failed to load contractors for IM Details:", err);
+      }
+    };
+    fetchContractors();
+  }, []);
 
   React.useEffect(() => {
     const fetchIncident = async () => {
@@ -1238,18 +1377,19 @@ export default function IMDetails() {
           </div>
         </div>
         <div className="inc-head-actions hide-on-print" style={{ display: "flex", gap: "10px" }}>
-          <div className="inc-head-actions" style={{ display: "flex", gap: "10px" }}>
-            <button
-              className="mod-btn-outline"
-              onClick={() => {
-                const backendUrl = `https://api.beam.safesiteworks.com/development/m3south/incidents/${incident.id}/export-pdf`;
-                window.open(backendUrl, "_blank");
-              }}
-              style={{ fontSize: "13px", padding: "8px 16px", borderRadius: "8px", fontWeight: 600, cursor: "pointer" }}
-            >
-              Export PDF
-            </button>
-          </div>
+          <button
+            className="mod-btn-outline"
+            onClick={handleExportPdf}
+            disabled={downloadingPdf}
+            style={{ fontSize: "13px", padding: "8px 16px", borderRadius: "8px", fontWeight: 600, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px" }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" x2="12" y1="15" y2="3"/>
+            </svg>
+            {downloadingPdf ? "Downloading..." : "Export PDF"}
+          </button>
         </div>
       </div>
 
@@ -1306,9 +1446,16 @@ export default function IMDetails() {
                   </div>
                   <div>
                     <dt style={{ color: "var(--text-muted)", fontSize: "11px", fontWeight: 700, letterSpacing: "0.5px", textTransform: "uppercase", marginBottom: "4px" }}>Contractor</dt>
-                    <dd style={{ fontWeight: 500, fontSize: "14px", color: "var(--text-main)", display: "flex", alignItems: "center", gap: "6px" }}>
-                      {incident.contractorsInvolved ? (
-                        <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 20L12 4 2 20h20z"/><path d="M12 20v-8"/></svg>{incident.contractorsInvolved}</>
+                    <dd style={{ fontWeight: 500, fontSize: "14px", color: "var(--text-main)", display: "flex", alignItems: "center", gap: "8px" }}>
+                      {(incident.contractorsInvolved || incident.contractor) ? (
+                        <>
+                          <ContractorLogo
+                            logoVal={findContractorLogo(incident.contractorsInvolved || incident.contractor, contractorsList)}
+                            name={incident.contractorsInvolved || incident.contractor}
+                            size={22}
+                          />
+                          <span>{incident.contractorsInvolved || incident.contractor}</span>
+                        </>
                       ) : "—"}
                     </dd>
                   </div>

@@ -196,18 +196,41 @@ function SOCreate() {
     }
   }, [building, level, buildingsList]);
 
+const dataURLtoBlob = (dataurl) => {
+  if (!dataurl || typeof dataurl !== 'string') return null;
+  const arr = dataurl.split(',');
+  if (arr.length < 2) return null;
+  const mimeMatch = arr[0].match(/:(.*?);/);
+  const mime = mimeMatch ? mimeMatch[1] : 'image/png';
+  const bstr = atob(arr[1]);
+  let n = bstr.length;
+  const u8arr = new Uint8Array(n);
+  while (n--) {
+    u8arr[n] = bstr.charCodeAt(n);
+  }
+  return new Blob([u8arr], { type: mime });
+};
+
   const startCamera = async () => {
+    setIsCameraActive(true);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
       }
-      setIsCameraActive(true);
     } catch (err) {
-      alert("Camera access denied or unavailable.");
+      console.error("Error accessing camera:", err);
+      alert("Could not access camera.");
+      setIsCameraActive(false);
     }
   };
+
+  useEffect(() => {
+    if (isCameraActive && videoRef.current && streamRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+    }
+  }, [isCameraActive]);
 
   const stopCamera = () => {
     if (streamRef.current) {
@@ -221,21 +244,20 @@ function SOCreate() {
     if (videoRef.current && canvasRef.current) {
       const video = videoRef.current;
       const canvas = canvasRef.current;
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
+      const width = video.videoWidth || 640;
+      const height = video.videoHeight || 480;
+      canvas.width = width;
+      canvas.height = height;
       const ctx = canvas.getContext("2d");
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      ctx.drawImage(video, 0, 0, width, height);
 
-      canvas.toBlob((blob) => {
-        if (blob) {
-          const file = new File([blob], `obs_cam_${Date.now()}.jpg`, { type: "image/jpeg" });
-          const previewUrl = URL.createObjectURL(file);
-          setPhotoFiles((prev) => [...prev, file]);
-          setPhotoPreviews((prev) => [...prev, previewUrl]);
-        }
-      }, "image/jpeg", 0.85);
-
-      stopCamera();
+      const dataUrl = canvas.toDataURL("image/png");
+      const blob = dataURLtoBlob(dataUrl);
+      if (blob) {
+        const file = new File([blob], `obs_photo_${Date.now()}.png`, { type: "image/png" });
+        setPhotoFiles((prev) => [...prev, file]);
+      }
+      setPhotoPreviews((prev) => [...prev, dataUrl]);
     }
   };
 
@@ -690,13 +712,15 @@ function SOCreate() {
 
             {isCameraActive && (
               <div style={{ marginTop: 12 }}>
-                <video ref={videoRef} autoPlay playsInline muted style={{ width: "100%", maxHeight: 280, background: "#000", borderRadius: 8, display: "block" }}></video>
+                <div style={{ width: "100%", maxWidth: 480, height: 280, background: "#000", borderRadius: 8, overflow: "hidden", position: "relative" }}>
+                  <video ref={videoRef} autoPlay playsInline style={{ width: "100%", height: "100%", objectFit: "cover" }}></video>
+                </div>
                 <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                   <button type="button" className="mod-btn-primary" style={{ padding: "4px 12px", fontSize: 13 }} onClick={capturePhoto}>
                     Capture
                   </button>
                   <button type="button" className="mod-btn-outline" style={{ padding: "4px 12px", fontSize: 13 }} onClick={stopCamera}>
-                    Cancel Camera
+                    Stop Camera
                   </button>
                 </div>
               </div>

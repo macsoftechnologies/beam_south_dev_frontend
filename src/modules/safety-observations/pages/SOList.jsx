@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import PageHeader from "../../../components/common/PageHeader/PageHeader";
 import { observationService } from "../../../services/observationService";
+import { getContractors, getBuildings } from "../../../services/authService";
 import { SAFETY_CATEGORIES } from "../data/observations";
 import "../../../styles/module-shared.css";
 
@@ -32,6 +33,93 @@ const CalIcon = () => (
   </svg>
 );
 
+const getLogoUrl = (logoVal) => {
+  if (!logoVal) return null;
+  if (logoVal.startsWith("data:") || logoVal.startsWith("http://") || logoVal.startsWith("https://")) return logoVal;
+  const baseUrl = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/+$/, "");
+  return `${baseUrl}/subcontractors/${logoVal}`;
+};
+
+const findContractorLogo = (contractorName, contractorsList = []) => {
+  if (!contractorName || contractorName === 'Unassigned' || contractorName === '—') return null;
+  const match = (contractorsList || []).find(c => {
+    const cName = c.company_name || c.companyName || c.subContractorName || c.subcontractor_name || c.name || '';
+    return cName.toLowerCase().trim() === String(contractorName).toLowerCase().trim() ||
+           cName.toLowerCase().includes(String(contractorName).toLowerCase().trim()) ||
+           String(contractorName).toLowerCase().includes(cName.toLowerCase().trim());
+  });
+  return match?.logo || match?.logo_url || match?.company_logo || match?.logoFile || null;
+};
+
+const ContractorLogo = ({ logoVal, name, size = 24 }) => {
+  const [hasError, setHasError] = useState(false);
+
+  const getInitials = (n) => {
+    if (!n) return "??";
+    let cleanName = String(n).replace(/&\w+;/g, "").replace(/#\s*\w+;/g, "");
+    cleanName = cleanName.replace(/[^a-zA-Z0-9\s]/g, "").trim();
+    const words = cleanName.split(/\s+/).filter(w => w.length > 0);
+    if (words.length === 0) return "??";
+    if (words.length === 1) return words[0].substring(0, 2).toUpperCase();
+    return (words[0][0] + (words[1] ? words[1][0] : "")).toUpperCase();
+  };
+
+  const getColor = (n) => {
+    if (!n) return "#3B82F6";
+    const colors = ["#3B82F6", "#10B981", "#F59E0B", "#8B5CF6", "#EC4899", "#6366F1", "#06B6D4", "#14B8A6"];
+    let hash = 0;
+    for (let i = 0; i < n.length; i++) {
+      hash = n.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return colors[Math.abs(hash) % colors.length];
+  };
+
+  const logoUrl = getLogoUrl(logoVal);
+
+  if (logoUrl && !hasError) {
+    return (
+      <img
+        src={logoUrl}
+        alt={`${name} logo`}
+        style={{
+          width: `${size}px`,
+          height: `${size}px`,
+          objectFit: "contain",
+          borderRadius: "50%",
+          flexShrink: 0,
+          background: "#ffffff",
+          border: "1px solid var(--border-color, #E5E7EB)",
+          padding: "1px"
+        }}
+        onError={() => setHasError(true)}
+      />
+    );
+  }
+
+  const bgCol = getColor(name);
+  return (
+    <div
+      style={{
+        width: `${size}px`,
+        height: `${size}px`,
+        borderRadius: "50%",
+        backgroundColor: bgCol,
+        color: "#FFFFFF",
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontWeight: "700",
+        fontSize: `${Math.max(9, Math.floor(size * 0.42))}px`,
+        flexShrink: 0,
+        letterSpacing: "0.5px"
+      }}
+      title={name}
+    >
+      {getInitials(name)}
+    </div>
+  );
+};
+
 function SOList() {
   const navigate = useNavigate();
   const [observations, setObservations] = useState([]);
@@ -43,6 +131,9 @@ function SOList() {
   const [filterLocation, setFilterLocation] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
 
+  const [buildingsList, setBuildingsList] = useState([]);
+  const [contractorsList, setContractorsList] = useState([]);
+
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   const userRole = localStorage.getItem("UserType") || "DEPARTMENT";
   const contractorId = user?.subcontractor_id || user?.contractorId;
@@ -52,6 +143,26 @@ function SOList() {
   const [pageSize, setPageSize] = useState(10);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
+
+  // Fetch Master Selector Data (Buildings & Contractors API)
+  useEffect(() => {
+    const fetchMasterData = async () => {
+      try {
+        const [bRes, cRes] = await Promise.all([
+          getBuildings(1, 1000),
+          getContractors(1, 1000),
+        ]);
+        const rawB = bRes?.data?.rows || bRes?.data || bRes || [];
+        setBuildingsList(Array.isArray(rawB) ? rawB : []);
+
+        const rawC = cRes?.data?.rows || cRes?.data || cRes?.subContractors || cRes || [];
+        setContractorsList(Array.isArray(rawC) ? rawC : []);
+      } catch (err) {
+        console.error("Failed to load buildings & contractors master data in SOList:", err);
+      }
+    };
+    fetchMasterData();
+  }, []);
 
   const fetchObservations = async () => {
     try {
@@ -96,14 +207,21 @@ function SOList() {
     fetchObservations();
   }, [currentPage, pageSize, filterStatus, filterType, filterCategory, filterContractor, filterLocation, searchTerm]);
 
-  const uniqueContractors = useMemo(
-    () => [...new Set(observations.map((o) => o.assignedContractorName).filter(Boolean))],
-    [observations]
-  );
-  const uniqueLocations = useMemo(
-    () => [...new Set(observations.map((o) => o.buildingName).filter(Boolean))],
-    [observations]
-  );
+  const uniqueContractors = useMemo(() => {
+    const apiNames = contractorsList
+      .map((c) => c.company_name || c.companyName || c.subContractorName || c.subcontractor_name || c.name || (typeof c === "string" ? c : ""))
+      .filter(Boolean);
+    const obsNames = observations.map((o) => o.assignedContractorName).filter(Boolean);
+    return Array.from(new Set([...apiNames, ...obsNames])).sort();
+  }, [contractorsList, observations]);
+
+  const uniqueLocations = useMemo(() => {
+    const apiNames = buildingsList
+      .map((b) => b.name || b.buildingName || b.building_name || (typeof b === "string" ? b : ""))
+      .filter(Boolean);
+    const obsNames = observations.map((o) => o.buildingName).filter(Boolean);
+    return Array.from(new Set([...apiNames, ...obsNames])).sort();
+  }, [buildingsList, observations]);
 
   const positive = observations.filter((o) => o.observationType === "POSITIVE").length;
   const needsAttn = observations.filter((o) => o.observationType === "NEEDS_ATTENTION").length;
@@ -279,19 +397,30 @@ function SOList() {
                     <td>
                       <span
                         className={`badge ${
-                          (o.status || "").toUpperCase() === "REJECTED"
+                          (o.status || "").toUpperCase() === "CLOSED"
+                            ? "badge-green"
+                            : (o.status || "").toUpperCase() === "REJECTED" || (o.status || "").toUpperCase() === "ESCALATED"
                             ? "badge-red"
+                            : (o.status || "").toUpperCase() === "ASSIGNED"
+                            ? "badge-purple"
                             : (o.status || "").toUpperCase() === "ACCEPTED" || (o.status || "").toUpperCase() === "RESOLVED" || (o.status || "").toUpperCase() === "IN_PROGRESS"
                             ? "badge-orange"
-                            : (o.status || "").toUpperCase() === "CLOSED"
-                            ? "badge-green"
                             : "badge-blue"
                         }`}
                       >
                         {o.status || "OPEN"}
                       </span>
                     </td>
-                    <td>{o.assignedContractorName || "-"}</td>
+                    <td>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <ContractorLogo
+                          logoVal={findContractorLogo(o.assignedContractorName || o.contractor, contractorsList)}
+                          name={o.assignedContractorName || o.contractor || "Unassigned"}
+                          size={24}
+                        />
+                        <span>{o.assignedContractorName || o.contractor || "-"}</span>
+                      </div>
+                    </td>
                     <td>{o.safetyCategory}</td>
                     <td>
                       <span

@@ -34,6 +34,93 @@ const SevPill = ({ level }) => {
   );
 };
 
+const getLogoUrl = (logoVal) => {
+  if (!logoVal) return null;
+  if (logoVal.startsWith("data:") || logoVal.startsWith("http://") || logoVal.startsWith("https://")) return logoVal;
+  const baseUrl = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/+$/, "");
+  return `${baseUrl}/subcontractors/${logoVal}`;
+};
+
+const findContractorLogo = (contractorName, contractorsList = []) => {
+  if (!contractorName || contractorName === 'Unassigned' || contractorName === '—') return null;
+  const match = (contractorsList || []).find(c => {
+    const cName = c.company_name || c.companyName || c.subContractorName || c.subcontractor_name || c.name || '';
+    return cName.toLowerCase().trim() === String(contractorName).toLowerCase().trim() ||
+           cName.toLowerCase().includes(String(contractorName).toLowerCase().trim()) ||
+           String(contractorName).toLowerCase().includes(cName.toLowerCase().trim());
+  });
+  return match?.logo || match?.logo_url || match?.company_logo || match?.logoFile || null;
+};
+
+const ContractorLogo = ({ logoVal, name, size = 24 }) => {
+  const [hasError, setHasError] = useState(false);
+
+  const getInitials = (n) => {
+    if (!n) return "??";
+    let cleanName = String(n).replace(/&\w+;/g, "").replace(/#\s*\w+;/g, "");
+    cleanName = cleanName.replace(/[^a-zA-Z0-9\s]/g, "").trim();
+    const words = cleanName.split(/\s+/).filter(w => w.length > 0);
+    if (words.length === 0) return "??";
+    if (words.length === 1) return words[0].substring(0, 2).toUpperCase();
+    return (words[0][0] + (words[1] ? words[1][0] : "")).toUpperCase();
+  };
+
+  const getColor = (n) => {
+    if (!n) return "#3B82F6";
+    const colors = ["#3B82F6", "#10B981", "#F59E0B", "#8B5CF6", "#EC4899", "#6366F1", "#06B6D4", "#14B8A6"];
+    let hash = 0;
+    for (let i = 0; i < n.length; i++) {
+      hash = n.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return colors[Math.abs(hash) % colors.length];
+  };
+
+  const logoUrl = getLogoUrl(logoVal);
+
+  if (logoUrl && !hasError) {
+    return (
+      <img
+        src={logoUrl}
+        alt={`${name} logo`}
+        style={{
+          width: `${size}px`,
+          height: `${size}px`,
+          objectFit: "contain",
+          borderRadius: "50%",
+          flexShrink: 0,
+          background: "#ffffff",
+          border: "1px solid var(--border-color, #E5E7EB)",
+          padding: "1px"
+        }}
+        onError={() => setHasError(true)}
+      />
+    );
+  }
+
+  const bgCol = getColor(name);
+  return (
+    <div
+      style={{
+        width: `${size}px`,
+        height: `${size}px`,
+        borderRadius: "50%",
+        backgroundColor: bgCol,
+        color: "#FFFFFF",
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontWeight: "700",
+        fontSize: `${Math.max(9, Math.floor(size * 0.42))}px`,
+        flexShrink: 0,
+        letterSpacing: "0.5px"
+      }}
+      title={name}
+    >
+      {getInitials(name)}
+    </div>
+  );
+};
+
 const StatusTracker = ({ inc, pipeline, isPendingClosure: initialIsPendingClosure }) => {
   const [realStage, setRealStage] = React.useState(String(pipeline).toUpperCase());
   const [realIsPendingClosure, setRealIsPendingClosure] = React.useState(initialIsPendingClosure);
@@ -516,7 +603,14 @@ function IMList() {
                   </td>
                   <td>
                     {inc.contractorsInvolved || inc.contractor ? (
-                       <span style={{ whiteSpace: "nowrap" }}>{inc.contractorsInvolved || inc.contractor}</span>
+                       <div style={{ display: "flex", alignItems: "center", gap: 8, whiteSpace: "nowrap" }}>
+                         <ContractorLogo
+                           logoVal={findContractorLogo(inc.contractorsInvolved || inc.contractor, contractors)}
+                           name={inc.contractorsInvolved || inc.contractor}
+                           size={24}
+                         />
+                         <span>{inc.contractorsInvolved || inc.contractor}</span>
+                       </div>
                     ) : (
                        <span style={{ color: "var(--text-muted)" }}>—</span>
                     )}

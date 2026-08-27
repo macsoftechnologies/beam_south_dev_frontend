@@ -2874,4 +2874,4 @@ export const SO_STATS = {
 };
 
 export const SO_RISK_LEVELS = ["Very high", "High", "Moderate", "Medium", "Low", "Very low"];
-export const SO_STATUSES = ["open", "closed", "escalated"];
+export const SO_STATUSES = ["OPEN", "ASSIGNED", "ACCEPTED", "REJECTED", "RESOLVED", "CLOSED", "ESCALATED"];

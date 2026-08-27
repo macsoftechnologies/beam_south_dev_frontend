@@ -407,6 +407,44 @@ export default function IMDetails() {
     }
   };
 
+  const startInvCamera = async () => {
+    setIsInvCameraActive(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      invStreamRef.current = stream;
+      if (invVideoRef.current) {
+        invVideoRef.current.srcObject = stream;
+      }
+    } catch (err) {
+      console.error("Error accessing camera:", err);
+      alert("Could not access camera.");
+      setIsInvCameraActive(false);
+    }
+  };
+
+  const stopInvCamera = () => {
+    if (invStreamRef.current) {
+      invStreamRef.current.getTracks().forEach(track => track.stop());
+      invStreamRef.current = null;
+    }
+    setIsInvCameraActive(false);
+  };
+
+  const captureInvPhoto = () => {
+    if (invVideoRef.current && invCanvasRef.current) {
+      const video = invVideoRef.current;
+      const canvas = invCanvasRef.current;
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL('image/png');
+      if (invPhotos.length < 20) {
+        setInvPhotos([...invPhotos, dataUrl]);
+      }
+    }
+  };
+
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -1666,27 +1704,24 @@ export default function IMDetails() {
                 <div className="fsec">
                   <div className="fsec-title" style={{ justifyContent: "space-between" }}>
                     <span>G. Injury / Illness Information</span>
-                    <label className="chk" style={{ fontSize: 12, textTransform: "none", fontWeight: 600 }}>
-                      <input type="checkbox" checked={irInjuryNotApplicable} onChange={e => setIrInjuryNotApplicable(e.target.checked)} />
-                      <span>Not Applicable</span>
-                    </label>
+                    <label className="chk" style={{ fontSize: 12, textTransform: "none", fontWeight: 600 }}><input type="checkbox" /><span>Not Applicable</span></label>
                   </div>
                   <div className="mod-form-group"><label className="mod-form-label">Nature of Injury</label>
-                    <textarea className="mod-form-textarea" placeholder="e.g. Laceration to left hand, sprained ankle..." value={irNatureOfInjury} onChange={e => setIrNatureOfInjury(e.target.value)}></textarea>
+                    <textarea className="mod-form-textarea" placeholder="e.g. Laceration to left hand, sprained ankle..."></textarea>
                   </div>
                   <div className="grid-2">
                     <div className="mod-form-group"><label className="mod-form-label">Treatment Provided</label>
-                      <select className="mod-form-select" value={irTreatmentProvided} onChange={e => setIrTreatmentProvided(e.target.value)}>
+                      <select className="mod-form-select">
                         <option value="">Select...</option>
                         {TREATMENT_PROVIDED.map(s => <option key={s} value={s}>{s}</option>)}
                       </select>
                     </div>
                     <div className="mod-form-group"><label className="mod-form-label">Anticipated Absence from Work</label>
-                      <input className="mod-form-input" placeholder="e.g. 3 days, 2 weeks, None, Unknown..." value={irAnticipatedAbsence} onChange={e => setIrAnticipatedAbsence(e.target.value)} />
+                      <input className="mod-form-input" placeholder="e.g. 3 days, 2 weeks, None, Unknown..." />
                     </div>
                   </div>
                   <div className="mod-form-group" style={{ marginTop: 8 }}><label className="mod-form-label">Medical Treatment Classification</label>
-                    <select className="mod-form-select" value={irMedicalTreatmentClass} onChange={e => setIrMedicalTreatmentClass(e.target.value)}>
+                    <select className="mod-form-select">
                       <option value="">Select...</option>
                       {["No Treatment", "First Aid", "Medical Treatment", "Restricted Work", "Lost Time"].map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
@@ -1840,7 +1875,7 @@ export default function IMDetails() {
                                 <rect x="75" y="186" width="12" height="44" rx="5" fill={fillFor("Legs, Knee", "R")} stroke="#ffffff" strokeWidth="2" onClick={() => toggleBodyPart("Legs, Knee", "R")} />
                                 <circle cx="59" cy="234" r="4" fill={isPartSelected("Ankle", "L") || isPartSelected("Foot", "L") ? "#ef4444" : "#b4c6e7"} stroke="#ffffff" strokeWidth="2" onClick={() => toggleBodyPart("Ankle", "L")} />
                                 <circle cx="81" cy="234" r="4" fill={isPartSelected("Ankle", "R") || isPartSelected("Foot", "R") ? "#ef4444" : "#b4c6e7"} stroke="#ffffff" strokeWidth="2" onClick={() => toggleBodyPart("Ankle", "R")} />
-                                 <ellipse cx="53" cy="244" rx="10" ry="5" fill={isPartSelected("Foot", "L") || isPartSelected("Toe(s)", "L") || isPartSelected("Toe", "L") ? "#ef4444" : "#b4c6e7"} stroke="#ffffff" strokeWidth="2" onClick={() => toggleBodyPart("Foot", "L")} />
+                                <ellipse cx="53" cy="244" rx="10" ry="5" fill={isPartSelected("Foot", "L") || isPartSelected("Toe(s)", "L") || isPartSelected("Toe", "L") ? "#ef4444" : "#b4c6e7"} stroke="#ffffff" strokeWidth="2" onClick={() => toggleBodyPart("Foot", "L")} />
                                 <ellipse cx="87" cy="244" rx="10" ry="5" fill={isPartSelected("Foot", "R") || isPartSelected("Toe(s)", "R") || isPartSelected("Toe", "R") ? "#ef4444" : "#b4c6e7"} stroke="#ffffff" strokeWidth="2" onClick={() => toggleBodyPart("Foot", "R")} />
                               </svg>
                             </div>
@@ -2518,7 +2553,7 @@ export default function IMDetails() {
                 {/* 17. Signature */}
                 <div className="fsec"><div className="fsec-title">17. Signatures & Sign-Off</div>
                   <div className="fsec-note">The Site HSE Investigator signs the completed report. It then routes to the reviewer (always Site HSE) for sign-off in the next step.</div>
-                  
+
                   {investigationData?.signatures && Array.isArray(investigationData.signatures) && investigationData.signatures.length > 0 && (
                     <div style={{ marginBottom: 20 }}>
                       <div style={{ fontWeight: 700, fontSize: 13, color: "var(--text-main)", marginBottom: 12 }}>Submitted Investigation Signatures ({investigationData.signatures.length})</div>
@@ -2724,26 +2759,26 @@ export default function IMDetails() {
                           const isExpanded = Boolean(expandedActionIds[a.id || i]);
                           return (
                             <React.Fragment key={a.id || i}>
-                              <tr 
-                                onClick={() => toggleActionExpand(a.id || i)} 
+                              <tr
+                                onClick={() => toggleActionExpand(a.id || i)}
                                 style={{ cursor: "pointer", background: isExpanded ? "var(--bg-dark, #f8fafc)" : "transparent" }}
                               >
                                 <td>
                                   <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                                    <button 
+                                    <button
                                       type="button"
                                       onClick={(e) => { e.stopPropagation(); toggleActionExpand(a.id || i); }}
                                       style={{ background: "none", border: "none", cursor: "pointer", padding: "2px", color: "var(--text-muted)", display: "inline-flex", alignItems: "center", justifyContent: "center" }}
                                     >
-                                      <svg 
-                                        width="14" 
-                                        height="14" 
-                                        viewBox="0 0 24 24" 
-                                        fill="none" 
-                                        stroke="currentColor" 
-                                        strokeWidth="2.5" 
-                                        strokeLinecap="round" 
-                                        strokeLinejoin="round" 
+                                      <svg
+                                        width="14"
+                                        height="14"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="2.5"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
                                         style={{ transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.2s ease" }}
                                       >
                                         <polyline points="9 18 15 12 9 6"></polyline>

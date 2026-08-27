@@ -57,6 +57,26 @@ const Icons = {
   ),
 };
 
+const severityMeta = (level) => {
+  const meta = {
+    1: { level: 1, label: "Insignificant", color: "#2D9E5A" },
+    2: { level: 2, label: "Minor", color: "#C07D10" },
+    3: { level: 3, label: "Moderate", color: "#D97706" },
+    4: { level: 4, label: "Critical", color: "#E32B50" },
+    5: { level: 5, label: "Catastrophic", color: "#8F1B32" }
+  };
+  return meta[level] || { level: level || 1, label: "", color: "#A1A5B3" };
+};
+
+const SevPill = ({ level }) => {
+  const m = severityMeta(level);
+  return (
+    <span className="badge" style={{ background: `${m.color}22`, color: m.color, fontWeight: 700 }}>
+      {m.level} {m.label}
+    </span>
+  );
+};
+
 function IMDashboard() {
   const navigate = useNavigate();
   const barRef = useRef(null);
@@ -246,11 +266,11 @@ function IMDashboard() {
               {recent.map(inc => (
                 <tr key={inc.id}>
                   <td className="id-cell">{inc.id}</td>
-                  <td className="title-cell">{inc.title}</td>
-                  <td>{inc.category}</td>
-                  <td><StatusBadge status={String(inc.severity || "").toLowerCase()} /></td>
-                  <td><StatusBadge status={String(inc.status || "").toLowerCase()} /></td>
-                  <td>{inc.date}</td>
+                  <td className="title-cell" style={{ maxWidth: "180px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{inc.caseNumber || inc.title || "—"}</td>
+                  <td style={{ whiteSpace: "nowrap" }}>{inc.categories?.[0] || inc.category || "—"}</td>
+                  <td><SevPill level={inc.actualSeverity} /></td>
+                  <td><StatusBadge status={String(inc.stage || inc.pipeline || inc.status || "Closed")} /></td>
+                  <td style={{ whiteSpace: "nowrap" }}>{inc.incidentDate || (inc.createdAt ? inc.createdAt.split('T')[0] : inc.date) || "—"}</td>
                   <td>
                     <button className="mod-table action-btn" onClick={() => navigate(`/incident-management/details/${inc.id}`)}>
                       View

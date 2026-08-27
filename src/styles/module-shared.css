@@ -462,6 +462,50 @@
   }
 }
 
+/* ── Badges ── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+}
+
+.badge-green {
+  background: #E6F4EA !important;
+  color: #137333 !important;
+  border: 1px solid #CEEAD6 !important;
+}
+
+.badge-red {
+  background: #FCE8E6 !important;
+  color: #C5221F !important;
+  border: 1px solid #FAD2CF !important;
+}
+
+.badge-orange {
+  background: #FEF7E0 !important;
+  color: #B06000 !important;
+  border: 1px solid #FDE293 !important;
+}
+
+.badge-blue {
+  background: #E8F0FE !important;
+  color: #1A73E8 !important;
+  border: 1px solid #D2E3FC !important;
+}
+
+.badge-purple {
+  background: #F3E8FD !important;
+  color: #8430CE !important;
+  border: 1px solid #E9D5FF !important;
+}
+
 /* ── Light theme overrides ── */
 html[data-theme="light"] .mod-card {
   background: #fff !important;

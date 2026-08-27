@@ -2,7 +2,8 @@ import axios from "axios";
 import { sendUserLog } from "./userLogService";
 import { navigateTo, isOnPath } from "../config/basePath";
 
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+const rawBaseUrl = import.meta.env.VITE_API_BASE_URL || "";
+export const API_BASE_URL = rawBaseUrl.endsWith("/") ? rawBaseUrl : `${rawBaseUrl}/`;
 
 const api = axios.create({
     baseURL: API_BASE_URL,
@@ -11,9 +12,13 @@ const api = axios.create({
     },
 });
 
-// ─── REQUEST INTERCEPTOR — attach auth token ────────────────────────────────
+// ─── REQUEST INTERCEPTOR — attach auth token & normalize subpaths ───────────
 api.interceptors.request.use(
     (config) => {
+        // Strip leading slash from relative URLs so Axios preserves baseURL subpath (/development/m3south)
+        if (config.url && config.url.startsWith("/") && !config.url.startsWith("//")) {
+            config.url = config.url.slice(1);
+        }
         const token = localStorage.getItem("token");
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;

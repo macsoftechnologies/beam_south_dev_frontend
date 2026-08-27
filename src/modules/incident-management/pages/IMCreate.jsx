@@ -352,12 +352,35 @@ function IMCreate() {
 
   const handleRoomsSelected = (rooms) => {
     setSelectedRooms(rooms);
+    const formattedRooms = (rooms || []).map((rStr) => {
+      const roomClean = String(rStr).trim();
+      if (!roomClean) return "";
+      const matchedDbRoom = roomsList.find(
+        (dbR) =>
+          String(dbR.room_name || dbR.room || dbR.name || dbR.id).toLowerCase().trim() === roomClean.toLowerCase() ||
+          roomClean.toLowerCase().includes(String(dbR.room_name || dbR.room || "").toLowerCase().trim())
+      );
+      let zoneName = matchedDbRoom?.zone_name || matchedDbRoom?.zone || "";
+      if (!zoneName && selectedZones && selectedZones.length > 0) {
+        const foundZoneObj = selectedZones.find((zObj) => {
+          const roomListInZone = zObj.rooms || zObj.roomList || [];
+          return roomListInZone.some(
+            (zr) => String(zr).toLowerCase().trim() === roomClean.toLowerCase()
+          );
+        });
+        if (foundZoneObj) {
+          zoneName = foundZoneObj.zone || foundZoneObj.zone_name || foundZoneObj.name || "";
+        }
+      }
+      return zoneName ? `${zoneName}:${roomClean}` : roomClean;
+    }).filter(Boolean).join(", ");
+
     // Sync with form state for validation
     setForm(prev => ({
       ...prev,
       location: building,
       floor: level,
-      specificLocation: rooms.join(", ")
+      specificLocation: formattedRooms
     }));
     if (errors.location) setErrors(prev => ({ ...prev, location: null }));
   };

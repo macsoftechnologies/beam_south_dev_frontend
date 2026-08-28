@@ -7,7 +7,7 @@ import { SAFETY_CATEGORIES } from "../data/observations";
 import "../../../styles/module-shared.css";
 
 const BarChartIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#131E40" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent-primary, #3B82F6)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <line x1="12" x2="12" y1="20" y2="10" />
     <line x1="18" x2="18" y1="20" y2="4" />
     <line x1="6" x2="6" y1="20" y2="16" />
@@ -256,13 +256,13 @@ function SOList() {
       </div>
 
       {/* Live Summary KPIs */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 14, marginBottom: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 14, marginBottom: 20 }}>
         <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: 10, padding: "15px 16px", position: "relative" }}>
           <div style={{ position: "absolute", top: 14, right: 14, opacity: 0.85 }}>
             <BarChartIcon />
           </div>
           <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", color: "var(--text-muted)" }}>Total</div>
-          <div style={{ fontSize: 27, fontWeight: 700, marginTop: 6, color: "#131E40" }}>{observations.length}</div>
+          <div style={{ fontSize: 27, fontWeight: 700, marginTop: 6, color: "var(--accent-primary, #3B82F6)" }}>{observations.length}</div>
         </div>
 
         <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: 10, padding: "15px 16px", position: "relative" }}>
@@ -311,13 +311,13 @@ function SOList() {
           style={{ flex: 1, minWidth: 200 }}
         />
 
-        <select className="mod-form-select" value={filterType} onChange={(e) => setFilterType(e.target.value)} style={{ width: 150 }}>
+        <select className="mod-form-select" value={filterType} onChange={(e) => setFilterType(e.target.value)} style={{ flex: "1 1 140px" }}>
           <option value="">All Types</option>
           <option value="POSITIVE">Positive</option>
           <option value="NEEDS_ATTENTION">Needs Attention</option>
         </select>
 
-        <select className="mod-form-select" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} style={{ width: 150 }}>
+        <select className="mod-form-select" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} style={{ flex: "1 1 140px" }}>
           <option value="">All Statuses</option>
           <option value="OPEN">Open</option>
           <option value="ASSIGNED">Assigned</option>
@@ -328,7 +328,7 @@ function SOList() {
           <option value="ESCALATED">Escalated</option>
         </select>
 
-        <select className="mod-form-select" value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} style={{ width: 180 }}>
+        <select className="mod-form-select" value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} style={{ flex: "1 1 160px" }}>
           <option value="">All Categories</option>
           {SAFETY_CATEGORIES.map((c) => (
             <option key={c} value={c}>
@@ -337,7 +337,7 @@ function SOList() {
           ))}
         </select>
 
-        <select className="mod-form-select" value={filterContractor} onChange={(e) => setFilterContractor(e.target.value)} style={{ width: 150 }}>
+        <select className="mod-form-select" value={filterContractor} onChange={(e) => setFilterContractor(e.target.value)} style={{ flex: "1 1 140px" }}>
           <option value="">All Contractors</option>
           {uniqueContractors.map((c) => (
             <option key={c} value={c}>
@@ -346,7 +346,7 @@ function SOList() {
           ))}
         </select>
 
-        <select className="mod-form-select" value={filterLocation} onChange={(e) => setFilterLocation(e.target.value)} style={{ width: 150 }}>
+        <select className="mod-form-select" value={filterLocation} onChange={(e) => setFilterLocation(e.target.value)} style={{ flex: "1 1 140px" }}>
           <option value="">All Locations</option>
           {uniqueLocations.map((l) => (
             <option key={l} value={l}>

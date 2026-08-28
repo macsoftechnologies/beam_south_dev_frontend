@@ -482,8 +482,40 @@
   .mod-page div[style*="grid-template-columns: 2fr 1fr"],
   .mod-page div[style*="gridTemplateColumns: 1fr 1fr"],
   .mod-page div[style*="grid-template-columns: repeat(2, 1fr)"],
+  .mod-page div[style*="grid-template-columns: repeat(5, 1fr)"],
   .mod-page div[style*="grid-template-columns: 150px 1fr"] {
     grid-template-columns: 1fr !important;
+  }
+}
+
+/* ── Common Responsive UI Components ── */
+.mod-page-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  gap: 16px;
+}
+@media (max-width: 640px) {
+  .mod-page-header-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+.mod-action-toolbar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+@media (max-width: 576px) {
+  .mod-action-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+  }
+  .mod-action-toolbar button {
+    width: 100%;
   }
 }
 

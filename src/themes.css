@@ -25,6 +25,7 @@ html, body, #root {
 a          { text-decoration: none; color: inherit; }
 button     { font-family: var(--font-body); cursor: pointer; }
 ul, ol     { list-style: none; margin: 0; padding: 0; }
+select option { background-color: var(--bg-card); color: var(--text-main); }
 
 
 /* ════════════════════════════════════════════════════════

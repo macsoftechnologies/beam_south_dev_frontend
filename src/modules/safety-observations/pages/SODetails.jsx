@@ -211,7 +211,7 @@ function SODetails() {
         </button>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+      <div className="mod-page-header-row">
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <span style={{ fontSize: 18, fontWeight: 700, fontFamily: "monospace", color: "var(--nne-brand-blue)" }}>
@@ -235,7 +235,7 @@ function SODetails() {
         </div>
 
         {/* Action Buttons Toolbar */}
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <div className="mod-action-toolbar">
           {/* Department Assign / Reassign Contractor */}
           {obs.status !== "CLOSED" && obs.status !== "ESCALATED" && userRole !== "CONTRACTOR" && (
             <button className="mod-btn-primary" style={{ background: "#131E40", borderColor: "#131E40", color: "#fff" }} onClick={() => setShowReassignModal(true)}>
@@ -434,7 +434,7 @@ function SODetails() {
                       style={{
                         position: "relative",
                         paddingLeft: 20,
-                        borderLeft: isLast ? "2px solid transparent" : "2px solid #E5E7EB",
+                        borderLeft: isLast ? "2px solid transparent" : "2px solid var(--border-color)",
                         paddingBottom: isLast ? 0 : 20,
                       }}
                     >
@@ -448,7 +448,7 @@ function SODetails() {
                           height: 10,
                           borderRadius: "50%",
                           background: dotColor,
-                          border: "2px solid #fff",
+                          border: "2px solid var(--bg-card)",
                           boxShadow: `0 0 0 1px ${dotColor}`,
                         }}
                       />
@@ -462,7 +462,7 @@ function SODetails() {
                             Contractor: {log.previousContractor} → {log.newContractor}
                           </div>
                         )}
-                        {log.remarks && <div style={{ fontSize: 12, marginTop: 4, fontStyle: "italic", color: "#374151" }}>"{log.remarks}"</div>}
+                        {log.remarks && <div style={{ fontSize: 12, marginTop: 4, fontStyle: "italic", color: "var(--text-muted)" }}>"{log.remarks}"</div>}
 
                         {/* Log Photo Attachments */}
                         {Array.isArray(log.photos) && log.photos.length > 0 && (

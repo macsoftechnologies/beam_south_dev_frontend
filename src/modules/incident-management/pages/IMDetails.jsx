@@ -159,7 +159,12 @@ const SignaturePad = ({ value, onChange, onClear }) => {
       clientX = e.touches[0].clientX;
       clientY = e.touches[0].clientY;
     }
-    return { x: clientX - rect.left, y: clientY - rect.top };
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    return { 
+      x: (clientX - rect.left) * scaleX, 
+      y: (clientY - rect.top) * scaleY 
+    };
   };
 
   const startDrawing = (e) => {
@@ -216,7 +221,7 @@ const SignaturePad = ({ value, onChange, onClear }) => {
           ref={canvasRef}
           width={800}
           height={120}
-          style={{ width: "100%", height: "100%", cursor: "crosshair", display: "block" }}
+          style={{ width: "100%", height: "100%", cursor: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='black'%3E%3Cpath d='M7.127 22.562l-7.127 1.438 1.438-7.128 5.689 5.69zm1.414-1.414l11.228-11.225-5.69-5.692-11.227 11.227 5.689 5.69zm9.768-21.148l-2.816 2.817 5.691 5.691 2.816-2.819-5.691-5.689z'/%3E%3C/svg%3E\") 0 20, pointer", display: "block" }}
           onMouseDown={startDrawing}
           onMouseMove={draw}
           onMouseUp={stopDrawing}
@@ -2143,7 +2148,7 @@ export default function IMDetails() {
                               setBodyParts([...bodyParts, manualBodyPart]);
                               setManualBodyPart("");
                             }
-                          }}>+ Add</button>
+                          }}>Add</button>
                         </div>
                       </div>
                       <label className="mod-form-label" style={{ marginTop: 24, textTransform: "uppercase", fontSize: 11, fontWeight: 700 }}>Selected injured areas</label>

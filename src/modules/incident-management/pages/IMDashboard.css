@@ -402,8 +402,9 @@
 
 .im-dashboard-container .bp-legend-dots {
   display: flex; gap: 20px; justify-content: center; margin-top: 24px; font-size: 0.8rem; color: var(--text-main); font-weight: 600;
+  flex-wrap: wrap;
 }
-.im-dashboard-container .bp-legend-dots span { display: inline-flex; align-items: center; gap: 6px; }
+.im-dashboard-container .bp-legend-dots span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .im-dashboard-container .bp-legend-dots small { color: var(--text-muted); font-weight: 400; font-size: 0.75rem; margin-left: 2px; }
 .im-dashboard-container .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
 

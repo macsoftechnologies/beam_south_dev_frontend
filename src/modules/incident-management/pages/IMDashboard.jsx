@@ -328,7 +328,7 @@ export default function IMDashboard() {
       pipeline: [
         { label: 'Heads-Up', count: pipeCount['Heads-Up'], color: '#C07D10' },
         { label: 'Initial', count: pipeCount['Initial'], color: '#E32B50' },
-        { label: 'Investigation', count: pipeCount['Investigation'], color: '#131E40' },
+        { label: 'Investigation', count: pipeCount['Investigation'], color: 'var(--accent-primary, #3B82F6)' },
         { label: 'Closed', count: pipeCount['Closed'], color: '#A1A5B3' }
       ]
     };

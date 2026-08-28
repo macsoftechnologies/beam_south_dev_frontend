@@ -201,9 +201,9 @@ function ThemeSwitcher({ theme, onThemeChange }) {
 
 /* ── Module Switcher ── */
 const MODULES = [
-  { id: 'ptw', label: 'Permit to Work', path: '/dashboard' },
-  { id: 'im', label: 'Incident Management', path: '/incident-management/dashboard' },
-  { id: 'so', label: 'Safety Observations', path: '/safety-observations/dashboard' }
+  { id: 'ptw', label: 'Permit to Work', path: '/dashboard', icon: 'ti-file-certificate' },
+  { id: 'im', label: 'Incident Management', path: '/incident-management/dashboard', icon: 'ti-alert-triangle' },
+  { id: 'so', label: 'Safety Observations', path: '/safety-observations/dashboard', icon: 'ti-eye' }
 ];
 
 function ModuleSwitcher() {
@@ -234,6 +234,7 @@ function ModuleSwitcher() {
         style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', margin: 0, userSelect: 'none' }}
         title="Switch Module"
       >
+        {currentModule.icon && <i className={`ti ${currentModule.icon}`} style={{ fontSize: '18px', color: 'var(--accent-primary, #3B82F6)' }} />}
         {currentModule.label}
         <i className="ti ti-chevron-down" style={{ fontSize: '14px', opacity: 0.6, marginTop: '2px' }} />
       </h4>

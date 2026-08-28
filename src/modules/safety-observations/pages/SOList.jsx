@@ -229,10 +229,26 @@ function SOList() {
 
   return (
     <div className="mod-page">
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
-        <div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--nne-brand-blue)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      {/* ── Breadcrumbs ── */}
+      <div style={{ marginBottom: "12px", color: "var(--text-muted)", fontSize: "0.75rem", fontWeight: 600, display: 'flex', gap: '6px', alignItems: 'center' }}>
+         <span style={{ cursor: 'pointer' }} onClick={() => navigate("/")}>Home</span> &rsaquo; 
+         <span style={{ cursor: 'pointer' }} onClick={() => navigate("/safety-observations/dashboard")}>Safety Observations</span> &rsaquo; 
+         <span style={{ color: 'var(--text-main)' }}>List</span>
+      </div>
+
+      {/* ── Hero ── */}
+      <div style={{ 
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        background: 'var(--bg-card)', borderRadius: '8px', padding: '12px 16px',
+        border: '1px solid var(--border-color)', boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
+        marginBottom: '20px'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ 
+            width: '36px', height: '36px', borderRadius: '8px', background: 'rgba(59, 130, 246, 0.1)',
+            color: '#3B82F6', display: 'flex', alignItems: 'center', justifyContent: 'center' 
+          }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <rect width="8" height="4" x="8" y="2" rx="1" ry="1" />
               <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
               <path d="M12 11h4" />
@@ -240,16 +256,14 @@ function SOList() {
               <path d="M8 11h.01" />
               <path d="M8 16h.01" />
             </svg>
-            <h1 style={{ fontSize: 22, fontWeight: 700, color: "var(--nne-brand-blue)", margin: 0 }}>
-              Safety Observations
-            </h1>
           </div>
-          <p style={{ fontSize: 13, color: "var(--text-muted)", margin: "2px 0 0" }}>
-            Track and manage safety observations across the site
-          </p>
+          <div>
+            <h1 style={{ margin: '0 0 2px 0', fontSize: '1rem', fontWeight: 700, color: 'var(--text-main)' }}>Safety Observations</h1>
+            <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)' }}>Track and manage safety observations across the site</p>
+          </div>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button className="mod-btn-primary" onClick={() => navigate("/safety-observations/create")}>
+        <div>
+          <button type="button" className="mod-btn-primary" onClick={() => navigate("/safety-observations/create")}>
             + New Observation
           </button>
         </div>

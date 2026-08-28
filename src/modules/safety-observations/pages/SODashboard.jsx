@@ -440,6 +440,22 @@ export default function SODashboard() {
           <option value="30d">Last 30 Days</option>
           <option value="month">This Month</option>
         </select>
+
+        {(selectedBuilding || selectedContractor || (selectedRange && selectedRange !== '13m')) && (
+          <button 
+            type="button" 
+            className="btn btn-outline" 
+            style={{ borderColor: 'transparent', color: '#E32B50', padding: '6px 12px', background: 'rgba(227, 43, 80, 0.05)' }}
+            onClick={() => {
+              setSelectedBuilding("");
+              setSelectedContractor("");
+              setSelectedRange("13m");
+            }}
+            title="Clear all filters"
+          >
+            Clear
+          </button>
+        )}
       </div>
 
       {/* ── KPIs ── */}

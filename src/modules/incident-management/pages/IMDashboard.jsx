@@ -569,37 +569,58 @@ export default function IMDashboard() {
             <p>Severity, investigation pipeline & injury analysis</p>
           </div>
         </div>
-        <div className="dash-hero-actions">
-          <span className="dfl"><Icons.filter /> Filters</span>
-          <div className="dash-filters">
-            <select value={selectedBuilding} onChange={e => setSelectedBuilding(e.target.value)}>
-              <option value="">All Buildings</option>
-              {buildingsList.map((b, idx) => {
-                const bName = b.name || b.buildingName || b.building_name || (typeof b === 'string' ? b : `Building #${idx+1}`);
-                return <option key={idx} value={bName}>{bName}</option>;
-              })}
-            </select>
-
-            <select value={selectedContractor} onChange={e => setSelectedContractor(e.target.value)}>
-              <option value="">All Contractors</option>
-              {contractorsList.map((c, idx) => {
-                const cName = c.company_name || c.companyName || c.subContractorName || c.subcontractor_name || c.name || (typeof c === 'string' ? c : `Contractor #${idx+1}`);
-                return <option key={idx} value={cName}>{cName}</option>;
-              })}
-            </select>
-
-            <select value={selectedDateRange} onChange={e => setSelectedDateRange(e.target.value)}>
-              <option value="all">All Time</option>
-              <option value="13m">Last 13 Months</option>
-              <option value="90d">Last 90 Days</option>
-              <option value="30d">Last 30 Days</option>
-              <option value="year">This Year</option>
-            </select>
-          </div>
-          <button type="button" className="btn btn-outline" onClick={handleExportCsv}>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <button type="button" className="btn btn-outline" onClick={handleExportCsv} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Icons.export /> Export CSV
           </button>
+          <button className="mod-btn-primary" onClick={() => navigate("/incident-management/create")}>+ Report Incident</button>
         </div>
+      </div>
+
+      {/* ── Filters ── */}
+      <div className="dash-filters">
+        <span className="dfl">Buildings</span>
+        <select value={selectedBuilding} onChange={e => setSelectedBuilding(e.target.value)}>
+          <option value="">All Buildings</option>
+          {buildingsList.map((b, idx) => {
+            const bName = b.name || b.buildingName || b.building_name || (typeof b === 'string' ? b : `Building #${idx+1}`);
+            return <option key={idx} value={bName}>{bName}</option>;
+          })}
+        </select>
+
+        <span className="dfl">Contractors</span>
+        <select value={selectedContractor} onChange={e => setSelectedContractor(e.target.value)}>
+          <option value="">All Contractors</option>
+          {contractorsList.map((c, idx) => {
+            const cName = c.company_name || c.companyName || c.subContractorName || c.subcontractor_name || c.name || (typeof c === 'string' ? c : `Contractor #${idx+1}`);
+            return <option key={idx} value={cName}>{cName}</option>;
+          })}
+        </select>
+
+        <span className="dfl">Range</span>
+        <select value={selectedDateRange} onChange={e => setSelectedDateRange(e.target.value)}>
+          <option value="all">All Time</option>
+          <option value="13m">Last 13 Months</option>
+          <option value="90d">Last 90 Days</option>
+          <option value="30d">Last 30 Days</option>
+          <option value="year">This Year</option>
+        </select>
+
+        {(selectedBuilding || selectedContractor || (selectedDateRange && selectedDateRange !== '13m')) && (
+          <button 
+            type="button" 
+            className="btn btn-outline" 
+            style={{ borderColor: 'transparent', color: '#E32B50', padding: '6px 12px', background: 'rgba(227, 43, 80, 0.05)' }}
+            onClick={() => {
+              setSelectedBuilding("");
+              setSelectedContractor("");
+              setSelectedDateRange("13m");
+            }}
+            title="Clear all filters"
+          >
+            Clear
+          </button>
+        )}
       </div>
 
       {/* ── KPIs ── */}
@@ -619,15 +640,18 @@ export default function IMDashboard() {
         </div>
         <div className="panel-body">
           <div className="pipe-flow">
-            {agg.pipeline.map(s => (
-              <div key={s.label} className={`pstage ${stageFilter === s.label ? 'active' : ''}`} onClick={() => setStageFilter(stageFilter === s.label ? 'all' : s.label)}>
-                <span className="pdot" style={{ background: s.color }} />
-                <div>
-                  <div className="pl">{s.label}</div>
-                  <div className="pc" style={{ color: s.color }}>{s.count}</div>
+            {agg.pipeline.map(s => {
+              const safeColor = s.color === '#131E40' ? 'var(--accent-primary, #3B82F6)' : s.color;
+              return (
+                <div key={s.label} className={`pstage ${stageFilter === s.label ? 'active' : ''}`} onClick={() => setStageFilter(stageFilter === s.label ? 'all' : s.label)}>
+                  <span className="pdot" style={{ background: safeColor }} />
+                  <div>
+                    <div className="pl">{s.label}</div>
+                    <div className="pc" style={{ color: safeColor }}>{s.count}</div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>

@@ -779,12 +779,12 @@ function IMCreate() {
                             <input type="text" className="mod-form-input" value={act.responsible} onChange={e => updateAction(i, "responsible", e.target.value)} placeholder="Person responsible" />
                           </div>
                         </div>
-                        <div style={{ display: "flex", alignItems: "flex-end", gap: "16px" }}>
-                          <div className="mod-form-group" style={{ flex: 1 }}>
+                        <div style={{ display: "flex", alignItems: "flex-end", gap: "16px", flexWrap: "wrap" }}>
+                          <div className="mod-form-group" style={{ flex: "1 1 120px" }}>
                             <label className="mod-form-label" style={{ textTransform: "uppercase", fontSize: "11px", fontWeight: 700 }}>Date</label>
                             <input type="date" className="mod-form-input" value={act.date || ""} onChange={e => updateAction(i, "date", e.target.value)} placeholder="Select date" />
                           </div>
-                          <div className="mod-form-group" style={{ flex: 1 }}>
+                          <div className="mod-form-group" style={{ flex: "1 1 120px" }}>
                             <label className="mod-form-label" style={{ textTransform: "uppercase", fontSize: "11px", fontWeight: 700 }}>Time Implemented</label>
                             <input type="text" readOnly className="mod-form-input" value={act.time} onClick={() => { setTempActionTime(act.time || "12:00"); setShowActionTimePicker(i); }} placeholder="Select time" style={{ cursor: "pointer" }} />
                           </div>

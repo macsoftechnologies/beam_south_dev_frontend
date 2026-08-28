@@ -462,6 +462,31 @@
   }
 }
 
+/* ── Layout Helpers ── */
+.mod-two-col-layout {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 24px;
+}
+
+@media (max-width: 900px) {
+  .mod-two-col-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  /* Force inline grids to collapse on mobile */
+  .grid-2,
+  .mod-page div[style*="grid-template-columns: 1fr 1fr"],
+  .mod-page div[style*="grid-template-columns: 2fr 1fr"],
+  .mod-page div[style*="gridTemplateColumns: 1fr 1fr"],
+  .mod-page div[style*="grid-template-columns: repeat(2, 1fr)"],
+  .mod-page div[style*="grid-template-columns: 150px 1fr"] {
+    grid-template-columns: 1fr !important;
+  }
+}
+
 /* ── Badges ── */
 .badge {
   display: inline-flex;

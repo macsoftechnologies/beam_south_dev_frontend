@@ -2180,12 +2180,12 @@ export default function IMDetails() {
                               <input className="mod-form-input" value={act.responsible} onChange={e => { const updated = [...immActions]; updated[idx].responsible = e.target.value; setImmActions(updated); }} />
                             </div>
                           </div>
-                          <div style={{ display: "flex", alignItems: "flex-end", gap: 16, marginTop: 12 }}>
-                            <div className="mod-form-group" style={{ flex: 1 }}>
+                          <div style={{ display: "flex", alignItems: "flex-end", gap: 16, marginTop: 12, flexWrap: "wrap" }}>
+                            <div className="mod-form-group" style={{ flex: "1 1 120px" }}>
                               <label className="mod-form-label" style={{ textTransform: "uppercase", fontSize: 11, fontWeight: 700 }}>Date</label>
                               <input type="date" className="mod-form-input" value={act.date || ""} onChange={e => { const updated = [...immActions]; updated[idx].date = e.target.value; setImmActions(updated); }} />
                             </div>
-                            <div className="mod-form-group" style={{ flex: 1 }}>
+                            <div className="mod-form-group" style={{ flex: "1 1 120px" }}>
                               <label className="mod-form-label" style={{ textTransform: "uppercase", fontSize: 11, fontWeight: 700 }}>Time Implemented</label>
                               <input type="text" readOnly className="mod-form-input" placeholder="Select time" value={act.time || ""} style={{ cursor: "pointer" }} onClick={() => { setTempActionTime(act.time || "12:00"); setShowActionTimePicker(idx); }} />
                             </div>

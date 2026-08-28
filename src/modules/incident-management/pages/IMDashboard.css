@@ -63,6 +63,7 @@
 .im-dashboard-container .dash-filters {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
 }
 .im-dashboard-container .dash-filters select, 
 .im-dashboard-container .btn-outline {
@@ -423,3 +424,30 @@
 .im-dashboard-container .bp-sum-dot span { width: 14px; height: 14px; border-radius: 50%; }
 .im-dashboard-container .bp-sum-lbl { font-size: 0.75rem; font-weight: 600; color: var(--text-muted); margin-bottom: 2px; }
 .im-dashboard-container .bp-sum-val { font-size: 1.5rem !important; font-family: var(--font-body, sans-serif) !important; font-weight: 800; line-height: 1; }
+
+/* ── Mobile Responsiveness ── */
+@media (max-width: 576px) {
+  .im-dashboard-container .dash-hero {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .im-dashboard-container .dash-hero-actions {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 480px) {
+  .im-dashboard-container .dash-kpis {
+    grid-template-columns: 1fr;
+  }
+  .im-dashboard-container .mini-grid {
+    grid-template-columns: 1fr;
+  }
+  .im-dashboard-container .gauge-grid { 
+    grid-template-columns: 1fr; 
+  }
+  .im-dashboard-container .c2-wide, 
+  .im-dashboard-container .c3 { 
+    grid-template-columns: 1fr; 
+  }
+}

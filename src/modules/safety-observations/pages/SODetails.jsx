@@ -292,7 +292,7 @@ function SODetails() {
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 24 }}>
+      <div className="mod-two-col-layout">
         <div>
           {/* Observation Main Card */}
           <div className="mod-card mb-4">

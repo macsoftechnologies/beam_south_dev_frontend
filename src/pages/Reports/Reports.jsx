@@ -1538,6 +1538,21 @@ const Reports = () => {
       return "";
     };
 
+    const formatReportTime = (timeVal) => {
+      if (!timeVal) return "";
+      const str = String(timeVal).trim();
+      if (!str || str === "null" || str === "undefined") return "";
+      if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(str)) {
+        return str;
+      }
+      const d = new Date(str);
+      if (!isNaN(d.getTime())) {
+        const pad = (n) => String(n).padStart(2, "0");
+        return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+      }
+      return str;
+    };
+
     const headers = [
       "PermitNo", "PermitUnder", "PermitType", "ContractorName", "Sub_Contractor_Name",
       "Building_Name", "Level", "Zone", "Room_Nos", "Type_Of_Activity", "Type_Of_Work",
@@ -1581,10 +1596,10 @@ const Reports = () => {
         New_Day: findNewDay(x),
         CoNM_initials: x.ConM_initials || "",
         CoMM_initials: x.CoMM_initials || "",
-        Opening_Person_Name: x.ConM_initials1 || x.opened_by || "",
-        Opening_Time: x.open_time || x.h_start_time || "",
-        Closing_Person_Name: x.closed_by || x.close_note || "",
-        Closing_Time: x.close_time || x.h_end_time || "",
+        Opening_Person_Name: x.ConM_initials1 || x.opened_by || x.check_in_user || "",
+        Opening_Time: formatReportTime(x.open_time || x.check_in_time || x.h_start_time),
+        Closing_Person_Name: x.closed_by || x.close_note || x.check_out_user || "",
+        Closing_Time: formatReportTime(x.close_time || x.check_out_time || x.h_end_time),
         Reject_Reason: x.reject_reason || "",
         Cancel_Reason: x.cancel_reason || ""
       };
@@ -1682,6 +1697,21 @@ const Reports = () => {
       return "";
     };
 
+    const formatReportTime = (timeVal) => {
+      if (!timeVal) return "";
+      const str = String(timeVal).trim();
+      if (!str || str === "null" || str === "undefined") return "";
+      if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(str)) {
+        return str;
+      }
+      const d = new Date(str);
+      if (!isNaN(d.getTime())) {
+        const pad = (n) => String(n).padStart(2, "0");
+        return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+      }
+      return str;
+    };
+
     const headers = [
       "PermitNo", "PermitUnder", "PermitType", "ContractorName", "Sub_Contractor_Name",
       "Building_Name", "Level", "Zone", "Room_Nos", "Type_Of_Activity", "Type_Of_Work",
@@ -1725,10 +1755,10 @@ const Reports = () => {
         New_Day: findNewDay(x),
         CoNM_initials: x.ConM_initials || "",
         CoMM_initials: x.CoMM_initials || "",
-        Opening_Person_Name: x.ConM_initials1 || x.opened_by || "",
-        Opening_Time: x.open_time || x.h_start_time || "",
-        Closing_Person_Name: x.closed_by || x.close_note || "",
-        Closing_Time: x.close_time || x.h_end_time || "",
+        Opening_Person_Name: x.ConM_initials1 || x.opened_by || x.check_in_user || "",
+        Opening_Time: formatReportTime(x.open_time || x.check_in_time || x.h_start_time),
+        Closing_Person_Name: x.closed_by || x.close_note || x.check_out_user || "",
+        Closing_Time: formatReportTime(x.close_time || x.check_out_time || x.h_end_time),
         Reject_Reason: x.reject_reason || "",
         Cancel_Reason: x.cancel_reason || ""
       };

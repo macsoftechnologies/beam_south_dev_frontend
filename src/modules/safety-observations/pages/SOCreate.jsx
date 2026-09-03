@@ -11,8 +11,8 @@ import { BUILDINGS } from "../../../data/buildings";
 import "../../../styles/module-shared.css";
 
 const initialForm = {
-  observationType: "NEEDS_ATTENTION", // POSITIVE | NEEDS_ATTENTION
-  natureOfFinding: "UNSAFE_CONDITION", // GOOD_PRACTICE | UNSAFE_ACT | UNSAFE_CONDITION
+  observationType: "", // POSITIVE | NEEDS_ATTENTION
+  natureOfFinding: "", // GOOD_PRACTICE | UNSAFE_ACT | UNSAFE_CONDITION
   subject: "",
   safetyCategory: "",
   riskLevel: "MEDIUM",

@@ -45,8 +45,8 @@ const findContractorLogo = (contractorName, contractorsList = []) => {
   const match = (contractorsList || []).find(c => {
     const cName = c.company_name || c.companyName || c.subContractorName || c.subcontractor_name || c.name || '';
     return cName.toLowerCase().trim() === String(contractorName).toLowerCase().trim() ||
-           cName.toLowerCase().includes(String(contractorName).toLowerCase().trim()) ||
-           String(contractorName).toLowerCase().includes(cName.toLowerCase().trim());
+      cName.toLowerCase().includes(String(contractorName).toLowerCase().trim()) ||
+      String(contractorName).toLowerCase().includes(cName.toLowerCase().trim());
   });
   return match?.logo || match?.logo_url || match?.company_logo || match?.logoFile || null;
 };
@@ -161,9 +161,9 @@ const SignaturePad = ({ value, onChange, onClear }) => {
     }
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
-    return { 
-      x: (clientX - rect.left) * scaleX, 
-      y: (clientY - rect.top) * scaleY 
+    return {
+      x: (clientX - rect.left) * scaleX,
+      y: (clientY - rect.top) * scaleY
     };
   };
 
@@ -800,7 +800,6 @@ export default function IMDetails() {
   const invStreamRef = useRef(null);
 
   const INV_MANDATORY_ATTACHMENTS = [
-    "Witness Statement(s)",
     "Post-Incident Drug & Alcohol test result (if applicable)",
     "Method Statement (RAMS) in use at the time",
     "Pre-task briefing / SPA / TSTI",
@@ -839,6 +838,7 @@ export default function IMDetails() {
   const removeInvWitness = (idx) => setInvWitnesses(invWitnesses.filter((_, i) => i !== idx));
 
   const [fishboneInput, setFishboneInput] = useState({ people: "", machine: "", method: "", materials: "", environment: "", measurement: "" });
+  const [fbHover, setFbHover] = useState(null);
   const addFishboneCause = (cat) => {
     const text = fishboneInput[cat];
     if (!text) return;
@@ -960,7 +960,7 @@ export default function IMDetails() {
     const effectLabel = "INCIDENT / EFFECT";
 
     return (
-      <div className="fishbone-wrap" style={{ border: "1px solid var(--border-color)", borderRadius: 12, background: "#f8fafc", padding: "20px", overflowX: "auto", marginTop: 12 }}>
+      <div className="fishbone-wrap" style={{ position: "relative", border: "1px solid var(--border-color)", borderRadius: 12, background: "#f8fafc", padding: "20px", overflowX: "auto", marginTop: 12 }}>
         <svg viewBox={`0 0 ${W} ${H}`} style={{ display: "block", minWidth: 800, width: "100%", height: "auto" }}>
           <defs>
             <marker id="fbArrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
@@ -985,11 +985,28 @@ export default function IMDetails() {
           <path d={`M ${spineX2 + 160},${spineY} Q ${spineX2 + 140},${spineY + 10} ${spineX2 + 150},${spineY + 30} Z`} fill="#f8fafc" />
 
           {/* Effect Box inside/near Head */}
-          <rect x={spineX2 + 30} y={spineY - 45} width="180" height="90" rx="8" fill="#fff" stroke="#dc2626" strokeWidth="4" />
-          <text x={spineX2 + 120} y={spineY - 15} fill="#dc2626" fontSize="15" fontWeight="800" textAnchor="middle">{effectLabel}</text>
-          <text x={spineX2 + 120} y={spineY + 15} fill="#0f172a" fontSize="14" fontWeight="700" textAnchor="middle">
-            {effectStr.length > 22 ? effectStr.substring(0, 20) + '...' : effectStr}
-          </text>
+          <g style={{ cursor: "pointer" }}
+            onMouseEnter={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              const wrapRect = e.currentTarget.closest('.fishbone-wrap').getBoundingClientRect();
+              setFbHover({
+                text: effectStr,
+                x: rect.left - wrapRect.left + (e.clientX - rect.left),
+                y: rect.top - wrapRect.top - 10
+              });
+            }}
+            onMouseLeave={() => setFbHover(null)}
+            onMouseMove={(e) => {
+              const wrapRect = e.currentTarget.closest('.fishbone-wrap').getBoundingClientRect();
+              setFbHover(prev => prev ? { ...prev, x: e.clientX - wrapRect.left, y: e.clientY - wrapRect.top - 20 } : null);
+            }}
+          >
+            <rect x={spineX2 + 30} y={spineY - 45} width="180" height="90" rx="8" fill="#fff" stroke="#dc2626" strokeWidth="4" />
+            <text x={spineX2 + 120} y={spineY - 15} fill="#dc2626" fontSize="15" fontWeight="800" textAnchor="middle">{effectLabel}</text>
+            <text x={spineX2 + 120} y={spineY + 15} fill="#0f172a" fontSize="14" fontWeight="700" textAnchor="middle">
+              {effectStr.length > 22 ? effectStr.substring(0, 20) + '...' : effectStr}
+            </text>
+          </g>
 
           {FISHBONE_CATS.map((cat, c) => {
             const isTop = c < 3;
@@ -1027,9 +1044,26 @@ export default function IMDetails() {
                   const tickX2 = tx - tickLen; // pointing left
 
                   return (
-                    <g key={i}>
+                    <g key={i} style={{ cursor: "pointer" }}
+                      onMouseEnter={(e) => {
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const wrapRect = e.currentTarget.closest('.fishbone-wrap').getBoundingClientRect();
+                        setFbHover({
+                          text: txt,
+                          x: rect.left - wrapRect.left + (e.clientX - rect.left),
+                          y: rect.top - wrapRect.top - 10
+                        });
+                      }}
+                      onMouseLeave={() => setFbHover(null)}
+                      onMouseMove={(e) => {
+                        const wrapRect = e.currentTarget.closest('.fishbone-wrap').getBoundingClientRect();
+                        setFbHover(prev => prev ? { ...prev, x: e.clientX - wrapRect.left, y: e.clientY - wrapRect.top - 20 } : null);
+                      }}
+                    >
                       <line x1={tx} y1={ty} x2={tickX2} y2={ty} stroke="#0f172a" strokeWidth="2.5" />
-                      <text x={tickX2 - 6} y={ty + 4} fill="#1e293b" fontSize="12" fontWeight="600" textAnchor="end">{txt.substring(0, 24)}</text>
+                      <text x={tickX2 - 6} y={ty + 4} fill="#1e293b" fontSize="12" fontWeight="600" textAnchor="end">
+                        {txt.length > 18 ? txt.substring(0, 15) + "..." : txt}
+                      </text>
                       {cause.probable && <circle cx={tx} cy={ty} r="8" fill="#fee2e2" stroke="#dc2626" strokeWidth="2.5" strokeDasharray="4,2" />}
                     </g>
                   );
@@ -1038,6 +1072,39 @@ export default function IMDetails() {
             );
           })}
         </svg>
+        {fbHover && (
+          <div style={{
+            position: "absolute",
+            top: fbHover.y,
+            left: fbHover.x,
+            transform: "translate(-50%, -100%)",
+            background: "#ffffff",
+            color: "#0f172a",
+            padding: "8px 12px",
+            borderRadius: "6px",
+            border: "1px solid #e2e8f0",
+            fontSize: "13px",
+            fontWeight: "600",
+            pointerEvents: "none",
+            whiteSpace: "nowrap",
+            boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+            zIndex: 1000,
+            maxWidth: "300px",
+            wordBreak: "break-all",
+            whiteSpace: "normal"
+          }}>
+            {fbHover.text}
+            <div style={{
+              position: "absolute",
+              bottom: "-4px",
+              left: "50%",
+              transform: "translateX(-50%)",
+              borderWidth: "4px 4px 0",
+              borderStyle: "solid",
+              borderColor: "#ffffff transparent transparent transparent"
+            }} />
+          </div>
+        )}
       </div>
     );
   };
@@ -1064,8 +1131,8 @@ export default function IMDetails() {
         <div className="section-title" style={{ marginTop: 8, marginBottom: 16 }}>Investigation Timeline</div>
         <div className="inv-timeline">
           {s.map((stg, i) => (
-            <div 
-              key={stg.key} 
+            <div
+              key={stg.key}
               className={`inv-stage state-${stg.state}`}
               onClick={() => {
                 setActiveTab(stg.key);
@@ -1389,9 +1456,9 @@ export default function IMDetails() {
             style={{ fontSize: "13px", padding: "8px 16px", borderRadius: "8px", fontWeight: 600, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px" }}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-              <polyline points="7 10 12 15 17 10"/>
-              <line x1="12" x2="12" y1="15" y2="3"/>
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" x2="12" y1="15" y2="3" />
             </svg>
             {downloadingPdf ? "Downloading..." : "Export PDF"}
           </button>
@@ -1710,12 +1777,12 @@ export default function IMDetails() {
                   <textarea className="mod-form-textarea" placeholder="Add review comments..." rows="3"></textarea>
                 </div>
                 <div className="mod-form-group" style={{ marginTop: 16 }}>
-                  <label className="mod-form-label" style={{ textTransform: "uppercase" }}>Reviewer Name</label>
-                  <input type="text" className="mod-form-input" placeholder="Type your full name" value={reviewerName} onChange={(e) => setReviewerName(e.target.value)} />
+                  <label className="mod-form-label" style={{ textTransform: "uppercase" }}>Reviewer Name <span style={{ color: "#DC2626" }}>*</span></label>
+                  <input type="text" className="mod-form-input" placeholder="Type your full name" value={reviewerName} disabled style={{ backgroundColor: "var(--bg-dark)", cursor: "not-allowed", color: "var(--text-muted)", opacity: 0.8 }} onChange={(e) => setReviewerName(e.target.value)} />
                 </div>
                 <div className="mod-form-group" style={{ marginTop: 16 }}>
-                  <label className="mod-form-label" style={{ textTransform: "uppercase" }}>Approver Role</label>
-                  <input type="text" className="mod-form-input" placeholder="e.g. NNE Peer Reviewer" value={reviewerRole} onChange={(e) => setReviewerRole(e.target.value)} />
+                  <label className="mod-form-label" style={{ textTransform: "uppercase" }}>Approver Initials</label>
+                  <input type="text" className="mod-form-input" placeholder="e.g. AB" value={reviewerRole} onChange={(e) => setReviewerRole(e.target.value)} />
                 </div>
                 <div className="mod-form-group" style={{ marginTop: 16 }}>
                   <label className="mod-form-label" style={{ textTransform: "uppercase" }}>Digital Signature</label>
@@ -1800,8 +1867,8 @@ export default function IMDetails() {
                       <textarea className="mod-form-textarea" placeholder="Add review comments..." rows="3"></textarea>
                     </div>
                     <div className="mod-form-group" style={{ marginTop: 16 }}>
-                      <label className="mod-form-label" style={{ textTransform: "uppercase" }}>Reviewer Name</label>
-                      <input type="text" className="mod-form-input" placeholder="Type your full name" value={irReviewerName} onChange={(e) => setIrReviewerName(e.target.value)} />
+                      <label className="mod-form-label" style={{ textTransform: "uppercase" }}>Reviewer Name <span style={{ color: "#DC2626" }}>*</span></label>
+                      <input type="text" className="mod-form-input" placeholder="Type your full name" value={irReviewerName} disabled style={{ backgroundColor: "var(--bg-dark)", cursor: "not-allowed", color: "var(--text-muted)", opacity: 0.8 }} onChange={(e) => setIrReviewerName(e.target.value)} />
                     </div>
                     <div className="mod-form-group" style={{ marginTop: 16 }}>
                       <label className="mod-form-label" style={{ textTransform: "uppercase" }}>Digital Signature</label>
@@ -2247,6 +2314,8 @@ export default function IMDetails() {
                         placeholder="Type your full name..."
                         value={irSubmittedBy}
                         onChange={e => setIrSubmittedBy(e.target.value)}
+                        disabled
+                        style={{ backgroundColor: "var(--bg-dark)", cursor: "not-allowed", color: "var(--text-muted)", opacity: 0.8 }}
                       />
                     </div>
                   </div>
@@ -2338,7 +2407,6 @@ export default function IMDetails() {
                         showError(Array.isArray(msg) ? msg[0] : msg);
                       }
                     }}>Submit Initial Incident Report</button>
-                    <button className="mod-btn-outline">Save Draft</button>
                   </div>
                 </div>
               </div>
@@ -2393,12 +2461,12 @@ export default function IMDetails() {
                         <textarea className="mod-form-textarea" placeholder="Add review comments..." rows="3"></textarea>
                       </div>
                       <div className="mod-form-group" style={{ marginTop: 16 }}>
-                        <label className="mod-form-label" style={{ textTransform: "uppercase" }}>Reviewer Name</label>
-                        <input type="text" className="mod-form-input" placeholder="Type your full name" value={invReviewerName} onChange={(e) => setInvReviewerName(e.target.value)} />
+                        <label className="mod-form-label" style={{ textTransform: "uppercase" }}>Reviewer Name <span style={{ color: "#DC2626" }}>*</span></label>
+                        <input type="text" className="mod-form-input" placeholder="Type your full name" value={invReviewerName} disabled style={{ backgroundColor: "var(--bg-dark)", cursor: "not-allowed", color: "var(--text-muted)", opacity: 0.8 }} onChange={(e) => setInvReviewerName(e.target.value)} />
                       </div>
                       <div className="mod-form-group" style={{ marginTop: 16 }}>
-                        <label className="mod-form-label" style={{ textTransform: "uppercase" }}>Reviewer Role</label>
-                        <input type="text" className="mod-form-input" placeholder="e.g. Lead Reviewer" value={invReviewerRole} onChange={(e) => setInvReviewerRole(e.target.value)} />
+                        <label className="mod-form-label" style={{ textTransform: "uppercase" }}>Reviewer Initials</label>
+                        <input type="text" className="mod-form-input" placeholder="e.g. AB" value={invReviewerRole} onChange={(e) => setInvReviewerRole(e.target.value)} />
                       </div>
                       <div className="mod-form-group" style={{ marginTop: 16 }}>
                         <label className="mod-form-label" style={{ textTransform: "uppercase" }}>Digital Signature</label>
@@ -2520,7 +2588,7 @@ export default function IMDetails() {
                           <div key={i} style={{ border: "1px solid var(--border-color)", padding: 12, borderRadius: 8, marginBottom: 10, background: cause.probable ? "var(--color-risk-bg, #fff1f2)" : "var(--bg-dark, #fff)", borderColor: cause.probable ? "var(--color-risk, #f43f5e)" : "var(--border-color, #e2e8f0)" }}>
                             <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
                               <input type="checkbox" checked={cause.probable} onChange={() => toggleFishboneProbable(cat.key, i)} style={{ marginTop: 2, accentColor: "var(--color-risk, #e11d48)", width: 16, height: 16, cursor: "pointer" }} />
-                              <span style={{ flex: 1, fontSize: 13, color: "var(--text-main)", lineHeight: 1.4 }}>{cause.text}</span>
+                              <span style={{ flex: 1, fontSize: 13, color: "var(--text-main)", lineHeight: 1.4, wordBreak: "break-word" }}>{cause.text}</span>
                               <button style={{ background: "var(--color-gray-bg, #f1f5f9)", border: "none", color: "var(--text-muted, #64748b)", cursor: "pointer", width: 24, height: 24, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }} onClick={() => removeFishboneCause(cat.key, i)}>×</button>
                             </div>
                             <div style={{ display: "flex", gap: 6, marginTop: 12, alignItems: "center" }}>
@@ -2640,8 +2708,33 @@ export default function IMDetails() {
                   ))}
                 </div>
 
-                {/* 11. Severity Assessment */}
-                <div className="fsec"><div className="fsec-title">11. Severity Assessment</div>
+                {/* 11. Corrective Actions */}
+                <div className="fsec"><div className="fsec-title" style={{ justifyContent: "space-between", display: "flex" }}>
+                  <span>11. Corrective & Preventive Actions</span>
+                  <button className="mod-btn-outline" style={{ padding: "4px 12px", fontSize: "12px" }} onClick={addInvCorrective}>+ Add Corrective Action</button>
+                </div>
+                  {invCorrective.length === 0 ? <div className="muted-empty" style={{ fontStyle: "italic", fontSize: 13, color: "var(--text-muted)", padding: "8px 0" }}>No corrective actions added yet.</div> : invCorrective.map((c, i) => (
+                    <div key={i} className="subcard" style={{ border: "1px solid var(--border-color)", padding: 16, borderRadius: 8, marginBottom: 12 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
+                        <span style={{ fontWeight: 700, fontSize: 13 }}>Action #{i + 1}</span>
+                        <button className="subcard-remove" style={{ color: "var(--color-risk)", background: "transparent", border: "1px solid var(--border-color)", padding: "4px 8px", borderRadius: 4, cursor: "pointer", fontSize: 12 }} onClick={() => removeInvCorrective(i)}>Remove</button>
+                      </div>
+                      <div className="mod-form-group"><label className="mod-form-label">Description</label><textarea className="mod-form-textarea" value={c.desc} onChange={e => updateInvCorrective(i, 'desc', e.target.value)}></textarea></div>
+                      <div className="grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 12 }}>
+                        <div className="mod-form-group"><label className="mod-form-label">Responsible Person</label><input className="mod-form-input" value={c.resp} onChange={e => updateInvCorrective(i, 'resp', e.target.value)} /></div>
+                        <div className="mod-form-group"><label className="mod-form-label">Deadline</label><input type="date" className="mod-form-input" value={c.deadline} onChange={e => updateInvCorrective(i, 'deadline', e.target.value)} /></div>
+                      </div>
+                      <div className="mod-form-group" style={{ marginTop: 12 }}><label className="mod-form-label">Priority</label>
+                        <select className="mod-form-select" value={c.priority} onChange={e => updateInvCorrective(i, 'priority', e.target.value)}>
+                          <option value="">Select...</option>
+                          <option value="Low">Low</option><option value="Medium">Medium</option><option value="High">High</option><option value="Critical">Critical</option>
+                        </select>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {/* 12. Severity Assessment */}
+                <div className="fsec"><div className="fsec-title">12. Severity Assessment</div>
                   <div className="fsec-note">Assess the consequence severity (1 – 5) using the Severity Table. Record the severity before and after the corrective actions.</div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
                     <div>
@@ -2674,31 +2767,6 @@ export default function IMDetails() {
                   )}
                 </div>
 
-                {/* 12. Corrective Actions */}
-                <div className="fsec"><div className="fsec-title" style={{ justifyContent: "space-between", display: "flex" }}>
-                  <span>12. Corrective Actions</span>
-                  <button className="mod-btn-outline" style={{ padding: "4px 12px", fontSize: "12px" }} onClick={addInvCorrective}>+ Add Corrective Action</button>
-                </div>
-                  {invCorrective.length === 0 ? <div className="muted-empty" style={{ fontStyle: "italic", fontSize: 13, color: "var(--text-muted)", padding: "8px 0" }}>No corrective actions added yet.</div> : invCorrective.map((c, i) => (
-                    <div key={i} className="subcard" style={{ border: "1px solid var(--border-color)", padding: 16, borderRadius: 8, marginBottom: 12 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
-                        <span style={{ fontWeight: 700, fontSize: 13 }}>Action #{i + 1}</span>
-                        <button className="subcard-remove" style={{ color: "var(--color-risk)", background: "transparent", border: "1px solid var(--border-color)", padding: "4px 8px", borderRadius: 4, cursor: "pointer", fontSize: 12 }} onClick={() => removeInvCorrective(i)}>Remove</button>
-                      </div>
-                      <div className="mod-form-group"><label className="mod-form-label">Description</label><textarea className="mod-form-textarea" value={c.desc} onChange={e => updateInvCorrective(i, 'desc', e.target.value)}></textarea></div>
-                      <div className="grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 12 }}>
-                        <div className="mod-form-group"><label className="mod-form-label">Responsible Person</label><input className="mod-form-input" value={c.resp} onChange={e => updateInvCorrective(i, 'resp', e.target.value)} /></div>
-                        <div className="mod-form-group"><label className="mod-form-label">Deadline</label><input type="date" className="mod-form-input" value={c.deadline} onChange={e => updateInvCorrective(i, 'deadline', e.target.value)} /></div>
-                      </div>
-                      <div className="mod-form-group" style={{ marginTop: 12 }}><label className="mod-form-label">Priority</label>
-                        <select className="mod-form-select" value={c.priority} onChange={e => updateInvCorrective(i, 'priority', e.target.value)}>
-                          <option value="">Select...</option>
-                          <option value="Low">Low</option><option value="Medium">Medium</option><option value="High">High</option><option value="Critical">Critical</option>
-                        </select>
-                      </div>
-                    </div>
-                  ))}
-                </div>
 
                 {/* 13. Lessons Learned & Prevention */}
                 <div className="fsec"><div className="fsec-title">13. Lessons Learned & Prevention</div>
@@ -2787,7 +2855,7 @@ export default function IMDetails() {
 
 
                 {/* 17. Signature */}
-                <div className="fsec"><div className="fsec-title">17. Signatures & Sign-Off</div>
+                <div className="fsec"><div className="fsec-title">17. Submitted By</div>
                   <div className="fsec-note">The Site HSE Investigator signs the completed report. It then routes to the reviewer (always Site HSE) for sign-off in the next step.</div>
 
                   {investigationData?.signatures && Array.isArray(investigationData.signatures) && investigationData.signatures.length > 0 && (
@@ -2830,9 +2898,9 @@ export default function IMDetails() {
                     </div>
                   )}
 
-                  <div style={{ border: "1px dashed var(--border-color)", borderRadius: 8, padding: "16px", background: "var(--bg-dark)", maxWidth: 520 }}>
+                  <div style={{ border: "1px dashed var(--border-color)", borderRadius: 8, padding: "16px", background: "var(--bg-dark)", width: "100%" }}>
                     <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12 }}>Site HSE Investigator</div>
-                    <div className="mod-form-group" style={{ marginBottom: 12 }}><label className="mod-form-label">Name</label><input className="mod-form-input" value={invInvName} onChange={e => setInvInvName(e.target.value)} /></div>
+                    <div className="mod-form-group" style={{ marginBottom: 12 }}><label className="mod-form-label" style={{ textTransform: "uppercase" }}>Name <span style={{ color: "#DC2626" }}>*</span></label><input className="mod-form-input" value={invInvName} disabled style={{ backgroundColor: "var(--bg-dark)", cursor: "not-allowed", color: "var(--text-muted)", opacity: 0.8 }} onChange={e => setInvInvName(e.target.value)} /></div>
                     <div className="mod-form-group" style={{ marginBottom: 12 }}><label className="mod-form-label">Role</label><input className="mod-form-input" value={invInvRole} onChange={e => setInvInvRole(e.target.value)} /></div>
                     <div className="mod-form-group" style={{ marginBottom: 12 }}><label className="mod-form-label">Date</label><input type="date" className="mod-form-input" value={invInvDate} onChange={e => setInvInvDate(e.target.value)} /></div>
                     <div className="mod-form-group">
@@ -2910,7 +2978,6 @@ export default function IMDetails() {
                         console.error("Failed to submit investigation", err);
                       }
                     }}>Submit Investigation Report</button>
-                    <button className="mod-btn-outline">Save Draft</button>
                   </div>
                 </div>
 

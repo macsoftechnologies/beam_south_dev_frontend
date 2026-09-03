@@ -289,6 +289,28 @@ function Sidebar({ sidebarOpen, toggleSidebar }) {
         </div>
       </div>
 
+      {/* ── Modules Link ── */}
+      <div style={{ padding: "16px 20px" }}>
+        <Link 
+          to="/modules" 
+          style={{ 
+            display: "flex", 
+            alignItems: "center", 
+            gap: 8, 
+            padding: "8px 12px", 
+            background: "var(--bg-dark, #f1f5f9)", 
+            borderRadius: 8, 
+            color: "var(--text-main)", 
+            textDecoration: "none", 
+            fontSize: 13, 
+            fontWeight: 600 
+          }}
+        >
+          <i className="ti ti-apps" style={{ fontSize: 16, color: "var(--accent-primary, #3b82f6)" }} />
+          <span>Modules</span>
+        </Link>
+      </div>
+
       {/* ── Scrollable nav ── */}
       <div className="sidebar-inner">
         <nav>

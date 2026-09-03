@@ -826,7 +826,7 @@ function IMCreate() {
                 </div>
                 <div className="mod-form-group full-width" style={{ marginBottom: "16px" }}>
                   <label className="mod-form-label">Submitted By (Name) <span style={{ color: "#DC2626" }}>*</span></label>
-                  <input name="submitterName" type="text" className="mod-form-input" value={form.submitterName} onChange={handleChange} placeholder="Enter your full name" />
+                  <input name="submitterName" type="text" className="mod-form-input" value={form.submitterName} onChange={handleChange} placeholder="Enter your full name" readOnly style={{ backgroundColor: "var(--bg-dark)", cursor: "not-allowed", color: "var(--text-muted)", opacity: 0.8 }} />
                 </div>
                 <div className="mod-form-group full-width">
                   <label className="mod-form-label">Signature <span style={{ color: "#DC2626" }}>*</span></label>

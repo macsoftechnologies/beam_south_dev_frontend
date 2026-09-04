@@ -36,7 +36,7 @@ const SevPill = ({ level }) => {
   const m = severityMeta(level);
   return (
     <span className="badge" style={{ background: `${m.color}22`, color: m.color, fontWeight: 700 }}>
-      {m.level} {m.label ? `┬╖ ${m.label}` : ""}
+      {m.level} {m.label ? `· ${m.label}` : ""}
     </span>
   );
 };
@@ -49,7 +49,7 @@ const getLogoUrl = (logoVal) => {
 };
 
 const findContractorLogo = (contractorName, contractorsList = []) => {
-  if (!contractorName || contractorName === 'Unassigned' || contractorName === 'ΓÇö') return null;
+  if (!contractorName || contractorName === 'Unassigned' || contractorName === '—') return null;
   const match = (contractorsList || []).find(c => {
     const cName = c.company_name || c.companyName || c.subContractorName || c.subcontractor_name || c.name || '';
     return cName.toLowerCase().trim() === String(contractorName).toLowerCase().trim() ||
@@ -1725,14 +1725,14 @@ export default function IMDetails() {
   const INCIDENT_CATEGORIES = ["Near Miss", "First Aid Injury", "Medical Treatment Injury", "Restricted Work Injury", "Lost Time Injury", "Property Damage", "Environmental Incident", "Personal Injury"];
   const ACCIDENT_TYPE_CATEGORIES = [
     "Contact with object/equipment",
-    "Electrocution ΓÇô electrical injury",
+    "Electrocution – electrical injury",
     "Defective tools/equipment",
     "Manual Handling",
     "Hazardous Substance",
     "Slip / Trip / Fall",
     "Tool accidents",
     "Scaffolding / Height accidents",
-    "Asphyxiation ΓÇô Confined space",
+    "Asphyxiation – Confined space",
     "Cuts / Lacerations",
     "Accidents involving machinery/vehicle",
     "Near Miss Event"
@@ -1831,7 +1831,7 @@ export default function IMDetails() {
       <div className="mod-page">
         <div className="mod-card" style={{ padding: "60px 32px", textAlign: "center" }}>
           <p style={{ color: "var(--text-muted)" }}>Incident <strong>{id}</strong> not found.</p>
-          <button className="mod-btn-primary im-btn-primary" style={{ marginTop: 16 }} onClick={() => navigate("/incident-management/list")}>ΓåÉ Back to List</button>
+          <button className="mod-btn-primary im-btn-primary" style={{ marginTop: 16 }} onClick={() => navigate("/incident-management/list")}>← Back to List</button>
         </div>
       </div>
     );
@@ -2238,14 +2238,14 @@ export default function IMDetails() {
   };
 
   const formatDateTimeObj = (dStr) => {
-    if (!dStr) return { date: "ΓÇö", time: "ΓÇö" };
+    if (!dStr) return { date: "—", time: "—" };
     try {
       const d = new Date(dStr);
-      if (isNaN(d.getTime())) return { date: dStr.split("T")[0] || dStr, time: dStr.split("T")[1] || "ΓÇö" };
+      if (isNaN(d.getTime())) return { date: dStr.split("T")[0] || dStr, time: dStr.split("T")[1] || "—" };
       const date = d.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
       const time = d.toLocaleString('en-GB', { hour: '2-digit', minute: '2-digit' });
       return { date, time };
-    } catch (e) { return { date: dStr, time: "ΓÇö" }; }
+    } catch (e) { return { date: dStr, time: "—" }; }
   };
 
 
@@ -2506,7 +2506,7 @@ export default function IMDetails() {
   return (
     <div className="mod-page">
 
-      {/* ΓöÇΓöÇ Print-only Header ΓöÇΓöÇ */}
+      {/* ── Print-only Header ── */}
       <div className="print-only-header">
         {(incident.stage === "CLOSED" || incident.status === "Closed" || incident.pipeline === "Closed" || incident.stage === "Closed") && (
           <div style={{ textAlign: "right", fontSize: "14px", fontWeight: "bold", marginBottom: "16px", color: "#333" }}>
@@ -2519,10 +2519,10 @@ export default function IMDetails() {
         </div>
         <div style={{ textAlign: "center", marginBottom: "32px" }}>
           <h1 style={{ fontSize: "28px", margin: "0 0 12px 0", color: "#1e293b" }}>Incident Report {incident.caseNumber || incident.id}</h1>
-          <h2 style={{ fontSize: "18px", margin: "0", color: "#64748b", fontWeight: "normal" }}>{incident.title || "ΓÇö"}</h2>
+          <h2 style={{ fontSize: "18px", margin: "0", color: "#64748b", fontWeight: "normal" }}>{incident.title || "—"}</h2>
         </div>
       </div>
-      {/* ΓöÇΓöÇ End Print-only Header ΓöÇΓöÇ */}
+      {/* ── End Print-only Header ── */}
 
       <div className="hide-on-print" style={{ marginBottom: "16px", display: "flex", justifyContent: "flex-end" }}>
         <button onClick={() => navigate("/incident-management/list")} style={{ background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "6px", padding: "8px 16px", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "8px", color: "var(--text-main)", fontWeight: 600, fontSize: "13px", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
@@ -2570,12 +2570,12 @@ export default function IMDetails() {
           <div style={{ display: "flex", alignItems: "center", gap: "12px", fontSize: "14px", color: "var(--text-muted)", fontWeight: 500 }}>
             <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
-              {incident.buildingName ? `${incident.buildingName}${incident.floorLevel ? ' - ' + incident.floorLevel : ''}` : (incident.location || "ΓÇö")}
+              {incident.buildingName ? `${incident.buildingName}${incident.floorLevel ? ' - ' + incident.floorLevel : ''}` : (incident.location || "—")}
             </span>
             <span style={{ color: "var(--border-color)" }}>|</span>
             <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"></path></svg>
-              {incident.origin || incident.type || "ΓÇö"}
+              {incident.origin || incident.type || "—"}
             </span>
           </div>
         </div>
@@ -2598,8 +2598,12 @@ export default function IMDetails() {
 
       {incident.isHipo && (
         <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "12px 16px", marginBottom: "20px", borderRadius: "8px", background: "var(--color-risk-bg)", borderLeft: "4px solid var(--color-risk)", color: "var(--color-risk)", fontWeight: 600, fontSize: "13px" }}>
-          <span style={{ fontSize: "16px" }}>ΓÜá∩╕Å</span>
-          <span>High-Potential (HiPo) incident {incident.investigationLevel ? `┬╖ Investigation Level ${incident.investigationLevel} (L1 = basic, L2 = intermediate, L3 = full / serious)` : ""}</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+            <line x1="12" y1="9" x2="12" y2="13" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+          <span>High-Potential (HiPo) incident {incident.investigationLevel ? `· Investigation Level ${incident.investigationLevel} (L1 = basic, L2 = intermediate, L3 = full / serious)` : ""}</span>
         </div>
       )}
 
@@ -2619,8 +2623,10 @@ export default function IMDetails() {
           flexWrap: "wrap"
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "#10b981", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px", fontWeight: 700, flexShrink: 0 }}>
-              Γ£ô
+            <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "#10b981", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                <path d="m5 13 4 4L19 7" />
+              </svg>
             </div>
             <div>
               <div style={{ fontSize: "14px", fontWeight: 800, color: "#065f46" }}>
@@ -2750,7 +2756,7 @@ export default function IMDetails() {
                 <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
                   <div>
                     <dt style={{ color: "var(--text-muted)", fontSize: "11px", fontWeight: 700, letterSpacing: "0.5px", textTransform: "uppercase", marginBottom: "4px" }}>Incident Code</dt>
-                    <dd style={{ fontWeight: 600, fontSize: "14px", color: "var(--text-main)" }}>{incident.caseNumber || incident.id || "ΓÇö"}</dd>
+                    <dd style={{ fontWeight: 600, fontSize: "14px", color: "var(--text-main)" }}>{incident.caseNumber || incident.id || "—"}</dd>
                   </div>
                   {incident.title && (
                     <div>
@@ -2760,7 +2766,7 @@ export default function IMDetails() {
                   )}
                   <div>
                     <dt style={{ color: "var(--text-muted)", fontSize: "11px", fontWeight: 700, letterSpacing: "0.5px", textTransform: "uppercase", marginBottom: "4px" }}>Classification</dt>
-                    <dd style={{ fontWeight: 500, fontSize: "14px", color: "var(--text-main)" }}>{incident.categories ? (Array.isArray(incident.categories) ? incident.categories.join(", ") : incident.categories) : incident.category || "ΓÇö"}</dd>
+                    <dd style={{ fontWeight: 500, fontSize: "14px", color: "var(--text-main)" }}>{incident.categories ? (Array.isArray(incident.categories) ? incident.categories.join(", ") : incident.categories) : incident.category || "—"}</dd>
                   </div>
                   <div>
                     <dt style={{ color: "var(--text-muted)", fontSize: "11px", fontWeight: 700, letterSpacing: "0.5px", textTransform: "uppercase", marginBottom: "4px" }}>Contractor</dt>
@@ -2774,7 +2780,7 @@ export default function IMDetails() {
                           />
                           <span>{incident.contractorsInvolved || incident.contractor}</span>
                         </>
-                      ) : "ΓÇö"}
+                      ) : "—"}
                     </dd>
                   </div>
                   <div>
@@ -2794,7 +2800,7 @@ export default function IMDetails() {
                     <dd style={{ fontWeight: 500, fontSize: "14px", color: "var(--text-main)", display: "flex", alignItems: "center", gap: "8px" }}>
                       {incident.investigationLevel ? (
                         <><span style={{ display: "inline-block", padding: "2px 8px", background: "#fef3c7", color: "#d97706", borderRadius: "4px", fontSize: "12px", fontWeight: 600 }}>{incident.investigationLevel}</span> <span style={{ color: "var(--text-muted)", fontSize: "13px" }}>{incident.investigationLevel === "L2" ? "(Fishbone + 5 Whys)" : incident.investigationLevel === "L3" ? "(Root Cause Analysis)" : "(Standard)"}</span></>
-                      ) : "ΓÇö"}
+                      ) : "—"}
                     </dd>
                   </div>
                   <div>
@@ -2808,12 +2814,12 @@ export default function IMDetails() {
                   <div>
                     <dt style={{ color: "var(--text-muted)", fontSize: "11px", fontWeight: 700, letterSpacing: "0.5px", textTransform: "uppercase", marginBottom: "4px" }}>Date / Time</dt>
                     <dd style={{ fontWeight: 500, fontSize: "14px", color: "var(--text-main)" }}>
-                      {incident.incidentDate ? new Date(incident.incidentDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : "ΓÇö"} {incident.incidentTime || ""}
+                      {incident.incidentDate ? new Date(incident.incidentDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : "—"} {incident.incidentTime || ""}
                     </dd>
                   </div>
                   <div>
                     <dt style={{ color: "var(--text-muted)", fontSize: "11px", fontWeight: 700, letterSpacing: "0.5px", textTransform: "uppercase", marginBottom: "4px" }}>Location</dt>
-                    <dd style={{ fontWeight: 500, fontSize: "14px", color: "var(--text-main)" }}>{[incident.buildingName, incident.floorLevel, incident.specificLocation].filter(Boolean).join(" - ") || incident.location || "ΓÇö"}</dd>
+                    <dd style={{ fontWeight: 500, fontSize: "14px", color: "var(--text-main)" }}>{[incident.buildingName, incident.floorLevel, incident.specificLocation].filter(Boolean).join(" - ") || incident.location || "—"}</dd>
                   </div>
                   <div>
                     <dt style={{ color: "var(--text-muted)", fontSize: "11px", fontWeight: 700, letterSpacing: "0.5px", textTransform: "uppercase", marginBottom: "4px" }}>Reporter</dt>
@@ -2833,7 +2839,7 @@ export default function IMDetails() {
                   </div>
                   <div>
                     <dt style={{ color: "var(--text-muted)", fontSize: "11px", fontWeight: 700, letterSpacing: "0.5px", textTransform: "uppercase", marginBottom: "4px" }}>Description</dt>
-                    <dd style={{ fontWeight: 500, fontSize: "14px", color: "var(--text-main)" }}>{headsUpData?.descriptionWhatHappened || headsUpData?.whatHappened || headsUpData?.descriptionConsequence || incident.description || incident.details || "ΓÇö"}</dd>
+                    <dd style={{ fontWeight: 500, fontSize: "14px", color: "var(--text-main)" }}>{headsUpData?.descriptionWhatHappened || headsUpData?.whatHappened || headsUpData?.descriptionConsequence || incident.description || incident.details || "—"}</dd>
                   </div>
                 </div>
               </dl>
@@ -2878,7 +2884,7 @@ export default function IMDetails() {
             <div className="mod-card-body" style={{ padding: 0 }}>
               {(() => {
                 const formatDateTime = (dStr) => {
-                  if (!dStr) return "ΓÇö";
+                  if (!dStr) return "—";
                   try {
                     const d = new Date(dStr);
                     if (isNaN(d.getTime())) return dStr.replace("T", " ");
@@ -2910,8 +2916,8 @@ export default function IMDetails() {
                     const isReturned = ed.status === "RETURNED_FOR_REVISION" || (ed.action && String(ed.action).toLowerCase().includes("return"));
                     allEvents.push({
                       text: isReturned
-                        ? `Incident Investigation Report returned for revision${ed.reason ? ` ΓÇö "${ed.reason}"` : ''}`
-                        : `Incident Investigation Report edited & re-submitted${ed.reason ? ` ΓÇö "${ed.reason}"` : ''}`,
+                        ? `Incident Investigation Report returned for revision${ed.reason ? ` — "${ed.reason}"` : ''}`
+                        : `Incident Investigation Report edited & re-submitted${ed.reason ? ` — "${ed.reason}"` : ''}`,
                       user: ed.returnedBy || ed.editedBy || "User",
                       rawDate: ed.returnedTime || ed.editedTime,
                       date: formatDateTime(ed.returnedTime || ed.editedTime)
@@ -2943,8 +2949,8 @@ export default function IMDetails() {
                     const isReturned = ed.status === "RETURNED_FOR_REVISION" || (ed.action && String(ed.action).toLowerCase().includes("return"));
                     allEvents.push({
                       text: isReturned
-                        ? `Initial Incident Report returned for revision${ed.reason ? ` ΓÇö "${ed.reason}"` : ''}`
-                        : `Initial Incident Report edited & re-submitted${ed.reason ? ` ΓÇö "${ed.reason}"` : ''}`,
+                        ? `Initial Incident Report returned for revision${ed.reason ? ` — "${ed.reason}"` : ''}`
+                        : `Initial Incident Report edited & re-submitted${ed.reason ? ` — "${ed.reason}"` : ''}`,
                       user: ed.returnedBy || ed.editedBy || "User",
                       rawDate: ed.returnedTime || ed.editedTime,
                       date: formatDateTime(ed.returnedTime || ed.editedTime)
@@ -2975,8 +2981,8 @@ export default function IMDetails() {
                     const isReturned = ed.status === "RETURNED_FOR_REVISION" || (ed.action && String(ed.action).toLowerCase().includes("return"));
                     allEvents.push({
                       text: isReturned
-                        ? `Heads-Up Notification returned for revision${ed.reason ? ` ΓÇö "${ed.reason}"` : ''}`
-                        : `Heads-Up Notification edited & re-submitted${ed.reason ? ` ΓÇö "${ed.reason}"` : ''}`,
+                        ? `Heads-Up Notification returned for revision${ed.reason ? ` — "${ed.reason}"` : ''}`
+                        : `Heads-Up Notification edited & re-submitted${ed.reason ? ` — "${ed.reason}"` : ''}`,
                       user: ed.returnedBy || ed.editedBy || "User",
                       rawDate: ed.returnedTime || ed.editedTime,
                       date: formatDateTime(ed.returnedTime || ed.editedTime)
@@ -3204,7 +3210,7 @@ export default function IMDetails() {
                 {(Number(huActualSeverity) >= 4 || Number(huPotentialSeverity) >= 4) && (
                   <div style={{ marginTop: "12px", padding: "10px 14px", background: "rgba(227, 43, 80, 0.1)", border: "1px solid rgba(227, 43, 80, 0.3)", borderRadius: "6px", color: "#E32B50", fontSize: "13px", fontWeight: 600, display: "flex", alignItems: "center", gap: "8px" }}>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
-                    High Potential (HiPo) Incident ΓÇö Level 3 / Escalated Investigation Protocol Applies.
+                    High Potential (HiPo) Incident — Level 3 / Escalated Investigation Protocol Applies.
                   </div>
                 )}
 
@@ -3340,7 +3346,7 @@ export default function IMDetails() {
                         </div>
                         <div style={{ paddingTop: "18px" }}>
                           <button type="button" className="mod-btn-outline" style={{ padding: "6px 8px", color: "var(--color-risk)", borderColor: "rgba(227, 43, 80, 0.3)" }} onClick={() => removeHuAction(idx)} title="Remove action">
-                            Γ£ò
+                            ×
                           </button>
                         </div>
                       </div>
@@ -3469,7 +3475,7 @@ export default function IMDetails() {
               </div>
               <div className="mod-card-body" style={{ padding: "24px" }}>
                 <div style={{ fontSize: "12px", color: "var(--text-muted)", marginBottom: "20px" }}>
-                  Submitted by <b>{huSubmitterName || incident.reportedBy || incident.gatekeeperName || "User"}</b> on <b>{huSubmittedTime ? huSubmittedTime.split("T")[0] : (incident.createdTime ? incident.createdTime.split("T")[0] : incident.incidentDate || "ΓÇö")}</b>
+                  Submitted by <b>{huSubmitterName || incident.reportedBy || incident.gatekeeperName || "User"}</b> on <b>{huSubmittedTime ? huSubmittedTime.split("T")[0] : (incident.createdTime ? incident.createdTime.split("T")[0] : incident.incidentDate || "—")}</b>
                 </div>
 
                 {/* 1. Location & Identification / Project Details */}
@@ -3479,12 +3485,12 @@ export default function IMDetails() {
                 </div>
                 <div className="grid-2" style={{ rowGap: "14px" }}>
                   <div className="mod-form-group"><label className="mod-form-label">Project Name</label><div className="readonly-box">{huProject || incident.projectName || "M3 South"}</div></div>
-                  <div className="mod-form-group"><label className="mod-form-label">Incident Title</label><div className="readonly-box">{huTitle || incident.title || "ΓÇö"}</div></div>
-                  <div className="mod-form-group"><label className="mod-form-label">Date / Time</label><div className="readonly-box">{huDate || incident.incidentDate || "ΓÇö"} {huTime || incident.incidentTime || ""}</div></div>
-                  <div className="mod-form-group"><label className="mod-form-label">Location / Building</label><div className="readonly-box">{huBuildingName || incident.buildingName || incident.building || "ΓÇö"}</div></div>
-                  <div className="mod-form-group"><label className="mod-form-label">Floor / Level</label><div className="readonly-box">{huFloorLevel || incident.floorLevel || "ΓÇö"}</div></div>
-                  <div className="mod-form-group"><label className="mod-form-label">Specific Location</label><div className="readonly-box">{huSpecificLocation || incident.specificLocation || "ΓÇö"}</div></div>
-                  <div className="mod-form-group"><label className="mod-form-label">Contractor(s) Involved</label><div className="readonly-box">{huContractor || incident.contractorsInvolved || "ΓÇö"}</div></div>
+                  <div className="mod-form-group"><label className="mod-form-label">Incident Title</label><div className="readonly-box">{huTitle || incident.title || "—"}</div></div>
+                  <div className="mod-form-group"><label className="mod-form-label">Date / Time</label><div className="readonly-box">{huDate || incident.incidentDate || "—"} {huTime || incident.incidentTime || ""}</div></div>
+                  <div className="mod-form-group"><label className="mod-form-label">Location / Building</label><div className="readonly-box">{huBuildingName || incident.buildingName || incident.building || "—"}</div></div>
+                  <div className="mod-form-group"><label className="mod-form-label">Floor / Level</label><div className="readonly-box">{huFloorLevel || incident.floorLevel || "—"}</div></div>
+                  <div className="mod-form-group"><label className="mod-form-label">Specific Location</label><div className="readonly-box">{huSpecificLocation || incident.specificLocation || "—"}</div></div>
+                  <div className="mod-form-group"><label className="mod-form-label">Contractor(s) Involved</label><div className="readonly-box">{huContractor || incident.contractorsInvolved || "—"}</div></div>
                 </div>
 
                 <hr style={{ margin: "20px 0", borderColor: "var(--border-color)", borderStyle: "dashed" }} />
@@ -3499,7 +3505,7 @@ export default function IMDetails() {
                     <label className="mod-form-label">Category</label>
                     <div className="readonly-box">
                       <span className="badge" style={{ background: "rgba(59, 130, 246, 0.1)", color: "#3b82f6", fontWeight: 700 }}>
-                        {huCategories[0] || incident.categories?.[0] || incident.category || "ΓÇö"}
+                        {huCategories[0] || incident.categories?.[0] || incident.category || "—"}
                       </span>
                     </div>
                   </div>
@@ -3508,7 +3514,7 @@ export default function IMDetails() {
                     <div className="readonly-box" style={{ display: "flex", gap: "8px", alignItems: "center" }}>
                       {(() => {
                         const level = huActualSeverity || incident.actualSeverity || incident.severity;
-                        if (!level) return <span style={{ color: "var(--text-muted)" }}>ΓÇö</span>;
+                        if (!level) return <span style={{ color: "var(--text-muted)" }}>—</span>;
                         const meta = {
                           1: { label: "Insignificant", color: "#2D9E5A" },
                           2: { label: "Minor", color: "#C07D10" },
@@ -3530,7 +3536,7 @@ export default function IMDetails() {
                     <div className="readonly-box" style={{ display: "flex", gap: "8px", alignItems: "center" }}>
                       {(() => {
                         const level = huPotentialSeverity || incident.potentialSeverity;
-                        if (!level) return <span style={{ color: "var(--text-muted)" }}>ΓÇö</span>;
+                        if (!level) return <span style={{ color: "var(--text-muted)" }}>—</span>;
                         const meta = {
                           1: { label: "Insignificant", color: "#2D9E5A" },
                           2: { label: "Minor", color: "#C07D10" },
@@ -3562,13 +3568,13 @@ export default function IMDetails() {
                 <div className="mod-form-group">
                   <label className="mod-form-label">What Happened?</label>
                   <div className="readonly-box" style={{ minHeight: "60px", whiteSpace: "pre-wrap" }}>
-                    {huDescription || headsUpData?.descriptionWhatHappened || headsUpData?.whatHappened || incident.description || "ΓÇö"}
+                    {huDescription || headsUpData?.descriptionWhatHappened || headsUpData?.whatHappened || incident.description || "—"}
                   </div>
                 </div>
                 <div className="mod-form-group" style={{ marginTop: "14px" }}>
                   <label className="mod-form-label">Consequence</label>
                   <div className="readonly-box" style={{ minHeight: "45px", whiteSpace: "pre-wrap" }}>
-                    {huConsequence || headsUpData?.descriptionConsequence || "ΓÇö"}
+                    {huConsequence || headsUpData?.descriptionConsequence || "—"}
                   </div>
                 </div>
 
@@ -3581,11 +3587,11 @@ export default function IMDetails() {
                       Environmental Incident Details
                     </div>
                     <div className="grid-2" style={{ rowGap: "14px" }}>
-                      <div className="mod-form-group"><label className="mod-form-label">Type of Spillage</label><div className="readonly-box">{Array.isArray(huEnvSpillType) ? huEnvSpillType.join(", ") : (huEnvSpillType || headsUpData?.spillType || "ΓÇö")}</div></div>
-                      <div className="mod-form-group"><label className="mod-form-label">Substance Spilled</label><div className="readonly-box">{huEnvSpilledWhat || headsUpData?.spillSubstance || "ΓÇö"}</div></div>
-                      <div className="mod-form-group"><label className="mod-form-label">Cause of Spillage</label><div className="readonly-box">{huEnvCause || headsUpData?.spillCause || "ΓÇö"}</div></div>
-                      <div className="mod-form-group"><label className="mod-form-label">Approx Quantity</label><div className="readonly-box">{huEnvQuantity || headsUpData?.spillQuantity || "ΓÇö"}</div></div>
-                      <div className="mod-form-group" style={{ gridColumn: "span 2" }}><label className="mod-form-label">System / Media Entered</label><div className="readonly-box">{Array.isArray(huEnvSpecify) ? huEnvSpecify.join(", ") : (huEnvSpecify || headsUpData?.spillSystemEntered || "ΓÇö")}</div></div>
+                      <div className="mod-form-group"><label className="mod-form-label">Type of Spillage</label><div className="readonly-box">{Array.isArray(huEnvSpillType) ? huEnvSpillType.join(", ") : (huEnvSpillType || headsUpData?.spillType || "—")}</div></div>
+                      <div className="mod-form-group"><label className="mod-form-label">Substance Spilled</label><div className="readonly-box">{huEnvSpilledWhat || headsUpData?.spillSubstance || "—"}</div></div>
+                      <div className="mod-form-group"><label className="mod-form-label">Cause of Spillage</label><div className="readonly-box">{huEnvCause || headsUpData?.spillCause || "—"}</div></div>
+                      <div className="mod-form-group"><label className="mod-form-label">Approx Quantity</label><div className="readonly-box">{huEnvQuantity || headsUpData?.spillQuantity || "—"}</div></div>
+                      <div className="mod-form-group" style={{ gridColumn: "span 2" }}><label className="mod-form-label">System / Media Entered</label><div className="readonly-box">{Array.isArray(huEnvSpecify) ? huEnvSpecify.join(", ") : (huEnvSpecify || headsUpData?.spillSystemEntered || "—")}</div></div>
                     </div>
                   </>
                 )}
@@ -3611,9 +3617,9 @@ export default function IMDetails() {
                       {huImmActions.map((act, idx) => (
                         <tr key={idx} style={{ borderBottom: "1px solid var(--border-color)" }}>
                           <td style={{ padding: "8px 12px", fontWeight: 700 }}>{idx + 1}</td>
-                          <td style={{ padding: "8px 12px" }}>{act.action || act.description || "ΓÇö"}</td>
-                          <td style={{ padding: "8px 12px" }}>{act.responsible || act.assignedTo || "ΓÇö"}</td>
-                          <td style={{ padding: "8px 12px" }}>{act.date || act.targetDate || "ΓÇö"} {act.time || act.timeImplemented || ""}</td>
+                          <td style={{ padding: "8px 12px" }}>{act.action || act.description || "—"}</td>
+                          <td style={{ padding: "8px 12px" }}>{act.responsible || act.assignedTo || "—"}</td>
+                          <td style={{ padding: "8px 12px" }}>{act.date || act.targetDate || "—"} {act.time || act.timeImplemented || ""}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -3626,7 +3632,7 @@ export default function IMDetails() {
                 <div className="grid-2">
                   <div className="mod-form-group"><label className="mod-form-label">Gatekeeper Informed?</label><div className="readonly-box">{huGatekeeperInformed ? "Yes" : "No"}</div></div>
                   {huGatekeeperInformed && (
-                    <div className="mod-form-group"><label className="mod-form-label">Gatekeeper Contact Person</label><div className="readonly-box">{huGatekeeperName || "ΓÇö"}</div></div>
+                    <div className="mod-form-group"><label className="mod-form-label">Gatekeeper Contact Person</label><div className="readonly-box">{huGatekeeperName || "—"}</div></div>
                   )}
                 </div>
 
@@ -3645,10 +3651,10 @@ export default function IMDetails() {
                         typeof huSignature === "string" && (huSignature.startsWith("http") || huSignature.startsWith("data:") || huSignature.startsWith("/")) ? (
                           <img src={getAttachmentUrl(huSignature)} alt="Submitter Signature" style={{ maxHeight: "35px", maxWidth: "150px" }} />
                         ) : (
-                          <span style={{ fontStyle: "italic", fontFamily: "cursive", color: "var(--accent-primary, #3b82f6)" }}>Γ£ô Signed Digitally ({huSubmitterName})</span>
+                          <span style={{ fontStyle: "italic", fontFamily: "cursive", color: "var(--accent-primary, #3b82f6)" }}>✓ Signed Digitally ({huSubmitterName})</span>
                         )
                       ) : (
-                        <span style={{ color: "var(--text-muted)" }}>ΓÇö</span>
+                        <span style={{ color: "var(--text-muted)" }}>—</span>
                       )}
                     </div>
                   </div>
@@ -3815,7 +3821,7 @@ export default function IMDetails() {
             <div className="mod-card">
               <div className="mod-card-body" style={{ padding: "40px 24px", textAlign: "center" }}>
                 <div style={{ width: 64, height: 64, borderRadius: "50%", background: "#ecfdf5", color: "#10b981", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 28, border: "2px solid #a7f3d0" }}>
-                  Γ£ô
+                  ✓
                 </div>
                 <h3 style={{ fontSize: "18px", fontWeight: 700, color: "#065f46", margin: "0 0 8px 0" }}>Stage 2 Initial Incident Report Waived</h3>
                 <p style={{ color: "#047857", fontSize: "14px", maxWidth: "600px", margin: "0 auto 24px", lineHeight: "1.5" }}>
@@ -3827,7 +3833,7 @@ export default function IMDetails() {
                     style={{ padding: "8px 20px", fontSize: "13px", fontWeight: 600 }}
                     onClick={() => setActiveTab("headsUp")}
                   >
-                    ΓåÉ View Filled Heads-Up Form
+                    ← View Filled Heads-Up Form
                   </button>
                   {headsUpApproved && !isClosed && (
                     <button
@@ -3862,7 +3868,7 @@ export default function IMDetails() {
               <div className="locked-title">Initial Incident Report (24hr) Pending</div>
               <div className="locked-text">The 24-hour Initial Incident Report is due by <b>{stages.initialReport.dueLabel}</b>. This report captures injured person details, incident categories, severity assessment, photos, injury information, accident types, body parts and immediate actions.</div>
               <div style={{ marginTop: 24, fontSize: "13px", color: "var(--color-caution)" }}>
-                ΓÜá∩╕Å Heads-Up Notification must be reviewed and approved before starting the Initial Report.
+                ⚠️ Heads-Up Notification must be reviewed and approved before starting the Initial Report.
               </div>
             </div></div></div>
           ) : (
@@ -3944,10 +3950,10 @@ export default function IMDetails() {
                 {/* A. Heads-Up Summary */}
                 <div className="fsec"><div className="fsec-title">A. Heads-Up Summary</div>
                   <div className="readonly-box">
-                    <div><b>Type:</b> {incident.categories?.[0] || incident.category || "ΓÇö"}</div>
-                    <div><b>Severity:</b> {incident.actualSeverity || incident.severity || "ΓÇö"}</div>
-                    <div><b>Location:</b> {incident.buildingName ? `${incident.buildingName}${incident.floorLevel ? ' - ' + incident.floorLevel : ''}` : (incident.building || incident.location || "ΓÇö")}</div>
-                    <div><b>Description:</b> {headsUpData?.descriptionWhatHappened || headsUpData?.whatHappened || headsUpData?.descriptionConsequence || incident.description || incident.details || "ΓÇö"}</div>
+                    <div><b>Type:</b> {incident.categories?.[0] || incident.category || "—"}</div>
+                    <div><b>Severity:</b> {incident.actualSeverity || incident.severity || "—"}</div>
+                    <div><b>Location:</b> {incident.buildingName ? `${incident.buildingName}${incident.floorLevel ? ' - ' + incident.floorLevel : ''}` : (incident.building || incident.location || "—")}</div>
+                    <div><b>Description:</b> {headsUpData?.descriptionWhatHappened || headsUpData?.whatHappened || headsUpData?.descriptionConsequence || incident.description || incident.details || "—"}</div>
                   </div>
                 </div>
 
@@ -4207,7 +4213,7 @@ export default function IMDetails() {
                       <div key={idx} style={{ position: "relative", width: 120, height: 120, borderRadius: 8, overflow: "hidden", border: "1px solid var(--border-color)" }}>
                         <img src={p} alt={`Captured ${idx}`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                         {(!initialReportSubmitted || isEditingInitialReport) && (
-                          <button onClick={() => removePhoto(idx)} style={{ position: "absolute", top: 4, right: 4, background: "var(--color-risk)", color: "#fff", border: "none", borderRadius: "50%", width: 20, height: 20, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: 14, fontWeight: "bold" }}>├ù</button>
+                          <button onClick={() => removePhoto(idx)} style={{ position: "absolute", top: 4, right: 4, background: "var(--color-risk)", color: "#fff", border: "none", borderRadius: "50%", width: 20, height: 20, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: 14, fontWeight: "bold" }}>×</button>
                         )}
                       </div>
                     ))}
@@ -4434,7 +4440,7 @@ export default function IMDetails() {
                               {bodyParts.map(bp => (
                                 <div key={bp} style={{ background: "var(--bg-dark)", border: "1px solid var(--border-color)", padding: "4px 8px 4px 12px", borderRadius: 16, fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
                                   {bp}
-                                  <button onClick={() => setBodyParts(bodyParts.filter(p => p !== bp))} style={{ background: "var(--color-gray-bg)", border: "none", borderRadius: "50%", width: 18, height: 18, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: 14 }}>├ù</button>
+                                  <button onClick={() => setBodyParts(bodyParts.filter(p => p !== bp))} style={{ background: "var(--color-gray-bg)", border: "none", borderRadius: "50%", width: 18, height: 18, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: 14 }}>×</button>
                                 </div>
                               ))}
                             </div>
@@ -4879,7 +4885,7 @@ export default function IMDetails() {
             <div className="mod-card">
               <div className="mod-card-body" style={{ padding: "40px 24px", textAlign: "center" }}>
                 <div style={{ width: 64, height: 64, borderRadius: "50%", background: "#ecfdf5", color: "#10b981", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 28, border: "2px solid #a7f3d0" }}>
-                  Γ£ô
+                  ✓
                 </div>
                 <h3 style={{ fontSize: "18px", fontWeight: 700, color: "#065f46", margin: "0 0 8px 0" }}>Stage 3 Investigation Report Waived</h3>
                 <p style={{ color: "#047857", fontSize: "14px", maxWidth: "600px", margin: "0 auto 24px", lineHeight: "1.5" }}>
@@ -4891,7 +4897,7 @@ export default function IMDetails() {
                     style={{ padding: "8px 20px", fontSize: "13px", fontWeight: 600 }}
                     onClick={() => setActiveTab(hasInitialReportData ? "initialReport" : "headsUp")}
                   >
-                    ΓåÉ View Filled {hasInitialReportData ? "Initial Report" : "Heads-Up Form"}
+                    ← View Filled {hasInitialReportData ? "Initial Report" : "Heads-Up Form"}
                   </button>
                   {(headsUpApproved || initialReportApproved) && !isClosed && (
                     <button
@@ -5068,11 +5074,11 @@ export default function IMDetails() {
                 </div>
 
                 {/* 4. Fishbone Analysis */}
-                <div className="fsec"><div className="fsec-title">4. Fishbone Analysis ΓÇô Cause and Effect</div>
-                  <div className="fsec-note">Interactive Ishikawa diagram. Add causes under the six categories ΓÇô People, Machine / Equipment, Method / Procedure, Materials, Environmental Conditions, Measurement.</div>
+                <div className="fsec"><div className="fsec-title">4. Fishbone Analysis – Cause and Effect</div>
+                  <div className="fsec-note">Interactive Ishikawa diagram. Add causes under the six categories – People, Machine / Equipment, Method / Procedure, Materials, Environmental Conditions, Measurement.</div>
                   {renderFishboneSvg()}
                   <div className="fsec-note" style={{ marginTop: 12, padding: "12px", background: "var(--bg-dark)", borderRadius: 8 }}>
-                    <b>Tick the box on any cause</b> ΓÇô in whichever categories you choose ΓÇô to carry it into the 5 Whys analysis below. Scoring (1 Low ΓÇô 5 High) is optional.
+                    <b>Tick the box on any cause</b> – in whichever categories you choose – to carry it into the 5 Whys analysis below. Scoring (1 Low – 5 High) is optional.
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16, marginTop: 16 }}>
                     {FISHBONE_CATS.map(cat => (
@@ -5100,7 +5106,7 @@ export default function IMDetails() {
                               <input type="checkbox" checked={cause.probable} onChange={() => toggleFishboneProbable(cat.key, i)} style={{ marginTop: 2, accentColor: "var(--color-risk, #e11d48)", width: 16, height: 16, cursor: "pointer" }} />
                               <span style={{ flex: 1, fontSize: 13, color: "var(--text-main)", lineHeight: 1.4 }}>{cause.text}</span>
                               {(!investigationSubmitted || isEditingInvestigation) && (
-                                <button style={{ background: "var(--color-gray-bg, #f1f5f9)", border: "none", color: "var(--text-muted, #64748b)", cursor: "pointer", width: 24, height: 24, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }} onClick={() => removeFishboneCause(cat.key, i)}>├ù</button>
+                                <button style={{ background: "var(--color-gray-bg, #f1f5f9)", border: "none", color: "var(--text-muted, #64748b)", cursor: "pointer", width: 24, height: 24, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }} onClick={() => removeFishboneCause(cat.key, i)}>×</button>
                               )}
                             </div>
                             <div style={{ display: "flex", gap: 6, marginTop: 12, alignItems: "center" }}>
@@ -5152,7 +5158,7 @@ export default function IMDetails() {
                   <div style={{ background: "rgba(227,43,80,0.06)", border: "1px solid rgba(227,43,80,0.35)", padding: 16, borderRadius: 8 }}>
                     <div style={{ fontSize: 13, fontWeight: 800, color: "var(--color-risk)" }}>Causes Selected for 5 Whys ({getProbableCauses().length})</div>
                     {getProbableCauses().length === 0 ? (
-                      <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 8 }}>No causes selected yet. Tick any cause above ΓÇô in any category ΓÇô to analyse it.</div>
+                      <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 8 }}>No causes selected yet. Tick any cause above – in any category – to analyse it.</div>
                     ) : (
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
                         {getProbableCauses().map(c => (
@@ -5230,7 +5236,7 @@ export default function IMDetails() {
 
                 {/* 11. Severity Assessment */}
                 <div className="fsec"><div className="fsec-title">11. Severity Assessment</div>
-                  <div className="fsec-note">Assess the consequence severity (1 ΓÇô 5) using the Severity Table. Record the severity before and after the corrective actions.</div>
+                  <div className="fsec-note">Assess the consequence severity (1 – 5) using the Severity Table. Record the severity before and after the corrective actions.</div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 12 }}>Severity Before Corrective Actions</div>
@@ -5257,7 +5263,7 @@ export default function IMDetails() {
                   </div>
                   {invPreSev && invPostSev && (
                     <div style={{ marginTop: 16, background: "var(--color-safe-bg, rgba(123,190,151,0.1))", border: "1px solid var(--color-safe, rgba(123,190,151,0.5))", padding: 12, borderRadius: 8, color: "var(--color-safe, #2D7A4F)", fontWeight: 700 }}>
-                      Severity Reduction: {invPreSev} ({SEVERITY_SCALE.find(s => s.level === invPreSev)?.label}) ΓåÆ {invPostSev} ({SEVERITY_SCALE.find(s => s.level === invPostSev)?.label})
+                      Severity Reduction: {invPreSev} ({SEVERITY_SCALE.find(s => s.level === invPreSev)?.label}) → {invPostSev} ({SEVERITY_SCALE.find(s => s.level === invPostSev)?.label})
                     </div>
                   )}
                 </div>
@@ -5406,7 +5412,7 @@ export default function IMDetails() {
                     {invPhotos.map((p, i) => (
                       <div key={i} className="photo-thumb" style={{ position: "relative", width: 96, height: 96, borderRadius: 8, overflow: "hidden", border: "1px solid var(--border-color)", background: "var(--bg-dark)" }}>
                         <img src={p} alt={`photo ${i + 1}`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                        <button style={{ position: "absolute", top: 2, right: 2, width: 20, height: 20, borderRadius: "50%", border: "none", background: "var(--color-risk)", color: "#fff", cursor: "pointer", fontSize: 12, lineHeight: 1 }} onClick={() => setInvPhotos(invPhotos.filter((_, idx) => idx !== i))}>├ù</button>
+                        <button style={{ position: "absolute", top: 2, right: 2, width: 20, height: 20, borderRadius: "50%", border: "none", background: "var(--color-risk)", color: "#fff", cursor: "pointer", fontSize: 12, lineHeight: 1 }} onClick={() => setInvPhotos(invPhotos.filter((_, idx) => idx !== i))}>×</button>
                       </div>
                     ))}
                   </div>
@@ -5474,7 +5480,7 @@ export default function IMDetails() {
                                     style={{ background: "transparent", border: "none", color: "#ef4444", cursor: "pointer", fontSize: 14, lineHeight: 1, padding: "0 2px" }}
                                     title="Remove attached file"
                                   >
-                                    Γ£ò
+                                    ×
                                   </button>
                                 )}
                               </div>
@@ -5599,7 +5605,7 @@ export default function IMDetails() {
                                   )}
                                 </div>
                                 <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-main)" }}>{sig.name}</div>
-                                <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{sig.role} {sig.date ? `ΓÇó ${sig.date}` : ""}</div>
+                                <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{sig.role} {sig.date ? `• ${sig.date}` : ""}</div>
                               </div>
                             </div>
                           );
@@ -5950,7 +5956,7 @@ export default function IMDetails() {
                               <td style={{ fontWeight: 700, color: "var(--text-muted)" }}>{idx + 1}</td>
                               <td>
                                 <div style={{ fontWeight: 600, color: "var(--text-main)" }}>
-                                  {a.action || "ΓÇö"}
+                                  {a.action || "—"}
                                 </div>
                               </td>
                               <td>
@@ -5963,17 +5969,17 @@ export default function IMDetails() {
                                   <div style={{ width: 22, height: 22, borderRadius: "50%", background: "#e0e7ff", color: "#4338ca", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700 }}>
                                     {(a.responsible || "U").substring(0, 2).toUpperCase()}
                                   </div>
-                                  <span style={{ fontSize: "13px" }}>{a.responsible || "ΓÇö"}</span>
+                                  <span style={{ fontSize: "13px" }}>{a.responsible || "—"}</span>
                                 </div>
                               </td>
-                              <td style={{ fontSize: "13px" }}>{a.date || "ΓÇö"}</td>
+                              <td style={{ fontSize: "13px" }}>{a.date || "—"}</td>
                               <td style={{ fontSize: "13px" }}>
                                 {a.time ? (
                                   <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", background: "var(--bg-dark, #f1f5f9)", padding: "2px 8px", borderRadius: "4px", fontWeight: 600 }}>
                                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                                     {a.time}
                                   </span>
-                                ) : "ΓÇö"}
+                                ) : "—"}
                               </td>
                               <td>
                                 <span style={{ display: "inline-block", padding: "3px 10px", borderRadius: "999px", fontSize: "11px", fontWeight: 700, background: "#dcfce7", color: "#16a34a" }}>
@@ -6170,8 +6176,8 @@ export default function IMDetails() {
                                     )}
                                   </div>
                                 </td>
-                                <td>{a.responsible || "ΓÇö"}</td>
-                                <td>{a.targetDate ? new Date(a.targetDate).toLocaleDateString() : 'ΓÇö'}</td>
+                                <td>{a.responsible || "—"}</td>
+                                <td>{a.targetDate ? new Date(a.targetDate).toLocaleDateString() : '—'}</td>
                                 <td>
                                   <span style={{ display: "inline-block", padding: "4px 10px", borderRadius: "999px", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", background: statusColor.bg, color: statusColor.text }}>{a.status?.replace('_', ' ')}</span>
                                 </td>
@@ -6202,7 +6208,7 @@ export default function IMDetails() {
                                         <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                                           {a.statusHistory.map((hist, hIdx) => {
                                             const hStatusColor = hist.status === 'COMPLETED' ? { bg: '#dcfce7', text: '#16a34a' } : hist.status === 'IN_PROGRESS' ? { bg: '#fef08a', text: '#ca8a04' } : { bg: '#f1f5f9', text: '#64748b' };
-                                            const formattedTime = hist.timestamp ? new Date(hist.timestamp).toLocaleString() : "ΓÇö";
+                                            const formattedTime = hist.timestamp ? new Date(hist.timestamp).toLocaleString() : "—";
                                             return (
                                               <div key={hIdx} style={{ display: "flex", alignItems: "flex-start", gap: "12px", padding: "10px 14px", borderRadius: "6px", background: "var(--bg-dark, #f1f5f9)", border: "1px solid var(--border-color)" }}>
                                                 <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: "4px", fontSize: "10px", fontWeight: 700, textTransform: "uppercase", background: hStatusColor.bg, color: hStatusColor.text, marginTop: "2px" }}>
@@ -6240,13 +6246,13 @@ export default function IMDetails() {
 
                   {!loadingActions && totalPages > 1 && (
                     <div className="beam-pagination">
-                      <button className="beam-page-btn" disabled={actionPage === 1} onClick={() => setActionPage(actionPage - 1)}>ΓåÉ</button>
+                      <button className="beam-page-btn" disabled={actionPage === 1} onClick={() => setActionPage(actionPage - 1)}>←</button>
                       {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
                         <button key={page} className={`beam-page-number ${actionPage === page ? "beam-page-number--active" : ""}`} onClick={() => setActionPage(page)}>
                           {page}
                         </button>
                       ))}
-                      <button className="beam-page-btn" disabled={actionPage === totalPages} onClick={() => setActionPage(actionPage + 1)}>ΓåÆ</button>
+                      <button className="beam-page-btn" disabled={actionPage === totalPages} onClick={() => setActionPage(actionPage + 1)}>→</button>
                     </div>
                   )}
                 </>
@@ -6267,7 +6273,7 @@ export default function IMDetails() {
               submittedBy: rawIncident?.headsUp?.submittedBy || rawIncident?.incident?.reportedBy || "HSE Lead",
               immediateActions: rawIncident?.headsUp?.immediateActions || rawIncident?.incident?.immediateActions || []
             },
-            initialReport: {
+            initialReport: hasInitialReportData ? {
               ...(rawIncident?.initialReport || {}),
               injuredPersonName: irInjuredName || rawIncident?.initialReport?.injuredPersonName,
               injuredPersonCompany: irInjuredCompany || rawIncident?.initialReport?.injuredPersonCompany,
@@ -6294,8 +6300,8 @@ export default function IMDetails() {
                 damageDescription: irPropDamageDesc || rawIncident?.initialReport?.propertyDamageDetails?.damageDescription,
                 immediateActionTaken: irPropImmediateAction || rawIncident?.initialReport?.propertyDamageDetails?.immediateActionTaken
               }
-            },
-            investigation: {
+            } : null,
+            investigation: hasInvestigationData ? {
               ...(rawIncident?.investigation || {}),
               team: invTeam?.length ? invTeam : rawIncident?.investigation?.team,
               problemStatement: invProblem || rawIncident?.investigation?.problemStatement,
@@ -6305,12 +6311,14 @@ export default function IMDetails() {
               rootCauses: invRootCauses?.length ? invRootCauses : rawIncident?.investigation?.rootCauses,
               contributingFactors: invFactors?.length ? invFactors : rawIncident?.investigation?.contributingFactors,
               witnesses: invWitnesses?.length ? invWitnesses : rawIncident?.investigation?.witnesses,
-              signatures: [{
-                role: invInvRole || "Site HSE Investigator",
-                name: invInvName || rawIncident?.investigation?.submittedBy || rawIncident?.incident?.reportedBy || "HSE Lead",
-                date: invInvDate || rawIncident?.incident?.date || new Date().toISOString().split('T')[0]
-              }]
-            },
+              signatures: (rawIncident?.investigation?.signatures && rawIncident.investigation.signatures.length > 0)
+                ? rawIncident.investigation.signatures
+                : (invInvName || investigationSubmitted || investigationApproved) ? [{
+                    role: invInvRole || "Site HSE Investigator",
+                    name: invInvName || rawIncident?.investigation?.submittedBy || rawIncident?.incident?.reportedBy || "HSE Lead",
+                    date: invInvDate || rawIncident?.incident?.date || new Date().toISOString().split('T')[0]
+                  }] : []
+            } : null,
             categories: rawIncident?.incident?.categories || rawIncident?.categories || [],
             environmentalDetails: rawIncident?.incident?.environmentalDetails || rawIncident?.environmentalDetails || {},
             propertyDamageDetails: rawIncident?.incident?.propertyDamageDetails || rawIncident?.propertyDamageDetails || {}

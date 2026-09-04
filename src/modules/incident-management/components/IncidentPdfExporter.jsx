@@ -97,18 +97,24 @@ export function IncidentPdfExporter({ incident, onClose, targetForm = "all" }) {
 
   const hasHeadsUp = true;
   const hasInitialReport = Boolean(
-    (ir.submittedBy && ir.submittedBy !== "User") ||
-    ir.signature ||
-    ir.submittedTime ||
-    ir.injuredPersonName ||
-    (ir.id && !isNoFurtherInvestigation && (incident.stage === 'INITIAL_REPORT' || incident.stage === 'INVESTIGATION' || incident.stage === 'CLOSED') && ir.submittedTime)
+    ir && (
+      (ir.submittedBy && ir.submittedBy !== "User") ||
+      ir.signature ||
+      ir.submittedTime ||
+      (ir.injuredPersonName && String(ir.injuredPersonName).trim().length > 0) ||
+      (ir.id && !isNoFurtherInvestigation && (incident.stage === 'INITIAL_REPORT' || incident.stage === 'INVESTIGATION' || incident.stage === 'CLOSED') && ir.submittedTime)
+    )
   );
   const hasInvestigation = Boolean(
-    (inv.signatures && Array.isArray(inv.signatures) && inv.signatures.length > 0) ||
-    inv.problemStatement ||
-    inv.problem ||
-    inv.investigationDetails ||
-    (inv.submittedBy && inv.submittedBy !== "User" && inv.submittedBy !== "Investigator")
+    inv && (
+      (inv.problemStatement && String(inv.problemStatement).trim().length > 0) ||
+      (inv.problem && String(inv.problem).trim().length > 0) ||
+      (inv.investigationDetails && String(inv.investigationDetails).trim().length > 0) ||
+      (inv.reviewedBy && String(inv.reviewedBy).trim().length > 0) ||
+      (inv.approvedBy && String(inv.approvedBy).trim().length > 0) ||
+      (inv.submittedBy && inv.submittedBy !== "User" && inv.submittedBy !== "Investigator") ||
+      (Array.isArray(inv.signatures) && inv.signatures.length > 0 && inv.signatures.some(s => s && s.name && s.name !== "HSE Lead" && s.name !== "User"))
+    )
   );
 
   let includeForm1 = false;

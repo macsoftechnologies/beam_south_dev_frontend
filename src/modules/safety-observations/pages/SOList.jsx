@@ -135,8 +135,24 @@ function SOList() {
   const [contractorsList, setContractorsList] = useState([]);
 
   const user = JSON.parse(localStorage.getItem("user") || "{}");
-  const userRole = localStorage.getItem("UserType") || "DEPARTMENT";
-  const contractorId = user?.subcontractor_id || user?.contractorId;
+  const rawRole = (localStorage.getItem("UserType") || user?.role || user?.userType || user?.user_type || "").toUpperCase();
+  const isContractor = rawRole.includes("CONTRACTOR") || rawRole.includes("SUBCONTRACTOR") || Boolean(user?.subcontractor_id) || Boolean(user?.typeId && rawRole.includes("SUBCONTRACTOR"));
+  const contractorId = user?.typeId || user?.subcontractor_id || user?.subContId || user?.contractorId;
+
+  const myContractor = useMemo(() => {
+    if (!isContractor) return null;
+    return (
+      contractorsList.find(c => 
+        String(c.id) === String(contractorId) || 
+        String(c.subcontractor_id) === String(contractorId) ||
+        (user?.username && c.username === user.username) ||
+        (user?.company_name && (c.subContractorName === user.company_name || c.company_name === user.company_name)) ||
+        (user?.companyName && (c.subContractorName === user.companyName || c.company_name === user.companyName))
+      ) || (contractorsList.length === 1 ? contractorsList[0] : null)
+    );
+  }, [isContractor, contractorsList, contractorId, user?.company_name, user?.companyName, user?.username]);
+
+  const myContractorName = user?.company_name || user?.companyName || user?.subContractorName || user?.contractorName || myContractor?.subContractorName || myContractor?.company_name || myContractor?.companyName || myContractor?.subcontractor_name || myContractor?.name || "";
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -171,9 +187,10 @@ function SOList() {
         page: currentPage,
         limit: pageSize,
       };
-      if (userRole === "CONTRACTOR" && contractorId) {
+      if (isContractor) {
         params.userRole = "CONTRACTOR";
-        params.contractorId = contractorId;
+        if (contractorId) params.contractorId = contractorId;
+        if (myContractorName) params.contractor = myContractorName;
       }
       if (filterStatus) params.status = filterStatus;
       if (filterType) params.type = filterType;
@@ -205,15 +222,18 @@ function SOList() {
 
   useEffect(() => {
     fetchObservations();
-  }, [currentPage, pageSize, filterStatus, filterType, filterCategory, filterContractor, filterLocation, searchTerm]);
+  }, [currentPage, pageSize, filterStatus, filterType, filterCategory, filterContractor, filterLocation, searchTerm, isContractor, contractorId, myContractorName]);
+
+  const displayedObservations = observations;
 
   const uniqueContractors = useMemo(() => {
+    if (isContractor && myContractorName) return [myContractorName];
     const apiNames = contractorsList
       .map((c) => c.company_name || c.companyName || c.subContractorName || c.subcontractor_name || c.name || (typeof c === "string" ? c : ""))
       .filter(Boolean);
     const obsNames = observations.map((o) => o.assignedContractorName).filter(Boolean);
     return Array.from(new Set([...apiNames, ...obsNames])).sort();
-  }, [contractorsList, observations]);
+  }, [contractorsList, observations, isContractor, myContractorName]);
 
   const uniqueLocations = useMemo(() => {
     const apiNames = buildingsList
@@ -351,14 +371,16 @@ function SOList() {
           ))}
         </select>
 
-        <select className="mod-form-select" value={filterContractor} onChange={(e) => setFilterContractor(e.target.value)} style={{ flex: "1 1 140px" }}>
-          <option value="">All Contractors</option>
-          {uniqueContractors.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
+        {!isContractor && (
+          <select className="mod-form-select" value={filterContractor} onChange={(e) => setFilterContractor(e.target.value)} style={{ flex: "1 1 140px" }}>
+            <option value="">All Contractors</option>
+            {uniqueContractors.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        )}
 
         <select className="mod-form-select" value={filterLocation} onChange={(e) => setFilterLocation(e.target.value)} style={{ flex: "1 1 140px" }}>
           <option value="">All Locations</option>
@@ -375,7 +397,7 @@ function SOList() {
         <div className="mod-table-wrap">
           {loading ? (
             <div style={{ padding: 40, textAlign: "center", color: "var(--text-muted)" }}>Loading safety observations...</div>
-          ) : observations.length === 0 ? (
+          ) : displayedObservations.length === 0 ? (
             <div style={{ padding: 40, textAlign: "center", color: "var(--text-muted)" }}>No observations found.</div>
           ) : (
             <table className="mod-table">
@@ -395,11 +417,16 @@ function SOList() {
                 </tr>
               </thead>
               <tbody>
-                {observations.map((o) => (
+                {displayedObservations.map((o) => (
                   <tr key={o.id} onClick={() => navigate(`/safety-observations/details/${o.id}`)} style={{ cursor: "pointer" }}>
                     <td style={{ fontWeight: 700, fontFamily: "monospace" }}>{o.observationNumber}</td>
                     <td style={{ whiteSpace: "nowrap" }}>
-                      {o.createdTime ? new Date(o.createdTime).toISOString().split("T")[0] : "-"}
+                      {o.observationDate || (o.createdTime ? new Date(o.createdTime).toISOString().split("T")[0] : "-")}
+                      {o.observationTime && (
+                        <span style={{ display: "block", fontSize: "11px", color: "var(--text-muted)", marginTop: "2px" }}>
+                          {o.observationTime}
+                        </span>
+                      )}
                     </td>
                     <td>
                       {String(o.observationType || o.type || "").toUpperCase() === "POSITIVE" ? (
@@ -457,8 +484,28 @@ function SOList() {
                     </td>
                     <td style={{ whiteSpace: "nowrap" }}>{o.createdByUserName || o.createdByRole}</td>
                     <td>
-                      <button className="mod-btn-outline" style={{ padding: "4px 8px", fontSize: 12 }}>
-                        View
+                      <button
+                        className="mod-btn-outline"
+                        style={{
+                          width: "30px",
+                          height: "30px",
+                          padding: 0,
+                          borderRadius: "6px",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          cursor: "pointer",
+                        }}
+                        title="View Observation"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/safety-observations/details/${o.id}`);
+                        }}
+                      >
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                          <circle cx="12" cy="12" r="3" />
+                        </svg>
                       </button>
                     </td>
                   </tr>

@@ -162,6 +162,23 @@ export default function IMDashboard() {
   const [buildingsList, setBuildingsList] = useState([]);
   const [contractorsList, setContractorsList] = useState([]);
 
+  const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
+  const rawRole = (localStorage.getItem("UserType") || currentUser?.role || currentUser?.userType || currentUser?.user_type || "").toUpperCase();
+  const isContractor = rawRole.includes("CONTRACTOR") || rawRole.includes("SUBCONTRACTOR") || Boolean(currentUser?.subcontractor_id) || Boolean(currentUser?.typeId && rawRole.includes("SUBCONTRACTOR"));
+  const contractorId = currentUser?.typeId || currentUser?.subcontractor_id || currentUser?.subContId || currentUser?.contractorId;
+
+  const myContractor = useMemo(() => {
+    if (!isContractor) return null;
+    return contractorsList.find(c => 
+      String(c.id) === String(contractorId) || 
+      String(c.subcontractor_id) === String(contractorId) ||
+      (currentUser?.company_name && (c.subContractorName === currentUser.company_name || c.company_name === currentUser.company_name)) ||
+      (currentUser?.companyName && (c.subContractorName === currentUser.companyName || c.company_name === currentUser.companyName))
+    );
+  }, [isContractor, contractorsList, contractorId, currentUser?.company_name, currentUser?.companyName]);
+
+  const myContractorName = currentUser?.company_name || currentUser?.companyName || currentUser?.subContractorName || currentUser?.contractorName || myContractor?.subContractorName || myContractor?.company_name || myContractor?.companyName || myContractor?.subcontractor_name || myContractor?.name || "";
+
   // Fetch Master Data (Buildings & Contractors API)
   useEffect(() => {
     const fetchMasterData = async () => {
@@ -190,8 +207,14 @@ export default function IMDashboard() {
       try {
         setLoading(true);
         const params = {};
+        if (isContractor) {
+          params.userRole = "CONTRACTOR";
+          if (contractorId) params.contractorId = contractorId;
+          if (myContractorName) params.contractor = myContractorName;
+        } else if (selectedContractor) {
+          params.contractor = selectedContractor;
+        }
         if (selectedBuilding) params.building = selectedBuilding;
-        if (selectedContractor) params.contractor = selectedContractor;
         if (selectedDateRange) params.dateRange = selectedDateRange;
 
         // Fetch aggregated backend stats (blazing fast, optimized for lakhs of records)
@@ -214,11 +237,13 @@ export default function IMDashboard() {
       }
     };
     loadIncidents();
-  }, [selectedBuilding, selectedContractor, selectedDateRange]);
+  }, [selectedBuilding, selectedContractor, selectedDateRange, isContractor, contractorId, myContractorName]);
+
+  const displayedIncidents = incidents;
 
   /* Calculate Dynamic LTI Streak */
   const ltiStreak = useMemo(() => {
-    const ltiIncidents = incidents.filter(i => {
+    const ltiIncidents = displayedIncidents.filter(i => {
       const catsStr = Array.isArray(i.categories) ? i.categories.join(' ') : '';
       const cat = (catsStr + ' ' + (i.category || i.classification || i.type || '')).toLowerCase();
       return cat.includes('lost time') || cat.includes('lti');
@@ -241,7 +266,7 @@ export default function IMDashboard() {
     }
 
     return { current: 157, best: 214, target: 365, lastLtiDate: '17 Jun 2026' };
-  }, [incidents]);
+  }, [displayedIncidents]);
 
   /* Aggregations */
   const agg = useMemo(() => {
@@ -258,7 +283,7 @@ export default function IMDashboard() {
       return 'LOW';
     };
 
-    incidents.forEach(r => {
+    displayedIncidents.forEach(r => {
       const isClosed = r.status === 'closed' || r.status === 'Closed' || r.pipeline === 'Closed' || r.stage === 'CLOSED';
       if (isClosed) closed++; else active++;
       if (r.isHipo || r.hipo) hipo++;
@@ -305,7 +330,7 @@ export default function IMDashboard() {
       );
     }
 
-    if (serverStats?.kpis) {
+    if (serverStats?.kpis && !isContractor) {
       return {
         total: serverStats.kpis.total,
         active: serverStats.kpis.active,
@@ -321,7 +346,7 @@ export default function IMDashboard() {
     }
 
     return {
-      total: incidents.length, active, closed, hipo, lti, needsAction,
+      total: displayedIncidents.length, active, closed, hipo, lti, needsAction,
       severity: ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].map(k => ({ level: k, count: sevCount[k], color: sevHex(k) })),
       types: typeList,
       typesTotal: typeList.reduce((acc, curr) => acc + curr.count, 0),
@@ -332,7 +357,7 @@ export default function IMDashboard() {
         { label: 'Closed', count: pipeCount['Closed'], color: '#A1A5B3' }
       ]
     };
-  }, [incidents, serverStats]);
+  }, [displayedIncidents, serverStats, isContractor]);
 
   /* Aggregate Affected Body Parts dynamically from API data */
   const { frontParts, backParts, bodyPartsSummary } = useMemo(() => {
@@ -434,7 +459,7 @@ export default function IMDashboard() {
       { part: 'L. Forearm', count: 0 }
     ];
 
-    if (serverStats?.bodyParts) {
+    if (serverStats?.bodyParts && !isContractor) {
       const frontRes = serverStats.bodyParts.front || [];
       const backRes = serverStats.bodyParts.back || [];
       const summary = serverStats.bodyParts.summary || {};
@@ -467,14 +492,14 @@ export default function IMDashboard() {
       backParts: finalBack,
       bodyPartsSummary: { totalPartsCount, highCount, medCount, lowCount }
     };
-  }, [incidents, serverStats]);
+  }, [displayedIncidents, serverStats, isContractor]);
 
   const maxT = Math.max(...agg.types.map(x => x.count)) || 1;
   const maxB = Math.max(...frontParts.map(x => x.count), ...backParts.map(x => x.count), 6);
 
   /* Filter Incidents for Table */
   const filteredIncidents = useMemo(() => {
-    return incidents.filter(r => {
+    return displayedIncidents.filter(r => {
       if (stageFilter === 'all') return true;
       let s = r.pipeline || r.stage || 'Heads-Up';
       if (s === 'INITIAL_REPORT') s = 'Initial';
@@ -588,14 +613,18 @@ export default function IMDashboard() {
           })}
         </select>
 
-        <span className="dfl">Contractors</span>
-        <select value={selectedContractor} onChange={e => setSelectedContractor(e.target.value)}>
-          <option value="">All Contractors</option>
-          {contractorsList.map((c, idx) => {
-            const cName = c.company_name || c.companyName || c.subContractorName || c.subcontractor_name || c.name || (typeof c === 'string' ? c : `Contractor #${idx+1}`);
-            return <option key={idx} value={cName}>{cName}</option>;
-          })}
-        </select>
+        {!isContractor && (
+          <>
+            <span className="dfl">Contractors</span>
+            <select value={selectedContractor} onChange={e => setSelectedContractor(e.target.value)}>
+              <option value="">All Contractors</option>
+              {contractorsList.map((c, idx) => {
+                const cName = c.company_name || c.companyName || c.subContractorName || c.subcontractor_name || c.name || (typeof c === 'string' ? c : `Contractor #${idx+1}`);
+                return <option key={idx} value={cName}>{cName}</option>;
+              })}
+            </select>
+          </>
+        )}
 
         <span className="dfl">Range</span>
         <select value={selectedDateRange} onChange={e => setSelectedDateRange(e.target.value)}>

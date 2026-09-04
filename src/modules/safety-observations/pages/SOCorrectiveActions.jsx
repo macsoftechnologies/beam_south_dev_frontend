@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import PageHeader from "../../../components/common/PageHeader/PageHeader";
 import StatusBadge from "../../../components/common/StatusBadge/StatusBadge";
 import { observationService } from "../../../services/observationService";
+import { getContractors } from "../../../services/authService";
 import "../../../styles/module-shared.css";
 
 const CAIcon = () => (
@@ -18,12 +19,46 @@ function SOCorrectiveActions() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [contractorsList, setContractorsList] = useState([]);
+
+  const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
+  const rawRole = (localStorage.getItem("UserType") || currentUser?.role || currentUser?.userType || currentUser?.user_type || "").toUpperCase();
+  const isContractor = rawRole.includes("CONTRACTOR") || rawRole.includes("SUBCONTRACTOR") || Boolean(currentUser?.subcontractor_id) || Boolean(currentUser?.typeId && rawRole.includes("SUBCONTRACTOR"));
+  const contractorId = currentUser?.typeId || currentUser?.subcontractor_id || currentUser?.subContId || currentUser?.contractorId;
+
+  useEffect(() => {
+    async function loadContractors() {
+      try {
+        const cRes = await getContractors(1, 1000);
+        const rawC = cRes?.data?.rows || cRes?.data || cRes?.subContractors || cRes || [];
+        setContractorsList(Array.isArray(rawC) ? rawC : []);
+      } catch (e) {
+        console.error("Failed to load contractors in SOCorrectiveActions:", e);
+      }
+    }
+    loadContractors();
+  }, []);
+
+  const myContractor = contractorsList.find(c => 
+    String(c.id) === String(contractorId) || 
+    String(c.subcontractor_id) === String(contractorId) ||
+    (currentUser?.username && c.username === currentUser.username) ||
+    (currentUser?.company_name && (c.subContractorName === currentUser.company_name || c.company_name === currentUser.company_name)) ||
+    (currentUser?.companyName && (c.subContractorName === currentUser.companyName || c.company_name === currentUser.companyName))
+  ) || (contractorsList.length === 1 ? contractorsList[0] : null);
+  const myContractorName = currentUser?.company_name || currentUser?.companyName || currentUser?.subContractorName || currentUser?.contractorName || myContractor?.subContractorName || myContractor?.company_name || myContractor?.companyName || myContractor?.subcontractor_name || myContractor?.name || "";
 
   useEffect(() => {
     async function loadData() {
       try {
         setLoading(true);
-        const res = await observationService.getObservations({ type: "NEEDS_ATTENTION" });
+        const params = { type: "NEEDS_ATTENTION" };
+        if (isContractor) {
+          params.userRole = "CONTRACTOR";
+          if (contractorId) params.contractorId = contractorId;
+          if (myContractorName) params.contractor = myContractorName;
+        }
+        const res = await observationService.getObservations(params);
         const list = res && res.data && Array.isArray(res.data) ? res.data : Array.isArray(res) ? res : [];
         setObservations(list);
       } catch (err) {
@@ -33,9 +68,16 @@ function SOCorrectiveActions() {
       }
     }
     loadData();
-  }, []);
+  }, [isContractor, contractorId, myContractorName]);
 
   const filtered = observations.filter((o) => {
+    if (isContractor) {
+      const matchContractor = (contractorId && String(o.assignedContractorId) === String(contractorId)) ||
+        (myContractorName && o.assignedContractorName && o.assignedContractorName.toLowerCase().includes(myContractorName.toLowerCase())) ||
+        (myContractorName && o.contractor && o.contractor.toLowerCase().includes(myContractorName.toLowerCase())) ||
+        (currentUser?.id && (String(o.createdByUserId) === String(currentUser.id) || String(o.createdById) === String(currentUser.id)));
+      if (!matchContractor) return false;
+    }
     const text = (o.observationNumber + o.subject + o.assignedContractorName + o.safetyCategory).toLowerCase();
     const matchSearch = text.includes(search.toLowerCase());
     const matchStatus = statusFilter === "All" || o.status === statusFilter;
@@ -145,8 +187,25 @@ function SOCorrectiveActions() {
                     </td>
                     <td>{ca.createdTime ? new Date(ca.createdTime).toISOString().split("T")[0] : "-"}</td>
                     <td>
-                      <button className="mod-btn-outline" style={{ padding: "4px 8px", fontSize: 12 }} onClick={() => navigate(`/safety-observations/details/${ca.id}`)}>
-                        View
+                      <button
+                        className="mod-btn-outline"
+                        style={{
+                          width: "30px",
+                          height: "30px",
+                          padding: 0,
+                          borderRadius: "6px",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          cursor: "pointer",
+                        }}
+                        title="View Observation"
+                        onClick={() => navigate(`/safety-observations/details/${ca.id}`)}
+                      >
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                          <circle cx="12" cy="12" r="3" />
+                        </svg>
                       </button>
                     </td>
                   </tr>

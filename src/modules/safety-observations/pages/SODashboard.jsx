@@ -253,6 +253,26 @@ export default function SODashboard() {
   const [observationsList, setObservationsList] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
+  const rawRole = (localStorage.getItem("UserType") || currentUser?.role || currentUser?.userType || currentUser?.user_type || "").toUpperCase();
+  const isContractor = rawRole.includes("CONTRACTOR") || rawRole.includes("SUBCONTRACTOR") || Boolean(currentUser?.subcontractor_id) || Boolean(currentUser?.typeId && rawRole.includes("SUBCONTRACTOR"));
+  const contractorId = currentUser?.typeId || currentUser?.subcontractor_id || currentUser?.subContId || currentUser?.contractorId;
+
+  const myContractor = useMemo(() => {
+    if (!isContractor) return null;
+    return (
+      contractorsList.find(c => 
+        String(c.id) === String(contractorId) || 
+        String(c.subcontractor_id) === String(contractorId) ||
+        (currentUser?.username && c.username === currentUser.username) ||
+        (currentUser?.company_name && (c.subContractorName === currentUser.company_name || c.company_name === currentUser.company_name)) ||
+        (currentUser?.companyName && (c.subContractorName === currentUser.companyName || c.company_name === currentUser.companyName))
+      ) || (contractorsList.length === 1 ? contractorsList[0] : null)
+    );
+  }, [isContractor, contractorsList, contractorId, currentUser?.company_name, currentUser?.companyName, currentUser?.username]);
+
+  const myContractorName = currentUser?.company_name || currentUser?.companyName || currentUser?.subContractorName || currentUser?.contractorName || myContractor?.subContractorName || myContractor?.company_name || myContractor?.companyName || myContractor?.subcontractor_name || myContractor?.name || "";
+
   // Fetch Master Selector Data (Buildings & Contractors)
   useEffect(() => {
     const fetchMasterData = async () => {
@@ -279,8 +299,14 @@ export default function SODashboard() {
       try {
         setLoading(true);
         const params = {};
+        if (isContractor) {
+          params.userRole = "CONTRACTOR";
+          if (contractorId) params.contractorId = contractorId;
+          if (myContractorName) params.contractor = myContractorName;
+        } else if (selectedContractor) {
+          params.contractor = selectedContractor;
+        }
         if (selectedBuilding) params.building = selectedBuilding;
-        if (selectedContractor) params.contractor = selectedContractor;
         if (selectedRange) params.range = selectedRange;
 
         const [statsRes, listRes] = await Promise.all([
@@ -292,27 +318,52 @@ export default function SODashboard() {
           setServerStats(statsRes);
         }
 
-        const rawList = Array.isArray(listRes) ? listRes : (listRes?.data || []);
-        setObservationsList(rawList.length > 0 ? rawList : OBSERVATIONS);
+        let rawList = Array.isArray(listRes) ? listRes : (listRes?.data || []);
+        if (rawList.length === 0 && !isContractor) {
+          rawList = OBSERVATIONS;
+        } else if (rawList.length === 0 && isContractor && myContractorName) {
+          rawList = OBSERVATIONS.filter(o => {
+            const cName = o.contractor || o.assignedContractorName || '';
+            return cName.toLowerCase().includes(myContractorName.toLowerCase());
+          });
+        }
+        setObservationsList(rawList);
       } catch (err) {
         console.error("Failed to load SO Dashboard data:", err);
-        setObservationsList(OBSERVATIONS);
+        setObservationsList(isContractor && myContractorName ? OBSERVATIONS.filter(o => (o.contractor || o.assignedContractorName || '').toLowerCase().includes(myContractorName.toLowerCase())) : OBSERVATIONS);
       } finally {
         setLoading(false);
       }
     };
     loadData();
-  }, [selectedBuilding, selectedContractor, selectedRange]);
+  }, [selectedBuilding, selectedContractor, selectedRange, isContractor, contractorId, myContractorName]);
 
   const agg = useMemo(() => {
-    if (serverStats?.total !== undefined) {
+    if (serverStats?.total !== undefined && !isContractor) {
       return serverStats;
     }
-    return processSOData(observationsList);
-  }, [observationsList, serverStats]);
+    const source = isContractor
+      ? observationsList.filter(o => {
+          if (contractorId && String(o.assignedContractorId) === String(contractorId)) return true;
+          if (myContractorName && o.assignedContractorName && o.assignedContractorName.toLowerCase().includes(myContractorName.toLowerCase())) return true;
+          if (myContractorName && o.contractor && o.contractor.toLowerCase().includes(myContractorName.toLowerCase())) return true;
+          return false;
+        })
+      : observationsList;
+    return processSOData(source);
+  }, [observationsList, serverStats, isContractor, contractorId, myContractorName]);
 
   const filteredDeepDive = useMemo(() => {
-    const source = observationsList.length > 0 ? observationsList : OBSERVATIONS;
+    let source = observationsList.length > 0 ? observationsList : OBSERVATIONS;
+    if (isContractor) {
+      source = source.filter(o => {
+        if (contractorId && String(o.assignedContractorId) === String(contractorId)) return true;
+        if (myContractorName && o.assignedContractorName && o.assignedContractorName.toLowerCase().includes(myContractorName.toLowerCase())) return true;
+        if (myContractorName && o.contractor && o.contractor.toLowerCase().includes(myContractorName.toLowerCase())) return true;
+        if (currentUser?.id && (String(o.createdByUserId) === String(currentUser.id) || String(o.createdById) === String(currentUser.id))) return true;
+        return false;
+      });
+    }
     return source.filter(r => {
       const numStr = r.observationNumber || r.id || '';
       const subjStr = r.subject || r.title || r.description || '';
@@ -324,7 +375,7 @@ export default function SODashboard() {
       if (filter.type && oType !== filter.type && (filter.type === 'Positive' ? oType !== 'POSITIVE' : oType !== 'NEEDS_ATTENTION')) return false;
       return true;
     }).sort((a, b) => parseDate(b.date || b.createdTime) - parseDate(a.date || a.createdTime));
-  }, [observationsList, filter]);
+  }, [observationsList, filter, isContractor, contractorId, myContractorName, currentUser?.id]);
 
   const maxW = Math.max(...(agg.weeklyTrend || []).map(w => w.count)) || 1;
   const maxC = Math.max(...(agg.categories || []).map(c => c.count)) || 1;
@@ -424,14 +475,18 @@ export default function SODashboard() {
           })}
         </select>
 
-        <span className="dfl">Contractors</span>
-        <select value={selectedContractor} onChange={e => setSelectedContractor(e.target.value)}>
-          <option value="">All Contractors</option>
-          {contractorsList.map((c, idx) => {
-            const cName = c.company_name || c.companyName || c.subContractorName || c.subcontractor_name || c.name || (typeof c === 'string' ? c : `Contractor #${idx+1}`);
-            return <option key={idx} value={cName}>{cName}</option>;
-          })}
-        </select>
+        {!isContractor && (
+          <>
+            <span className="dfl">Contractors</span>
+            <select value={selectedContractor} onChange={e => setSelectedContractor(e.target.value)}>
+              <option value="">All Contractors</option>
+              {contractorsList.map((c, idx) => {
+                const cName = c.company_name || c.companyName || c.subContractorName || c.subcontractor_name || c.name || (typeof c === 'string' ? c : `Contractor #${idx+1}`);
+                return <option key={idx} value={cName}>{cName}</option>;
+              })}
+            </select>
+          </>
+        )}
 
         <span className="dfl">Range</span>
         <select value={selectedRange} onChange={e => setSelectedRange(e.target.value)}>

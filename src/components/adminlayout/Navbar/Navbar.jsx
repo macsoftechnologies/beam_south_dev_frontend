@@ -82,8 +82,64 @@ const extractPermitNo = (n) => {
   return "";
 };
 
-const getNotificationStyleInfo = (title = "", message = "") => {
-  const t = (title + " " + message).toLowerCase();
+const extractObservationInfo = (n) => {
+  if (!n) return { isObservation: false, observationId: null, observationNumber: "" };
+
+  let isObservation = (n.notificationType && String(n.notificationType).toUpperCase().includes("OBSERVATION")) || false;
+  let observationId = null;
+  let observationNumber = "";
+
+  if (n.metadata) {
+    try {
+      const meta = typeof n.metadata === "string" ? JSON.parse(n.metadata) : n.metadata;
+      if (meta) {
+        if (meta.module === "OBSERVATIONS" || meta.observationId || meta.observationNumber) {
+          isObservation = true;
+        }
+        if (meta.observationId) observationId = meta.observationId;
+        if (meta.observationNumber) observationNumber = meta.observationNumber;
+      }
+    } catch (e) {}
+  }
+
+  const text = `${n.title || ""} ${n.message || ""}`;
+  if (!isObservation && text.toLowerCase().includes("observation")) {
+    isObservation = true;
+  }
+
+  if (!observationNumber) {
+    const match = text.match(/SO-\d{4}-\d+/i) || text.match(/#?(SO-[A-Za-z0-9\-]+)/i);
+    if (match && match[0]) {
+      observationNumber = match[0].replace("#", "");
+    }
+  }
+
+  return { isObservation, observationId, observationNumber };
+};
+
+const getNotificationStyleInfo = (title = "", message = "", notificationType = "") => {
+  const nType = (notificationType || "").toLowerCase();
+  const tTitle = (title || "").toLowerCase();
+  const t = (title + " " + message + " " + notificationType).toLowerCase();
+
+  if (nType.includes("observation") || tTitle.includes("observation") || t.includes("observation")) {
+    if (nType.includes("resolve") || tTitle.includes("resolution") || tTitle.includes("resolved") || t.includes("resolution submitted")) {
+      return { typeClass: "notif-type-resolved", badgeText: "OBS RESOLVED" };
+    }
+    if (nType.includes("close") || tTitle.includes("closed") || tTitle.includes("observation closed")) {
+      return { typeClass: "notif-type-closed", badgeText: "OBS CLOSED" };
+    }
+    if (nType.includes("reject") || tTitle.includes("rejected")) {
+      return { typeClass: "notif-type-rejected", badgeText: "OBS REJECTED" };
+    }
+    if (nType.includes("accept") || tTitle.includes("accepted")) {
+      return { typeClass: "notif-type-approved", badgeText: "OBS ACCEPTED" };
+    }
+    if (nType.includes("reassign") || tTitle.includes("reassigned")) {
+      return { typeClass: "notif-type-hold", badgeText: "OBS REASSIGNED" };
+    }
+    return { typeClass: "notif-type-observation", badgeText: "OBSERVATION" };
+  }
 
   if (t.includes("auto-cancelled") || t.includes("auto cancelled")) {
     return { typeClass: "notif-type-autocancelled", badgeText: "AUTO-CANCELLED" };
@@ -308,6 +364,13 @@ function Navbar({ toggleSidebar, theme, onThemeChange }) {
   const [cpError, setCpError] = useState("");
   const [cpSuccess, setCpSuccess] = useState("");
 
+  const getActiveModuleKey = () => {
+    if (location.pathname.includes('/safety-observation') || location.pathname.includes('/observation')) return 'observations';
+    if (location.pathname.includes('/incident')) return 'incidents';
+    return 'permits';
+  };
+  const activeModuleKey = getActiveModuleKey();
+
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -327,7 +390,7 @@ function Navbar({ toggleSidebar, theme, onThemeChange }) {
 
   const fetchUnreadCount = async () => {
     try {
-      const data = await getUnreadCount();
+      const data = await getUnreadCount(activeModuleKey);
       setUnreadCount(data.count);
     } catch (e) {
       console.error("Error fetching unread count:", e);
@@ -337,7 +400,7 @@ function Navbar({ toggleSidebar, theme, onThemeChange }) {
   const fetchNotificationsList = async (pageNum = 1, append = false) => {
     try {
       setIsLoading(true);
-      const res = await getNotifications(pageNum, 10);
+      const res = await getNotifications(pageNum, 10, activeModuleKey);
       if (append) {
         setNotifications(prev => [...prev, ...res.data]);
       } else {
@@ -356,7 +419,7 @@ function Navbar({ toggleSidebar, theme, onThemeChange }) {
     fetchUnreadCount();
     const interval = setInterval(fetchUnreadCount, 4000);
     return () => clearInterval(interval);
-  }, []);
+  }, [activeModuleKey]);
 
   useEffect(() => {
     try {
@@ -432,6 +495,18 @@ function Navbar({ toggleSidebar, theme, onThemeChange }) {
 
     setNotificationsOpen(false);
 
+    // 1. Check if Observation Notification
+    const obsInfo = extractObservationInfo(n);
+    if (obsInfo.isObservation) {
+      if (obsInfo.observationId) {
+        navigate(`/safety-observations/details/${obsInfo.observationId}`);
+      } else {
+        navigate(`/safety-observations/list`);
+      }
+      return;
+    }
+
+    // 2. Permit Notification
     const permitNo = extractPermitNo(n);
     if (permitNo) {
       navigate(`/list-request?permitNo=${encodeURIComponent(permitNo)}`, {
@@ -628,8 +703,8 @@ function Navbar({ toggleSidebar, theme, onThemeChange }) {
         {/* Theme switcher — now controlled via Layout state */}
         <ThemeSwitcher theme={theme} onThemeChange={onThemeChange} />
 
-        {/* Bell with badge */}
-        {isPermitToWork && (
+        {/* Bell with badge - hidden for incident module */}
+        {activeModuleKey !== "incidents" && (
           <div className="bell-wrap" ref={bellRef}>
             <button
               className="navbar-bell"
@@ -644,22 +719,28 @@ function Navbar({ toggleSidebar, theme, onThemeChange }) {
             {notificationsOpen && (
               <div className="notifications-dropdown">
                 <div className="nd-header">
-                  <h5 className="nd-title">Notifications</h5>
+                  <h5 className="nd-title">
+                    {activeModuleKey === "observations"
+                      ? "Observation Notifications"
+                      : "Permit Notifications"}
+                  </h5>
                   {unreadCount > 0 && (
                     <button className="nd-mark-read" onClick={handleMarkAllRead}>
                       Mark all as read
                     </button>
                   )}
                 </div>
+
                 <div className="nd-list">
                   {notifications.length === 0 ? (
                     <div className="nd-empty">
-                      {isLoading ? "Loading..." : "No notifications"}
+                      {isLoading ? "Loading..." : `No ${activeModuleKey === 'observations' ? 'observation' : 'permit'} notifications`}
                     </div>
                   ) : (
                     notifications.map((n) => {
-                      const styleInfo = getNotificationStyleInfo(n.title, n.message);
-                      const permitNo = extractPermitNo(n);
+                      const styleInfo = getNotificationStyleInfo(n.title, n.message, n.notificationType);
+                      const obsInfo = extractObservationInfo(n);
+                      const permitNo = !obsInfo.isObservation ? extractPermitNo(n) : "";
                       return (
                         <button
                           key={n.id}
@@ -671,7 +752,13 @@ function Navbar({ toggleSidebar, theme, onThemeChange }) {
                             <span className="nd-status-badge">{styleInfo.badgeText}</span>
                             <span className="nd-item-time">{formatCopenhagenTime(n.createdAt)}</span>
                           </div>
-                          {permitNo && (
+                          {obsInfo.isObservation && obsInfo.observationNumber && (
+                            <div className="nd-item-permit" style={{ color: "#6366F1" }}>
+                              <span className="nd-permit-label">Observation Ref:</span>{" "}
+                              <span className="nd-permit-value" style={{ fontWeight: 700 }}>#{obsInfo.observationNumber}</span>
+                            </div>
+                          )}
+                          {!obsInfo.isObservation && permitNo && (
                             <div className="nd-item-permit">
                               <span className="nd-permit-label">Permit No:</span> <span className="nd-permit-value">#{permitNo}</span>
                             </div>
@@ -736,15 +823,13 @@ function Navbar({ toggleSidebar, theme, onThemeChange }) {
                 >
                   <i className="ti ti-lock" /> Change Password
                 </button>
-                {isPermitToWork && (
-                  <button
-                    className="pd-item"
-                    onClick={handleOpenSettings}
-                    style={{ background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer' }}
-                  >
-                    <i className="ti ti-settings" /> Notification Settings
-                  </button>
-                )}
+                <button
+                  className="pd-item"
+                  onClick={handleOpenSettings}
+                  style={{ background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer' }}
+                >
+                  <i className="ti ti-settings" /> Notification Settings
+                </button>
               </div>
 
               <div className="pd-divider" />

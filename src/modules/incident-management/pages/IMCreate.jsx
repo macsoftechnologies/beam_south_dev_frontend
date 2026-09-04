@@ -286,6 +286,7 @@ const initialForm = {
   envSpillType: [], envSpillOther: "", envSpilledWhat: "", envCause: "", envQuantity: "", envSpecify: [], envSpecifyOther: "",
   immActions: [{ action: "", responsible: "", date: "", time: "", implemented: false }],
   gatekeeperInformed: null, gatekeeperName: "",
+  noFurtherInvestigation: false,
   submitterName: getLoggedInUser(), signature: false
 };
 
@@ -409,6 +410,7 @@ function IMCreate() {
   }, [building, level]);
 
   const required = ["project", "title", "date", "time", "location"];
+  const isEnv = form.categories.includes("Environmental Incident") || form.categories.some(c => c && c.toLowerCase().includes("environment"));
 
   const validate = () => {
     const errs = {};
@@ -417,6 +419,29 @@ function IMCreate() {
     if (!form.actual && !form.categories.includes("Near Miss")) errs.actual = "Actual severity is required";
     if (!form.potential) errs.potential = "Potential severity is required";
     if (!form.signature) errs.signature = "Signature is required";
+
+    if (isEnv) {
+      if (!form.envSpillType || form.envSpillType.length === 0) {
+        errs.envSpillType = "Select at least one type of spillage";
+      } else if (form.envSpillType.includes("Other") && !form.envSpillOther?.trim()) {
+        errs.envSpillOther = "Please specify other type of spillage";
+      }
+      if (!form.envSpilledWhat?.trim()) {
+        errs.envSpilledWhat = "What has been spilled is required";
+      }
+      if (!form.envCause?.trim()) {
+        errs.envCause = "Cause of spillage is required";
+      }
+      if (!form.envQuantity?.trim()) {
+        errs.envQuantity = "Approximate quantity is required";
+      }
+      if (!form.envSpecify || form.envSpecify.length === 0) {
+        errs.envSpecify = "Specify where the spillage entered";
+      } else if (form.envSpecify.includes("Other") && !form.envSpecifyOther?.trim()) {
+        errs.envSpecifyOther = "Please specify other entry location";
+      }
+    }
+
     return errs;
   };
 
@@ -441,10 +466,12 @@ function IMCreate() {
 
   const handleEnvToggle = (field, val) => {
     setForm(prev => {
-      const arr = prev[field];
+      const arr = prev[field] || [];
       const newArr = arr.includes(val) ? arr.filter(v => v !== val) : [...arr, val];
       return { ...prev, [field]: newArr };
     });
+    if (errors[field]) setErrors(prev => ({ ...prev, [field]: null }));
+    if (errors[`${field}Other`]) setErrors(prev => ({ ...prev, [`${field}Other`]: null }));
   };
 
   const addAction = () => setForm(prev => ({ ...prev, immActions: [...prev.immActions, { action: "", responsible: "", time: "", implemented: false }] }));
@@ -464,6 +491,7 @@ function IMCreate() {
     setIsLoadingSelectors(true); // Reusing for loading indicator
     try {
       const payload = {
+        title: form.title,
         projectName: form.project,
         projectId: 1, // Dynamic if list exists
         incidentDate: form.date,
@@ -480,12 +508,12 @@ function IMCreate() {
         isHipo: Number(form.potential) >= 4 || Number(form.actual) >= 4,
         descriptionWhatHappened: form.description,
         descriptionConsequence: form.consequence,
-        isEnvironmental: form.categories.includes("Environmental Incident"),
-        spillType: form.envSpillType,
+        isEnvironmental: isEnv,
+        spillType: form.envSpillType.includes("Other") && form.envSpillOther ? [...form.envSpillType.filter(t => t !== "Other"), `Other: ${form.envSpillOther}`] : form.envSpillType,
         spillSubstance: form.envSpilledWhat,
         spillCause: form.envCause,
         spillQuantity: form.envQuantity,
-        spillSystemEntered: form.envSpecify,
+        spillSystemEntered: form.envSpecify.includes("Other") && form.envSpecifyOther ? [...form.envSpecify.filter(s => s !== "Other"), `Other: ${form.envSpecifyOther}`] : form.envSpecify,
         immediateActions: form.immActions.map(a => ({
           action: a.action,
           responsible: a.responsible,
@@ -494,6 +522,7 @@ function IMCreate() {
         })),
         gatekeeperInformed: form.gatekeeperInformed,
         gatekeeperName: form.gatekeeperName,
+        noFurtherInvestigation: form.noFurtherInvestigation || false,
         submittedBy: form.submitterName || getLoggedInUser() || "User",
         signature: form.signature
       };
@@ -508,8 +537,6 @@ function IMCreate() {
       setIsLoadingSelectors(false);
     }
   };
-
-  const isEnv = form.categories.includes("Environmental Incident");
 
   if (submitted) {
     return (
@@ -567,8 +594,8 @@ function IMCreate() {
                     {errors.project && <span style={{ fontSize: "0.75rem", color: "#DC2626" }}>{errors.project}</span>}
                   </div>
                   <div className="mod-form-group">
-                    <label className="mod-form-label">Title / Case number <span style={{ color: "#DC2626" }}>*</span></label>
-                    <input name="title" type="text" className="mod-form-input" value={form.title} onChange={handleChange} placeholder="Enter title or case number" />
+                    <label className="mod-form-label">Title <span style={{ color: "#DC2626" }}>*</span></label>
+                    <input name="title" type="text" className="mod-form-input" value={form.title} onChange={handleChange} placeholder="Enter title" />
                     {errors.title && <span style={{ fontSize: "0.75rem", color: "#DC2626" }}>{errors.title}</span>}
                   </div>
                   <div className="mod-form-group">
@@ -717,7 +744,7 @@ function IMCreate() {
                   </div>
                   <div style={{ background: "var(--color-caution-bg)", border: "1px solid rgba(217,119,6,0.3)", borderRadius: "8px", padding: "16px" }}>
                     <div className="mod-form-group" style={{ marginBottom: "16px" }}>
-                      <label className="mod-form-label">Type of Spillage</label>
+                      <label className="mod-form-label">Type of Spillage <span style={{ color: "#DC2626" }}>*</span></label>
                       <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", marginBottom: "8px" }}>
                         {["Oil and hydrocarbon spills", "Chemical Spill", "Paint Spill", "Other"].map(opt => (
                           <label key={opt} style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px" }}>
@@ -725,36 +752,47 @@ function IMCreate() {
                           </label>
                         ))}
                       </div>
+                      {errors.envSpillType && <span style={{ fontSize: "0.75rem", color: "#DC2626", display: "block", marginBottom: "4px" }}>{errors.envSpillType}</span>}
                       {form.envSpillType.includes("Other") && (
-                        <input name="envSpillOther" type="text" className="mod-form-input" placeholder="Specify other..." value={form.envSpillOther} onChange={handleChange} />
+                        <>
+                          <input name="envSpillOther" type="text" className="mod-form-input" placeholder="Specify other type of spillage..." value={form.envSpillOther} onChange={handleChange} />
+                          {errors.envSpillOther && <span style={{ fontSize: "0.75rem", color: "#DC2626", display: "block", marginTop: "4px" }}>{errors.envSpillOther}</span>}
+                        </>
                       )}
                     </div>
                     <div className="mod-form-group full-width" style={{ marginBottom: "16px" }}>
-                      <label className="mod-form-label">What has been spilled:</label>
+                      <label className="mod-form-label">What has been spilled: <span style={{ color: "#DC2626" }}>*</span></label>
                       <div style={{ fontSize: "11px", color: "var(--text-muted)", marginBottom: "4px" }}>Include the chemical name from the SDS, if available at the time of reporting</div>
                       <textarea name="envSpilledWhat" className="mod-form-textarea" value={form.envSpilledWhat} onChange={handleChange} rows={2} placeholder="What was spilled?"></textarea>
+                      {errors.envSpilledWhat && <span style={{ fontSize: "0.75rem", color: "#DC2626", display: "block", marginTop: "4px" }}>{errors.envSpilledWhat}</span>}
                     </div>
                     <div className="grid-2" style={{ gap: "16px", marginBottom: "16px" }}>
                       <div className="mod-form-group">
-                        <label className="mod-form-label">Cause of Spillage:</label>
+                        <label className="mod-form-label">Cause of Spillage: <span style={{ color: "#DC2626" }}>*</span></label>
                         <input name="envCause" type="text" className="mod-form-input" value={form.envCause} onChange={handleChange} placeholder="Enter cause of spillage" />
+                        {errors.envCause && <span style={{ fontSize: "0.75rem", color: "#DC2626", display: "block", marginTop: "4px" }}>{errors.envCause}</span>}
                       </div>
                       <div className="mod-form-group">
-                        <label className="mod-form-label">Approximate quantity of spillage (Liter /Kg):</label>
+                        <label className="mod-form-label">Approximate quantity of spillage (Liter /Kg): <span style={{ color: "#DC2626" }}>*</span></label>
                         <input name="envQuantity" type="text" className="mod-form-input" value={form.envQuantity} onChange={handleChange} placeholder="e.g. 50 Liters" />
+                        {errors.envQuantity && <span style={{ fontSize: "0.75rem", color: "#DC2626", display: "block", marginTop: "4px" }}>{errors.envQuantity}</span>}
                       </div>
                     </div>
                     <div className="mod-form-group">
-                      <label className="mod-form-label">Specify if the spillage enter the rainwater system, process wastewater system, soil, asphalt etc.</label>
-                      <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", marginTop: "8px" }}>
+                      <label className="mod-form-label">Specify if the spillage enter the rainwater system, process wastewater system, soil, asphalt etc. <span style={{ color: "#DC2626" }}>*</span></label>
+                      <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", marginTop: "8px", marginBottom: "8px" }}>
                         {["Rainwater", "Process", "Soil", "Other"].map(opt => (
                           <label key={opt} style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px" }}>
                             <input type="checkbox" checked={form.envSpecify.includes(opt)} onChange={() => handleEnvToggle("envSpecify", opt)} /> {opt}
                           </label>
                         ))}
                       </div>
+                      {errors.envSpecify && <span style={{ fontSize: "0.75rem", color: "#DC2626", display: "block", marginBottom: "4px" }}>{errors.envSpecify}</span>}
                       {form.envSpecify.includes("Other") && (
-                        <input name="envSpecifyOther" type="text" className="mod-form-input" placeholder="Specify other..." value={form.envSpecifyOther} onChange={handleChange} style={{ marginTop: "8px" }} />
+                        <>
+                          <input name="envSpecifyOther" type="text" className="mod-form-input" placeholder="Specify other entry location..." value={form.envSpecifyOther} onChange={handleChange} style={{ marginTop: "8px" }} />
+                          {errors.envSpecifyOther && <span style={{ fontSize: "0.75rem", color: "#DC2626", display: "block", marginTop: "4px" }}>{errors.envSpecifyOther}</span>}
+                        </>
                       )}
                     </div>
                   </div>
@@ -833,6 +871,20 @@ function IMCreate() {
                   <SignaturePad value={form.signature} onChange={val => setForm(prev => ({...prev, signature: val}))} onClear={() => setForm(prev => ({...prev, signature: false}))} />
                   {errors.signature && <span style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: "4px", display: "block" }}>{errors.signature}</span>}
                 </div>
+              </div>
+
+              {/* No Further Investigation Checkbox */}
+              <div style={{ marginTop: 20, padding: "14px 16px", background: "var(--bg-dark, #f8fafc)", borderRadius: "8px", border: "1px solid var(--border-color)", display: "flex", alignItems: "center", gap: 10 }}>
+                <input
+                  type="checkbox"
+                  id="createNoFurtherInvestigation"
+                  checked={form.noFurtherInvestigation}
+                  onChange={e => setForm(prev => ({ ...prev, noFurtherInvestigation: e.target.checked }))}
+                  style={{ width: 18, height: 18, cursor: "pointer" }}
+                />
+                <label htmlFor="createNoFurtherInvestigation" style={{ fontWeight: 600, fontSize: 13.5, cursor: "pointer", color: "var(--text-main)" }}>
+                  No further investigation required (Incident can be closed after approval)
+                </label>
               </div>
 
               <div className="mod-form-actions" style={{ marginTop: 24, paddingTop: 16, borderTop: "1px solid var(--border-color)", display: "flex", justifyContent: "flex-end", gap: "12px" }}>

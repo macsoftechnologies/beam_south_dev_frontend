@@ -11,8 +11,10 @@ import { BUILDINGS } from "../../../data/buildings";
 import "../../../styles/module-shared.css";
 
 const initialForm = {
-  observationType: "", // POSITIVE | NEEDS_ATTENTION
-  natureOfFinding: "", // GOOD_PRACTICE | UNSAFE_ACT | UNSAFE_CONDITION
+  observationType: "NEEDS_ATTENTION", // POSITIVE | NEEDS_ATTENTION
+  natureOfFinding: "UNSAFE_CONDITION", // GOOD_PRACTICE | UNSAFE_ACT | UNSAFE_CONDITION
+  date: "",
+  time: "",
   subject: "",
   safetyCategory: "",
   riskLevel: "MEDIUM",
@@ -276,6 +278,8 @@ const dataURLtoBlob = (dataurl) => {
 
   const validate = () => {
     const errs = {};
+    if (!form.date) errs.date = "Date is required";
+    if (!form.time) errs.time = "Time is required";
     if (!form.subject) errs.subject = "Required";
     if (!form.safetyCategory) errs.safetyCategory = "Required";
     if (!form.description) errs.description = "Required";
@@ -319,6 +323,10 @@ const dataURLtoBlob = (dataurl) => {
       const formData = new FormData();
       formData.append("observationType", form.observationType);
       formData.append("natureOfFinding", form.natureOfFinding);
+      formData.append("date", form.date);
+      formData.append("observationDate", form.date);
+      formData.append("time", form.time);
+      formData.append("observationTime", form.time);
       formData.append("subject", form.subject);
       formData.append("safetyCategory", form.safetyCategory);
       formData.append("riskLevel", form.riskLevel);
@@ -335,6 +343,8 @@ const dataURLtoBlob = (dataurl) => {
       formData.append("createdByUserId", currentUser.id || "");
       formData.append("createdByUserName", currentUser.username || currentUser.name || "User");
       formData.append("createdByRole", userRole);
+      const cId = currentUser?.typeId || currentUser?.subcontractor_id || currentUser?.subContId || currentUser?.contractorId;
+      if (cId) formData.append("createdByContractorId", cId);
 
       // Append Multer photo files
       photoFiles.forEach((file) => {
@@ -464,6 +474,37 @@ const dataURLtoBlob = (dataurl) => {
           <div className="fsec">
             <div className="fsec-title" style={{ fontSize: 13, borderBottom: "none", marginBottom: 12 }}>
               General Information
+            </div>
+          </div>
+
+          {/* Date & Time of Observation */}
+          <div className="grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+            <div className="mod-form-group">
+              <label className="mod-form-label">
+                Observation Date <span style={{ color: "#E32B50" }}>*</span>
+              </label>
+              <input
+                type="date"
+                className={`mod-form-input ${errors.date ? "error" : ""}`}
+                name="date"
+                value={form.date}
+                onChange={handleChange}
+              />
+              {errors.date && <div className="mod-form-error">{errors.date}</div>}
+            </div>
+
+            <div className="mod-form-group">
+              <label className="mod-form-label">
+                Observation Time <span style={{ color: "#E32B50" }}>*</span>
+              </label>
+              <input
+                type="time"
+                className={`mod-form-input ${errors.time ? "error" : ""}`}
+                name="time"
+                value={form.time}
+                onChange={handleChange}
+              />
+              {errors.time && <div className="mod-form-error">{errors.time}</div>}
             </div>
           </div>
 

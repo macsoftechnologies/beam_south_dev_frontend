@@ -818,6 +818,41 @@
   justify-content: space-between;
 }
 
+/* ── Notification Filter Tabs ── */
+.nd-tabs {
+  display: flex;
+  background: var(--bg-main, #f1f5f9);
+  padding: 4px;
+  border-radius: 8px;
+  margin: 10px 14px 6px;
+  gap: 4px;
+  border: 1px solid var(--border-color, #e2e8f0);
+}
+
+.nd-tab-btn {
+  flex: 1;
+  padding: 5px 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  border: none;
+  background: none;
+  border-radius: 6px;
+  color: var(--text-muted, #64748b);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: center;
+}
+
+.nd-tab-btn:hover {
+  color: var(--text-main, #0f172a);
+}
+
+.nd-tab-btn.active {
+  background: var(--bg-card, #ffffff);
+  color: var(--text-main, #0f172a);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
 .nd-title {
   margin: 0;
   font-size: 15px;
@@ -960,6 +995,22 @@
   background: rgba(148, 163, 184, 0.15) !important;
   color: #94A3B8 !important;
   border: 1px solid rgba(148, 163, 184, 0.3) !important;
+}
+
+/* OBSERVATION - Indigo / Violet */
+.notif-type-observation { border-left-color: #6366F1 !important; }
+.notif-type-observation .nd-status-badge {
+  background: rgba(99, 102, 241, 0.15) !important;
+  color: #6366F1 !important;
+  border: 1px solid rgba(99, 102, 241, 0.3) !important;
+}
+
+/* RESOLVED - Teal / Cyan */
+.notif-type-resolved { border-left-color: #0D9488 !important; }
+.notif-type-resolved .nd-status-badge {
+  background: rgba(13, 148, 136, 0.15) !important;
+  color: #0D9488 !important;
+  border: 1px solid rgba(13, 148, 136, 0.3) !important;
 }
 
 .nd-item-time {

@@ -31,11 +31,14 @@ function SODetails() {
 
   const [showEscalate, setShowEscalate] = useState(false);
   const [escForm, setEscForm] = useState({ actual: 1, potential: 4, reason: "" });
-
   const [actionSubmitting, setActionSubmitting] = useState(false);
 
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
-  const userRole = localStorage.getItem("UserType") || "DEPARTMENT";
+  const rawRole = (localStorage.getItem("UserType") || currentUser?.role || currentUser?.userType || currentUser?.user_type || "").toLowerCase();
+  const isContractor = rawRole.includes("contractor") || rawRole.includes("subcontractor") || Boolean(currentUser?.subcontractor_id) || Boolean(currentUser?.contractorId) || Boolean(currentUser?.typeId && rawRole.includes("subcontractor"));
+  const isAdmin = rawRole.includes("admin") || rawRole.includes("superadmin");
+  const isDepartment = rawRole.includes("department") || rawRole.includes("operator") || rawRole.includes("site_hse") || rawRole.includes("safety") || rawRole.includes("hse");
+  const isDeptOrAdmin = (isAdmin || isDepartment || !isContractor) && !isContractor;
 
   const fetchDetails = async () => {
     try {
@@ -114,6 +117,10 @@ function SODetails() {
   };
 
   const handleReassign = async () => {
+    if (!isDeptOrAdmin) {
+      alert("Only Department and Admin users can reassign contractors.");
+      return;
+    }
     if (!newContractorId || !reassignRemarks) {
       alert("Please select a contractor and provide reassignment remarks.");
       return;
@@ -164,10 +171,15 @@ function SODetails() {
   };
 
   const handleClose = async () => {
+    if (!isDeptOrAdmin) {
+      alert("Only Department and Admin users can close observations.");
+      return;
+    }
     try {
       setActionSubmitting(true);
       await observationService.closeObservation(id, {
         closedBy: currentUser.username || currentUser.name || "Department Lead",
+        closedByUserId: currentUser.id,
         closureComments: closureComments || "Observation verified and closed on site.",
       });
       setShowCloseModal(false);
@@ -180,6 +192,10 @@ function SODetails() {
   };
 
   const handleEscalate = async () => {
+    if (!isDeptOrAdmin) {
+      alert("Only Department and Admin users have permission to escalate an observation to an incident.");
+      return;
+    }
     if (!escForm.reason) {
       alert("Please provide a reason for escalation.");
       return;
@@ -236,15 +252,15 @@ function SODetails() {
 
         {/* Action Buttons Toolbar */}
         <div className="mod-action-toolbar">
-          {/* Department Assign / Reassign Contractor */}
-          {obs.status !== "CLOSED" && obs.status !== "ESCALATED" && userRole !== "CONTRACTOR" && (
+          {/* Department & Admin Assign / Reassign Contractor */}
+          {obs.status !== "CLOSED" && obs.status !== "ESCALATED" && isDeptOrAdmin && !isContractor && (
             <button className="mod-btn-primary" style={{ background: "#131E40", borderColor: "#131E40", color: "#fff" }} onClick={() => setShowReassignModal(true)}>
               {obs.assignedContractorId || obs.assignedContractorName ? "Reassign Contractor" : "Assign Contractor"}
             </button>
           )}
 
-          {/* Contractor Accept / Reject */}
-          {(obs.status === "ASSIGNED" || obs.status === "OPEN" || obs.status === "REJECTED") && (
+          {/* Contractor Accept / Reject (or Admin) */}
+          {(obs.status === "ASSIGNED" || obs.status === "OPEN" || obs.status === "REJECTED") && (isContractor || isAdmin) && (
             <>
               <button
                 className="mod-btn-primary"
@@ -270,21 +286,21 @@ function SODetails() {
           )}
 
           {/* Contractor Submit Resolution */}
-          {(obs.status === "ACCEPTED" || obs.status === "IN_PROGRESS") && (
+          {(obs.status === "ACCEPTED" || obs.status === "IN_PROGRESS") && (isContractor || isAdmin) && (
             <button className="mod-btn-primary" style={{ background: "#2D7A4F", borderColor: "#2D7A4F", color: "#fff" }} onClick={() => setShowResolveModal(true)}>
               Submit Resolution
             </button>
           )}
 
-          {/* Department Close Observation */}
-          {(obs.status === "RESOLVED" || obs.status === "ACCEPTED") && userRole !== "CONTRACTOR" && (
+          {/* Department & Admin Close Observation */}
+          {(obs.status === "RESOLVED" || obs.status === "ACCEPTED") && isDeptOrAdmin && !isContractor && (
             <button className="mod-btn-primary" style={{ background: "#131E40", borderColor: "#131E40", color: "#fff" }} onClick={() => setShowCloseModal(true)}>
               Sign-Off & Close
             </button>
           )}
 
-          {/* Escalate to Incident */}
-          {!isPositive && obs.status !== "ESCALATED" && obs.status !== "CLOSED" && userRole !== "CONTRACTOR" && (
+          {/* Escalate to Incident (Department & Admin only) */}
+          {!isPositive && obs.status !== "ESCALATED" && obs.status !== "CLOSED" && isDeptOrAdmin && !isContractor && (
             <button className="mod-btn-primary" style={{ background: "#E32B50", borderColor: "#E32B50", color: "#fff" }} onClick={() => setShowEscalate(true)}>
               Escalate to Incident
             </button>
@@ -330,8 +346,19 @@ function SODetails() {
               <div style={{ color: "var(--text-muted)", fontWeight: 600 }}>Reporter</div>
               <div>{obs.createdByUserName || obs.createdByRole}</div>
 
-              <div style={{ color: "var(--text-muted)", fontWeight: 600 }}>Created Date</div>
-              <div>{obs.createdTime ? new Date(obs.createdTime).toLocaleString() : "-"}</div>
+              <div style={{ color: "var(--text-muted)", fontWeight: 600 }}>Observation Date & Time</div>
+              <div>
+                {obs.observationDate ? (
+                  <span>
+                    {obs.observationDate}
+                    {obs.observationTime && <span style={{ marginLeft: 6, color: "var(--text-muted)" }}>at {obs.observationTime}</span>}
+                  </span>
+                ) : obs.createdTime ? (
+                  new Date(obs.createdTime).toLocaleString()
+                ) : (
+                  "-"
+                )}
+              </div>
             </div>
           </div>
 

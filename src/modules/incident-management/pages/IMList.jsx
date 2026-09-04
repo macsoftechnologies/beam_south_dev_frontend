@@ -276,6 +276,26 @@ function IMList() {
   const [buildings, setBuildings] = useState([]);
   const [contractors, setContractors] = useState([]);
 
+  const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
+  const rawRole = (localStorage.getItem("UserType") || currentUser?.role || currentUser?.userType || currentUser?.user_type || "").toUpperCase();
+  const isContractor = rawRole.includes("CONTRACTOR") || rawRole.includes("SUBCONTRACTOR") || Boolean(currentUser?.subcontractor_id) || Boolean(currentUser?.typeId && rawRole.includes("SUBCONTRACTOR"));
+  const contractorId = currentUser?.typeId || currentUser?.subcontractor_id || currentUser?.subContId || currentUser?.contractorId;
+
+  const myContractor = useMemo(() => {
+    if (!isContractor) return null;
+    return (
+      contractors.find(c => 
+        String(c.id) === String(contractorId) || 
+        String(c.subcontractor_id) === String(contractorId) ||
+        (currentUser?.username && c.username === currentUser.username) ||
+        (currentUser?.company_name && (c.subContractorName === currentUser.company_name || c.company_name === currentUser.company_name)) ||
+        (currentUser?.companyName && (c.subContractorName === currentUser.companyName || c.company_name === currentUser.companyName))
+      ) || (contractors.length === 1 ? contractors[0] : null)
+    );
+  }, [isContractor, contractors, contractorId, currentUser?.company_name, currentUser?.companyName, currentUser?.username]);
+
+  const myContractorName = currentUser?.company_name || currentUser?.companyName || currentUser?.subContractorName || currentUser?.contractorName || myContractor?.subContractorName || myContractor?.company_name || myContractor?.companyName || myContractor?.subcontractor_name || myContractor?.name || "";
+
   const fetchIncidents = async () => {
     setLoading(true);
     try {
@@ -283,6 +303,14 @@ function IMList() {
         page: currentPage,
         limit: itemsPerPage === "all" ? "all" : itemsPerPage,
       };
+
+      if (isContractor) {
+        apiFilters.userRole = "CONTRACTOR";
+        if (contractorId) apiFilters.contractorId = contractorId;
+        if (myContractorName) apiFilters.contractor = myContractorName;
+      } else if (filters.contractor) {
+        apiFilters.contractor = filters.contractor;
+      }
 
       if (filters.category) apiFilters.category = filters.category;
       if (filters.building) apiFilters.building = filters.building;
@@ -294,7 +322,6 @@ function IMList() {
       if (filters.isHipo === "false") apiFilters.isHipo = "false";
       
       if (filters.investigationLevel) apiFilters.investigationLevel = filters.investigationLevel;
-      if (filters.contractor) apiFilters.contractor = filters.contractor;
       if (filters.stage) apiFilters.stage = filters.stage;
       if (filters.origin) apiFilters.origin = filters.origin;
 
@@ -337,7 +364,7 @@ function IMList() {
 
   useEffect(() => {
     fetchIncidents();
-  }, [currentPage, itemsPerPage, filters]);
+  }, [currentPage, itemsPerPage, filters, isContractor, contractorId, myContractorName]);
 
   const handleFilterChange = (key, value) => {
     setCurrentPage(1);
@@ -350,12 +377,13 @@ function IMList() {
   };
 
   const filteredIncidents = incidents;
-  const currentIncidents = incidents;
-  const total = totalItems;
-  const openCount = incidents.filter(i => i.stage !== "CLOSED" && i.status !== "Closed").length;
-  const invCount = incidents.filter(i => i.stage === "INITIAL_REPORT" || i.stage === "INVESTIGATION" || i.pipeline === "Initial" || i.pipeline === "Investigation").length;
-  const hipoCount = incidents.filter(i => i.isHipo === true || String(i.isHipo) === "true" || i.hipo).length;
-  const ltiCount = incidents.filter(i => i.category === "Lost Time Injury" || i.type === "LTI" || i.classification === "Lost Time Injury").length;
+
+  const currentIncidents = filteredIncidents;
+  const total = isContractor ? filteredIncidents.length : totalItems;
+  const openCount = filteredIncidents.filter(i => i.stage !== "CLOSED" && i.status !== "Closed").length;
+  const invCount = filteredIncidents.filter(i => i.stage === "INITIAL_REPORT" || i.stage === "INVESTIGATION" || i.pipeline === "Initial" || i.pipeline === "Investigation").length;
+  const hipoCount = filteredIncidents.filter(i => i.isHipo === true || String(i.isHipo) === "true" || i.hipo).length;
+  const ltiCount = filteredIncidents.filter(i => i.category === "Lost Time Injury" || i.type === "LTI" || i.classification === "Lost Time Injury").length;
 
   // Pipeline Stages
   const pipelineStages = [
@@ -579,13 +607,17 @@ function IMList() {
                   </select>
                 </th>
                 <th>
-                  <select className="mod-form-select" style={{ padding: "4px 24px 4px 8px", fontSize: "11px", height: "auto" }} value={filters.contractor} onChange={e => handleFilterChange('contractor', e.target.value)}>
-                    <option value="">All</option>
-                    {contractors.map((c, i) => {
-                      const cName = c.subContractorName || c.name || (typeof c === 'string' ? c : String(c.id || i));
-                      return <option key={i} value={cName}>{cName}</option>;
-                    })}
-                  </select>
+                  {isContractor ? (
+                    <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-muted)" }}>{myContractorName || "Contractor"}</span>
+                  ) : (
+                    <select className="mod-form-select" style={{ padding: "4px 24px 4px 8px", fontSize: "11px", height: "auto" }} value={filters.contractor} onChange={e => handleFilterChange('contractor', e.target.value)}>
+                      <option value="">All</option>
+                      {contractors.map((c, i) => {
+                        const cName = c.subContractorName || c.name || (typeof c === 'string' ? c : String(c.id || i));
+                        return <option key={i} value={cName}>{cName}</option>;
+                      })}
+                    </select>
+                  )}
                 </th>
                 <th>
                   <select className="mod-form-select" style={{ padding: "4px 24px 4px 8px", fontSize: "11px", height: "auto" }} value={filters.origin} onChange={e => handleFilterChange('origin', e.target.value)}>

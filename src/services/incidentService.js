@@ -6,6 +6,12 @@ export const createHeadsUp = async (data) => {
   return response.data;
 };
 
+// Update Heads-Up Notification (Stage 1)
+export const updateHeadsUp = async (incidentId, data) => {
+  const response = await api.put(`/incidents/${incidentId}/headsup/`, data);
+  return response.data;
+};
+
 // Approve Heads-Up Notification (Stage 1)
 export const approveHeadsUp = async (incidentId, data) => {
   const response = await api.post(`/incidents/${incidentId}/headsup/approve/`, data);
@@ -38,6 +44,12 @@ export const reviewInvestigation = async (incidentId, data) => {
   return response.data;
 };
 
+// Return Incident Stage for Revision (Stage 1, 2, or 3)
+export const returnForRevision = async (incidentId, data) => {
+  const response = await api.post(`/incidents/${incidentId}/return-revision/`, data);
+  return response.data;
+};
+
 // Close Incident (Stage 3)
 export const closeIncident = async (incidentId, data) => {
   const response = await api.put(`/incidents/${incidentId}/close/`, data);
@@ -53,6 +65,16 @@ export const getIncidentById = async (incidentId) => {
 // Upload multiple photos
 export const uploadImages = async (formData) => {
   const response = await api.post("/incidents/upload-images/", formData, {
+    headers: { "Content-Type": "multipart/form-data" }
+  });
+  return response.data;
+};
+
+// Upload single mandatory attachment file (PDF, Image, Doc)
+export const uploadIncidentAttachment = async (file) => {
+  const formData = new FormData();
+  formData.append("file", file);
+  const response = await api.post("/incidents/upload-attachment/", formData, {
     headers: { "Content-Type": "multipart/form-data" }
   });
   return response.data;
@@ -114,16 +136,21 @@ export const getIncidentStats = async (filters = {}) => {
   return response.data;
 };
 
-// Export / Download Incident PDF from backend
-export const exportIncidentPdf = async (incidentId) => {
+// Export / Download Incident PDF from backend (all or specific form: headsUp, initialReport, investigation)
+export const exportIncidentPdf = async (incidentId, formType = "all", includeWitnesses = false) => {
+  const params = new URLSearchParams();
+  if (formType && formType !== "all") params.append("form", formType);
+  if (includeWitnesses) params.append("includeWitnesses", "true");
+  else params.append("includeWitnesses", "false");
+  const query = params.toString() ? `?${params.toString()}` : "";
   try {
-    const response = await api.get(`/incidents/${incidentId}/export-pdf/`, {
+    const response = await api.get(`/incidents/${incidentId}/export-pdf${query}`, {
       responseType: "blob"
     });
     return response.data;
   } catch (err) {
     if (err.response?.status === 404) {
-      const response = await api.get(`/incidents/${incidentId}/export-pdf`, {
+      const response = await api.get(`/incidents/${incidentId}/export-pdf/${query}`, {
         responseType: "blob"
       });
       return response.data;

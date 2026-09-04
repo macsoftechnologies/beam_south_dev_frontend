@@ -3,16 +3,18 @@ import api from "./api";
 /**
  * Get paginated list of notifications for the logged-in user.
  */
-export const getNotifications = async (page = 1, limit = 10) => {
-  const res = await api.get(`/notifications?page=${page}&limit=${limit}`);
+export const getNotifications = async (page = 1, limit = 10, module = "") => {
+  const modQuery = module && module !== "all" ? `&module=${encodeURIComponent(module)}` : "";
+  const res = await api.get(`/notifications?page=${page}&limit=${limit}${modQuery}`);
   return res.data;
 };
 
 /**
  * Get the unread notifications count for the logged-in user.
  */
-export const getUnreadCount = async () => {
-  const res = await api.get("/notifications/unread-count");
+export const getUnreadCount = async (module = "") => {
+  const modQuery = module && module !== "all" ? `?module=${encodeURIComponent(module)}` : "";
+  const res = await api.get(`/notifications/unread-count${modQuery}`);
   return res.data;
 };
 

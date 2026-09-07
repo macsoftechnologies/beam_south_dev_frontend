@@ -2309,7 +2309,7 @@ export default function IMDetails() {
     const sigUrl = getSignatureUrl(signature);
 
     return (
-      <div key={`sig-${index}`} style={{ display: "flex", alignItems: "center", gap: 16, padding: "12px 16px", background: "var(--bg-card, #fff)", borderRadius: 8, border: "1px solid var(--border-color)", marginBottom: 0, boxShadow: "0 1px 2px rgba(0,0,0,0.05)", width: "280px", flexShrink: 0, height: "auto" }}>
+      <div key={`sig-${index}`} className="audit-signature-card" style={{ display: "flex", alignItems: "center", gap: 16, padding: "12px 16px", background: "var(--bg-card, #fff)", borderRadius: 8, border: "1px solid var(--border-color)", marginBottom: 0, boxShadow: "0 1px 2px rgba(0,0,0,0.05)", flex: "1 1 280px", height: "auto" }}>
         <div style={{ width: 40, height: 40, borderRadius: "50%", background: (color || "#3b82f6") + "1a", color: color || "#3b82f6", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, flexShrink: 0 }}>
           {initials}
         </div>
@@ -2352,7 +2352,7 @@ export default function IMDetails() {
         {!isLast && <div style={{ position: "absolute", left: 24, top: 48, bottom: -8, width: 2, background: "var(--border-color)", zIndex: 1 }}></div>}
 
         {/* Icon Circle */}
-        <div style={{ width: 48, height: 48, borderRadius: "50%", background: color, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2, flexShrink: 0, marginTop: 4, alignSelf: "center" }}>
+        <div className="audit-circle" style={{ width: 48, height: 48, borderRadius: "50%", background: color, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2, flexShrink: 0, marginTop: 4, alignSelf: "center" }}>
           {type === "APPROVED" ? (
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
           ) : type === "EDITED" ? (
@@ -2366,37 +2366,39 @@ export default function IMDetails() {
           )}
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", flex: 1, padding: "8px 16px", background: "var(--bg-card, #fff)", borderRadius: 8, border: "1px solid var(--border-color)", boxShadow: "0 1px 2px rgba(0,0,0,0.05)", height: "auto" }}>
-          {/* Number */}
-          <div style={{ fontSize: 24, fontWeight: 800, color: color, marginRight: 24 }}>{stepNumber}</div>
+        <div className="audit-card-container" style={{ display: "flex", flex: 1, gap: 16, flexWrap: "wrap" }}>
+          <div className="audit-details-card" style={{ display: "flex", alignItems: "center", flex: "1 1 280px", padding: "8px 16px", background: "var(--bg-card, #fff)", borderRadius: 8, border: "1px solid var(--border-color)", boxShadow: "0 1px 2px rgba(0,0,0,0.05)", height: "auto" }}>
+            {/* Number */}
+            <div className="audit-step-num" style={{ fontSize: 24, fontWeight: 800, color: color, marginRight: 24 }}>{stepNumber}</div>
 
-          {/* Content */}
-          <div style={{ flex: 1 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
-              <span style={{ fontSize: 16, fontWeight: 700, color: color }}>{title}</span>
-              <span style={{ background: color + "1a", color: color, padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 700, border: `1px solid ${color}33` }}>
-                {type === "APPROVED" ? "Marked OK & Signed Off" : type === "EDITED" ? "Updated & Re-submitted" : type === "RETURNED_FOR_REVISION" ? "Returned for Revision" : "Submitted"}
-              </span>
-            </div>
-            <div style={{ fontSize: 13, color: "var(--text-main)", marginBottom: 4 }}>
-              {type === "APPROVED" ? "Signed by" : type === "EDITED" ? "Updated by" : type === "RETURNED_FOR_REVISION" ? "Returned by" : "Submitted by"} <b>{user}</b> <span style={{ color: "var(--text-muted)" }}>({role})</span>
-            </div>
-            {step.reason && (
-              <div style={{ fontSize: 12, color: type === "RETURNED_FOR_REVISION" ? "#991b1b" : "#92400e", marginBottom: 6, background: type === "RETURNED_FOR_REVISION" ? "#fef2f2" : "#fffbeb", padding: "4px 8px", borderRadius: 4, display: "inline-block", border: type === "RETURNED_FOR_REVISION" ? "1px solid #fecaca" : "1px solid #fef3c7" }}>
-                <strong>{type === "RETURNED_FOR_REVISION" ? "Reason for Revision:" : "Changes / Notes:"}</strong> {step.reason}
+            {/* Content */}
+            <div style={{ flex: 1 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
+                <span className="audit-title" style={{ fontSize: 16, fontWeight: 700, color: color }}>{title}</span>
+                <span style={{ background: color + "1a", color: color, padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 700, border: `1px solid ${color}33` }}>
+                  {type === "APPROVED" ? "Marked OK & Signed Off" : type === "EDITED" ? "Updated & Re-submitted" : type === "RETURNED_FOR_REVISION" ? "Returned for Revision" : "Submitted"}
+                </span>
               </div>
-            )}
-            <div style={{ display: "flex", alignItems: "center", gap: 16, fontSize: 12, color: "var(--text-muted)" }}>
-              <span style={{ display: "flex", alignItems: "center", gap: 6 }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg> {date}</span>
-              <span style={{ display: "flex", alignItems: "center", gap: 6 }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><line x1="12" y1="6" x2="12" y2="12" /><line x1="12" y1="12" x2="16" y2="14" /></svg> {time}</span>
+              <div style={{ fontSize: 13, color: "var(--text-main)", marginBottom: 4 }}>
+                {type === "APPROVED" ? "Signed by" : type === "EDITED" ? "Updated by" : type === "RETURNED_FOR_REVISION" ? "Returned by" : "Submitted by"} <b>{user}</b> <span style={{ color: "var(--text-muted)" }}>({role})</span>
+              </div>
+              {step.reason && (
+                <div style={{ fontSize: 12, color: type === "RETURNED_FOR_REVISION" ? "#991b1b" : "#92400e", marginBottom: 6, background: type === "RETURNED_FOR_REVISION" ? "#fef2f2" : "#fffbeb", padding: "4px 8px", borderRadius: 4, display: "inline-block", border: type === "RETURNED_FOR_REVISION" ? "1px solid #fecaca" : "1px solid #fef3c7" }}>
+                  <strong>{type === "RETURNED_FOR_REVISION" ? "Reason for Revision:" : "Changes / Notes:"}</strong> {step.reason}
+                </div>
+              )}
+              <div style={{ display: "flex", alignItems: "center", gap: 16, fontSize: 12, color: "var(--text-muted)", flexWrap: "wrap" }}>
+                <span style={{ display: "flex", alignItems: "center", gap: 6 }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg> {date}</span>
+                <span style={{ display: "flex", alignItems: "center", gap: 6 }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><line x1="12" y1="6" x2="12" y2="12" /><line x1="12" y1="12" x2="16" y2="14" /></svg> {time}</span>
+              </div>
             </div>
+
+            {/* Arrow */}
+            <svg className="audit-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
           </div>
 
-          {/* Arrow */}
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+          {renderSignatureCard(step, index)}
         </div>
-
-        {renderSignatureCard(step, index)}
       </div>
     );
   };
@@ -3042,7 +3044,8 @@ export default function IMDetails() {
                 }
 
                 return (
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, textAlign: "left" }}>
+                  <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, textAlign: "left", minWidth: "500px" }}>
                     <thead>
                       <tr style={{ background: "var(--bg-dark, #f4f6f8)", borderBottom: "1px solid var(--border-color)", color: "var(--text-main)" }}>
                         <th style={{ padding: "12px 16px", width: 60, fontWeight: 700 }}>#</th>
@@ -3074,6 +3077,7 @@ export default function IMDetails() {
                       ))}
                     </tbody>
                   </table>
+                  </div>
                 );
               })()}
             </div>
@@ -3083,7 +3087,7 @@ export default function IMDetails() {
           {isEditingHeadsUp && !headsUpApproved ? (
             /* ================= EDIT HEADS-UP NOTIFICATION FORM ================= */
             <div className="mod-card mb-4">
-              <div className="mod-card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div className="mod-card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                   <span className="mod-card-title" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent-primary, #3b82f6)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -3444,7 +3448,7 @@ export default function IMDetails() {
           ) : (
             /* ================= READ-ONLY FULL VIEW MODE ================= */
             <div className="mod-card mb-4">
-              <div className="mod-card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div className="mod-card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                   <span className="mod-card-title">Step 1: Heads-Up Notification (2hr)</span>
                   {headsUpApproved ? (
@@ -3635,7 +3639,8 @@ export default function IMDetails() {
                   Immediate Actions Taken & Gatekeeper Info
                 </div>
                 {huImmActions && huImmActions.length > 0 ? (
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", marginBottom: "14px" }}>
+                  <div style={{ overflowX: "auto", marginBottom: "14px" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", minWidth: "500px" }}>
                     <thead>
                       <tr style={{ background: "var(--bg-dark, #f8fafc)", borderBottom: "1px solid var(--border-color)", textAlign: "left" }}>
                         <th style={{ padding: "8px 12px", width: "40px" }}>#</th>
@@ -3655,6 +3660,7 @@ export default function IMDetails() {
                       ))}
                     </tbody>
                   </table>
+                  </div>
                 ) : (
                   <div style={{ padding: "10px", background: "var(--bg-dark, #f8fafc)", borderRadius: "6px", fontSize: "13px", color: "var(--text-muted)", fontStyle: "italic", marginBottom: "14px" }}>
                     No immediate actions recorded.
@@ -3677,7 +3683,7 @@ export default function IMDetails() {
                 <div className="grid-2">
                   <div className="mod-form-group"><label className="mod-form-label">Submitted By</label><div className="readonly-box">{huSubmitterName || incident.reportedBy || "User"}</div></div>
                   <div className="mod-form-group"><label className="mod-form-label">Digital Signature</label>
-                    <div className="readonly-box" style={{ display: "flex", alignItems: "center", minHeight: "45px" }}>
+                    <div className="readonly-box" style={{ display: "flex", alignItems: "center", minHeight: "45px", overflowX: "auto" }}>
                       {huSignature ? (
                         typeof huSignature === "string" && (huSignature.startsWith("http") || huSignature.startsWith("data:") || huSignature.startsWith("/")) ? (
                           <img src={getAttachmentUrl(huSignature)} alt="Submitter Signature" style={{ maxHeight: "35px", maxWidth: "150px" }} />
@@ -3904,7 +3910,7 @@ export default function IMDetails() {
             </div></div></div>
           ) : (
             <div className="mod-card">
-              <div className="mod-card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div className="mod-card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                   <span className="mod-card-title">Initial Incident Report (24hr)</span>
                   {initialReportApproved ? (
@@ -3918,7 +3924,7 @@ export default function IMDetails() {
                   )}
                 </div>
                 {(initialReportApproved || initialReportSubmitted) && (
-                  <div style={{ display: "flex", gap: "8px" }}>
+                  <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                     <button
                       type="button"
                       className="mod-btn-outline"
@@ -4969,7 +4975,7 @@ export default function IMDetails() {
             </div>
           ) : (
             <div className="mod-card">
-              <div className="mod-card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div className="mod-card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                   <span className="mod-card-title">Incident Investigation Report (7 days)</span>
                   {investigationApproved ? (
@@ -5971,7 +5977,8 @@ export default function IMDetails() {
                     </div>
                   ) : (
                     <div className="mod-table-wrap">
-                      <table className="mod-table">
+                    <div style={{ overflowX: "auto" }}>
+                      <table className="mod-table" style={{ minWidth: "500px" }}>
                         <thead>
                           <tr>
                             <th style={{ width: "40px" }}>#</th>
@@ -6023,6 +6030,7 @@ export default function IMDetails() {
                           ))}
                         </tbody>
                       </table>
+                    </div>
                     </div>
                   )}
 
@@ -6156,7 +6164,8 @@ export default function IMDetails() {
               return (
                 <>
                   <div className="mod-table-wrap">
-                    <table className="mod-table">
+                    <div style={{ overflowX: "auto" }}>
+                    <table className="mod-table" style={{ minWidth: "500px" }}>
                       <thead>
                         <tr>
                           <th>Action</th>
@@ -6275,6 +6284,7 @@ export default function IMDetails() {
                         })}
                       </tbody>
                     </table>
+                    </div>
                   </div>
 
                   {!loadingActions && totalPages > 1 && (

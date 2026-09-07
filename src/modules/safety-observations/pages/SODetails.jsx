@@ -315,7 +315,7 @@ function SODetails() {
             <div className="mod-card-header">
               <span className="mod-card-title">Observation Details</span>
             </div>
-            <div className="mod-card-body" style={{ display: "grid", gridTemplateColumns: "150px 1fr", gap: "12px 16px", fontSize: 13 }}>
+            <div className="mod-card-body obs-detail-grid">
               <div style={{ color: "var(--text-muted)", fontWeight: 600 }}>Tracking Number</div>
               <div style={{ fontWeight: 700, fontFamily: "monospace" }}>{obs.observationNumber}</div>
 
@@ -366,7 +366,7 @@ function SODetails() {
             <div className="mod-card-header">
               <span className="mod-card-title">Location</span>
             </div>
-            <div className="mod-card-body" style={{ display: "grid", gridTemplateColumns: "150px 1fr", gap: "12px 16px", fontSize: 13 }}>
+            <div className="mod-card-body obs-detail-grid">
               <div style={{ color: "var(--text-muted)", fontWeight: 600 }}>Project</div>
               <div>{obs.projectName || "-"}</div>
               <div style={{ color: "var(--text-muted)", fontWeight: 600 }}>Building</div>

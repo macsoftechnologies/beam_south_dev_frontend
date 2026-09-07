@@ -482,8 +482,7 @@
   .mod-page div[style*="grid-template-columns: 2fr 1fr"],
   .mod-page div[style*="gridTemplateColumns: 1fr 1fr"],
   .mod-page div[style*="grid-template-columns: repeat(2, 1fr)"],
-  .mod-page div[style*="grid-template-columns: repeat(5, 1fr)"],
-  .mod-page div[style*="grid-template-columns: 150px 1fr"] {
+  .mod-page div[style*="grid-template-columns: repeat(5, 1fr)"] {
     grid-template-columns: 1fr !important;
   }
 }
@@ -510,12 +509,14 @@
 }
 @media (max-width: 576px) {
   .mod-action-toolbar {
-    flex-direction: column;
-    align-items: stretch;
-    width: 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: flex-start;
   }
   .mod-action-toolbar button {
-    width: 100%;
+    width: auto;
+    font-size: 12px;
+    padding: 6px 12px;
   }
 }
 
@@ -605,3 +606,18 @@ html[data-theme="light"] .mod-description-box {
   background: #F3F4F6 !important;
 }
 
+
+/* Audit Trail Mobile Responsive */
+.audit-card-container { display: flex; flex: 1; gap: 16px; flex-wrap: wrap; }
+.audit-details-card, .audit-signature-card { flex: 1 1 280px; }
+@media (max-width: 576px) {
+  .audit-card-container { gap: 10px; }
+  .audit-details-card, .audit-signature-card { padding: 10px !important; }
+  .audit-arrow { display: none; }
+  .audit-circle { width: 36px !important; height: 36px !important; }
+  .audit-circle svg { width: 18px; height: 18px; }
+}
+
+.obs-detail-grid { display: grid !important; grid-template-columns: 130px 1fr !important; gap: 12px 16px; font-size: 13px; }
+@media (max-width: 400px) { .obs-detail-grid { grid-template-columns: 110px 1fr !important; font-size: 12px; } }
+@media (max-width: 576px) { .audit-step-num { font-size: 18px !important; margin-right: 12px !important; } .audit-title { font-size: 14px !important; } }

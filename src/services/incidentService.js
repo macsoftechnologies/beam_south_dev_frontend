@@ -159,3 +159,42 @@ export const exportIncidentPdf = async (incidentId, formType = "all", includeWit
   }
 };
 
+// ── Incident Notification Group API Methods ──
+
+// Get all members of the Incident Notification Group
+export const getIncidentNotificationGroup = async () => {
+  const response = await api.get("/notifications/incident-group");
+  return response.data;
+};
+
+// Get all available system users/employees for group assignment
+export const getAvailableIncidentGroupUsers = async () => {
+  const response = await api.get("/notifications/incident-group/available-users");
+  return response.data;
+};
+
+// Add members to the group
+export const addIncidentNotificationGroupMembers = async (members) => {
+  const response = await api.post("/notifications/incident-group", { members });
+  return response.data;
+};
+
+// Update member notification channels / details
+export const updateIncidentNotificationGroupMember = async (id, data) => {
+  const response = await api.post(`/notifications/incident-group/${id}/update`, data);
+  return response.data;
+};
+
+// Remove a member from the group
+export const removeIncidentNotificationGroupMember = async (id) => {
+  const response = await api.post(`/notifications/incident-group/${id}/delete`);
+  return response.data;
+};
+
+// Quick-import / seed default Department & Department1 users
+export const seedDefaultIncidentNotificationGroup = async () => {
+  const response = await api.post("/notifications/incident-group/seed-defaults");
+  return response.data;
+};
+
+

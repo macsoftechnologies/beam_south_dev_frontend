@@ -117,10 +117,71 @@ const extractObservationInfo = (n) => {
   return { isObservation, observationId, observationNumber };
 };
 
+const extractIncidentInfo = (n) => {
+  if (!n) return { isIncident: false, incidentId: null, caseNumber: "" };
+
+  let isIncident = (n.notificationType && String(n.notificationType).toUpperCase().includes("INCIDENT")) || false;
+  let incidentId = null;
+  let caseNumber = "";
+
+  if (n.metadata) {
+    try {
+      const meta = typeof n.metadata === "string" ? JSON.parse(n.metadata) : n.metadata;
+      if (meta) {
+        if (meta.module === "INCIDENTS" || meta.incidentId || meta.caseNumber) {
+          isIncident = true;
+        }
+        if (meta.incidentId) incidentId = meta.incidentId;
+        if (meta.caseNumber) caseNumber = meta.caseNumber;
+      }
+    } catch (e) {}
+  }
+
+  const text = `${n.title || ""} ${n.message || ""}`;
+  if (!isIncident && text.toLowerCase().includes("incident")) {
+    isIncident = true;
+  }
+
+  if (!caseNumber) {
+    const match = text.match(/INC-\d{4}-\d+/i) || text.match(/#?(INC-[A-Za-z0-9\-]+)/i);
+    if (match && match[0]) {
+      caseNumber = match[0].replace("#", "");
+    }
+  }
+
+  return { isIncident, incidentId, caseNumber };
+};
+
 const getNotificationStyleInfo = (title = "", message = "", notificationType = "") => {
   const nType = (notificationType || "").toLowerCase();
   const tTitle = (title || "").toLowerCase();
   const t = (title + " " + message + " " + notificationType).toLowerCase();
+
+  // Return to Review / Revision (Orange-Red Alert Card)
+  if (
+    nType.includes("revision") ||
+    nType.includes("return") ||
+    tTitle.includes("return") ||
+    tTitle.includes("revision") ||
+    t.includes("returned for revision") ||
+    t.includes("return for revision") ||
+    t.includes("revision required")
+  ) {
+    return { typeClass: "notif-type-revision", badgeText: "RETURNED FOR REVISION" };
+  }
+
+  if (nType.includes("incident") || tTitle.includes("incident") || t.includes("incident")) {
+    if (nType.includes("approv") || tTitle.includes("approv") || t.includes("approved")) {
+      return { typeClass: "notif-type-approved", badgeText: "INCIDENT APPROVED" };
+    }
+    if (nType.includes("close") || tTitle.includes("closed") || t.includes("closed")) {
+      return { typeClass: "notif-type-closed", badgeText: "INCIDENT CLOSED" };
+    }
+    if (nType.includes("submit") || tTitle.includes("submi") || t.includes("submitted")) {
+      return { typeClass: "notif-type-observation", badgeText: "INCIDENT SUBMITTED" };
+    }
+    return { typeClass: "notif-type-observation", badgeText: "INCIDENT" };
+  }
 
   if (nType.includes("observation") || tTitle.includes("observation") || t.includes("observation")) {
     if (nType.includes("resolve") || tTitle.includes("resolution") || tTitle.includes("resolved") || t.includes("resolution submitted")) {
@@ -221,6 +282,15 @@ function ThemeSwitcher({ theme, onThemeChange }) {
 
   const currentLabel = THEMES.find(t => t.value === theme)?.label ?? 'Dark'
 
+  const getThemeIcon = (tVal) => {
+    switch (tVal) {
+      case 'light': return 'ti-sun';
+      case 'midnight-blue': return 'ti-moon-stars';
+      case 'steel-gray': return 'ti-palette';
+      default: return 'ti-moon';
+    }
+  };
+
   useEffect(() => {
     const handler = (e) => {
       if (ref.current && !ref.current.contains(e.target)) setOpen(false)
@@ -231,9 +301,10 @@ function ThemeSwitcher({ theme, onThemeChange }) {
 
   return (
     <div className="theme-switcher" ref={ref}>
-      <button className="theme-btn" onClick={() => setOpen(v => !v)}>
-        {currentLabel}
-        <i className="ti ti-chevron-down" style={{ fontSize: 12, opacity: 0.6 }} />
+      <button className="theme-btn" onClick={() => setOpen(v => !v)} title={`Theme: ${currentLabel}`}>
+        <i className={`ti ${getThemeIcon(theme)} theme-btn-icon`} />
+        <span className="theme-btn-label">{currentLabel}</span>
+        <i className="ti ti-chevron-down theme-btn-chevron" />
       </button>
       {open && (
         <div className="theme-menu">
@@ -246,6 +317,7 @@ function ThemeSwitcher({ theme, onThemeChange }) {
                 setOpen(false)
               }}
             >
+              <i className={`ti ${getThemeIcon(t.value)}`} style={{ marginRight: 6, fontSize: 13 }} />
               {t.label}
             </button>
           ))}
@@ -284,55 +356,43 @@ function ModuleSwitcher() {
   }, []);
 
   return (
-    <div ref={ref} style={{ position: 'relative' }}>
-      <h4
+    <div ref={ref} className="module-switcher-wrap">
+      <button
+        type="button"
+        className={`module-switcher-btn ${open ? 'active' : ''}`}
         onClick={() => setOpen(!open)}
-        style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', margin: 0, userSelect: 'none' }}
         title="Switch Module"
+        aria-expanded={open}
+        aria-haspopup="true"
       >
-        {currentModule.icon && <i className={`ti ${currentModule.icon}`} style={{ fontSize: '18px', color: 'var(--accent-primary, #3B82F6)' }} />}
-        {currentModule.label}
-        <i className="ti ti-chevron-down" style={{ fontSize: '14px', opacity: 0.6, marginTop: '2px' }} />
-      </h4>
+        {currentModule.icon && (
+          <i className={`ti ${currentModule.icon} module-switcher-icon`} />
+        )}
+        <span className="module-switcher-label">{currentModule.label}</span>
+        <i className={`ti ti-chevron-down module-switcher-chevron ${open ? 'rotated' : ''}`} />
+      </button>
+
       {open && (
-        <div style={{
-          position: 'absolute', top: '100%', left: 0, marginTop: '8px',
-          background: 'var(--bg-card, #ffffff)', border: '1px solid var(--border-color, #e2e8f0)',
-          borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.2)', zIndex: 100, minWidth: '220px',
-          padding: '4px'
-        }}>
+        <div className="module-switcher-dropdown" role="menu">
+          <div className="module-switcher-menu-header">Select Module</div>
           {MODULES.map(m => (
-            <div
+            <button
               key={m.id}
+              type="button"
+              className={`module-switcher-item ${currentModule.id === m.id ? 'active' : ''}`}
               onClick={() => {
                 navigate(m.path);
                 setOpen(false);
               }}
-              style={{
-                padding: '10px 14px', cursor: 'pointer',
-                background: currentModule.id === m.id ? 'var(--bg-card-hover, rgba(0,0,0,0.04))' : 'transparent',
-                color: currentModule.id === m.id ? 'var(--accent-primary, #3B82F6)' : 'var(--text-main, #1e293b)',
-                fontWeight: currentModule.id === m.id ? '600' : 'normal',
-                borderRadius: '6px',
-                fontSize: '14px',
-                transition: 'background 0.2s',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                userSelect: 'none'
-              }}
-              onMouseEnter={(e) => {
-                if (currentModule.id !== m.id) e.currentTarget.style.background = 'var(--bg-card-hover, rgba(0,0,0,0.04))';
-              }}
-              onMouseLeave={(e) => {
-                if (currentModule.id !== m.id) e.currentTarget.style.background = 'transparent';
-              }}
             >
-              {m.label}
+              <div className="module-switcher-item-left">
+                <i className={`ti ${m.icon} module-item-icon`} />
+                <span className="module-item-text">{m.label}</span>
+              </div>
               {currentModule.id === m.id && (
-                <i className="ti ti-check" style={{ fontSize: '14px' }} />
+                <i className="ti ti-check module-check-icon" />
               )}
-            </div>
+            </button>
           ))}
         </div>
       )}
@@ -495,7 +555,18 @@ function Navbar({ toggleSidebar, theme, onThemeChange }) {
 
     setNotificationsOpen(false);
 
-    // 1. Check if Observation Notification
+    // 1. Check if Incident Notification
+    const incInfo = extractIncidentInfo(n);
+    if (incInfo.isIncident) {
+      if (incInfo.incidentId) {
+        navigate(`/incident-management/details/${incInfo.incidentId}`);
+      } else {
+        navigate(`/incident-management/list`);
+      }
+      return;
+    }
+
+    // 2. Check if Observation Notification
     const obsInfo = extractObservationInfo(n);
     if (obsInfo.isObservation) {
       if (obsInfo.observationId) {
@@ -506,7 +577,7 @@ function Navbar({ toggleSidebar, theme, onThemeChange }) {
       return;
     }
 
-    // 2. Permit Notification
+    // 3. Permit Notification
     const permitNo = extractPermitNo(n);
     if (permitNo) {
       navigate(`/list-request?permitNo=${encodeURIComponent(permitNo)}`, {
@@ -703,88 +774,104 @@ function Navbar({ toggleSidebar, theme, onThemeChange }) {
         {/* Theme switcher — now controlled via Layout state */}
         <ThemeSwitcher theme={theme} onThemeChange={onThemeChange} />
 
-        {/* Bell with badge - hidden for incident module */}
-        {activeModuleKey !== "incidents" && (
-          <div className="bell-wrap" ref={bellRef}>
-            <button
-              className="navbar-bell"
-              title="Notifications"
-              aria-label="Notifications"
-              onClick={handleToggleNotifications}
-            >
-              <i className="ti ti-bell" />
-              {unreadCount > 0 && <span className="bell-badge">{unreadCount}</span>}
-            </button>
+        {/* Bell with badge */}
+        <div className="bell-wrap" ref={bellRef}>
+          <button
+            className="navbar-bell"
+            title="Notifications"
+            aria-label="Notifications"
+            onClick={handleToggleNotifications}
+          >
+            <i className="ti ti-bell" />
+            {unreadCount > 0 && <span className="bell-badge">{unreadCount}</span>}
+          </button>
 
-            {notificationsOpen && (
-              <div className="notifications-dropdown">
-                <div className="nd-header">
-                  <h5 className="nd-title">
-                    {activeModuleKey === "observations"
-                      ? "Observation Notifications"
-                      : "Permit Notifications"}
-                  </h5>
-                  {unreadCount > 0 && (
-                    <button className="nd-mark-read" onClick={handleMarkAllRead}>
-                      Mark all as read
-                    </button>
-                  )}
-                </div>
-
-                <div className="nd-list">
-                  {notifications.length === 0 ? (
-                    <div className="nd-empty">
-                      {isLoading ? "Loading..." : `No ${activeModuleKey === 'observations' ? 'observation' : 'permit'} notifications`}
-                    </div>
-                  ) : (
-                    notifications.map((n) => {
-                      const styleInfo = getNotificationStyleInfo(n.title, n.message, n.notificationType);
-                      const obsInfo = extractObservationInfo(n);
-                      const permitNo = !obsInfo.isObservation ? extractPermitNo(n) : "";
-                      return (
-                        <button
-                          key={n.id}
-                          className={`nd-item ${n.isRead === 0 ? "unread" : ""} ${styleInfo.typeClass}`}
-                          onClick={() => handleNotificationClick(n)}
-                        >
-                          {n.isRead === 0 && <span className="nd-item-dot" />}
-                          <div className="nd-item-header">
-                            <span className="nd-status-badge">{styleInfo.badgeText}</span>
-                            <span className="nd-item-time">{formatCopenhagenTime(n.createdAt)}</span>
-                          </div>
-                          {obsInfo.isObservation && obsInfo.observationNumber && (
-                            <div className="nd-item-permit" style={{ color: "#6366F1" }}>
-                              <span className="nd-permit-label">Observation Ref:</span>{" "}
-                              <span className="nd-permit-value" style={{ fontWeight: 700 }}>#{obsInfo.observationNumber}</span>
-                            </div>
-                          )}
-                          {!obsInfo.isObservation && permitNo && (
-                            <div className="nd-item-permit">
-                              <span className="nd-permit-label">Permit No:</span> <span className="nd-permit-value">#{permitNo}</span>
-                            </div>
-                          )}
-                          <span className="nd-item-title">{n.title}</span>
-                          <span className="nd-item-msg">{n.message}</span>
-                        </button>
-                      );
-                    })
-                  )}
-                </div>
-                {hasMore && (
-                  <div className="nd-footer">
-                    <button
-                      className="nd-load-more"
-                      onClick={() => fetchNotificationsList(page + 1, true)}
-                      disabled={isLoading}
-                    >
-                      {isLoading ? "Loading..." : "Load older notifications"}
-                    </button>
-                  </div>
+          {notificationsOpen && (
+            <div className="notifications-dropdown">
+              <div className="nd-header">
+                <h5 className="nd-title">
+                  {activeModuleKey === "observations"
+                    ? "Observation Notifications"
+                    : activeModuleKey === "incidents"
+                    ? "Incident Notifications"
+                    : "Permit Notifications"}
+                </h5>
+                {unreadCount > 0 && (
+                  <button className="nd-mark-read" onClick={handleMarkAllRead}>
+                    Mark all as read
+                  </button>
                 )}
               </div>
-            )}
-          </div>
-        )}
+
+              <div className="nd-list">
+                {notifications.length === 0 ? (
+                  <div className="nd-empty">
+                    {isLoading
+                      ? "Loading..."
+                      : `No ${
+                          activeModuleKey === "observations"
+                            ? "observation"
+                            : activeModuleKey === "incidents"
+                            ? "incident"
+                            : "permit"
+                        } notifications`}
+                  </div>
+                ) : (
+                  notifications.map((n) => {
+                    const styleInfo = getNotificationStyleInfo(n.title, n.message, n.notificationType);
+                    const incInfo = extractIncidentInfo(n);
+                    const obsInfo = !incInfo.isIncident ? extractObservationInfo(n) : { isObservation: false };
+                    const permitNo = !incInfo.isIncident && !obsInfo.isObservation ? extractPermitNo(n) : "";
+                    return (
+                      <button
+                        key={n.id}
+                        className={`nd-item ${n.isRead === 0 ? "unread" : ""} ${styleInfo.typeClass}`}
+                        onClick={() => handleNotificationClick(n)}
+                      >
+                        {n.isRead === 0 && <span className="nd-item-dot" />}
+                        <div className="nd-item-header">
+                          <span className="nd-status-badge">{styleInfo.badgeText}</span>
+                          <span className="nd-item-time">{formatCopenhagenTime(n.createdAt)}</span>
+                        </div>
+                        {incInfo.isIncident && incInfo.caseNumber && (
+                          <div className="nd-item-permit" style={{ color: "#F59E0B" }}>
+                            <span className="nd-permit-label">Incident No:</span>{" "}
+                            <span className="nd-permit-value" style={{ fontWeight: 700 }}>#{incInfo.caseNumber}</span>
+                          </div>
+                        )}
+                        {obsInfo.isObservation && obsInfo.observationNumber && (
+                          <div className="nd-item-permit" style={{ color: "#6366F1" }}>
+                            <span className="nd-permit-label">Observation Ref:</span>{" "}
+                            <span className="nd-permit-value" style={{ fontWeight: 700 }}>#{obsInfo.observationNumber}</span>
+                          </div>
+                        )}
+                        {!incInfo.isIncident && !obsInfo.isObservation && permitNo && (
+                          <div className="nd-item-permit">
+                            <span className="nd-permit-label">Permit No:</span> <span className="nd-permit-value">#{permitNo}</span>
+                          </div>
+                        )}
+                        <span className="nd-item-title">{n.title}</span>
+                        <span className="nd-item-msg">{n.message}</span>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+
+              {hasMore && (
+                <div className="nd-footer">
+                  <button
+                    className="nd-load-more"
+                    onClick={() => fetchNotificationsList(page + 1, true)}
+                    disabled={isLoading}
+                  >
+                    {isLoading ? "Loading..." : "Load older notifications"}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* Avatar + name + dropdown */}
         <div className="avatar-wrap" ref={dropdownRef}>
@@ -823,13 +910,15 @@ function Navbar({ toggleSidebar, theme, onThemeChange }) {
                 >
                   <i className="ti ti-lock" /> Change Password
                 </button>
-                <button
-                  className="pd-item"
-                  onClick={handleOpenSettings}
-                  style={{ background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer' }}
-                >
-                  <i className="ti ti-settings" /> Notification Settings
-                </button>
+                {activeModuleKey !== 'incidents' && (
+                  <button
+                    className="pd-item"
+                    onClick={handleOpenSettings}
+                    style={{ background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer' }}
+                  >
+                    <i className="ti ti-settings" /> Notification Settings
+                  </button>
+                )}
               </div>
 
               <div className="pd-divider" />

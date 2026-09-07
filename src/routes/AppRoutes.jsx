@@ -40,6 +40,7 @@ import IMCreate from "../modules/incident-management/pages/IMCreate";
 import IMDetails from "../modules/incident-management/pages/IMDetails";
 import IMInvestigation from "../modules/incident-management/pages/IMInvestigation";
 import IMReports from "../modules/incident-management/pages/IMReports";
+import IMNotificationGroups from "../modules/incident-management/pages/IMNotificationGroups";
 
 // ── Safety Observations module ──
 import SODashboard from "../modules/safety-observations/pages/SODashboard";
@@ -229,7 +230,14 @@ function AppRoutes() {
           <Route path="/incident-management/create" element={<IMCreate />} />
           <Route path="/incident-management/details/:id" element={<IMDetails />} />
           <Route path="/incident-management/investigation/:id" element={<IMInvestigation />} />
-          <Route path="/incident-management/reports" element={<IMReports />} />
+          <Route
+            path="/incident-management/notification-groups"
+            element={
+              <ProtectedRoute allowedRoles={["Admin"]}>
+                <IMNotificationGroups />
+              </ProtectedRoute>
+            }
+          />
 
           {/* ── Safety Observations Routes ── */}
           <Route path="/safety-observations/dashboard" element={<SODashboard />} />

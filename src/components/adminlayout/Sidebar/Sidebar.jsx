@@ -148,6 +148,7 @@ function Sidebar({ sidebarOpen, toggleSidebar }) {
       "incident-management/list":               "/incident-management/list",
       "incident-management/create":             "/incident-management/create",
       "incident-management/reports":            "/incident-management/reports",
+      "incident-management/notification-groups":"/incident-management/notification-groups",
       // ── Safety Observations ──
       "safety-observations/dashboard":          "/safety-observations/dashboard",
       "safety-observations/list":               "/safety-observations/list",
@@ -232,8 +233,20 @@ function Sidebar({ sidebarOpen, toggleSidebar }) {
     );
   };
 
+  const userRoles = typeof userRole === "string"
+    ? userRole.split(",").map(r => r.trim())
+    : Array.isArray(userRole)
+    ? userRole
+    : userRole ? [userRole] : [];
+
   // ── Decide which menu to render
-  const menuItems = moduleConf ? moduleConf.menu : getMenuByRole(userRole);
+  const rawMenuItems = moduleConf ? moduleConf.menu : getMenuByRole(userRole);
+  const menuItems = (rawMenuItems || []).filter(item => {
+    if (item.allowedRoles && item.allowedRoles.length > 0) {
+      return item.allowedRoles.some(r => userRoles.includes(r));
+    }
+    return true;
+  });
 
   // PTW section-label trackers
   const reportsAndSettingsNames = ["reports", "settings", "activity", "safety precaution", "log-history", "logs-reports"];
@@ -278,7 +291,7 @@ function Sidebar({ sidebarOpen, toggleSidebar }) {
           <img
             src={LogoImg}
             alt="M3 Logo"
-            style={{ width: "100%", height: "100%", borderRadius: "11px", objectFit: "cover" }}
+            style={{ width: "100%", height: "100%", borderRadius: "8px", objectFit: "contain" }}
           />
         </div>
         <div className="brand-text-wrap">
@@ -290,24 +303,15 @@ function Sidebar({ sidebarOpen, toggleSidebar }) {
       </div>
 
       {/* ── Modules Link ── */}
-      <div style={{ padding: "16px 20px" }}>
+      <div className="sidebar-modules-container">
         <Link 
           to="/modules" 
-          style={{ 
-            display: "flex", 
-            alignItems: "center", 
-            gap: 8, 
-            padding: "8px 12px", 
-            background: "var(--bg-dark, #f1f5f9)", 
-            borderRadius: 8, 
-            color: "var(--text-main)", 
-            textDecoration: "none", 
-            fontSize: 13, 
-            fontWeight: 600 
-          }}
+          className="sidebar-modules-btn"
+          data-tooltip="All Modules"
+          title="All Modules"
         >
-          <i className="ti ti-apps" style={{ fontSize: 16, color: "var(--accent-primary, #3b82f6)" }} />
-          <span>Modules</span>
+          <i className="ti ti-apps" />
+          <span className="modules-btn-label">Modules</span>
         </Link>
       </div>
 

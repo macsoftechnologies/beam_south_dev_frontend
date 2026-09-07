@@ -11,8 +11,8 @@ import { BUILDINGS } from "../../../data/buildings";
 import "../../../styles/module-shared.css";
 
 const initialForm = {
-  observationType: "NEEDS_ATTENTION", // POSITIVE | NEEDS_ATTENTION
-  natureOfFinding: "UNSAFE_CONDITION", // GOOD_PRACTICE | UNSAFE_ACT | UNSAFE_CONDITION
+  observationType: "", // POSITIVE | NEEDS_ATTENTION
+  natureOfFinding: "", // GOOD_PRACTICE | UNSAFE_ACT | UNSAFE_CONDITION
   date: "",
   time: "",
   subject: "",
@@ -278,6 +278,7 @@ const dataURLtoBlob = (dataurl) => {
 
   const validate = () => {
     const errs = {};
+    if (!form.observationType) errs.observationType = "Observation Type is required";
     if (!form.date) errs.date = "Date is required";
     if (!form.time) errs.time = "Time is required";
     if (!form.subject) errs.subject = "Required";
@@ -406,6 +407,7 @@ const dataURLtoBlob = (dataurl) => {
             <div className="fsec-title" style={{ fontSize: 13, borderBottom: "none", marginBottom: 12 }}>
               Observation Type <span style={{ color: "#E32B50" }}>*</span>
             </div>
+            {errors.observationType && <div style={{ color: "var(--color-risk)", fontSize: "12px", marginTop: "-8px", marginBottom: "8px" }}>{errors.observationType}</div>}
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>

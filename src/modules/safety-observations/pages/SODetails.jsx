@@ -204,6 +204,7 @@ function SODetails() {
       setActionSubmitting(true);
       const res = await observationService.escalateToIncident(id, {
         escalatedBy: currentUser.username || currentUser.name || "HSE Lead",
+        escalatedByUserId: currentUser.id,
         actualSeverity: escForm.actual,
         potentialSeverity: escForm.potential,
         remarks: escForm.reason,

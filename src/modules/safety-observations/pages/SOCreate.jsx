@@ -74,7 +74,24 @@ function SOCreate() {
         ]);
 
         const rawContractors = contractorsRes?.data?.rows || contractorsRes?.data || contractorsRes || [];
-        setContractorsList(Array.isArray(rawContractors) ? rawContractors : []);
+        let cList = Array.isArray(rawContractors) ? [...rawContractors] : [];
+
+        // Ensure NNE is always available in the contractor dropdown for assignment
+        const hasNne = cList.some((c) => {
+          const cName = String(c.subContractorName || c.company_name || c.contractor_name || c.subcontractor_name || c.name || "").toUpperCase().trim();
+          return cName === "NNE" || cName.includes("NNE");
+        });
+
+        if (!hasNne) {
+          cList.push({
+            id: "NNE",
+            subContractorName: "NNE",
+            company_name: "NNE",
+            name: "NNE",
+          });
+        }
+
+        setContractorsList(cList);
 
         const rawBuildings = buildingsRes?.data?.rows || buildingsRes?.data || buildingsRes || [];
         setBuildingsList(Array.isArray(rawBuildings) ? rawBuildings : []);
@@ -309,7 +326,9 @@ const dataURLtoBlob = (dataurl) => {
 
     if (name === "assignedContractorId") {
       const selected = contractorsList.find((c) => String(c.id) === String(value));
-      const contractorName = selected ? selected.subContractorName || selected.company_name || selected.contractor_name || selected.subcontractor_name || selected.name || "" : "";
+      const contractorName = selected
+        ? selected.subContractorName || selected.company_name || selected.contractor_name || selected.subcontractor_name || selected.name || ""
+        : (value === "NNE" ? "NNE" : "");
       setForm((prev) => ({
         ...prev,
         assignedContractorId: value,
@@ -359,7 +378,9 @@ const dataURLtoBlob = (dataurl) => {
       if (bName) formData.append("buildingName", bName);
       if (level) formData.append("floorLevel", level);
       formData.append("specificLocation", form.specificLocation);
-      if (form.assignedContractorId) formData.append("assignedContractorId", form.assignedContractorId);
+      if (form.assignedContractorId && !isNaN(Number(form.assignedContractorId))) {
+        formData.append("assignedContractorId", form.assignedContractorId);
+      }
       if (form.assignedContractorName) formData.append("assignedContractorName", form.assignedContractorName);
       if (form.immediateActionTaken) formData.append("immediateActionTaken", form.immediateActionTaken);
 

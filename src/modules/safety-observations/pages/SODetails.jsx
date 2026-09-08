@@ -340,6 +340,13 @@ function SODetails() {
               <div style={{ color: "var(--text-muted)", fontWeight: 600 }}>Safety Category</div>
               <div>{obs.safetyCategory}</div>
 
+              {obs.subcategory && (
+                <>
+                  <div style={{ color: "var(--text-muted)", fontWeight: 600 }}>Subcategory</div>
+                  <div style={{ fontWeight: 600, color: "var(--text-main)" }}>{obs.subcategory}</div>
+                </>
+              )}
+
               <div style={{ color: "var(--text-muted)", fontWeight: 600 }}>Assigned Contractor</div>
               <div style={{ fontWeight: 600, color: "var(--nne-brand-blue)" }}>{obs.assignedContractorName || "Not Assigned"}</div>
 

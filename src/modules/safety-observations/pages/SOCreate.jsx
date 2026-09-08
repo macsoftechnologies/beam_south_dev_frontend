@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import PageHeader from "../../../components/common/PageHeader/PageHeader";
 import { observationService } from "../../../services/observationService";
 import { getContractors, getBuildings, getRooms, getFloors } from "../../../services/authService";
-import { SAFETY_CATEGORIES } from "../data/observations";
+import { OBSERVATION_CATEGORIES_TREE, SAFETY_CATEGORIES } from "../data/observations";
 import FloorDrawing from "../../../pages/Request/FloorDrawing/FloorDrawing";
 import { FLOOR_PDFS } from "../../../data/pdfMapping";
 import { ZONE_MAPPING } from "../../../data/zones";
@@ -17,6 +17,8 @@ const initialForm = {
   time: "",
   subject: "",
   safetyCategory: "",
+  subcategory: "",
+  customSubcategory: "",
   riskLevel: "MEDIUM",
   projectName: "M3SOUTH", // Default fixed to M3SOUTH
   assignedContractorId: "",
@@ -90,6 +92,15 @@ function SOCreate() {
     };
     loadSelectors();
   }, []);
+
+  // Available Subcategories based on Safety Category
+  const availableSubcategories = useMemo(() => {
+    if (!form.safetyCategory) return [];
+    const cat = OBSERVATION_CATEGORIES_TREE.find(
+      (c) => c.name.toLowerCase().trim() === form.safetyCategory.toLowerCase().trim()
+    );
+    return cat ? cat.subcategories : [];
+  }, [form.safetyCategory]);
 
   // Compute levels based on selected building matching Incident Management
   const levels = building ? floorsList.filter((f) => String(f.build_id) === String(building)).map((f) => f.floor_name) : [];
@@ -283,6 +294,10 @@ const dataURLtoBlob = (dataurl) => {
     if (!form.time) errs.time = "Time is required";
     if (!form.subject) errs.subject = "Required";
     if (!form.safetyCategory) errs.safetyCategory = "Required";
+    if (!form.subcategory) errs.subcategory = "Observation Subcategory is required";
+    if ((form.subcategory === "Please Fill" || form.safetyCategory === "Other") && !form.customSubcategory?.trim()) {
+      errs.customSubcategory = "Please specify details for other category";
+    }
     if (!form.description) errs.description = "Required";
     if (!building) errs.building = "Location/Building is required";
     if (!form.specificLocation) errs.specificLocation = "Specific location detail is required";
@@ -330,6 +345,13 @@ const dataURLtoBlob = (dataurl) => {
       formData.append("observationTime", form.time);
       formData.append("subject", form.subject);
       formData.append("safetyCategory", form.safetyCategory);
+      const finalSubcategory =
+        form.subcategory === "Please Fill"
+          ? (form.customSubcategory ? `Other: ${form.customSubcategory}` : "Other")
+          : form.subcategory;
+      if (finalSubcategory) {
+        formData.append("subcategory", finalSubcategory);
+      }
       formData.append("riskLevel", form.riskLevel);
       formData.append("description", form.description);
       formData.append("projectName", "M3SOUTH"); // Fixed default M3SOUTH
@@ -525,13 +547,29 @@ const dataURLtoBlob = (dataurl) => {
             {errors.subject && <div className="mod-form-error">{errors.subject}</div>}
           </div>
 
-          {/* Category & Risk Level */}
+          {/* Category & Cascading Subcategory */}
           <div className="grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
             <div className="mod-form-group">
               <label className="mod-form-label">
                 Safety Category <span style={{ color: "#E32B50" }}>*</span>
               </label>
-              <select className={`mod-form-select ${errors.safetyCategory ? "error" : ""}`} name="safetyCategory" value={form.safetyCategory} onChange={handleChange}>
+              <select
+                className={`mod-form-select ${errors.safetyCategory ? "error" : ""}`}
+                name="safetyCategory"
+                value={form.safetyCategory}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setForm((prev) => ({
+                    ...prev,
+                    safetyCategory: val,
+                    subcategory: "",
+                    customSubcategory: "",
+                  }));
+                  if (errors.safetyCategory || errors.subcategory || errors.customSubcategory) {
+                    setErrors((prev) => ({ ...prev, safetyCategory: null, subcategory: null, customSubcategory: null }));
+                  }
+                }}
+              >
                 <option value="">-- Select category --</option>
                 {SAFETY_CATEGORIES.map((c) => (
                   <option key={c} value={c}>
@@ -542,6 +580,46 @@ const dataURLtoBlob = (dataurl) => {
               {errors.safetyCategory && <div className="mod-form-error">{errors.safetyCategory}</div>}
             </div>
 
+            <div className="mod-form-group">
+              <label className="mod-form-label">
+                Observation Subcategory <span style={{ color: "#E32B50" }}>*</span>
+              </label>
+              <select
+                className={`mod-form-select ${errors.subcategory ? "error" : ""}`}
+                name="subcategory"
+                value={form.subcategory}
+                disabled={!form.safetyCategory || availableSubcategories.length === 0}
+                onChange={handleChange}
+              >
+                <option value="">-- Select subcategory --</option>
+                {availableSubcategories.map((sub) => (
+                  <option key={sub} value={sub}>
+                    {sub}
+                  </option>
+                ))}
+              </select>
+              {errors.subcategory && <div className="mod-form-error">{errors.subcategory}</div>}
+            </div>
+          </div>
+
+          {(form.subcategory === "Please Fill" || form.safetyCategory === "Other") && (
+            <div className="mod-form-group" style={{ marginTop: 8 }}>
+              <label className="mod-form-label">
+                Specify Other Detail <span style={{ color: "#E32B50" }}>*</span>
+              </label>
+              <input
+                className={`mod-form-input ${errors.customSubcategory ? "error" : ""}`}
+                name="customSubcategory"
+                value={form.customSubcategory}
+                onChange={handleChange}
+                placeholder="Please describe the other category / subcategory..."
+              />
+              {errors.customSubcategory && <div className="mod-form-error">{errors.customSubcategory}</div>}
+            </div>
+          )}
+
+          {/* Risk Level & Project Name */}
+          <div className="grid-2" style={{ display: "grid", gridTemplateColumns: isNeedsAttention ? "1fr 1fr" : "1fr", gap: 16 }}>
             {isNeedsAttention && (
               <div className="mod-form-group">
                 <label className="mod-form-label">Risk level</label>
@@ -553,10 +631,7 @@ const dataURLtoBlob = (dataurl) => {
                 </select>
               </div>
             )}
-          </div>
 
-          {/* Project Name (Fixed Default M3SOUTH) & Contractor Selection */}
-          <div className="grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
             <div className="mod-form-group">
               <label className="mod-form-label">Project Name</label>
               <input
@@ -568,21 +643,22 @@ const dataURLtoBlob = (dataurl) => {
                 style={{ backgroundColor: "rgba(255,255,255,0.06)", cursor: "not-allowed", opacity: 0.7, fontWeight: 600 }}
               />
             </div>
+          </div>
 
-            <div className="mod-form-group">
-              <label className="mod-form-label">Assign to Contractor</label>
-              <select className="mod-form-select" name="assignedContractorId" value={form.assignedContractorId} onChange={handleChange}>
-                <option value="">-- Select Contractor --</option>
-                {contractorsList.map((c) => {
-                  const contractorName = c.subContractorName || c.company_name || c.contractor_name || c.subcontractor_name || c.name || `Contractor #${c.id}`;
-                  return (
-                    <option key={c.id} value={c.id}>
-                      {contractorName}
-                    </option>
-                  );
-                })}
-              </select>
-            </div>
+          {/* Contractor Selection */}
+          <div className="mod-form-group">
+            <label className="mod-form-label">Assign to Contractor</label>
+            <select className="mod-form-select" name="assignedContractorId" value={form.assignedContractorId} onChange={handleChange}>
+              <option value="">-- Select Contractor --</option>
+              {contractorsList.map((c) => {
+                const contractorName = c.subContractorName || c.company_name || c.contractor_name || c.subcontractor_name || c.name || `Contractor #${c.id}`;
+                return (
+                  <option key={c.id} value={c.id}>
+                    {contractorName}
+                  </option>
+                );
+              })}
+            </select>
           </div>
 
           {/* Description */}

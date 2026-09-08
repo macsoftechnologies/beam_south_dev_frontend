@@ -462,7 +462,14 @@ function SOList() {
                         <span>{o.assignedContractorName || o.contractor || "-"}</span>
                       </div>
                     </td>
-                    <td>{o.safetyCategory}</td>
+                    <td>
+                      <div style={{ fontWeight: 500 }}>{o.safetyCategory || "-"}</div>
+                      {o.subcategory && (
+                        <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "2px" }}>
+                          {o.subcategory}
+                        </div>
+                      )}
+                    </td>
                     <td>
                       <span
                         style={{

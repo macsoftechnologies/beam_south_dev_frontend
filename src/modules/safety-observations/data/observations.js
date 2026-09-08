@@ -2852,18 +2852,222 @@ export const OBSERVATIONS = [
   }
 ];
 
-export const SAFETY_CATEGORIES = [
-  "Housekeeping/Waste",
-  "Electrical Hazards",
-  "Working at Heights",
-  "PPE",
-  "Hot Works",
-  "Working in Confined Spaces",
-  "Lifting Operations",
-  "Excavation",
-  "Traffic Management",
-  "Fire Prevention"
+export const OBSERVATION_CATEGORIES_TREE = [
+  {
+    id: 1,
+    name: "Access / Exit",
+    subcategories: [
+      "Blocked access – pedestrian",
+      "Missing pedestrian walkways",
+      "Unsafe accessways",
+      "Narrow accessways",
+      "No escape route",
+      "Unorganized parking",
+      "Blocked roads",
+    ],
+  },
+  {
+    id: 2,
+    name: "Barriers / Signage / Shielding",
+    subcategories: [
+      "Inadequate barriers",
+      "No barriers",
+      "Missing signage",
+      "Damaged barriers",
+      "Floor opening ≥7 cm",
+    ],
+  },
+  {
+    id: 3,
+    name: "Housekeeping / Waste",
+    subcategories: [
+      "Poor housekeeping",
+      "Dust build-up",
+      "Waste",
+    ],
+  },
+  {
+    id: 4,
+    name: "Noise / Dust / Fumes / Health Hazards",
+    subcategories: [
+      "Exposure to unnecessary noise",
+      "Exposure to dust",
+      "Exposure to fumes",
+      "Hazardous substances exposure",
+      "Poor body positioning",
+      "Unsafe manual handling",
+    ],
+  },
+  {
+    id: 5,
+    name: "Storage & Handling",
+    subcategories: [
+      "Unorganized storage",
+      "Unsafe material handling",
+      "Unsafe chemical storage",
+      "Unlabeled chemical containers",
+    ],
+  },
+  {
+    id: 6,
+    name: "Electrical Hazards",
+    subcategories: [
+      "Poor cable management",
+      "Unsafe electrical equipment",
+      "Exposed cable ends",
+      "Incorrect junction box setup / inspection",
+    ],
+  },
+  {
+    id: 7,
+    name: "Working at Heights",
+    subcategories: [
+      "Lack of fall protection",
+      "No rescue/evacuation plan",
+      "Unsafe work positions",
+      "Unsafe ladder use",
+      "Unsafe scaffolding work",
+      "Dropped object",
+    ],
+  },
+  {
+    id: 8,
+    name: "Lifting / Rigging",
+    subcategories: [
+      "Unsafe lifting methods",
+      "No flagman / barriers",
+      "Lifting over personnel",
+      "Missing 12-month inspection",
+    ],
+  },
+  {
+    id: 9,
+    name: "Hot Works",
+    subcategories: [
+      "Sparks",
+      "Missing firefighting equipment",
+      "Missing extraction",
+      "Missing shielding",
+      "Fire watchers",
+      "ATEX – Flashback arrestors",
+    ],
+  },
+  {
+    id: 10,
+    name: "Mobile Elevating Work Equipment",
+    subcategories: [
+      "Unsafe use",
+      "Missing flagman/barricades",
+      "Missing 12-month inspection",
+    ],
+  },
+  {
+    id: 11,
+    name: "Lighting",
+    subcategories: [
+      "Missing lighting",
+      "Insufficient lighting",
+      "Orientation lighting missing (25 lux)",
+      "Work lighting missing (100 lux)",
+    ],
+  },
+  {
+    id: 12,
+    name: "Documentation & Procedures",
+    subcategories: [
+      "Missing Permit to Work",
+      "Missing Toolbox Talk",
+      "RAMS not followed",
+      "Missing RAMS",
+      "Lack of RAMS instructions",
+      "Missing SDS",
+      "SDS not followed",
+      "Missing chemical risk assessment",
+      "Chemical risk assessment not followed",
+      "Alcohol & drugs",
+    ],
+  },
+  {
+    id: 13,
+    name: "Scaffold / Alloy Towers",
+    subcategories: [
+      "Green sign missing",
+      "Unsafe construction",
+      "Unauthorized reconstruction",
+      "Access blocked",
+      "Poor housekeeping on scaffold",
+      "Outdated inspection",
+    ],
+  },
+  {
+    id: 14,
+    name: "Slip / Trip Hazards",
+    subcategories: [
+      "Materials in walkways",
+      "Uneven surfaces",
+      "Slippery accessway",
+      "Cables in accessways",
+    ],
+  },
+  {
+    id: 15,
+    name: "PPE",
+    subcategories: [
+      "Missing mandatory PPE",
+      "Missing task-specific PPE",
+      "Incorrect PPE use",
+      "PPE inspections missing",
+    ],
+  },
+  {
+    id: 16,
+    name: "Tools & Machinery",
+    subcategories: [
+      "Wrong tool use",
+      "Defective tools",
+      "Missing 12-month inspection",
+    ],
+  },
+  {
+    id: 17,
+    name: "Environmental Hazards",
+    subcategories: [
+      "Chemical spills",
+      "Waste management issues",
+      "Oil / hydraulic spill",
+      "Missing spill precautions",
+    ],
+  },
+  {
+    id: 18,
+    name: "Emergency Equipment",
+    subcategories: [
+      "Missing first-aid equipment",
+      "Missing first-aid stations",
+      "Missing firefighting equipment",
+      "Missing inspections",
+    ],
+  },
+  {
+    id: 19,
+    name: "Excavation / Trenches",
+    subcategories: [
+      "Unsafe excavation",
+      "Incorrect angle",
+      "Missing escape routes",
+      "Insufficient barriers",
+    ],
+  },
+  {
+    id: 20,
+    name: "Other",
+    subcategories: [
+      "Please Fill",
+    ],
+  },
 ];
+
+export const SAFETY_CATEGORIES = OBSERVATION_CATEGORIES_TREE.map((c) => c.name);
 
 export const SO_STATS = {
   total: OBSERVATIONS.length,

@@ -2347,35 +2347,35 @@ export default function IMDetails() {
     const stepNumber = String(index + 1).padStart(2, '0');
 
     return (
-      <div key={index} style={{ display: "flex", alignItems: "stretch", gap: 16, position: "relative", paddingBottom: isLast ? 0 : 24 }}>
+      <div key={index} className="audit-timeline-step">
         {/* Connector Line */}
-        {!isLast && <div style={{ position: "absolute", left: 24, top: 48, bottom: -8, width: 2, background: "var(--border-color)", zIndex: 1 }}></div>}
+        {!isLast && <div className="audit-timeline-line"></div>}
 
         {/* Icon Circle */}
-        <div className="audit-circle" style={{ width: 48, height: 48, borderRadius: "50%", background: color, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2, flexShrink: 0, marginTop: 4, alignSelf: "center" }}>
+        <div className="audit-circle" style={{ background: color }}>
           {type === "APPROVED" ? (
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
           ) : type === "EDITED" ? (
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
           ) : type === "SUBMITTED" && title.includes("Investigation") ? (
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
           ) : title.includes("Initial") ? (
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
           ) : (
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
           )}
         </div>
 
-        <div className="audit-card-container" style={{ display: "flex", flex: 1, gap: 16, flexWrap: "wrap" }}>
-          <div className="audit-details-card" style={{ display: "flex", alignItems: "center", flex: "1 1 280px", padding: "8px 16px", background: "var(--bg-card, #fff)", borderRadius: 8, border: "1px solid var(--border-color)", boxShadow: "0 1px 2px rgba(0,0,0,0.05)", height: "auto" }}>
+        <div className="audit-card-container">
+          <div className="audit-details-card">
             {/* Number */}
-            <div className="audit-step-num" style={{ fontSize: 24, fontWeight: 800, color: color, marginRight: 24 }}>{stepNumber}</div>
+            <div className="audit-step-num" style={{ color: color }}>{stepNumber}</div>
 
             {/* Content */}
-            <div style={{ flex: 1 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
-                <span className="audit-title" style={{ fontSize: 16, fontWeight: 700, color: color }}>{title}</span>
-                <span style={{ background: color + "1a", color: color, padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 700, border: `1px solid ${color}33` }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4, flexWrap: "wrap" }}>
+                <span className="audit-title" style={{ color: color }}>{title}</span>
+                <span className="audit-badge" style={{ background: color + "1a", color: color, border: `1px solid ${color}33` }}>
                   {type === "APPROVED" ? "Marked OK & Signed Off" : type === "EDITED" ? "Updated & Re-submitted" : type === "RETURNED_FOR_REVISION" ? "Returned for Revision" : "Submitted"}
                 </span>
               </div>
@@ -2890,12 +2890,10 @@ export default function IMDetails() {
               </span>
               <div style={{ fontSize: 13, color: "var(--text-muted)", marginLeft: 32 }}>Track all sign-offs and approvals in the incident management process.</div>
             </div>
-            <div className="mod-card-body" style={{ padding: "24px 16px" }}>
+            <div className="mod-card-body" style={{ padding: "20px 16px" }}>
               {allAuditSteps.length > 0 ? (
-                <div style={{ position: "relative", paddingLeft: 16 }}>
-                  <div style={{ position: "relative", paddingLeft: 16 }}>
-                    {allAuditSteps.map((step, i) => renderAuditCard(step, i, allAuditSteps.length))}
-                  </div>
+                <div className="audit-timeline-wrap">
+                  {allAuditSteps.map((step, i) => renderAuditCard(step, i, allAuditSteps.length))}
                 </div>
               ) : (
                 <div style={{ fontSize: 14, color: "var(--text-muted)", fontStyle: "italic", padding: "16px", background: "var(--bg-dark, #f8fafc)", borderRadius: 8, border: "1px dashed var(--border-color)", textAlign: "center" }}>No audit events yet.</div>
@@ -3735,11 +3733,9 @@ export default function IMDetails() {
                   Audit Trail & Sign-Off Log
                 </span>
               </div>
-              <div className="mod-card-body" style={{ padding: "24px 16px" }}>
-                <div style={{ position: "relative", paddingLeft: 16 }}>
-                  <div style={{ position: "relative", paddingLeft: 16 }}>
-                    {huAudit.map((step, i) => renderAuditCard(step, i, huAudit.length))}
-                  </div>
+              <div className="mod-card-body" style={{ padding: "20px 16px" }}>
+                <div className="audit-timeline-wrap">
+                  {huAudit.map((step, i) => renderAuditCard(step, i, huAudit.length))}
                 </div>
               </div>
             </div>
@@ -4869,11 +4865,9 @@ export default function IMDetails() {
                         Audit Trail & Sign-Off Log
                       </span>
                     </div>
-                    <div className="mod-card-body" style={{ padding: "24px 16px" }}>
-                      <div style={{ position: "relative", paddingLeft: 16 }}>
-                        <div style={{ position: "relative", paddingLeft: 16 }}>
-                          {irAudit.map((step, i) => renderAuditCard(step, i, irAudit.length))}
-                        </div>
+                    <div className="mod-card-body" style={{ padding: "20px 16px" }}>
+                      <div className="audit-timeline-wrap">
+                        {irAudit.map((step, i) => renderAuditCard(step, i, irAudit.length))}
                       </div>
                     </div>
                   </div>
@@ -5897,11 +5891,9 @@ export default function IMDetails() {
                         Audit Trail & Sign-Off Log
                       </span>
                     </div>
-                    <div className="mod-card-body" style={{ padding: "24px 16px" }}>
-                      <div style={{ position: "relative", paddingLeft: 16 }}>
-                        <div style={{ position: "relative", paddingLeft: 16 }}>
-                          {invAudit.map((step, i) => renderAuditCard(step, i, invAudit.length))}
-                        </div>
+                    <div className="mod-card-body" style={{ padding: "20px 16px" }}>
+                      <div className="audit-timeline-wrap">
+                        {invAudit.map((step, i) => renderAuditCard(step, i, invAudit.length))}
                       </div>
                     </div>
                   </div>

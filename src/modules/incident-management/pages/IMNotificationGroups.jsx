@@ -13,12 +13,49 @@ import {
 } from "../../../services/incidentService";
 import "../../../styles/module-shared.css";
 import "./IMList.css";
+import "./IMNotificationGroups.css";
 
 const BellGroupIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
     <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
     <path d="M13.73 21a2 2 0 0 1-3.46 0" />
     <circle cx="18" cy="4" r="3" fill="#3B82F6" stroke="none" />
+  </svg>
+);
+
+const PencilIcon = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+  </svg>
+);
+
+const TrashIcon = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="3 6 5 6 21 6" />
+    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+    <line x1="10" y1="11" x2="10" y2="17" />
+    <line x1="14" y1="11" x2="14" y2="17" />
+  </svg>
+);
+
+const InAppBellIcon = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+    <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+  </svg>
+);
+
+const EmailIcon = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+    <polyline points="22,6 12,13 2,6" />
+  </svg>
+);
+
+const PhoneIcon = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="5" y="2" width="14" height="20" rx="2" ry="2" />
+    <line x1="12" y1="18" x2="12.01" y2="18" />
   </svg>
 );
 
@@ -355,142 +392,110 @@ export default function IMNotificationGroups() {
         ]}
       />
 
-      <div className="mod-content-container" style={{ padding: "0 24px 40px 24px" }}>
+      <div className="mod-content-container im-notif-container">
         {/* Metric / Stat Summary Cards */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-            gap: "16px",
-            marginBottom: "24px",
-          }}
-        >
-          <div className="mod-card" style={{ padding: "18px 20px" }}>
-            <div style={{ fontSize: "12px", color: "var(--text-muted)", fontWeight: 600, textTransform: "uppercase" }}>
-              Total Group Members
+        <div className="im-notif-stats-grid">
+          <div className="im-notif-stat-card">
+            <div className="im-notif-stat-header" style={{ color: "var(--text-muted)" }}>
+              <span>Total Members</span>
+              <span>👥</span>
             </div>
-            <div style={{ fontSize: "28px", fontWeight: 700, color: "var(--text-main)", marginTop: "4px" }}>
+            <div className="im-notif-stat-value" style={{ color: "var(--text-main)" }}>
               {stats.total}
             </div>
-            <div style={{ fontSize: "12px", color: "var(--text-muted)", marginTop: "4px" }}>
+            <div className="im-notif-stat-desc">
               Users configured to receive alerts
             </div>
           </div>
 
-          <div className="mod-card" style={{ padding: "18px 20px" }}>
-            <div style={{ fontSize: "12px", color: "#3B82F6", fontWeight: 600, textTransform: "uppercase" }}>
-              ✉️ Email Alerts Active
+          <div className="im-notif-stat-card">
+            <div className="im-notif-stat-header" style={{ color: "#3B82F6" }}>
+              <span>Email Active</span>
+              <span>✉️</span>
             </div>
-            <div style={{ fontSize: "28px", fontWeight: 700, color: "#3B82F6", marginTop: "4px" }}>
+            <div className="im-notif-stat-value" style={{ color: "#3B82F6" }}>
               {stats.emailCount}
             </div>
-            <div style={{ fontSize: "12px", color: "var(--text-muted)", marginTop: "4px" }}>
+            <div className="im-notif-stat-desc">
               Members with valid email enabled
             </div>
           </div>
 
-          <div className="mod-card" style={{ padding: "18px 20px" }}>
-            <div style={{ fontSize: "12px", color: "#10B981", fontWeight: 600, textTransform: "uppercase" }}>
-              📱 SMS Alerts Active
+          <div className="im-notif-stat-card">
+            <div className="im-notif-stat-header" style={{ color: "#10B981" }}>
+              <span>SMS Active</span>
+              <span>📱</span>
             </div>
-            <div style={{ fontSize: "28px", fontWeight: 700, color: "#10B981", marginTop: "4px" }}>
+            <div className="im-notif-stat-value" style={{ color: "#10B981" }}>
               {stats.smsCount}
             </div>
-            <div style={{ fontSize: "12px", color: "var(--text-muted)", marginTop: "4px" }}>
+            <div className="im-notif-stat-desc">
               Members with mobile phone configured
             </div>
           </div>
 
-          <div className="mod-card" style={{ padding: "18px 20px" }}>
-            <div style={{ fontSize: "12px", color: "#8B5CF6", fontWeight: 600, textTransform: "uppercase" }}>
-              🔔 In-App Notifications
+          <div className="im-notif-stat-card">
+            <div className="im-notif-stat-header" style={{ color: "#8B5CF6" }}>
+              <span>In-App Active</span>
+              <span>🔔</span>
             </div>
-            <div style={{ fontSize: "28px", fontWeight: 700, color: "#8B5CF6", marginTop: "4px" }}>
+            <div className="im-notif-stat-value" style={{ color: "#8B5CF6" }}>
               {stats.inAppCount}
             </div>
-            <div style={{ fontSize: "12px", color: "var(--text-muted)", marginTop: "4px" }}>
+            <div className="im-notif-stat-desc">
               Receives in-app navbar alerts
             </div>
           </div>
         </div>
 
         {/* Action Header & Filters Card */}
-        <div className="mod-card" style={{ padding: "20px", marginBottom: "20px" }}>
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: "16px",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
+        <div className="im-notif-controls-card">
+          <div className="im-notif-controls-wrapper">
             {/* Search and Filters */}
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", flex: 1, minWidth: "300px" }}>
-              <div style={{ position: "relative", flex: 1, minWidth: "200px" }}>
+            <div className="im-notif-search-filters">
+              <div className="im-notif-search-wrap">
+                <span className="im-notif-search-icon">🔍</span>
                 <input
                   type="text"
-                  className="mod-form-input"
+                  className="mod-form-input im-notif-search-input"
                   placeholder="Search by name, email, phone, role..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  style={{ paddingLeft: "36px" }}
                 />
-                <span
-                  style={{
-                    position: "absolute",
-                    left: "12px",
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    color: "var(--text-muted)",
-                    fontSize: "14px",
-                  }}
-                >
-                  🔍
-                </span>
               </div>
 
-              <select
-                className="mod-form-select"
-                value={roleFilter}
-                onChange={(e) => setRoleFilter(e.target.value)}
-                style={{ width: "auto", minWidth: "150px" }}
-              >
-                <option value="ALL">All Roles</option>
-                {availableRoles.map((r) => (
-                  <option key={r} value={r}>
-                    {r}
-                  </option>
-                ))}
-              </select>
+              <div className="im-notif-filters-row">
+                <select
+                  className="mod-form-select im-notif-select"
+                  value={roleFilter}
+                  onChange={(e) => setRoleFilter(e.target.value)}
+                >
+                  <option value="ALL">All Roles</option>
+                  {availableRoles.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </select>
 
-              <select
-                className="mod-form-select"
-                value={channelFilter}
-                onChange={(e) => setChannelFilter(e.target.value)}
-                style={{ width: "auto", minWidth: "150px" }}
-              >
-                <option value="ALL">All Channels</option>
-                <option value="EMAIL">Email Enabled</option>
-                <option value="SMS">SMS Enabled</option>
-                <option value="INAPP">In-App Enabled</option>
-              </select>
+                <select
+                  className="mod-form-select im-notif-select"
+                  value={channelFilter}
+                  onChange={(e) => setChannelFilter(e.target.value)}
+                >
+                  <option value="ALL">All Channels</option>
+                  <option value="EMAIL">Email Enabled</option>
+                  <option value="SMS">SMS Enabled</option>
+                  <option value="INAPP">In-App Enabled</option>
+                </select>
+              </div>
             </div>
 
             {/* Action Buttons */}
-            <div style={{ display: "flex", gap: "12px" }}>
+            <div className="im-notif-action-btns">
               <button
                 type="button"
-                className="mod-btn-outline"
-                onClick={handleSeedDefaults}
-                disabled={saving}
-                title="Quickly add all Department and Department1 users"
-              >
-                👥 Quick-Import Dept Users
-              </button>
-              <button
-                type="button"
-                className="mod-btn-primary im-btn-primary"
+                className="mod-btn-primary im-btn-primary im-notif-btn-add"
                 onClick={() => {
                   setSelectedUserIds([]);
                   setModalSearch("");
@@ -504,17 +509,22 @@ export default function IMNotificationGroups() {
           </div>
         </div>
 
-        {/* Group Members Table Card */}
-        <div className="mod-card" style={{ padding: 0, overflow: "hidden" }}>
-          <div className="mod-table-responsive">
-            <table className="mod-table" style={{ width: "100%", margin: 0 }}>
+        {/* ── UNIFIED RESPONSIVE TABLE VIEW ── */}
+        <div className="im-notif-table-card">
+          <div className="im-notif-scroll-hint">
+            <span>💡 Swipe horizontally to view full table details</span>
+            <span className="im-notif-scroll-arrow">→</span>
+          </div>
+
+          <div className="im-notif-table-scroll">
+            <table className="im-notif-table">
               <thead>
                 <tr>
-                  <th style={{ width: "24%" }}>Member / User</th>
-                  <th style={{ width: "16%" }}>Role & Department</th>
+                  <th style={{ width: "22%" }}>Member / User</th>
+                  <th style={{ width: "16%" }}>Role &amp; Department</th>
                   <th style={{ width: "22%" }}>Contact Info</th>
                   <th style={{ width: "26%", textAlign: "center" }}>Notification Channels</th>
-                  <th style={{ width: "12%", textAlign: "right" }}>Actions</th>
+                  <th style={{ width: "14%", textAlign: "center" }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -531,9 +541,14 @@ export default function IMNotificationGroups() {
                       <button
                         type="button"
                         className="mod-btn-primary im-btn-primary"
-                        onClick={handleSeedDefaults}
+                        onClick={() => {
+                          setSelectedUserIds([]);
+                          setModalSearch("");
+                          setModalRoleFilter("ALL");
+                          setIsAddModalOpen(true);
+                        }}
                       >
-                        👥 Import Department & Department1 Users
+                        + Add Members
                       </button>
                     </td>
                   </tr>
@@ -542,29 +557,15 @@ export default function IMNotificationGroups() {
                     <tr key={member.id}>
                       {/* User Name & Avatar */}
                       <td>
-                        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                          <div
-                            style={{
-                              width: "36px",
-                              height: "36px",
-                              borderRadius: "50%",
-                              background: "linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)",
-                              color: "#fff",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              fontWeight: 700,
-                              fontSize: "14px",
-                              flexShrink: 0,
-                            }}
-                          >
+                        <div className="im-notif-user-row">
+                          <div className="im-notif-avatar">
                             {(member.name || member.email || "U").charAt(0).toUpperCase()}
                           </div>
                           <div>
-                            <div style={{ fontWeight: 600, color: "var(--text-main)", fontSize: "14px" }}>
+                            <div className="im-notif-user-name">
                               {member.name || "—"}
                             </div>
-                            <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
+                            <div className="im-notif-user-id">
                               ID: #{member.userId || member.id}
                             </div>
                           </div>
@@ -574,25 +575,20 @@ export default function IMNotificationGroups() {
                       {/* Role & Department */}
                       <td>
                         <span
-                          className="badge"
+                          className="badge im-notif-role-badge"
                           style={{
                             background: member.userType?.toLowerCase().includes("dept")
                               ? "rgba(59, 130, 246, 0.12)"
                               : "rgba(100, 116, 139, 0.12)",
                             color: member.userType?.toLowerCase().includes("dept")
                               ? "#2563EB"
-                              : "#475569",
-                            fontWeight: 600,
-                            padding: "4px 8px",
-                            borderRadius: "4px",
-                            display: "inline-block",
-                            marginBottom: "4px",
+                              : "var(--text-main)",
                           }}
                         >
                           {member.userType || "Department"}
                         </span>
                         {member.departmentName && (
-                          <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
+                          <div className="im-notif-dept-name">
                             {member.departmentName}
                           </div>
                         )}
@@ -600,35 +596,20 @@ export default function IMNotificationGroups() {
 
                       {/* Contact Info (Email & Phone) */}
                       <td>
-                        <div style={{ fontSize: "13px", color: "var(--text-main)", display: "flex", alignItems: "center", gap: "6px" }}>
+                        <div className="im-notif-contact-email">
                           <span>✉️</span> {member.email || <span style={{ color: "var(--text-muted)" }}>No email</span>}
                         </div>
-                        <div style={{ fontSize: "12px", color: "var(--text-muted)", marginTop: "4px", display: "flex", alignItems: "center", gap: "6px" }}>
+                        <div className="im-notif-contact-phone">
                           <span>📱</span> {member.phoneNumber || <span style={{ color: "#EF4444" }}>No mobile (SMS disabled)</span>}
                         </div>
                       </td>
 
                       {/* Notification Channel Toggles */}
                       <td>
-                        <div
-                          style={{
-                            display: "flex",
-                            justifyContent: "center",
-                            gap: "16px",
-                            alignItems: "center",
-                          }}
-                        >
+                        <div className="im-notif-channels-wrapper">
                           {/* In-App Toggle */}
                           <label
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: "6px",
-                              cursor: "pointer",
-                              fontSize: "12px",
-                              fontWeight: 500,
-                              color: member.isInAppEnabled ? "var(--text-main)" : "var(--text-muted)",
-                            }}
+                            className={`im-notif-channel-toggle inapp ${member.isInAppEnabled ? "active" : ""}`}
                             title="Toggle In-App bell notification"
                           >
                             <input
@@ -638,20 +619,15 @@ export default function IMNotificationGroups() {
                                 handleToggleChannel(member.id, "isInAppEnabled", member.isInAppEnabled)
                               }
                             />
+                            <InAppBellIcon />
                             <span>In-App</span>
                           </label>
 
                           {/* Email Toggle */}
                           <label
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: "6px",
-                              cursor: member.email ? "pointer" : "not-allowed",
-                              fontSize: "12px",
-                              fontWeight: 500,
-                              color: member.isEmailEnabled && member.email ? "#2563EB" : "var(--text-muted)",
-                            }}
+                            className={`im-notif-channel-toggle email ${
+                              member.isEmailEnabled && member.email ? "active" : ""
+                            } ${!member.email ? "disabled" : ""}`}
                             title={member.email ? "Toggle Email dispatch" : "Email not configured"}
                           >
                             <input
@@ -662,20 +638,15 @@ export default function IMNotificationGroups() {
                                 handleToggleChannel(member.id, "isEmailEnabled", member.isEmailEnabled)
                               }
                             />
+                            <EmailIcon />
                             <span>Email</span>
                           </label>
 
                           {/* SMS Toggle */}
                           <label
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: "6px",
-                              cursor: member.phoneNumber ? "pointer" : "not-allowed",
-                              fontSize: "12px",
-                              fontWeight: 500,
-                              color: member.isSmsEnabled && member.phoneNumber ? "#059669" : "var(--text-muted)",
-                            }}
+                            className={`im-notif-channel-toggle sms ${
+                              member.isSmsEnabled && member.phoneNumber ? "active" : ""
+                            } ${!member.phoneNumber ? "disabled" : ""}`}
                             title={member.phoneNumber ? "Toggle SMS alert" : "Mobile phone not configured"}
                           >
                             <input
@@ -686,31 +657,32 @@ export default function IMNotificationGroups() {
                                 handleToggleChannel(member.id, "isSmsEnabled", member.isSmsEnabled)
                               }
                             />
+                            <PhoneIcon />
                             <span>SMS</span>
                           </label>
                         </div>
                       </td>
 
                       {/* Actions */}
-                      <td style={{ textAlign: "right" }}>
-                        <div style={{ display: "inline-flex", gap: "8px" }}>
+                      <td>
+                        <div className="im-notif-actions-wrapper">
                           <button
                             type="button"
-                            className="mod-btn-outline"
-                            style={{ padding: "4px 8px", fontSize: "12px" }}
+                            className="im-notif-btn-edit"
                             onClick={() => setEditingMember({ ...member })}
                             title="Edit member contact details"
                           >
-                            ✏️ Edit
+                            <PencilIcon />
+                            <span>Edit</span>
                           </button>
                           <button
                             type="button"
-                            className="mod-btn-outline"
-                            style={{ padding: "4px 8px", fontSize: "12px", color: "#EF4444", borderColor: "#FCA5A5" }}
+                            className="im-notif-btn-delete"
                             onClick={() => handleRemoveMember(member)}
                             title="Remove member from notification group"
                           >
-                            🗑️
+                            <TrashIcon />
+                            <span>Remove</span>
                           </button>
                         </div>
                       </td>
@@ -727,219 +699,199 @@ export default function IMNotificationGroups() {
           ADD MEMBERS MODAL
       ───────────────────────────────────────────────────────────── */}
       {isAddModalOpen && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(15, 23, 42, 0.6)",
-            backdropFilter: "blur(4px)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 9999,
-            padding: "20px",
-          }}
-        >
-          <div
-            className="mod-card"
-            style={{
-              width: "100%",
-              maxWidth: "760px",
-              maxHeight: "85vh",
-              display: "flex",
-              flexDirection: "column",
-              padding: "24px",
-              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)",
-            }}
-          >
+        <div className="im-notif-modal-overlay">
+          <div className="im-notif-modal-card">
             {/* Modal Header */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+            <div className="im-notif-modal-header">
               <div>
-                <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 700, color: "var(--text-main)" }}>
-                  Add Users to Incident Notification Group
+                <h3 className="im-notif-modal-title">
+                  Add Group Members
                 </h3>
-                <p style={{ margin: "4px 0 0 0", fontSize: "13px", color: "var(--text-muted)" }}>
-                  Select users who should receive incident submission alerts via SMS, Email, and In-App.
+                <p className="im-notif-modal-subtitle">
+                  Select users to receive incident alerts via In-App, Email, and SMS.
                 </p>
               </div>
               <button
                 type="button"
+                className="im-notif-modal-close"
                 onClick={() => setIsAddModalOpen(false)}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  fontSize: "20px",
-                  cursor: "pointer",
-                  color: "var(--text-muted)",
-                }}
+                title="Close modal"
               >
                 ✕
               </button>
             </div>
 
-            {/* Modal Search & Filters */}
-            <div style={{ display: "flex", gap: "12px", marginBottom: "16px" }}>
-              <input
-                type="text"
-                className="mod-form-input"
-                placeholder="Search candidates by name, username, email, department..."
-                value={modalSearch}
-                onChange={(e) => setModalSearch(e.target.value)}
-                style={{ flex: 1 }}
-              />
-              <select
-                className="mod-form-select"
-                value={modalRoleFilter}
-                onChange={(e) => setModalRoleFilter(e.target.value)}
-                style={{ width: "160px" }}
-              >
-                <option value="ALL">All Roles</option>
-                <option value="Department">Department</option>
-                <option value="Department1">Department1</option>
-                <option value="Admin">Admin</option>
-                <option value="Site Manager">Site Manager</option>
-              </select>
-            </div>
+            {/* Modal Body */}
+            <div className="im-notif-modal-body">
+              {/* Search & Filters */}
+              <div className="im-notif-modal-search-row">
+                <div className="im-notif-search-wrap">
+                  <span className="im-notif-search-icon">🔍</span>
+                  <input
+                    type="text"
+                    className="mod-form-input im-notif-search-input"
+                    placeholder="Search by name, username, email..."
+                    value={modalSearch}
+                    onChange={(e) => setModalSearch(e.target.value)}
+                  />
+                </div>
+                <select
+                  className="mod-form-select im-notif-select"
+                  value={modalRoleFilter}
+                  onChange={(e) => setModalRoleFilter(e.target.value)}
+                >
+                  <option value="ALL">All Roles</option>
+                  <option value="Department">Department</option>
+                  <option value="Department1">Department1</option>
+                  <option value="Admin">Admin</option>
+                  <option value="Site Manager">Site Manager</option>
+                </select>
+              </div>
 
-            {/* Default Channel Checkboxes */}
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "20px",
-                padding: "10px 14px",
-                background: "var(--bg-hover)",
-                borderRadius: "6px",
-                marginBottom: "16px",
-                fontSize: "13px",
-              }}
-            >
-              <span style={{ fontWeight: 600, color: "var(--text-main)" }}>Default Channels:</span>
-              <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer" }}>
-                <input
-                  type="checkbox"
-                  checked={modalDefaultInApp}
-                  onChange={(e) => setModalDefaultInApp(e.target.checked)}
-                />
-                In-App
-              </label>
-              <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer" }}>
-                <input
-                  type="checkbox"
-                  checked={modalDefaultEmail}
-                  onChange={(e) => setModalDefaultEmail(e.target.checked)}
-                />
-                Email
-              </label>
-              <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer" }}>
-                <input
-                  type="checkbox"
-                  checked={modalDefaultSms}
-                  onChange={(e) => setModalDefaultSms(e.target.checked)}
-                />
-                SMS
-              </label>
-            </div>
+              {/* Default Channel Checkboxes */}
+              <div className="im-notif-modal-channels-card">
+                <span className="im-notif-modal-channels-label">Default Channels:</span>
+                <div className="im-notif-modal-channels-group">
+                  <label className={`im-notif-modal-channel-chip ${modalDefaultInApp ? "active" : ""}`}>
+                    <input
+                      type="checkbox"
+                      checked={modalDefaultInApp}
+                      onChange={(e) => setModalDefaultInApp(e.target.checked)}
+                    />
+                    <InAppBellIcon />
+                    <span>In-App</span>
+                  </label>
+                  <label className={`im-notif-modal-channel-chip ${modalDefaultEmail ? "active" : ""}`}>
+                    <input
+                      type="checkbox"
+                      checked={modalDefaultEmail}
+                      onChange={(e) => setModalDefaultEmail(e.target.checked)}
+                    />
+                    <EmailIcon />
+                    <span>Email</span>
+                  </label>
+                  <label className={`im-notif-modal-channel-chip ${modalDefaultSms ? "active" : ""}`}>
+                    <input
+                      type="checkbox"
+                      checked={modalDefaultSms}
+                      onChange={(e) => setModalDefaultSms(e.target.checked)}
+                    />
+                    <PhoneIcon />
+                    <span>SMS</span>
+                  </label>
+                </div>
+              </div>
 
-            {/* Candidate List */}
-            <div
-              style={{
-                flex: 1,
-                overflowY: "auto",
-                border: "1px solid var(--border-color)",
-                borderRadius: "6px",
-                marginBottom: "20px",
-              }}
-            >
-              <table className="mod-table" style={{ width: "100%", margin: 0 }}>
-                <thead>
-                  <tr>
-                    <th style={{ width: "40px", textAlign: "center" }}>
-                      <input
-                        type="checkbox"
-                        checked={
-                          candidateUsers.filter((u) => !u.isAdded).length > 0 &&
-                          selectedUserIds.length === candidateUsers.filter((u) => !u.isAdded).length
-                        }
-                        onChange={handleSelectAllCandidates}
-                      />
-                    </th>
-                    <th>User / Name</th>
-                    <th>Role & Department</th>
-                    <th>Contact Info</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {candidateUsers.length === 0 ? (
-                    <tr>
-                      <td colSpan="5" style={{ textAlign: "center", padding: "30px", color: "var(--text-muted)" }}>
-                        No matching users found.
-                      </td>
-                    </tr>
-                  ) : (
-                    candidateUsers.map((u) => (
-                      <tr
+              {/* Selection Summary Bar */}
+              <div className="im-notif-candidate-select-bar">
+                <span>
+                  Candidates ({candidateUsers.filter((u) => !u.isAdded).length} available)
+                </span>
+                {candidateUsers.filter((u) => !u.isAdded).length > 0 && (
+                  <button
+                    type="button"
+                    className="im-notif-select-all-btn"
+                    onClick={handleSelectAllCandidates}
+                  >
+                    {selectedUserIds.length === candidateUsers.filter((u) => !u.isAdded).length
+                      ? "Deselect All"
+                      : "Select All Available"}
+                  </button>
+                )}
+              </div>
+
+              {/* Candidate List */}
+              <div className="im-notif-candidate-list-scroll">
+                {candidateUsers.length === 0 ? (
+                  <div className="im-notif-candidate-empty">
+                    <div style={{ fontSize: "28px", marginBottom: "4px" }}>🔍</div>
+                    <div style={{ fontWeight: 600, color: "var(--text-main)" }}>No matching users found</div>
+                    <div style={{ fontSize: "12px", color: "var(--text-muted)", marginTop: "2px" }}>
+                      Try adjusting your search query or role filter.
+                    </div>
+                  </div>
+                ) : (
+                  candidateUsers.map((u) => {
+                    const isSelected = selectedUserIds.includes(u.userId);
+                    const isDisabled = Boolean(u.isAdded);
+                    return (
+                      <div
                         key={u.userId || u.username}
-                        onClick={() => !u.isAdded && handleToggleSelectUser(u.userId)}
-                        style={{
-                          cursor: u.isAdded ? "default" : "pointer",
-                          backgroundColor: u.isAdded
-                            ? "var(--bg-hover)"
-                            : selectedUserIds.includes(u.userId)
-                            ? "rgba(59, 130, 246, 0.08)"
-                            : "transparent",
-                        }}
+                        className={`im-notif-candidate-item ${isDisabled ? "disabled" : ""} ${
+                          isSelected ? "selected" : ""
+                        }`}
+                        onClick={() => !isDisabled && handleToggleSelectUser(u.userId)}
                       >
-                        <td style={{ textAlign: "center" }} onClick={(e) => e.stopPropagation()}>
+                        <div className="im-notif-candidate-checkbox" onClick={(e) => e.stopPropagation()}>
                           <input
                             type="checkbox"
-                            disabled={u.isAdded}
-                            checked={u.isAdded || selectedUserIds.includes(u.userId)}
-                            onChange={() => !u.isAdded && handleToggleSelectUser(u.userId)}
+                            disabled={isDisabled}
+                            checked={isDisabled || isSelected}
+                            onChange={() => !isDisabled && handleToggleSelectUser(u.userId)}
                           />
-                        </td>
-                        <td>
-                          <div style={{ fontWeight: 600, color: "var(--text-main)" }}>{u.name || u.username}</div>
-                          <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>@{u.username}</div>
-                        </td>
-                        <td>
-                          <span className="badge" style={{ fontSize: "11px" }}>
-                            {u.userType}
+                        </div>
+
+                        <div className="im-notif-candidate-avatar">
+                          {(u.name || u.username || "U").charAt(0).toUpperCase()}
+                        </div>
+
+                        <div className="im-notif-candidate-details">
+                          <div className="im-notif-candidate-name-row">
+                            <span className="im-notif-candidate-name">{u.name || u.username}</span>
+                            <span className="im-notif-candidate-username">@{u.username}</span>
+                          </div>
+                          <div className="im-notif-candidate-meta-row">
+                            {u.email && (
+                              <span className="im-notif-candidate-meta-item">
+                                <EmailIcon /> {u.email}
+                              </span>
+                            )}
+                            {u.phoneNumber && (
+                              <span className="im-notif-candidate-meta-item">
+                                <PhoneIcon /> {u.phoneNumber}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="im-notif-candidate-tags">
+                          <span
+                            className="badge im-notif-role-badge"
+                            style={{
+                              background: u.userType?.toLowerCase().includes("dept")
+                                ? "rgba(59, 130, 246, 0.12)"
+                                : "rgba(100, 116, 139, 0.12)",
+                              color: u.userType?.toLowerCase().includes("dept")
+                                ? "#2563EB"
+                                : "var(--text-main)",
+                            }}
+                          >
+                            {u.userType || "User"}
                           </span>
                           {u.departmentName && (
-                            <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>{u.departmentName}</div>
+                            <span className="im-notif-candidate-dept-tag">{u.departmentName}</span>
                           )}
-                        </td>
-                        <td>
-                          <div style={{ fontSize: "12px", color: "var(--text-main)" }}>{u.email || "—"}</div>
-                          <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>{u.phoneNumber || "—"}</div>
-                        </td>
-                        <td>
-                          {u.isAdded ? (
-                            <span style={{ fontSize: "11px", color: "#10B981", fontWeight: 600 }}>
-                              ✓ In Group
-                            </span>
+                          {isDisabled ? (
+                            <span className="im-notif-candidate-status-tag in-group">✓ In Group</span>
+                          ) : isSelected ? (
+                            <span className="im-notif-candidate-status-tag selected-tag">Selected</span>
                           ) : (
-                            <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>Available</span>
+                            <span className="im-notif-candidate-status-tag available">Available</span>
                           )}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
             </div>
 
             {/* Modal Footer */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ fontSize: "13px", color: "var(--text-muted)" }}>
+            <div className="im-notif-modal-footer">
+              <div className="im-notif-modal-footer-count">
                 Selected: <strong>{selectedUserIds.length}</strong> user(s)
               </div>
-              <div style={{ display: "flex", gap: "12px" }}>
+              <div className="im-notif-modal-footer-actions">
                 <button
                   type="button"
                   className="mod-btn-outline"
@@ -965,137 +917,108 @@ export default function IMNotificationGroups() {
           EDIT MEMBER DETAILS MODAL
       ───────────────────────────────────────────────────────────── */}
       {editingMember && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(15, 23, 42, 0.6)",
-            backdropFilter: "blur(4px)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 9999,
-            padding: "20px",
-          }}
-        >
-          <div
-            className="mod-card"
-            style={{
-              width: "100%",
-              maxWidth: "500px",
-              padding: "24px",
-              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)",
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-              <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 700, color: "var(--text-main)" }}>
-                Edit Group Member
-              </h3>
+        <div className="im-notif-modal-overlay">
+          <div className="im-notif-modal-card" style={{ maxWidth: "540px" }}>
+            <div className="im-notif-modal-header">
+              <div>
+                <h3 className="im-notif-modal-title">Edit Group Member</h3>
+                <p className="im-notif-modal-subtitle">Update contact info and alert channel preferences</p>
+              </div>
               <button
                 type="button"
+                className="im-notif-modal-close"
                 onClick={() => setEditingMember(null)}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  fontSize: "20px",
-                  cursor: "pointer",
-                  color: "var(--text-muted)",
-                }}
+                title="Close modal"
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleSaveEditMember}>
-              <div style={{ marginBottom: "14px" }}>
-                <label className="mod-form-label">Full Name</label>
-                <input
-                  type="text"
-                  className="mod-form-input"
-                  value={editingMember.name || ""}
-                  onChange={(e) => setEditingMember({ ...editingMember, name: e.target.value })}
-                  required
-                />
-              </div>
-
-              <div style={{ marginBottom: "14px" }}>
-                <label className="mod-form-label">Email Address (for Email alerts)</label>
-                <input
-                  type="email"
-                  className="mod-form-input"
-                  value={editingMember.email || ""}
-                  onChange={(e) => setEditingMember({ ...editingMember, email: e.target.value })}
-                />
-              </div>
-
-              <div style={{ marginBottom: "16px" }}>
-                <label className="mod-form-label">Mobile Phone Number (for SMS alerts)</label>
-                <input
-                  type="text"
-                  className="mod-form-input"
-                  placeholder="+45 12345678"
-                  value={editingMember.phoneNumber || ""}
-                  onChange={(e) => setEditingMember({ ...editingMember, phoneNumber: e.target.value })}
-                />
-              </div>
-
-              <div
-                style={{
-                  padding: "12px 14px",
-                  background: "var(--bg-hover)",
-                  borderRadius: "6px",
-                  marginBottom: "20px",
-                }}
-              >
-                <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-main)", marginBottom: "8px", textTransform: "uppercase" }}>
-                  Notification Channels
+            <form onSubmit={handleSaveEditMember} style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
+              <div className="im-notif-modal-body">
+                <div style={{ marginBottom: "12px" }}>
+                  <label className="mod-form-label">Full Name</label>
+                  <input
+                    type="text"
+                    className="mod-form-input"
+                    value={editingMember.name || ""}
+                    onChange={(e) => setEditingMember({ ...editingMember, name: e.target.value })}
+                    required
+                  />
                 </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                  <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "13px" }}>
-                    <input
-                      type="checkbox"
-                      checked={Boolean(editingMember.isInAppEnabled)}
-                      onChange={(e) => setEditingMember({ ...editingMember, isInAppEnabled: e.target.checked })}
-                    />
-                    Enable In-App Navbar Notifications
-                  </label>
-                  <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "13px" }}>
-                    <input
-                      type="checkbox"
-                      checked={Boolean(editingMember.isEmailEnabled)}
-                      onChange={(e) => setEditingMember({ ...editingMember, isEmailEnabled: e.target.checked })}
-                    />
-                    Enable Email Notifications
-                  </label>
-                  <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "13px" }}>
-                    <input
-                      type="checkbox"
-                      checked={Boolean(editingMember.isSmsEnabled)}
-                      onChange={(e) => setEditingMember({ ...editingMember, isSmsEnabled: e.target.checked })}
-                    />
-                    Enable SMS Notifications
-                  </label>
+
+                <div style={{ marginBottom: "12px" }}>
+                  <label className="mod-form-label">Email Address (for Email alerts)</label>
+                  <input
+                    type="email"
+                    className="mod-form-input"
+                    value={editingMember.email || ""}
+                    onChange={(e) => setEditingMember({ ...editingMember, email: e.target.value })}
+                  />
+                </div>
+
+                <div style={{ marginBottom: "14px" }}>
+                  <label className="mod-form-label">Mobile Phone Number (for SMS alerts)</label>
+                  <input
+                    type="text"
+                    className="mod-form-input"
+                    placeholder="+45 12345678"
+                    value={editingMember.phoneNumber || ""}
+                    onChange={(e) => setEditingMember({ ...editingMember, phoneNumber: e.target.value })}
+                  />
+                </div>
+
+                <div className="im-notif-modal-channels-card" style={{ flexDirection: "column", alignItems: "flex-start", gap: "10px" }}>
+                  <div style={{ fontSize: "11.5px", fontWeight: 700, color: "var(--text-main)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                    Notification Channels
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px", width: "100%" }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "13px" }}>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(editingMember.isInAppEnabled)}
+                        onChange={(e) => setEditingMember({ ...editingMember, isInAppEnabled: e.target.checked })}
+                      />
+                      <span>Enable In-App Navbar Notifications</span>
+                    </label>
+                    <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "13px" }}>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(editingMember.isEmailEnabled)}
+                        onChange={(e) => setEditingMember({ ...editingMember, isEmailEnabled: e.target.checked })}
+                      />
+                      <span>Enable Email Notifications</span>
+                    </label>
+                    <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "13px" }}>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(editingMember.isSmsEnabled)}
+                        onChange={(e) => setEditingMember({ ...editingMember, isSmsEnabled: e.target.checked })}
+                      />
+                      <span>Enable SMS Notifications</span>
+                    </label>
+                  </div>
                 </div>
               </div>
 
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px" }}>
-                <button
-                  type="button"
-                  className="mod-btn-outline"
-                  onClick={() => setEditingMember(null)}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="mod-btn-primary im-btn-primary"
-                  disabled={saving}
-                >
-                  {saving ? "Saving..." : "Save Changes"}
-                </button>
+              <div className="im-notif-modal-footer">
+                <div></div>
+                <div className="im-notif-modal-footer-actions">
+                  <button
+                    type="button"
+                    className="mod-btn-outline"
+                    onClick={() => setEditingMember(null)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="mod-btn-primary im-btn-primary"
+                    disabled={saving}
+                  >
+                    {saving ? "Saving..." : "Save Changes"}
+                  </button>
+                </div>
               </div>
             </form>
           </div>

@@ -1585,11 +1585,63 @@ const getInitialPage = () => {
     return currentUser?.role || "";
   };
 
+  const canUserApprove = (row, status) => {
+    if (isAdmin || isMultiDept) return true;
+    if (!row) return false;
+    const permitType = row.permit_type || "";
+    const permitUnder = row.permit_under || "";
+
+    if (status === "Pre-Approved") {
+      if (permitType === "Construction" && permitUnder === "Commissioning") {
+        return isDept;
+      }
+      if (permitType === "Commissioning" && permitUnder === "Construction") {
+        return isDept1;
+      }
+      return false;
+    }
+
+    if (status === "Approved") {
+      if (permitType === "Commissioning" && permitUnder === "Commissioning") {
+        return isDept1;
+      }
+      if (permitType === "Construction" && permitUnder === "Construction") {
+        return isDept;
+      }
+      if (permitType === "Construction" && permitUnder === "Commissioning") {
+        return isDept1;
+      }
+      if (permitType === "Commissioning" && permitUnder === "Construction") {
+        return isDept;
+      }
+      return false;
+    }
+
+    return false;
+  };
+
+  const canUserReject = (row) => {
+    if (isAdmin || isMultiDept) return true;
+    if (!row) return false;
+    const permitType = row.permit_type || "";
+    const permitUnder = row.permit_under || "";
+    const isBothConstruction = (permitUnder === "Construction" && permitType === "Construction");
+    const isBothCommissioning = (permitUnder === "Commissioning" && permitType === "Commissioning");
+    const isMixed = (permitUnder === "Construction" && permitType === "Commissioning") ||
+                    (permitUnder === "Commissioning" && permitType === "Construction");
+
+    if (isBothConstruction) return isDept;
+    if (isBothCommissioning) return isDept1;
+    if (isMixed) return isDept || isDept1;
+    return false;
+  };
+
   const proceedWithStatusChange = (row, status) => {
     const currentStatus = row?.Request_status || row?.request_status || "";
     const workingDateVal = row?.Working_Date || row?.workingDate || row?.working_date || "";
 
     const isWorkingDateToday = isTodayDate(workingDateVal);
+    const canApproveThis = canUserApprove(row, status);
 
     setModalTarget(row);
     setModalStatus(status);
@@ -1600,7 +1652,7 @@ const getInitialPage = () => {
     setCloseNote("");
     setClosingImageFiles([]);
     setOpenActionType(isWorkingDateToday ? "Open" : "Cancel");
-    setApproveActionType("Approve");
+    setApproveActionType(canApproveThis ? "Approve" : "Reject");
     setLowRiskHotwork(0);
     setHighRiskHotwork(0);
     setHotWorkChecklistFilled(0);
@@ -1625,46 +1677,16 @@ const getInitialPage = () => {
 
     // Role based validations for Pre-Approved and Approved transitions
     if (!isAdmin) {
-      if (status === "Pre-Approved") {
-        // Pre-Approve: Construction permit under Commissioning -> CONM (isDept) pre-approves
-        if (permitType === "Construction" && permitUnder === "Commissioning") {
-          if (!isDept) {
-            return showError("Only CONM role can pre-approve Construction permits under Commissioning.");
-          }
-        }
-        // Pre-Approve: Commissioning permit under Construction -> COMM (isDept1) pre-approves
-        else if (permitType === "Commissioning" && permitUnder === "Construction") {
-          if (!isDept1) {
-            return showError("Only COMM role can pre-approve Commissioning permits under Construction.");
-          }
-        } else {
-          return showError("This permit configuration does not support the Pre-Approved status.");
-        }
-      }
+      if (status === "Pre-Approved" || status === "Approved") {
+        const canApproveThis = canUserApprove(row, status);
+        const canRejectThis = canUserReject(row);
 
-      if (status === "Approved") {
-        // Approve: Commissioning + Commissioning -> COMM (isDept1) approves
-        if (permitType === "Commissioning" && permitUnder === "Commissioning") {
-          if (!isDept1) {
-            return showError("Only COMM role can approve Commissioning permits under Commissioning.");
+        if (!canApproveThis && !canRejectThis) {
+          if (status === "Pre-Approved") {
+            return showError("You do not have permission to pre-approve or reject this permit.");
           }
-        }
-        // Approve: Construction + Construction -> CONM (isDept) approves
-        else if (permitType === "Construction" && permitUnder === "Construction") {
-          if (!isDept) {
-            return showError("Only CONM role can approve Construction permits under Construction.");
-          }
-        }
-        // Approve: Construction + Commissioning (from Pre-Approved) -> COMM (isDept1) approves
-        else if (permitType === "Construction" && permitUnder === "Commissioning") {
-          if (!isDept1) {
-            return showError("Only COMM role can approve Construction permits under Commissioning.");
-          }
-        }
-        // Approve: Commissioning + Construction (from Pre-Approved) -> CONM (isDept) approves
-        else if (permitType === "Commissioning" && permitUnder === "Construction") {
-          if (!isDept) {
-            return showError("Only CONM role can approve Commissioning permits under Construction.");
+          if (status === "Approved") {
+            return showError("You do not have permission to approve or reject this permit.");
           }
         }
       }
@@ -3185,9 +3207,9 @@ const getInitialPage = () => {
       <Modal
         open={activeModal === "status"}
         onClose={() => setActiveModal(null)}
-        title={`Request Status Change: ${modalStatus}`}
+        title={`Request Status Change: ${((modalStatus === "Pre-Approved" || modalStatus === "Approved") && approveActionType === "Reject") || modalStatus === "Rejected" ? "Rejected" : modalStatus}`}
         size="md"
-        type={modalStatus === "Rejected" ? "danger" : "default"}
+        type={((modalStatus === "Pre-Approved" || modalStatus === "Approved") && approveActionType === "Reject") || modalStatus === "Rejected" ? "danger" : "default"}
         scrollable={true}
       >
         {modalTarget && (
@@ -3233,8 +3255,8 @@ const getInitialPage = () => {
                 </div>
               )}
 
-              {/* Action choice if status is Pre-Approved */}
-              {modalStatus === "Pre-Approved" && (
+              {/* Action choice if status is Pre-Approved or Approved */}
+              {(modalStatus === "Pre-Approved" || modalStatus === "Approved") && (
                 <div className="df-field" style={{ marginBottom: "16px" }}>
                   <label className="df-label">Action to Take</label>
                   <select
@@ -3242,9 +3264,20 @@ const getInitialPage = () => {
                     value={approveActionType}
                     onChange={(e) => setApproveActionType(e.target.value)}
                   >
-                    <option value="Approve">Pre-Approve Permit</option>
-                    <option value="Reject">Reject Permit</option>
+                    {canUserApprove(modalTarget, modalStatus) && (
+                      <option value="Approve">
+                        {modalStatus === "Pre-Approved" ? "Pre-Approve Permit" : "Approve Permit"}
+                      </option>
+                    )}
+                    {canUserReject(modalTarget) && (
+                      <option value="Reject">Reject Permit</option>
+                    )}
                   </select>
+                  {!canUserApprove(modalTarget, modalStatus) && canUserReject(modalTarget) && (
+                    <p style={{ color: "#f59e0b", fontSize: "12px", marginTop: "6px" }}>
+                      Note: You are not authorized to {modalStatus === "Pre-Approved" ? "pre-approve" : "final approve"} this permit, but you have authority to reject it.
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -3666,6 +3699,19 @@ const getInitialPage = () => {
                     Close Permit
                   </button>
                 </>
+              ) : (((modalStatus === "Pre-Approved" || modalStatus === "Approved") && approveActionType === "Reject") || modalStatus === "Rejected") ? (
+                <button
+                  type="submit"
+                  className="df-btn"
+                  style={{
+                    backgroundColor: "#ef4444",
+                    borderColor: "#ef4444",
+                    color: "#ffffff",
+                    fontWeight: "600"
+                  }}
+                >
+                  Reject Permit
+                </button>
               ) : (
                 <button type="submit" className="df-btn df-btn--submit">
                   Confirm Status Transition

@@ -33,12 +33,29 @@ function SODetails() {
   const [escForm, setEscForm] = useState({ actual: 1, potential: 4, reason: "" });
   const [actionSubmitting, setActionSubmitting] = useState(false);
 
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
   const rawRole = (localStorage.getItem("UserType") || currentUser?.role || currentUser?.userType || currentUser?.user_type || "").toLowerCase();
   const isContractor = rawRole.includes("contractor") || rawRole.includes("subcontractor") || Boolean(currentUser?.subcontractor_id) || Boolean(currentUser?.contractorId) || Boolean(currentUser?.typeId && rawRole.includes("subcontractor"));
-  const isAdmin = rawRole.includes("admin") || rawRole.includes("superadmin");
+  const isAdmin = rawRole.includes("admin") || rawRole.includes("superadmin") || Boolean(currentUser?.isSuperAdmin) || (Array.isArray(currentUser?.userTypes) && currentUser.userTypes.some(t => String(t).toLowerCase().includes("admin")));
   const isDepartment = rawRole.includes("department") || rawRole.includes("operator") || rawRole.includes("site_hse") || rawRole.includes("safety") || rawRole.includes("hse");
   const isDeptOrAdmin = (isAdmin || isDepartment || !isContractor) && !isContractor;
+
+  const handleDeleteObservation = async () => {
+    try {
+      setIsDeleting(true);
+      await observationService.deleteObservation(id, {
+        userId: currentUser?.id,
+        userRole: rawRole,
+      });
+      navigate("/safety-observations/list");
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to delete observation.");
+      setIsDeleting(false);
+    }
+  };
 
   const fetchDetails = async () => {
     try {
@@ -304,6 +321,30 @@ function SODetails() {
           {!isPositive && obs.status !== "ESCALATED" && obs.status !== "CLOSED" && isDeptOrAdmin && !isContractor && (
             <button className="mod-btn-primary" style={{ background: "#E32B50", borderColor: "#E32B50", color: "#fff" }} onClick={() => setShowEscalate(true)}>
               Escalate to Incident
+            </button>
+          )}
+
+          {/* Admin & SuperAdmin Delete Observation */}
+          {isAdmin && (
+            <button
+              className="mod-btn-outline"
+              style={{
+                borderColor: "#E32B50",
+                color: "#E32B50",
+                background: "rgba(227,43,80,0.06)",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+              }}
+              onClick={() => setShowDeleteModal(true)}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                <line x1="10" y1="11" x2="10" y2="17" />
+                <line x1="14" y1="11" x2="14" y2="17" />
+              </svg>
+              Delete Observation
             </button>
           )}
         </div>
@@ -762,6 +803,85 @@ function SODetails() {
               </button>
               <button className="mod-btn-primary" style={{ background: "#E32B50" }} disabled={actionSubmitting} onClick={handleEscalate}>
                 {actionSubmitting ? "Escalating..." : "Confirm Escalation"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+            padding: "20px",
+          }}
+          onClick={() => !isDeleting && setShowDeleteModal(false)}
+        >
+          <div
+            className="mod-card"
+            style={{ maxWidth: 460, width: "100%", padding: 24, boxShadow: "0 20px 25px -5px rgba(0,0,0,0.2)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+              <div
+                style={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: "50%",
+                  background: "rgba(227,43,80,0.12)",
+                  color: "#E32B50",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}
+              >
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="3 6 5 6 21 6" />
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                  <line x1="10" y1="11" x2="10" y2="17" />
+                  <line x1="14" y1="11" x2="14" y2="17" />
+                </svg>
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 17, color: "var(--text-main)" }}>Delete Safety Observation</h3>
+                <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--text-muted)" }}>
+                  Ref: <strong style={{ fontFamily: "monospace" }}>{obs.observationNumber}</strong>
+                </p>
+              </div>
+            </div>
+
+            <p style={{ fontSize: 14, lineHeight: 1.5, color: "var(--text-main)", marginBottom: 20 }}>
+              Are you sure you want to permanently delete this observation record? This will remove all associated timeline history and photos. This action cannot be undone.
+            </p>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+              <button
+                type="button"
+                className="mod-btn-outline"
+                disabled={isDeleting}
+                onClick={() => setShowDeleteModal(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="mod-btn-primary"
+                disabled={isDeleting}
+                style={{ background: "#E32B50", borderColor: "#E32B50", color: "#fff" }}
+                onClick={handleDeleteObservation}
+              >
+                {isDeleting ? "Deleting..." : "Confirm Delete"}
               </button>
             </div>
           </div>

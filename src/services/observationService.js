@@ -104,6 +104,14 @@ export const observationService = {
     const response = await api.get("observations/stats", { params });
     return response.data;
   },
+
+  /**
+   * Delete an observation record (Admin/SuperAdmin only)
+   */
+  async deleteObservation(id, params = {}) {
+    const response = await api.delete(`observations/${id}`, { params });
+    return response.data;
+  },
 };
 
 export default observationService;

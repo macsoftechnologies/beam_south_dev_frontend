@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import PageHeader from "../../../components/common/PageHeader/PageHeader";
 import Loader from "../../../components/common/Loader/Loader";
-import { getIncidents } from "../../../services/incidentService";
+import { getIncidents, deleteIncident } from "../../../services/incidentService";
 import { getBuildings, getContractors } from "../../../services/authService";
 import "../../../styles/module-shared.css";
 import "./IMList.css";
@@ -278,8 +278,30 @@ function IMList() {
 
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
   const rawRole = (localStorage.getItem("UserType") || currentUser?.role || currentUser?.userType || currentUser?.user_type || "").toUpperCase();
+  const isAdmin = rawRole.includes("ADMIN") || rawRole.includes("SUPERADMIN") || Boolean(currentUser?.isSuperAdmin) || (Array.isArray(currentUser?.userTypes) && currentUser.userTypes.some(t => String(t).toUpperCase().includes("ADMIN")));
   const isContractor = rawRole.includes("CONTRACTOR") || rawRole.includes("SUBCONTRACTOR") || Boolean(currentUser?.subcontractor_id) || Boolean(currentUser?.typeId && rawRole.includes("SUBCONTRACTOR"));
   const contractorId = currentUser?.typeId || currentUser?.subcontractor_id || currentUser?.subContId || currentUser?.contractorId;
+
+  const [deletingIncident, setDeletingIncident] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDeleteIncident = async () => {
+    if (!deletingIncident) return;
+    try {
+      setIsDeleting(true);
+      await deleteIncident(deletingIncident.id, {
+        userId: currentUser?.id,
+        userRole: rawRole,
+      });
+      setIncidents((prev) => prev.filter((i) => i.id !== deletingIncident.id));
+      setTotalItems((prev) => Math.max(0, prev - 1));
+      setDeletingIncident(null);
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to delete incident.");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const myContractor = useMemo(() => {
     if (!isContractor) return null;
@@ -552,7 +574,10 @@ function IMList() {
                 <th className="ith">INV.</th>
                 <th className="ith">CONTRACTOR</th>
                 <th className="ith">ORIGIN</th>
-                <th className="ith" style={{ minWidth: 190, position: "sticky", right: 0, zIndex: 3, background: "var(--bg-card, #fff)" }}>STATUS</th>
+                <th className="ith" style={{ minWidth: 190, position: "sticky", right: isAdmin ? 60 : 0, zIndex: 3, background: "var(--bg-card, #fff)" }}>STATUS</th>
+                {isAdmin && (
+                  <th className="ith" style={{ minWidth: 60, width: 60, textAlign: "center", position: "sticky", right: 0, zIndex: 3, background: "var(--bg-card, #fff)" }}>ACTION</th>
+                )}
               </tr>
               <tr style={{ background: "var(--bg-card)" }}>
                 <th colSpan="4"></th>
@@ -626,14 +651,17 @@ function IMList() {
                     <option value="Observation">Observation</option>
                   </select>
                 </th>
-                <th style={{ position: "sticky", right: 0, zIndex: 3, background: "var(--bg-card, #fff)" }}></th>
+                <th style={{ position: "sticky", right: isAdmin ? 60 : 0, zIndex: 3, background: "var(--bg-card, #fff)" }}></th>
+                {isAdmin && (
+                  <th style={{ position: "sticky", right: 0, zIndex: 3, background: "var(--bg-card, #fff)" }}></th>
+                )}
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan="14" style={{ textAlign: "center", padding: "48px 0" }}><Loader size="md" text="Loading Incidents..." /></td></tr>
+                <tr><td colSpan={isAdmin ? 15 : 14} style={{ textAlign: "center", padding: "48px 0" }}><Loader size="md" text="Loading Incidents..." /></td></tr>
               ) : currentIncidents.length === 0 ? (
-                <tr><td colSpan="14" style={{ textAlign: "center", padding: "48px 0", color: "var(--text-muted)" }}>No incidents found</td></tr>
+                <tr><td colSpan={isAdmin ? 15 : 14} style={{ textAlign: "center", padding: "48px 0", color: "var(--text-muted)" }}>No incidents found</td></tr>
               ) : currentIncidents.map(inc => (
                 <tr key={inc.id} onClick={() => navigate(`/incident-management/details/${inc.id}`)} style={{ cursor: "pointer" }}>
                   <td style={{ maxWidth: "180px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontWeight: 600 }}>{inc.caseNumber || inc.title || "—"}</td>
@@ -669,7 +697,39 @@ function IMList() {
                     )}
                   </td>
                   <td><span style={{ whiteSpace: "nowrap" }}>{inc.origin || "Direct"}</span></td>
-                  <td style={{ position: "sticky", right: 0, zIndex: 1, background: "var(--bg-card, #fff)", borderLeft: "1px solid var(--border-color)", boxShadow: "-4px 0 12px rgba(0,0,0,0.02)" }}><StatusTracker inc={inc} pipeline={inc.stage || inc.pipeline || "Closed"} isPendingClosure={typeof inc.investigation === 'object' && !!(inc.investigation?.reviewedBy || inc.investigation?.approvedBy)} /></td>
+                  <td style={{ position: "sticky", right: isAdmin ? 60 : 0, zIndex: 1, background: "var(--bg-card, #fff)", borderLeft: "1px solid var(--border-color)", boxShadow: "-4px 0 12px rgba(0,0,0,0.02)" }}><StatusTracker inc={inc} pipeline={inc.stage || inc.pipeline || "Closed"} isPendingClosure={typeof inc.investigation === 'object' && !!(inc.investigation?.reviewedBy || inc.investigation?.approvedBy)} /></td>
+                  {isAdmin && (
+                    <td style={{ position: "sticky", right: 0, zIndex: 1, background: "var(--bg-card, #fff)", textAlign: "center", borderLeft: "1px solid var(--border-color)" }} onClick={(e) => e.stopPropagation()}>
+                      <button
+                        className="mod-btn-outline"
+                        style={{
+                          width: "30px",
+                          height: "30px",
+                          padding: 0,
+                          borderRadius: "6px",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          cursor: "pointer",
+                          color: "#E32B50",
+                          borderColor: "rgba(227,43,80,0.3)",
+                          background: "rgba(227,43,80,0.06)",
+                        }}
+                        title="Delete Incident (Admin only)"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeletingIncident(inc);
+                        }}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="3 6 5 6 21 6" />
+                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                          <line x1="10" y1="11" x2="10" y2="17" />
+                          <line x1="14" y1="11" x2="14" y2="17" />
+                        </svg>
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -728,6 +788,85 @@ function IMList() {
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {deletingIncident && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+            padding: "20px",
+          }}
+          onClick={() => !isDeleting && setDeletingIncident(null)}
+        >
+          <div
+            className="mod-card"
+            style={{ maxWidth: 460, width: "100%", padding: 24, boxShadow: "0 20px 25px -5px rgba(0,0,0,0.2)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+              <div
+                style={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: "50%",
+                  background: "rgba(227,43,80,0.12)",
+                  color: "#E32B50",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}
+              >
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="3 6 5 6 21 6" />
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                  <line x1="10" y1="11" x2="10" y2="17" />
+                  <line x1="14" y1="11" x2="14" y2="17" />
+                </svg>
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 17, color: "var(--text-main)" }}>Delete Incident</h3>
+                <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--text-muted)" }}>
+                  Case: <strong style={{ fontFamily: "monospace" }}>{deletingIncident.caseNumber || deletingIncident.title || `#${deletingIncident.id}`}</strong>
+                </p>
+              </div>
+            </div>
+
+            <p style={{ fontSize: 14, lineHeight: 1.5, color: "var(--text-main)", marginBottom: 20 }}>
+              Are you sure you want to permanently delete this incident record? This will delete all 3 stages (Heads-Up, Initial Report, Investigation) and all associated action items and photos. This action cannot be undone.
+            </p>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+              <button
+                type="button"
+                className="mod-btn-outline"
+                disabled={isDeleting}
+                onClick={() => setDeletingIncident(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="mod-btn-primary"
+                disabled={isDeleting}
+                style={{ background: "#E32B50", borderColor: "#E32B50", color: "#fff" }}
+                onClick={handleDeleteIncident}
+              >
+                {isDeleting ? "Deleting..." : "Confirm Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

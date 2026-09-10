@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import PageHeader from "../../../components/common/PageHeader/PageHeader";
-import { getIncidentById, updateHeadsUp, approveHeadsUp, submitInitialReport, approveInitialReport, getActionItems, addActionItem, updateActionItem, deleteActionItem, saveInvestigation, reviewInvestigation, closeIncident, exportIncidentPdf, uploadIncidentAttachment, returnForRevision } from "../../../services/incidentService";
+import { getIncidentById, updateHeadsUp, approveHeadsUp, submitInitialReport, approveInitialReport, getActionItems, addActionItem, updateActionItem, deleteActionItem, deleteIncident, saveInvestigation, reviewInvestigation, closeIncident, exportIncidentPdf, uploadIncidentAttachment, returnForRevision } from "../../../services/incidentService";
 import { getBuildings, getFloors, getContractors } from "../../../services/authService";
 import { showSuccess, showError } from "../../../components/common/Toast/Toast";
 import Loader from "../../../components/common/Loader/Loader";
@@ -324,6 +324,25 @@ const isNneUser = () => {
   }
 };
 
+const isAdminUser = () => {
+  try {
+    const u = localStorage.getItem("user");
+    const userType = localStorage.getItem("UserType") || "";
+    if (!u && !userType) return false;
+    const parsed = typeof u === "string" && u.startsWith("{") ? JSON.parse(u) : {};
+    const role = String(userType || parsed.role || parsed.userType || parsed.user_type || "").toLowerCase();
+    const userTypes = Array.isArray(parsed.userTypes) ? parsed.userTypes.map(t => String(t).toLowerCase()) : [];
+    return (
+      role.includes("admin") ||
+      role.includes("superadmin") ||
+      Boolean(parsed.isSuperAdmin) ||
+      userTypes.some(t => t.includes("admin"))
+    );
+  } catch (e) {
+    return false;
+  }
+};
+
 const dataURLtoBlob = (dataurl) => {
   if (!dataurl || typeof dataurl !== "string" || !dataurl.startsWith("data:")) return null;
   try {
@@ -381,6 +400,24 @@ export default function IMDetails() {
   const [isEditingHeadsUp, setIsEditingHeadsUp] = useState(false);
   const [isEditingInitialReport, setIsEditingInitialReport] = useState(false);
   const [isEditingInvestigation, setIsEditingInvestigation] = useState(false);
+
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeletingIncident, setIsDeletingIncident] = useState(false);
+
+  const handleDeleteIncident = async () => {
+    try {
+      setIsDeletingIncident(true);
+      const incObj = rawIncident?.incident || rawIncident || {};
+      const incId = incObj?.id || id;
+      await deleteIncident(incId);
+      showSuccess("Incident deleted successfully");
+      navigate("/incident-management/list");
+    } catch (err) {
+      console.error("Failed to delete incident:", err);
+      showError(err.response?.data?.message || "Failed to delete incident");
+      setIsDeletingIncident(false);
+    }
+  };
 
   const handleExportPdf = async () => {
     const incObj = rawIncident?.incident || rawIncident || {};
@@ -2612,7 +2649,7 @@ export default function IMDetails() {
             </span>
           </div>
         </div>
-        <div className="inc-head-actions hide-on-print" style={{ display: "flex", gap: "10px" }}>
+        <div className="inc-head-actions hide-on-print" style={{ display: "flex", gap: "10px", alignItems: "center" }}>
           <button
             className="mod-btn-outline"
             onClick={handleExportPdf}
@@ -2626,6 +2663,35 @@ export default function IMDetails() {
             </svg>
             {downloadingPdf ? "Downloading..." : "Export PDF"}
           </button>
+
+          {isAdminUser() && (
+            <button
+              className="mod-btn-outline"
+              disabled={isDeletingIncident}
+              onClick={() => setShowDeleteModal(true)}
+              style={{
+                fontSize: "13px",
+                padding: "8px 16px",
+                borderRadius: "8px",
+                fontWeight: 600,
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                color: "#E32B50",
+                borderColor: "#E32B50",
+                background: "rgba(227,43,80,0.06)",
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                <line x1="10" y1="11" x2="10" y2="17" />
+                <line x1="14" y1="11" x2="14" y2="17" />
+              </svg>
+              Delete Incident
+            </button>
+          )}
         </div>
       </div>
 
@@ -6361,6 +6427,85 @@ export default function IMDetails() {
           onClose={() => setShowPdfExport(false)}
           targetForm={pdfTargetForm}
         />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+            padding: "20px",
+          }}
+          onClick={() => !isDeletingIncident && setShowDeleteModal(false)}
+        >
+          <div
+            className="mod-card"
+            style={{ maxWidth: 460, width: "100%", padding: 24, boxShadow: "0 20px 25px -5px rgba(0,0,0,0.2)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+              <div
+                style={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: "50%",
+                  background: "rgba(227,43,80,0.12)",
+                  color: "#E32B50",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}
+              >
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="3 6 5 6 21 6" />
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                  <line x1="10" y1="11" x2="10" y2="17" />
+                  <line x1="14" y1="11" x2="14" y2="17" />
+                </svg>
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 17, color: "var(--text-main)" }}>Delete Incident Record</h3>
+                <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--text-muted)" }}>
+                  Case: <strong style={{ fontFamily: "monospace" }}>{incident?.caseNumber || incident?.title || `#${id}`}</strong>
+                </p>
+              </div>
+            </div>
+
+            <p style={{ fontSize: 14, lineHeight: 1.5, color: "var(--text-main)", marginBottom: 20 }}>
+              Are you sure you want to permanently delete this incident record? This will delete all 3 stages (Heads-Up, Initial Report, Investigation) and all associated action items and photos. This action cannot be undone.
+            </p>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+              <button
+                type="button"
+                className="mod-btn-outline"
+                disabled={isDeletingIncident}
+                onClick={() => setShowDeleteModal(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="mod-btn-primary"
+                disabled={isDeletingIncident}
+                style={{ background: "#E32B50", borderColor: "#E32B50", color: "#fff" }}
+                onClick={handleDeleteIncident}
+              >
+                {isDeletingIncident ? "Deleting..." : "Confirm Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

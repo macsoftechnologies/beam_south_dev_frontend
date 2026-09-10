@@ -136,8 +136,30 @@ function SOList() {
 
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   const rawRole = (localStorage.getItem("UserType") || user?.role || user?.userType || user?.user_type || "").toUpperCase();
+  const isAdmin = rawRole.includes("ADMIN") || rawRole.includes("SUPERADMIN") || Boolean(user?.isSuperAdmin) || (Array.isArray(user?.userTypes) && user.userTypes.some(t => String(t).toUpperCase().includes("ADMIN")));
   const isContractor = rawRole.includes("CONTRACTOR") || rawRole.includes("SUBCONTRACTOR") || Boolean(user?.subcontractor_id) || Boolean(user?.typeId && rawRole.includes("SUBCONTRACTOR"));
   const contractorId = user?.typeId || user?.subcontractor_id || user?.subContId || user?.contractorId;
+
+  const [deletingObs, setDeletingObs] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDeleteObservation = async () => {
+    if (!deletingObs) return;
+    try {
+      setIsDeleting(true);
+      await observationService.deleteObservation(deletingObs.id, {
+        userId: user?.id,
+        userRole: rawRole,
+      });
+      setObservations((prev) => prev.filter((o) => o.id !== deletingObs.id));
+      setTotalCount((prev) => Math.max(0, prev - 1));
+      setDeletingObs(null);
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to delete observation.");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const myContractor = useMemo(() => {
     if (!isContractor) return null;
@@ -491,29 +513,62 @@ function SOList() {
                     </td>
                     <td style={{ whiteSpace: "nowrap" }}>{o.createdByUserName || o.createdByRole}</td>
                     <td>
-                      <button
-                        className="mod-btn-outline"
-                        style={{
-                          width: "30px",
-                          height: "30px",
-                          padding: 0,
-                          borderRadius: "6px",
-                          display: "inline-flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          cursor: "pointer",
-                        }}
-                        title="View Observation"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(`/safety-observations/details/${o.id}`);
-                        }}
-                      >
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                          <circle cx="12" cy="12" r="3" />
-                        </svg>
-                      </button>
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        <button
+                          className="mod-btn-outline"
+                          style={{
+                            width: "30px",
+                            height: "30px",
+                            padding: 0,
+                            borderRadius: "6px",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            cursor: "pointer",
+                          }}
+                          title="View Observation"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/safety-observations/details/${o.id}`);
+                          }}
+                        >
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                            <circle cx="12" cy="12" r="3" />
+                          </svg>
+                        </button>
+
+                        {isAdmin && (
+                          <button
+                            className="mod-btn-outline"
+                            style={{
+                              width: "30px",
+                              height: "30px",
+                              padding: 0,
+                              borderRadius: "6px",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              cursor: "pointer",
+                              color: "#E32B50",
+                              borderColor: "rgba(227,43,80,0.3)",
+                              background: "rgba(227,43,80,0.06)",
+                            }}
+                            title="Delete Observation (Admin only)"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeletingObs(o);
+                            }}
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="3 6 5 6 21 6" />
+                              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                              <line x1="10" y1="11" x2="10" y2="17" />
+                              <line x1="14" y1="11" x2="14" y2="17" />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -577,6 +632,85 @@ function SOList() {
           </div>
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {deletingObs && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+            padding: "20px",
+          }}
+          onClick={() => !isDeleting && setDeletingObs(null)}
+        >
+          <div
+            className="mod-card"
+            style={{ maxWidth: 460, width: "100%", padding: 24, boxShadow: "0 20px 25px -5px rgba(0,0,0,0.2)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+              <div
+                style={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: "50%",
+                  background: "rgba(227,43,80,0.12)",
+                  color: "#E32B50",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}
+              >
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="3 6 5 6 21 6" />
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                  <line x1="10" y1="11" x2="10" y2="17" />
+                  <line x1="14" y1="11" x2="14" y2="17" />
+                </svg>
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 17, color: "var(--text-main)" }}>Delete Safety Observation</h3>
+                <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--text-muted)" }}>
+                  Ref: <strong style={{ fontFamily: "monospace" }}>{deletingObs.observationNumber}</strong>
+                </p>
+              </div>
+            </div>
+
+            <p style={{ fontSize: 14, lineHeight: 1.5, color: "var(--text-main)", marginBottom: 20 }}>
+              Are you sure you want to permanently delete this observation record? This will remove all associated timeline history and photos. This action cannot be undone.
+            </p>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+              <button
+                type="button"
+                className="mod-btn-outline"
+                disabled={isDeleting}
+                onClick={() => setDeletingObs(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="mod-btn-primary"
+                disabled={isDeleting}
+                style={{ background: "#E32B50", borderColor: "#E32B50", color: "#fff" }}
+                onClick={handleDeleteObservation}
+              >
+                {isDeleting ? "Deleting..." : "Confirm Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

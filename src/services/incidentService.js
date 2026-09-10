@@ -112,6 +112,12 @@ export const deleteActionItem = async (incidentId, itemId) => {
   return response.data;
 };
 
+// Delete Entire Incident (Admin/SuperAdmin only)
+export const deleteIncident = async (incidentId, params = {}) => {
+  const response = await api.delete(`/incidents/${incidentId}/`, { params });
+  return response.data;
+};
+
 // Get All Incidents with Filters
 export const getIncidents = async (filters = {}) => {
   const query = new URLSearchParams();

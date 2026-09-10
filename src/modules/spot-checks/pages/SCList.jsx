@@ -31,7 +31,7 @@ export default function SCList() {
           </div>
         </div>
         <div>
-          <button className="mod-btn-primary">+ New Spot Check</button>
+          <button className="mod-btn-primary" onClick={() => navigate('/spot-checks/create')}>+ New Spot Check</button>
         </div>
       </div>
 

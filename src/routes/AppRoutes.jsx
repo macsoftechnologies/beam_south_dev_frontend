@@ -59,6 +59,7 @@ import SIView from "../modules/safety-inspection/pages/SIView";
 // ── Spot Checks module ──
 import SCDashboard from "../modules/spot-checks/pages/SCDashboard";
 import SCList from "../modules/spot-checks/pages/SCList";
+import SCCreate from "../modules/spot-checks/pages/SCCreate";
 
 
 import ProtectedRoute from "../components/common/ProtectedRoute";
@@ -266,6 +267,7 @@ function AppRoutes() {
           {/* ── Spot Checks Routes ── */}
           <Route path="/spot-checks/dashboard" element={<SCDashboard />} />
           <Route path="/spot-checks/list" element={<SCList />} />
+          <Route path="/spot-checks/create" element={<SCCreate />} />
 
         </Route>
 

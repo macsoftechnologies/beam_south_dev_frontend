@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import "./ModuleSelection.css";
 
@@ -118,6 +118,27 @@ const CheckCircleIcon = ({ color }) => (
 
 function ModuleSelection() {
   const navigate = useNavigate();
+  const [scrollDir, setScrollDir] = useState("down");
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (window.scrollY > 100) {
+        setScrollDir("up");
+      } else {
+        setScrollDir("down");
+      }
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  const handleScrollClick = () => {
+    if (scrollDir === "up") {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    }
+  };
 
   return (
     <div className="ms-root">
@@ -167,6 +188,7 @@ function ModuleSelection() {
               onClick={() => {
                 localStorage.setItem("activeModule", mod.id);
                 navigate(mod.path);
+                window.scrollTo(0, 0);
               }}
               style={{
                 "--theme-color": mod.color,
@@ -215,13 +237,30 @@ function ModuleSelection() {
               >
                 Access {mod.title}
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M5 12h14M12 5l7 7-7 7"/>
+                  <path d="M7 17L17 7M17 7H7M17 7V17"/>
                 </svg>
               </button>
             </div>
           ))}
         </div>
       </div>
+
+      {/* Floating Scroll Button (Up/Down) */}
+      <button 
+        className="ms-scroll-top-btn"
+        onClick={handleScrollClick}
+        aria-label={scrollDir === "up" ? "Scroll to top" : "Scroll to bottom"}
+      >
+        {scrollDir === "up" ? (
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 19V5M5 12l7-7 7 7"/>
+          </svg>
+        ) : (
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 5v14M19 12l-7 7-7-7"/>
+          </svg>
+        )}
+      </button>
     </div>
   );
 }

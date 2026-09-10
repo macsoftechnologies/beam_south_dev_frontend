@@ -330,3 +330,42 @@
     font-size: 2.2rem;
   }
 }
+
+/* ── Floating Scroll to Top Button ── */
+.ms-scroll-top-btn {
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: #3B82F6;
+  color: #ffffff;
+  border: none;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 100;
+  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s, background 0.3s;
+}
+
+.ms-scroll-top-btn:hover {
+  transform: translateY(-5px);
+  background: #2563EB;
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.5);
+}
+
+.ms-scroll-top-btn:active {
+  transform: translateY(0);
+}
+
+@media (max-width: 768px) {
+  .ms-scroll-top-btn {
+    bottom: 20px;
+    right: 20px;
+    width: 44px;
+    height: 44px;
+  }
+}

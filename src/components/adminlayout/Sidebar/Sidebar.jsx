@@ -71,6 +71,8 @@ function SubItem({ href, label, subChildren }) {
 function detectModule(pathname) {
   if (pathname.startsWith('/incident-management')) return 'im';
   if (pathname.startsWith('/safety-observations'))  return 'so';
+  if (pathname.startsWith('/safety-inspection'))  return 'si';
+  if (pathname.startsWith('/spot-checks'))  return 'sc';
   return 'ptw';
 }
 
@@ -88,6 +90,26 @@ const MODULE_CONFIG = {
     accentClass: 'brand-accent-so',
     icon: 'ti-shield-check',
     menu: soNavigationMenu,
+  },
+  si: {
+    label: 'SAFETY INSP.',
+    sectionLabel: 'Safety Inspection',
+    accentClass: 'brand-accent-so',
+    icon: 'ti-clipboard-check',
+    menu: [
+      { name: 'Dashboard', state: 'safety-inspection/dashboard', icon: 'ti-layout-dashboard' },
+      { name: 'Inspections', state: 'safety-inspection/list', icon: 'ti-clipboard-list' },
+    ],
+  },
+  sc: {
+    label: 'SPOT CHECKS',
+    sectionLabel: 'Spot Checks',
+    accentClass: 'brand-accent-so',
+    icon: 'ti-target',
+    menu: [
+      { name: 'Dashboard', state: 'spot-checks/dashboard', icon: 'ti-layout-dashboard' },
+      { name: 'Checks', state: 'spot-checks/list', icon: 'ti-list-check' },
+    ],
   },
   ptw: null,  // PTW uses role-based menus
 };
@@ -155,6 +177,12 @@ function Sidebar({ sidebarOpen, toggleSidebar }) {
       "safety-observations/create":             "/safety-observations/create",
       "safety-observations/corrective-actions": "/safety-observations/corrective-actions",
       "safety-observations/reports":            "/safety-observations/reports",
+      // ── Safety Inspection ──
+      "safety-inspection/dashboard":            "/safety-inspection/dashboard",
+      "safety-inspection/list":                 "/safety-inspection/list",
+      // ── Spot Checks ──
+      "spot-checks/dashboard":                  "/spot-checks/dashboard",
+      "spot-checks/list":                       "/spot-checks/list",
     };
     return mapping[cleanState] || `/${cleanState}`;
   };

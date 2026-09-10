@@ -331,7 +331,9 @@ function ThemeSwitcher({ theme, onThemeChange }) {
 const MODULES = [
   { id: 'ptw', label: 'Permit to Work', path: '/dashboard', icon: 'ti-file-certificate' },
   { id: 'im', label: 'Incident Management', path: '/incident-management/dashboard', icon: 'ti-alert-triangle' },
-  { id: 'so', label: 'Safety Observations', path: '/safety-observations/dashboard', icon: 'ti-eye' }
+  { id: 'so', label: 'Safety Observations', path: '/safety-observations/dashboard', icon: 'ti-eye' },
+  { id: 'si', label: 'Safety Inspection', path: '/safety-inspection/dashboard', icon: 'ti-clipboard-check' },
+  { id: 'sc', label: 'Spot Checks', path: '/spot-checks/dashboard', icon: 'ti-target' }
 ];
 
 function ModuleSwitcher() {
@@ -341,6 +343,8 @@ function ModuleSwitcher() {
   const location = useLocation();
 
   const getActiveModule = () => {
+    if (location.pathname.includes('/spot-checks')) return MODULES[4];
+    if (location.pathname.includes('/safety-inspection')) return MODULES[3];
     if (location.pathname.includes('/safety-observations')) return MODULES[2];
     if (location.pathname.includes('/incident-management')) return MODULES[1];
     return MODULES[0];

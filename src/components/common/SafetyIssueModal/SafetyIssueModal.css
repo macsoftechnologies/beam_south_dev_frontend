@@ -1,0 +1,277 @@
+.sim-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 8px 4px;
+}
+
+.sim-row {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.sim-row.sim-row-col {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+@media (max-width: 600px) {
+  .sim-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+}
+
+.sim-label {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-main, #1e293b);
+  padding-top: 10px;
+}
+.sim-req {
+  color: var(--color-risk, #ef4444);
+  margin-left: 4px;
+}
+
+.sim-input-wrap {
+  width: 100%;
+  position: relative;
+}
+.sim-input-wrap.sim-w-50 {
+  width: 50%;
+}
+
+.sim-input-group {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  align-items: center;
+}
+.sim-input-icon-wrap {
+  position: relative;
+  flex: 1;
+}
+
+.sim-input {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--border-light, #cbd5e1);
+  border-radius: 6px;
+  font-size: 0.95rem;
+  background: var(--main-bg, #ffffff);
+  color: var(--text-main, #334155);
+  outline: none;
+  transition: all 0.2s;
+  height: 42px;
+}
+.sim-input:disabled {
+  background: var(--bg-dark, #f8fafc);
+  color: var(--text-muted, #94a3b8);
+  cursor: not-allowed;
+}
+.sim-input.grey-bg {
+  background: var(--bg-dark, #f1f5f9);
+}
+
+.sim-input:focus {
+  border-color: #F97316;
+}
+
+.sim-inner-icon {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted, #94a3b8);
+}
+.sim-inner-icon.clickable {
+  cursor: pointer;
+}
+.sim-inner-icon.clickable:hover {
+  color: var(--text-main, #334155);
+}
+
+.sim-btn-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 1px solid var(--border-light, #cbd5e1);
+  background: transparent;
+  color: var(--text-main, #334155);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+.sim-btn-icon:hover {
+  background: var(--bg-card-hover, #f1f5f9);
+}
+.sim-btn-icon.pdf-btn {
+  border-radius: 6px;
+  background: var(--bg-dark, #f1f5f9);
+  border-color: var(--text-dark, #475569);
+  color: var(--text-dark, #475569);
+}
+.sim-btn-icon.pdf-btn:hover {
+  background: var(--border-light, #e2e8f0);
+}
+
+.sim-input-icon-left {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.sim-input-icon-left i {
+  position: absolute;
+  left: 12px;
+  color: var(--text-muted, #94a3b8);
+}
+.sim-input-icon-left .with-icon {
+  padding-left: 36px;
+}
+
+.sim-input-icon-right-out {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.sim-input-icon-right-out i {
+  color: var(--text-muted, #64748b);
+  font-size: 1.1rem;
+}
+
+.sim-date-time-group {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+}
+.flex-1 { flex: 1; }
+.time-input { width: 110px; text-align: center; padding-left: 8px; padding-right: 8px; }
+
+/* Hide default browser calendar icon if custom icon is used */
+.sim-input[type="date"]::-webkit-calendar-picker-indicator {
+  opacity: 0;
+  cursor: pointer;
+  position: absolute;
+  right: 10px;
+}
+
+.sim-btn-outline {
+  height: 42px;
+  padding: 0 16px;
+  border: 1px solid var(--border-light, #cbd5e1);
+  background: var(--bg-card, #ffffff);
+  color: var(--text-main, #334155);
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.sim-btn-outline:hover {
+  background: var(--bg-card-hover, #f1f5f9);
+}
+
+.sim-textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #84cc16; /* green border from image */
+  border-radius: 6px;
+  min-height: 100px;
+  resize: vertical;
+  font-family: inherit;
+  font-size: 0.95rem;
+  background: var(--main-bg, #ffffff);
+  color: var(--text-main, #334155);
+  outline: none;
+}
+.sim-textarea:focus {
+  border-color: #F97316;
+}
+
+.sim-btn-attachment {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted, #475569);
+  font-weight: 500;
+  font-size: 0.95rem;
+  cursor: pointer;
+  padding: 8px 0;
+}
+.sim-btn-attachment i {
+  font-size: 1.1rem;
+}
+.sim-btn-attachment:hover {
+  color: var(--text-main, #1e293b);
+}
+
+/* Footer overrides */
+.sim-footer {
+  margin-top: 24px;
+  padding-top: 16px;
+  display: flex;
+  justify-content: flex-end; /* Align buttons to the right */
+  align-items: center;
+}
+
+.sim-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sim-btn-cancel {
+  padding: 10px 20px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  color: #1e3a8a; /* Dark blue text */
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.sim-btn-cancel:hover {
+  background: #f8fafc;
+}
+
+.sim-btn-submit {
+  padding: 10px 20px;
+  background: #10b981;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.sim-btn-submit:hover {
+  background: #059669;
+}
+
+/* ── Right-Side Drawer Overrides ── */
+body.si-right-modal-open .beam-modal-positioner {
+  justify-content: flex-end;
+  padding: 0;
+}
+body.si-right-modal-open .beam-modal-dialog {
+  margin: 0;
+  height: 100vh;
+  max-height: 100vh;
+  border-radius: 0;
+  width: 1050px; /* Increased width to accommodate FloorDrawing */
+  max-width: 100vw;
+  animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+@keyframes slideInRight {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}

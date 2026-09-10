@@ -50,6 +50,16 @@ import SODetails from "../modules/safety-observations/pages/SODetails";
 import SOCorrectiveActions from "../modules/safety-observations/pages/SOCorrectiveActions";
 import SOReports from "../modules/safety-observations/pages/SOReports";
 
+// ── Safety Inspection module ──
+import SIDashboard from "../modules/safety-inspection/pages/SIDashboard";
+import SIList from "../modules/safety-inspection/pages/SIList";
+import SICreate from "../modules/safety-inspection/pages/SICreate";
+import SIView from "../modules/safety-inspection/pages/SIView";
+
+// ── Spot Checks module ──
+import SCDashboard from "../modules/spot-checks/pages/SCDashboard";
+import SCList from "../modules/spot-checks/pages/SCList";
+
 
 import ProtectedRoute from "../components/common/ProtectedRoute";
 import PublicRoute from "../components/common/PublicRoute";
@@ -246,6 +256,16 @@ function AppRoutes() {
           <Route path="/safety-observations/details/:id" element={<SODetails />} />
           <Route path="/safety-observations/corrective-actions" element={<SOCorrectiveActions />} />
           <Route path="/safety-observations/reports" element={<SOReports />} />
+
+          {/* ── Safety Inspection Routes ── */}
+          <Route path="/safety-inspection/dashboard" element={<SIDashboard />} />
+          <Route path="/safety-inspection/list" element={<SIList />} />
+          <Route path="/safety-inspection/create" element={<SICreate />} />
+          <Route path="/safety-inspection/:id" element={<SIView />} />
+
+          {/* ── Spot Checks Routes ── */}
+          <Route path="/spot-checks/dashboard" element={<SCDashboard />} />
+          <Route path="/spot-checks/list" element={<SCList />} />
 
         </Route>
 

@@ -8,6 +8,8 @@ import { ZONE_MAPPING } from "../../../data/zones";
 import { BUILDINGS } from "../../../data/buildings";
 import { getBuildings, getRooms, getFloors, getContractors, getEmployees } from "../../../services/authService";
 import { spotCheckService } from "../../../services/spotCheckService";
+import { observationService } from "../../../services/observationService";
+import SafetyIssueModal from "../../../components/common/SafetyIssueModal/SafetyIssueModal";
 import { showSuccess, showError } from "../../../components/common/Toast/Toast";
 import "../../../styles/module-shared.css";
 import "./SCDashboard.css";
@@ -141,9 +143,27 @@ export default function SCCreate() {
   const [tempTime, setTempTime] = useState("");
   const [showBriefingTimePicker, setShowBriefingTimePicker] = useState(false);
   const [tempBriefingTime, setTempBriefingTime] = useState("");
+  const [showSafetyModal, setShowSafetyModal] = useState(false);
 
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
-  const currentUserName = currentUser.username || currentUser.name || "";
+  const currentUserName = currentUser.name || currentUser.username || (currentUser.firstName ? `${currentUser.firstName} ${currentUser.lastName || ""}`.trim() : "") || "";
+
+  const getDenmarkTodayDate = () => {
+    try {
+      return new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Europe/Copenhagen',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).format(new Date());
+    } catch {
+      const d = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Copenhagen' }));
+      const pad = (num) => String(num).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    }
+  };
+
+  const todayDenmark = getDenmarkTodayDate();
 
   // Location Selector States
   const [building, setBuilding] = useState("");
@@ -158,9 +178,9 @@ export default function SCCreate() {
   const [roomStatusMap, setRoomStatusMap] = useState({});
 
   const [form, setForm] = useState({
-    projectName: "",
+    projectName: "M3SOUTH",
     spotCheckRef: "",
-    date: "",
+    date: todayDenmark,
     time: "",
     buildingName: "",
     floorLevel: "",
@@ -195,9 +215,9 @@ export default function SCCreate() {
     foremanDate: "",
     foremanSignature: "",
     attachments: [{ desc: "", attached: "N/A" }, { desc: "", attached: "N/A" }, { desc: "", attached: "N/A" }],
-    inspectorName: "",
-    inspectorCompany: "",
-    inspectorDate: "",
+    inspectorName: currentUserName,
+    inspectorCompany: "NNE",
+    inspectorDate: todayDenmark,
     inspectorSignature: ""
   });
 
@@ -392,12 +412,44 @@ export default function SCCreate() {
 
       const sanitizeDateVal = (d) => (!d || typeof d !== 'string' || d.trim() === '' ? null : d.trim());
 
+      let finalSafetyIssueRef = form.safetyIssueRef;
+      if (form.chk3_2 === "No" && form.safetyIssueCreated === "No" && !finalSafetyIssueRef) {
+        try {
+          const bName = form.buildingName || (buildingsList.find(b => String(b.build_id || b.id) === String(building))?.building_name || "");
+          const contractorObj = contractorsList.find(c => c.name === form.companyInvolved || c.company_name === form.companyInvolved);
+          const obsRes = await observationService.createObservation({
+            observationType: "NEEDS_ATTENTION",
+            natureOfFinding: "UNSAFE_CONDITION",
+            subject: form.activityName ? `Spot Check Non-Compliance: ${form.activityName}` : (form.spotCheckRef ? `Spot Check Non-Compliance (${form.spotCheckRef})` : "Spot Check Non-Compliance"),
+            safetyCategory: "General Safety",
+            description: form.findings || `Non-compliant activity identified during Spot Check ${form.spotCheckRef ? `(${form.spotCheckRef})` : ''} - Activity: ${form.activityName || 'General inspection'}.`,
+            projectName: form.projectName || "M3SOUTH",
+            buildingId: building ? Number(building) : undefined,
+            buildingName: bName,
+            floorLevel: level || form.floorLevel,
+            specificLocation: form.location,
+            assignedContractorName: form.companyInvolved,
+            assignedContractorId: contractorObj?.id ? Number(contractorObj.id) : undefined,
+            date: sanitizeDateVal(form.date) || todayDenmark,
+            time: form.time || undefined,
+            createdByUserId: currentUser?.id,
+            createdByUserName: currentUser?.name || currentUser?.username || 'Safety Inspector',
+            createdByRole: currentUser?.role || 'Admin',
+          });
+          const createdObs = obsRes?.observation || obsRes;
+          finalSafetyIssueRef = createdObs?.observationNumber || (createdObs?.id ? `SO-${createdObs.id}` : "");
+        } catch (obsErr) {
+          console.error("Auto-creating safety observation failed:", obsErr);
+        }
+      }
+
       const payload = {
         ...form,
-        date: sanitizeDateVal(form.date) || new Date().toISOString().split('T')[0],
+        safetyIssueRef: finalSafetyIssueRef || form.safetyIssueRef,
+        date: sanitizeDateVal(form.date) || todayDenmark,
         briefingDate: sanitizeDateVal(form.briefingDate),
         foremanDate: sanitizeDateVal(form.foremanDate),
-        inspectorDate: sanitizeDateVal(form.inspectorDate) || new Date().toISOString().split('T')[0],
+        inspectorDate: sanitizeDateVal(form.inspectorDate) || todayDenmark,
         buildingId: building ? Number(building) : undefined,
         buildingName: form.buildingName || (buildingsList.find(b => String(b.build_id || b.id) === String(building))?.building_name || ""),
         floorLevel: level || form.floorLevel,
@@ -409,7 +461,11 @@ export default function SCCreate() {
       };
 
       await spotCheckService.createSpotCheck(payload);
-      showSuccess("Spot Check record saved successfully!");
+      if (finalSafetyIssueRef && form.safetyIssueCreated === "No") {
+        showSuccess(`Spot Check saved and linked to Safety Observation ${finalSafetyIssueRef}!`);
+      } else {
+        showSuccess("Spot Check record saved successfully!");
+      }
       navigate("/spot-checks/list");
     } catch (err) {
       console.error("Failed to submit spot check:", err);
@@ -451,7 +507,18 @@ export default function SCCreate() {
         <input type="radio" name={name} value="Yes" onChange={handleChange} checked={form[name] === "Yes"} /> Yes
       </label>
       <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "0.88rem" }}>
-        <input type="radio" name={name} value="No" onChange={handleChange} checked={form[name] === "No"} /> No
+        <input
+          type="radio"
+          name={name}
+          value="No"
+          onChange={(e) => {
+            handleChange(e);
+            if (name === "safetyIssueCreated") {
+              setShowSafetyModal(true);
+            }
+          }}
+          checked={form[name] === "No"}
+        /> No
       </label>
     </div>
   );
@@ -763,12 +830,61 @@ export default function SCCreate() {
 
           {form.chk3_2 === "No" && (
             <div className="sc-section-body" style={{ paddingTop: "14px", paddingBottom: "16px", borderBottom: "1px solid var(--border-color)" }}>
-              <div className="sc-form-grid">
-                <div className="sc-form-group span-2">
-                  <label className="sc-form-label">Safety issue / SPOT ref.</label>
-                  <input className="sc-form-input" name="safetyIssueRef" value={form.safetyIssueRef} onChange={handleChange} placeholder="e.g. SI-2026-0042" />
+              {form.safetyIssueCreated === "No" ? (
+                <div>
+                  {form.safetyIssueRef ? (
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: "rgba(16, 185, 129, 0.08)", border: "1px solid rgba(16, 185, 129, 0.3)", borderRadius: "6px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                        <i className="ti ti-circle-check" style={{ color: "#059669", fontSize: "20px" }}></i>
+                        <div>
+                          <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-main)", display: "flex", alignItems: "center", gap: "8px" }}>
+                            <span>Attached Safety Observation:</span>
+                            <span className="sc-badge sc-badge-danger" style={{ fontWeight: 700, fontSize: "12px" }}>{form.safetyIssueRef}</span>
+                            <span style={{ fontSize: "11px", color: "#b91c1c", background: "rgba(239, 68, 68, 0.1)", padding: "2px 6px", borderRadius: "4px", fontWeight: 600 }}>Needs Attention</span>
+                          </div>
+                          <div style={{ fontSize: "11.5px", color: "var(--text-muted)", marginTop: "2px" }}>
+                            A Safety Observation has been linked to this non-compliant spot check.
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className="mod-btn-outline"
+                        style={{ padding: "4px 10px", fontSize: "11px", display: "inline-flex", alignItems: "center", gap: "4px" }}
+                        onClick={() => setShowSafetyModal(true)}
+                      >
+                        <i className="ti ti-edit"></i> Edit Observation
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: "rgba(239, 68, 68, 0.06)", border: "1px dashed rgba(239, 68, 68, 0.4)", borderRadius: "6px" }}>
+                      <div>
+                        <div style={{ fontSize: "12.5px", fontWeight: 600, color: "#b91c1c", display: "flex", alignItems: "center", gap: "6px" }}>
+                          <i className="ti ti-alert-triangle"></i> Safety Observation Required (Needs Attention)
+                        </div>
+                        <div style={{ fontSize: "11.5px", color: "var(--text-muted)", marginTop: "2px" }}>
+                          Activity is non-compliant. A Safety Observation with "Needs Attention" will be created and its SO number attached to this spot check.
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className="mod-btn-primary"
+                        style={{ padding: "6px 14px", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "6px", whiteSpace: "nowrap" }}
+                        onClick={() => setShowSafetyModal(true)}
+                      >
+                        <i className="ti ti-plus"></i> Create & Attach SO
+                      </button>
+                    </div>
+                  )}
                 </div>
-              </div>
+              ) : (
+                <div className="sc-form-grid">
+                  <div className="sc-form-group span-2">
+                    <label className="sc-form-label">Safety issue / SPOT ref.</label>
+                    <input className="sc-form-input" name="safetyIssueRef" value={form.safetyIssueRef} onChange={handleChange} placeholder="e.g. SI-2026-0042 or SO-2026-0001" />
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -923,13 +1039,13 @@ export default function SCCreate() {
             <tbody>
               <tr>
                 <td className="sc-td-label" style={{ width: "150px" }}>Name</td>
-                <td><input className="mod-form-input" name="inspectorName" value={form.inspectorName} onChange={handleChange} /></td>
-                <td className="sc-td-label" style={{ width: "150px" }}>Company / function</td>
-                <td><input className="mod-form-input" name="inspectorCompany" value={form.inspectorCompany} onChange={handleChange} /></td>
+                <td><input className="mod-form-input" name="inspectorName" value={form.inspectorName} onChange={handleChange} disabled /></td>
+                <td className="sc-td-label" style={{ width: "150px" }}>Company</td>
+                <td><input className="mod-form-input" name="inspectorCompany" value={form.inspectorCompany} onChange={handleChange} disabled /></td>
               </tr>
               <tr>
                 <td className="sc-td-label">Date</td>
-                <td colSpan="3"><input type="date" className="mod-form-input" style={{ maxWidth: "200px" }} name="inspectorDate" value={form.inspectorDate} onChange={handleChange} /></td>
+                <td colSpan="3"><input type="date" className="mod-form-input" style={{ maxWidth: "200px" }} name="inspectorDate" value={form.inspectorDate} onChange={handleChange} disabled /></td>
               </tr>
               <tr>
                 <td className="sc-td-label" style={{ verticalAlign: "top", paddingTop: "16px" }}>Signature <span style={{ color: "#DC2626" }}>*</span></td>
@@ -982,6 +1098,32 @@ export default function SCCreate() {
             setShowBriefingTimePicker(false);
           }}
           onCancel={() => setShowBriefingTimePicker(false)}
+        />
+      )}
+
+      {showSafetyModal && (
+        <SafetyIssueModal
+          open={showSafetyModal}
+          onClose={() => setShowSafetyModal(false)}
+          subject={form.activityName ? `Spot Check Non-Compliance: ${form.activityName}` : "Spot Check Non-Compliance"}
+          color="red"
+          initialLocation={{
+            building,
+            level,
+            selectedRooms,
+            selectedZone,
+            specificLocation: form.location
+          }}
+          onObservationCreated={(createdObs) => {
+            const obsNum = createdObs?.observationNumber || (createdObs?.id ? `SO-${createdObs.id}` : 'SO');
+            setForm(prev => ({
+              ...prev,
+              safetyIssueCreated: "No",
+              safetyIssueRef: obsNum
+            }));
+            setShowSafetyModal(false);
+            showSuccess(`Safety Observation ${obsNum} created and linked to this Spot Check!`);
+          }}
         />
       )}
     </div>

@@ -35,6 +35,7 @@ function SODetails() {
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
 
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
   const rawRole = (localStorage.getItem("UserType") || currentUser?.role || currentUser?.userType || currentUser?.user_type || "").toLowerCase();
@@ -241,6 +242,20 @@ function SODetails() {
     }
   };
 
+  const handleDownloadPdf = async () => {
+    if (!obs) return;
+    try {
+      setIsDownloadingPdf(true);
+      const fileName = `${obs.observationNumber || `SO-${obs.id}`}_Safety_Observation.pdf`;
+      await observationService.downloadObservationPdf(obs.id, fileName, data);
+    } catch (err) {
+      console.error("Download observation PDF failed:", err);
+      alert("Failed to download Observation PDF.");
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  };
+
   return (
     <div className="mod-page">
       <div className="hide-on-print" style={{ marginBottom: "16px", display: "flex", justifyContent: "flex-end" }}>
@@ -276,6 +291,54 @@ function SODetails() {
 
         {/* Action Buttons Toolbar */}
         <div className="mod-action-toolbar">
+          {/* Download Observation Report (When status is CLOSED) */}
+          {obs.status === "CLOSED" && (
+            <button
+              type="button"
+              className="mod-btn-primary"
+              style={{
+                background: "#0284c7",
+                borderColor: "#0284c7",
+                color: "#fff",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+              }}
+              onClick={handleDownloadPdf}
+              disabled={isDownloadingPdf}
+              title="Download Closed Observation PDF"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              {isDownloadingPdf ? "Downloading..." : "Download PDF"}
+            </button>
+          )}
+
+          {/* Department & Admin Edit Observation Option (Disabled when CLOSED or ESCALATED) */}
+          {String(obs.status || "").toUpperCase() !== "CLOSED" && String(obs.status || "").toUpperCase() !== "ESCALATED" && isDeptOrAdmin && !isContractor && (
+            <button
+              type="button"
+              className="mod-btn-outline"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                fontWeight: 600,
+              }}
+              onClick={() => navigate(`/safety-observations/edit/${obs.id}`)}
+              title="Edit Observation Record Details"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+              </svg>
+              Edit Observation
+            </button>
+          )}
+
           {/* Department & Admin Assign / Reassign Contractor */}
           {obs.status !== "CLOSED" && obs.status !== "ESCALATED" && obs.status !== "RESOLVED" && isDeptOrAdmin && !isContractor && (
             <button className="mod-btn-primary" style={{ background: "#131E40", borderColor: "#131E40", color: "#fff" }} onClick={() => setShowReassignModal(true)}>

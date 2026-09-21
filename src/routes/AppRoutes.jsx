@@ -255,22 +255,86 @@ function AppRoutes() {
           <Route path="/safety-observations/dashboard" element={<SODashboard />} />
           <Route path="/safety-observations/list" element={<SOList />} />
           <Route path="/safety-observations/create" element={<SOCreate />} />
+          <Route path="/safety-observations/edit/:id" element={<SOCreate />} />
           <Route path="/safety-observations/details/:id" element={<SODetails />} />
           <Route path="/safety-observations/corrective-actions" element={<SOCorrectiveActions />} />
           <Route path="/safety-observations/reports" element={<SOReports />} />
 
-          {/* ── Safety Inspection Routes ── */}
-          <Route path="/safety-inspection/dashboard" element={<SIDashboard />} />
-          <Route path="/safety-inspection/list" element={<SIList />} />
-          <Route path="/safety-inspection/create" element={<SICreate />} />
-          <Route path="/safety-inspection/:id" element={<SIView />} />
+          {/* ── Safety Inspection Routes (Department & Admin only) ── */}
+          <Route
+            path="/safety-inspection/dashboard"
+            element={
+              <ProtectedRoute allowedRoles={["Admin", "admin", "SuperAdmin", "superadmin", "Department", "department", "Department1", "department1", "Operator", "operator", "Site_HSE", "site_hse", "HSE", "hse", "Safety", "safety"]}>
+                <SIDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/safety-inspection/list"
+            element={
+              <ProtectedRoute allowedRoles={["Admin", "admin", "SuperAdmin", "superadmin", "Department", "department", "Department1", "department1", "Operator", "operator", "Site_HSE", "site_hse", "HSE", "hse", "Safety", "safety"]}>
+                <SIList />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/safety-inspection/create"
+            element={
+              <ProtectedRoute allowedRoles={["Admin", "admin", "SuperAdmin", "superadmin", "Department", "department", "Department1", "department1", "Operator", "operator", "Site_HSE", "site_hse", "HSE", "hse", "Safety", "safety"]}>
+                <SICreate />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/safety-inspection/:id"
+            element={
+              <ProtectedRoute allowedRoles={["Admin", "admin", "SuperAdmin", "superadmin", "Department", "department", "Department1", "department1", "Operator", "operator", "Site_HSE", "site_hse", "HSE", "hse", "Safety", "safety"]}>
+                <SIView />
+              </ProtectedRoute>
+            }
+          />
 
-          {/* ── Spot Checks Routes ── */}
-          <Route path="/spot-checks/dashboard" element={<SCDashboard />} />
-          <Route path="/spot-checks/list" element={<SCList />} />
-          <Route path="/spot-checks/create" element={<SCCreate />} />
-          <Route path="/spot-checks/:id" element={<SCView />} />
-          <Route path="/spot-checks/details/:id" element={<SCView />} />
+          {/* ── Spot Checks Routes (Department & Admin only) ── */}
+          <Route
+            path="/spot-checks/dashboard"
+            element={
+              <ProtectedRoute allowedRoles={["Admin", "admin", "SuperAdmin", "superadmin", "Department", "department", "Department1", "department1", "Operator", "operator", "Site_HSE", "site_hse", "HSE", "hse", "Safety", "safety"]}>
+                <SCDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/spot-checks/list"
+            element={
+              <ProtectedRoute allowedRoles={["Admin", "admin", "SuperAdmin", "superadmin", "Department", "department", "Department1", "department1", "Operator", "operator", "Site_HSE", "site_hse", "HSE", "hse", "Safety", "safety"]}>
+                <SCList />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/spot-checks/create"
+            element={
+              <ProtectedRoute allowedRoles={["Admin", "admin", "SuperAdmin", "superadmin", "Department", "department", "Department1", "department1", "Operator", "operator", "Site_HSE", "site_hse", "HSE", "hse", "Safety", "safety"]}>
+                <SCCreate />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/spot-checks/:id"
+            element={
+              <ProtectedRoute allowedRoles={["Admin", "admin", "SuperAdmin", "superadmin", "Department", "department", "Department1", "department1", "Operator", "operator", "Site_HSE", "site_hse", "HSE", "hse", "Safety", "safety"]}>
+                <SCView />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/spot-checks/details/:id"
+            element={
+              <ProtectedRoute allowedRoles={["Admin", "admin", "SuperAdmin", "superadmin", "Department", "department", "Department1", "department1", "Operator", "operator", "Site_HSE", "site_hse", "HSE", "hse", "Safety", "safety"]}>
+                <SCView />
+              </ProtectedRoute>
+            }
+          />
 
         </Route>
 

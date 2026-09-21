@@ -120,6 +120,31 @@ function ModuleSelection() {
   const navigate = useNavigate();
   const [scrollDir, setScrollDir] = useState("down");
 
+  const user = React.useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem("user") || "{}");
+    } catch {
+      return {};
+    }
+  }, []);
+
+  const rawRole = (localStorage.getItem("UserType") || user?.role || user?.userType || user?.user_type || "").toUpperCase();
+  const userRolesArr = Array.isArray(user?.userTypes) ? user.userTypes.map((t) => String(t).toUpperCase()) : [];
+  const allRoles = [rawRole, ...userRolesArr].join(" ");
+
+  const isContractor = allRoles.includes("CONTRACTOR") || allRoles.includes("SUBCONTRACTOR") || Boolean(user?.subcontractor_id) || Boolean(user?.contractorId) || Boolean(user?.typeId && allRoles.includes("SUBCONTRACTOR"));
+  const isObserver = allRoles.includes("OBSERVER");
+  const isAdmin = allRoles.includes("ADMIN") || allRoles.includes("SUPERADMIN") || Boolean(user?.isSuperAdmin);
+  const isDepartment = allRoles.includes("DEPARTMENT") || allRoles.includes("OPERATOR") || allRoles.includes("SITE_HSE") || allRoles.includes("SAFETY") || allRoles.includes("HSE");
+  const isDeptOrAdmin = (isAdmin || isDepartment) && !isContractor && !isObserver;
+
+  const visibleModules = modules.filter((mod) => {
+    if (mod.id === "safety-inspection" || mod.id === "spot-checks") {
+      return isDeptOrAdmin;
+    }
+    return true;
+  });
+
   useEffect(() => {
     const handleScroll = () => {
       if (window.scrollY > 100) {
@@ -179,7 +204,7 @@ function ModuleSelection() {
 
         {/* Module Cards */}
         <div className="ms-cards">
-          {modules.map((mod) => (
+          {visibleModules.map((mod) => (
             <div
               key={mod.id}
               className="ms-card"

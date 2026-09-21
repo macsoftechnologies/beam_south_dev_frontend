@@ -342,6 +342,31 @@ function ModuleSwitcher() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const user = React.useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem("user") || "{}");
+    } catch {
+      return {};
+    }
+  }, []);
+
+  const rawRole = (localStorage.getItem("UserType") || user?.role || user?.userType || user?.user_type || "").toUpperCase();
+  const userRolesArr = Array.isArray(user?.userTypes) ? user.userTypes.map((t) => String(t).toUpperCase()) : [];
+  const allRoles = [rawRole, ...userRolesArr].join(" ");
+
+  const isContractor = allRoles.includes("CONTRACTOR") || allRoles.includes("SUBCONTRACTOR") || Boolean(user?.subcontractor_id) || Boolean(user?.contractorId) || Boolean(user?.typeId && allRoles.includes("SUBCONTRACTOR"));
+  const isObserver = allRoles.includes("OBSERVER");
+  const isAdmin = allRoles.includes("ADMIN") || allRoles.includes("SUPERADMIN") || Boolean(user?.isSuperAdmin);
+  const isDepartment = allRoles.includes("DEPARTMENT") || allRoles.includes("OPERATOR") || allRoles.includes("SITE_HSE") || allRoles.includes("SAFETY") || allRoles.includes("HSE");
+  const isDeptOrAdmin = (isAdmin || isDepartment) && !isContractor && !isObserver;
+
+  const allowedModules = MODULES.filter(m => {
+    if (m.id === 'si' || m.id === 'sc') {
+      return isDeptOrAdmin;
+    }
+    return true;
+  });
+
   const getActiveModule = () => {
     if (location.pathname.includes('/spot-checks')) return MODULES[4];
     if (location.pathname.includes('/safety-inspection')) return MODULES[3];
@@ -379,7 +404,7 @@ function ModuleSwitcher() {
       {open && (
         <div className="module-switcher-dropdown" role="menu">
           <div className="module-switcher-menu-header">Select Module</div>
-          {MODULES.map(m => (
+          {allowedModules.map(m => (
             <button
               key={m.id}
               type="button"

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import PageHeader from "../../../components/common/PageHeader/PageHeader";
 import { observationService } from "../../../services/observationService";
 import { getContractors, getBuildings, getRooms, getFloors } from "../../../services/authService";
@@ -12,6 +12,7 @@ import { AnalogTimePicker } from "../../incident-management/pages/IMCreate";
 import "../../../styles/module-shared.css";
 
 const initialForm = {
+  observationNumber: "",
   observationType: "", // POSITIVE | NEEDS_ATTENTION
   natureOfFinding: "", // GOOD_PRACTICE | UNSAFE_ACT | UNSAFE_CONDITION
   date: "",
@@ -34,6 +35,11 @@ const initialForm = {
 
 function SOCreate() {
   const navigate = useNavigate();
+  const { id } = useParams();
+  const isEditMode = Boolean(id);
+  const [isLoadingDetails, setIsLoadingDetails] = useState(isEditMode);
+  const [existingPhotos, setExistingPhotos] = useState([]);
+
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [tempTime, setTempTime] = useState("");
   const [form, setForm] = useState(initialForm);
@@ -64,7 +70,84 @@ function SOCreate() {
   const fileInputRef = useRef(null);
 
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
+  const rawRole = (localStorage.getItem("UserType") || currentUser?.role || currentUser?.userType || currentUser?.user_type || "").toLowerCase();
+  const isContractor = rawRole.includes("contractor") || rawRole.includes("subcontractor") || Boolean(currentUser?.subcontractor_id) || Boolean(currentUser?.contractorId) || Boolean(currentUser?.typeId && rawRole.includes("subcontractor"));
+  const isAdmin = rawRole.includes("admin") || rawRole.includes("superadmin") || Boolean(currentUser?.isSuperAdmin) || (Array.isArray(currentUser?.userTypes) && currentUser.userTypes.some(t => String(t).toLowerCase().includes("admin")));
+  const isDepartment = rawRole.includes("department") || rawRole.includes("operator") || rawRole.includes("site_hse") || rawRole.includes("safety") || rawRole.includes("hse");
+  const isDeptOrAdmin = (isAdmin || isDepartment || !isContractor) && !isContractor;
   const userRole = localStorage.getItem("UserType") || "DEPARTMENT";
+
+  // If in edit mode, fetch observation details to prefill form
+  useEffect(() => {
+    if (!id) return;
+    async function loadObservationForEdit() {
+      try {
+        setIsLoadingDetails(true);
+        const res = await observationService.getObservationDetails(id);
+        const obs = res?.observation || res;
+        if (!obs) {
+          alert("Observation record not found.");
+          navigate("/safety-observations/list");
+          return;
+        }
+
+        const currentStatus = String(obs.status || "").toUpperCase();
+        if (currentStatus === "CLOSED" || currentStatus === "ESCALATED") {
+          alert(`Observation ${obs.observationNumber || id} is ${currentStatus} and cannot be edited.`);
+          navigate(`/safety-observations/details/${id}`);
+          return;
+        }
+
+        let parsedPhotos = [];
+        if (obs.photos) {
+          if (Array.isArray(obs.photos)) {
+            parsedPhotos = obs.photos;
+          } else if (typeof obs.photos === "string") {
+            try {
+              const p = JSON.parse(obs.photos);
+              parsedPhotos = Array.isArray(p) ? p : [p];
+            } catch {
+              parsedPhotos = [obs.photos];
+            }
+          }
+        }
+        setExistingPhotos(parsedPhotos);
+
+        setForm({
+          status: obs.status || "",
+          observationNumber: obs.observationNumber || "",
+          observationType: obs.observationType || "",
+          natureOfFinding: obs.natureOfFinding || "",
+          date: obs.observationDate ? obs.observationDate.split("T")[0] : "",
+          time: obs.observationTime || "",
+          subject: obs.subject || "",
+          safetyCategory: obs.safetyCategory || "",
+          subcategory: obs.subcategory || "",
+          customSubcategory: "",
+          riskLevel: obs.riskLevel || "MEDIUM",
+          projectName: obs.projectName || "M3SOUTH",
+          assignedContractorId: obs.assignedContractorId ? String(obs.assignedContractorId) : "",
+          assignedContractorName: obs.assignedContractorName || "",
+          description: obs.description || "",
+          buildingId: obs.buildingId ? String(obs.buildingId) : "",
+          buildingName: obs.buildingName || "",
+          floorLevel: obs.floorLevel || "",
+          specificLocation: obs.specificLocation || "",
+          immediateActionTaken: obs.immediateActionTaken || "",
+        });
+
+        if (obs.buildingId) setBuilding(String(obs.buildingId));
+        if (obs.floorLevel) setLevel(obs.floorLevel);
+      } catch (err) {
+        console.error("Failed to load observation details for editing:", err);
+        alert(err.response?.data?.message || "Failed to load observation details.");
+        navigate("/safety-observations/list");
+      } finally {
+        setIsLoadingDetails(false);
+      }
+    }
+    loadObservationForEdit();
+  }, [id, navigate]);
 
   useEffect(() => {
     const loadSelectors = async () => {
@@ -387,27 +470,76 @@ const dataURLtoBlob = (dataurl) => {
       if (form.assignedContractorName) formData.append("assignedContractorName", form.assignedContractorName);
       if (form.immediateActionTaken) formData.append("immediateActionTaken", form.immediateActionTaken);
 
-      formData.append("createdByUserId", currentUser.id || "");
-      formData.append("createdByUserName", currentUser.username || currentUser.name || "User");
-      formData.append("createdByRole", userRole);
-      const cId = currentUser?.typeId || currentUser?.subcontractor_id || currentUser?.subContId || currentUser?.contractorId;
-      if (cId) formData.append("createdByContractorId", cId);
+      if (isEditMode) {
+        formData.append("existingPhotos", JSON.stringify(existingPhotos));
+        formData.append("editedByUserId", currentUser.id || "");
+        formData.append("editedByUserName", currentUser.username || currentUser.name || "Department User");
+        formData.append("editedByUserRole", rawRole ? rawRole.toUpperCase() : "DEPARTMENT");
+        formData.append("editRemarks", "Observation details updated by department user.");
 
-      // Append Multer photo files
-      photoFiles.forEach((file) => {
-        formData.append("photos", file);
-      });
+        await observationService.updateObservation(id, formData);
+        setSubmitted(true);
+        setTimeout(() => navigate(`/safety-observations/details/${id}`), 1200);
+      } else {
+        formData.append("createdByUserId", currentUser.id || "");
+        formData.append("createdByUserName", currentUser.username || currentUser.name || "User");
+        formData.append("createdByRole", userRole);
+        const cId = currentUser?.typeId || currentUser?.subcontractor_id || currentUser?.subContId || currentUser?.contractorId;
+        if (cId) formData.append("createdByContractorId", cId);
 
-      await observationService.createObservation(formData);
-      setSubmitted(true);
-      setTimeout(() => navigate("/safety-observations/list"), 1500);
+        await observationService.createObservation(formData);
+        setSubmitted(true);
+        setTimeout(() => navigate("/safety-observations/list"), 1500);
+      }
     } catch (err) {
-      console.error("Error creating observation:", err);
-      alert(err.response?.data?.message || "Failed to create safety observation.");
+      console.error("Error saving observation:", err);
+      alert(err.response?.data?.message || `Failed to ${isEditMode ? "update" : "create"} safety observation.`);
     } finally {
       setSubmitting(false);
     }
   };
+
+  if (isEditMode && isLoadingDetails) {
+    return (
+      <div className="mod-page" style={{ padding: "80px 20px", textAlign: "center" }}>
+        <i className="ti ti-loader ti-spin" style={{ fontSize: "32px", color: "var(--nne-brand-blue, #131E40)" }}></i>
+        <p style={{ marginTop: "12px", color: "var(--text-muted, #64748b)", fontSize: "14px" }}>Loading observation details for editing...</p>
+      </div>
+    );
+  }
+
+  if (isEditMode && !isDeptOrAdmin) {
+    return (
+      <div className="mod-page" style={{ padding: "80px 20px", textAlign: "center" }}>
+        <div style={{ color: "#E32B50", fontSize: "40px", marginBottom: "12px" }}>
+          <i className="ti ti-alert-triangle"></i>
+        </div>
+        <h2 style={{ margin: "0 0 8px", color: "var(--text-main)" }}>Access Restricted</h2>
+        <p style={{ color: "var(--text-muted)", marginBottom: "20px" }}>Only Department and Admin users have permission to edit observation details.</p>
+        <button className="mod-btn-primary" onClick={() => navigate(`/safety-observations/details/${id}`)}>
+          Return to Observation
+        </button>
+      </div>
+    );
+  }
+
+  const currentFormStatus = String(form.status || "").toUpperCase();
+  if (isEditMode && (currentFormStatus === "CLOSED" || currentFormStatus === "ESCALATED")) {
+    return (
+      <div className="mod-page" style={{ padding: "80px 20px", textAlign: "center" }}>
+        <div style={{ color: "#F59E0B", fontSize: "40px", marginBottom: "12px" }}>
+          <i className="ti ti-lock"></i>
+        </div>
+        <h2 style={{ margin: "0 0 8px", color: "var(--text-main)" }}>Observation Locked</h2>
+        <p style={{ color: "var(--text-muted)", marginBottom: "20px" }}>
+          This observation is currently {currentFormStatus} and cannot be edited.
+        </p>
+        <button className="mod-btn-primary" onClick={() => navigate(`/safety-observations/details/${id}`)}>
+          Return to Observation
+        </button>
+      </div>
+    );
+  }
 
   if (submitted) {
     return (
@@ -430,8 +562,12 @@ const dataURLtoBlob = (dataurl) => {
               <polyline points="20 6 9 17 4 12" />
             </svg>
           </div>
-          <h2 style={{ margin: "0 0 12px", color: "var(--text-main)" }}>Observation Submitted</h2>
-          <p style={{ margin: 0, color: "var(--text-muted)" }}>Redirecting to observations list...</p>
+          <h2 style={{ margin: "0 0 12px", color: "var(--text-main)" }}>
+            {isEditMode ? "Observation Details Updated" : "Observation Submitted"}
+          </h2>
+          <p style={{ margin: 0, color: "var(--text-muted)" }}>
+            {isEditMode ? "Redirecting to observation record..." : "Redirecting to observations list..."}
+          </p>
         </div>
       </div>
     );
@@ -442,8 +578,16 @@ const dataURLtoBlob = (dataurl) => {
   return (
     <div className="mod-page">
       <PageHeader
-        title="New Safety Observation"
-        breadcrumb={[{ label: "Safety Observations", link: "/safety-observations/list" }, { label: "New Observation" }]}
+        title={isEditMode ? `Edit Safety Observation - ${form.observationNumber || id}` : "New Safety Observation"}
+        breadcrumb={[
+          { label: "Safety Observations", link: "/safety-observations/list" },
+          ...(isEditMode
+            ? [
+                { label: form.observationNumber || `SO-${id}`, link: `/safety-observations/details/${id}` },
+                { label: "Edit Details" },
+              ]
+            : [{ label: "New Observation" }]),
+        ]}
       />
 
       <div className="mod-card">
@@ -873,45 +1017,115 @@ const dataURLtoBlob = (dataurl) => {
             )}
             <canvas ref={canvasRef} style={{ display: "none" }}></canvas>
 
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
-              {photoPreviews.map((src, idx) => (
-                <div key={idx} style={{ position: "relative", width: 72, height: 72, borderRadius: 7, overflow: "hidden", border: "1px solid var(--border-color)" }}>
-                  <img src={src} alt="thumbnail" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-                  <button
-                    type="button"
-                    onClick={() => removePhoto(idx)}
-                    style={{
-                      position: "absolute",
-                      top: 2,
-                      right: 2,
-                      width: 18,
-                      height: 18,
-                      borderRadius: "50%",
-                      border: "none",
-                      background: "rgba(0,0,0,0.6)",
-                      color: "#fff",
-                      fontSize: 12,
-                      lineHeight: 1,
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    &times;
-                  </button>
+            {/* Existing Photos (in Edit Mode) */}
+            {isEditMode && existingPhotos.length > 0 && (
+              <div style={{ marginTop: 14 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-main)", marginBottom: 6 }}>
+                  Current Observation Photos ({existingPhotos.length}):
                 </div>
-              ))}
-            </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  {existingPhotos.map((photo, idx) => {
+                    const filename = String(photo).split("/").pop().split("\\").pop();
+                    const src = photo.startsWith("http") || photo.startsWith("data:")
+                      ? photo
+                      : `https://api.beam.safesiteworks.com/development/m3south/observations/${filename}`;
+                    return (
+                      <div key={idx} style={{ position: "relative", width: 72, height: 72, borderRadius: 7, overflow: "hidden", border: "1px solid var(--border-color)" }}>
+                        <img src={src} alt="Existing Observation" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        <button
+                          type="button"
+                          onClick={() => setExistingPhotos((prev) => prev.filter((_, i) => i !== idx))}
+                          title="Remove this photo"
+                          style={{
+                            position: "absolute",
+                            top: 2,
+                            right: 2,
+                            width: 18,
+                            height: 18,
+                            borderRadius: "50%",
+                            border: "none",
+                            background: "rgba(227, 43, 80, 0.9)",
+                            color: "#fff",
+                            fontSize: 12,
+                            lineHeight: 1,
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          &times;
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* New Photos Selected */}
+            {photoPreviews.length > 0 && (
+              <div style={{ marginTop: 14 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-main)", marginBottom: 6 }}>
+                  {isEditMode ? `New Photos To Add (${photoPreviews.length}):` : `Selected Photos (${photoPreviews.length}):`}
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  {photoPreviews.map((src, idx) => (
+                    <div key={idx} style={{ position: "relative", width: 72, height: 72, borderRadius: 7, overflow: "hidden", border: "1px solid var(--border-color)" }}>
+                      <img src={src} alt="New upload" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                      <button
+                        type="button"
+                        onClick={() => removePhoto(idx)}
+                        title="Remove photo"
+                        style={{
+                          position: "absolute",
+                          top: 2,
+                          right: 2,
+                          width: 18,
+                          height: 18,
+                          borderRadius: "50%",
+                          border: "none",
+                          background: "rgba(0,0,0,0.6)",
+                          color: "#fff",
+                          fontSize: 12,
+                          lineHeight: 1,
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        &times;
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Form Actions */}
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, marginTop: 32, paddingTop: 24, borderTop: "1px solid var(--border-color)" }}>
-            <button type="button" className="mod-btn-outline" onClick={() => navigate("/safety-observations/list")}>
+            <button
+              type="button"
+              className="mod-btn-outline"
+              onClick={() => navigate(isEditMode ? `/safety-observations/details/${id}` : "/safety-observations/list")}
+            >
               Cancel
             </button>
-            <button type="submit" className="mod-btn-primary" disabled={submitting} style={{ background: "#131E40", borderColor: "#131E40", color: "#fff" }}>
-              {submitting ? "Submitting..." : "Submit Observation"}
+            <button
+              type="submit"
+              className="mod-btn-primary"
+              disabled={submitting}
+              style={{ background: "#131E40", borderColor: "#131E40", color: "#fff" }}
+            >
+              {submitting
+                ? isEditMode
+                  ? "Saving Changes..."
+                  : "Submitting..."
+                : isEditMode
+                ? "Save Changes"
+                : "Submit Observation"}
             </button>
           </div>
         </form>

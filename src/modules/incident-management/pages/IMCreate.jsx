@@ -14,7 +14,7 @@ import { getBuildings, getRooms, getFloors, getContractors } from "../../../serv
 export const AnalogTimePicker = ({ initialTime, onSave, onCancel }) => {
   const [hour, setHour] = useState(12);
   const [minute, setMinute] = useState(0);
-  const [mode, setMode] = useState("hour"); 
+  const [mode, setMode] = useState("hour");
 
   useEffect(() => {
     if (initialTime) {
@@ -134,9 +134,9 @@ export const AnalogTimePicker = ({ initialTime, onSave, onCancel }) => {
 
 const CreateIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-    <polyline points="14 2 14 8 20 8"/>
-    <line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/>
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+    <polyline points="14 2 14 8 20 8" />
+    <line x1="12" y1="18" x2="12" y2="12" /><line x1="9" y1="15" x2="15" y2="15" />
   </svg>
 );
 
@@ -167,9 +167,9 @@ const SignaturePad = ({ value, onChange, onClear }) => {
     }
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
-    return { 
-      x: (clientX - rect.left) * scaleX, 
-      y: (clientY - rect.top) * scaleY 
+    return {
+      x: (clientX - rect.left) * scaleX,
+      y: (clientY - rect.top) * scaleY
     };
   };
 
@@ -183,7 +183,7 @@ const SignaturePad = ({ value, onChange, onClear }) => {
 
   const draw = (e) => {
     if (!isDrawing) return;
-    e.preventDefault(); 
+    e.preventDefault();
     const { x, y } = getCoordinates(e);
     const ctx = canvasRef.current.getContext('2d');
     ctx.lineTo(x, y);
@@ -210,19 +210,19 @@ const SignaturePad = ({ value, onChange, onClear }) => {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      <div 
-        style={{ 
-          position: "relative", 
-          border: "1px dashed var(--border-color)", 
-          borderRadius: 6, 
-          height: 280, 
-          background: "#f8fafc", 
-          touchAction: "none", 
-          overflow: "hidden" 
+      <div
+        style={{
+          position: "relative",
+          border: "1px dashed var(--border-color)",
+          borderRadius: 6,
+          height: 280,
+          background: "#f8fafc",
+          touchAction: "none",
+          overflow: "hidden"
         }}
       >
         {!value && <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", color: "var(--text-muted)", pointerEvents: "none", fontSize: 14 }}>Draw your signature here</div>}
-        <canvas 
+        <canvas
           ref={canvasRef}
           width={800}
           height={280}
@@ -237,9 +237,9 @@ const SignaturePad = ({ value, onChange, onClear }) => {
           onTouchCancel={stopDrawing}
         />
       </div>
-      <button 
-        type="button" 
-        style={{ alignSelf: "flex-start", color: "#e11d48", background: "transparent", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 500, padding: 0 }} 
+      <button
+        type="button"
+        style={{ alignSelf: "flex-start", color: "#e11d48", background: "transparent", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 500, padding: 0 }}
         onClick={handleClear}
       >
         Clear signature
@@ -312,6 +312,44 @@ function IMCreate() {
   const [isLoadingSelectors, setIsLoadingSelectors] = useState(true);
   const [roomStatusMap, setRoomStatusMap] = useState({});
 
+  const currentUser = React.useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem("user") || "{}");
+    } catch {
+      return {};
+    }
+  }, []);
+
+  const rawRole = (localStorage.getItem("UserType") || currentUser?.role || currentUser?.userType || currentUser?.user_type || "").toUpperCase();
+  const isContractor = rawRole.includes("CONTRACTOR") || rawRole.includes("SUBCONTRACTOR") || Boolean(currentUser?.subcontractor_id) || Boolean(currentUser?.contractorId) || Boolean(currentUser?.typeId && rawRole.includes("SUBCONTRACTOR"));
+  const contractorId = currentUser?.typeId || currentUser?.subcontractor_id || currentUser?.subContId || currentUser?.contractorId;
+
+  const myContractor = React.useMemo(() => {
+    if (!isContractor) return null;
+    return (
+      contractorsList.find((c) =>
+        (contractorId && (String(c.id) === String(contractorId) || String(c.subcontractor_id) === String(contractorId))) ||
+        (currentUser?.username && (c.username === currentUser.username || String(c.subContractorName || c.company_name || c.name || "").toLowerCase() === String(currentUser.username).toLowerCase())) ||
+        (currentUser?.company_name && (c.subContractorName === currentUser.company_name || c.company_name === currentUser.company_name || c.name === currentUser.company_name)) ||
+        (currentUser?.companyName && (c.subContractorName === currentUser.companyName || c.company_name === currentUser.companyName || c.name === currentUser.companyName))
+      ) || (contractorsList.length === 1 ? contractorsList[0] : null)
+    );
+  }, [isContractor, contractorsList, contractorId, currentUser]);
+
+  const myContractorName = currentUser?.company_name || currentUser?.companyName || currentUser?.subContractorName || currentUser?.contractorName || myContractor?.subContractorName || myContractor?.company_name || myContractor?.companyName || myContractor?.subcontractor_name || myContractor?.name || "";
+
+  // Auto-set and lock contractor for contractor logins
+  useEffect(() => {
+    if (isContractor && myContractorName) {
+      setForm((prev) => {
+        if (prev.contractor !== myContractorName) {
+          return { ...prev, contractor: myContractorName };
+        }
+        return prev;
+      });
+    }
+  }, [isContractor, myContractorName]);
+
   useEffect(() => {
     const loadSelectors = async () => {
       try {
@@ -335,7 +373,7 @@ function IMCreate() {
   }, []);
 
   const levels = building ? floorsList.filter(f => String(f.build_id) === String(building)).map(f => f.floor_name) : [];
-  
+
   const selectedPdf = React.useMemo(() => {
     if (!building || !level) return "";
     const dbBuilding = buildingsList.find(b => String(b.build_id || b.id) === String(building));
@@ -348,7 +386,7 @@ function IMCreate() {
     if (!pdfsForBuilding) return "";
     if (pdfsForBuilding[level]) return pdfsForBuilding[level];
     const levelLower = level.toLowerCase().trim();
-    const foundKey = Object.keys(pdfsForBuilding).find(k => 
+    const foundKey = Object.keys(pdfsForBuilding).find(k =>
       k.toLowerCase().trim().includes(levelLower) || levelLower.includes(k.toLowerCase().trim())
     );
     return foundKey ? pdfsForBuilding[foundKey] : "";
@@ -461,6 +499,7 @@ function IMCreate() {
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
+    if (name === "contractor" && isContractor) return;
     setForm(prev => {
       const next = { ...prev, [name]: type === "checkbox" ? checked : value };
       return next;
@@ -470,7 +509,7 @@ function IMCreate() {
 
   const handleCategoryToggle = (cat) => {
     setForm(prev => {
-      const newCats = prev.categories.includes(cat) 
+      const newCats = prev.categories.includes(cat)
         ? prev.categories.filter(c => c !== cat)
         : [...prev.categories, cat];
       return { ...prev, categories: newCats };
@@ -501,7 +540,7 @@ function IMCreate() {
     e.preventDefault();
     const errs = validate();
     if (Object.keys(errs).length) { setErrors(errs); return; }
-    
+
     setIsLoadingSelectors(true); // Reusing for loading indicator
     try {
       const payload = {
@@ -515,7 +554,7 @@ function IMCreate() {
         origin: "Direct",
         floorLevel: level,
         specificLocation: form.specificLocation,
-        contractorsInvolved: form.contractor,
+        contractorsInvolved: isContractor ? (myContractorName || form.contractor) : form.contractor,
         categories: form.categories,
         actualSeverity: form.actual ? Number(form.actual) : undefined,
         potentialSeverity: form.potential ? Number(form.potential) : undefined,
@@ -558,7 +597,7 @@ function IMCreate() {
         <div className="mod-card" style={{ maxWidth: 480, margin: "60px auto", textAlign: "center", padding: "48px 32px" }}>
           <div style={{ width: 56, height: 56, borderRadius: "50%", background: "var(--color-safe-bg)", color: "var(--color-safe)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" />
             </svg>
           </div>
           <h3 style={{ color: "var(--text-main)", margin: "0 0 8px 0" }}>Heads-Up Notification Submitted</h3>
@@ -595,7 +634,7 @@ function IMCreate() {
         <div className="mod-card-body">
           <form onSubmit={handleSubmit}>
             <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-              
+
               {/* 1. Project Details */}
               <div>
                 <div style={{ fontSize: "14px", fontWeight: 700, color: "var(--text-main)", borderBottom: "1px solid var(--border-color)", paddingBottom: "8px", marginBottom: "16px" }}>
@@ -682,12 +721,35 @@ function IMCreate() {
                     {errors.specificLocation && <span style={{ fontSize: "0.75rem", color: "#DC2626" }}>{errors.specificLocation}</span>}
                   </div>
                   <div className="mod-form-group full-width">
-                    <label className="mod-form-label">Contractor(s) involved <span style={{ color: "#DC2626" }}>*</span></label>
-                    <select name="contractor" className="mod-form-select" value={form.contractor} onChange={handleChange}>
-                      <option value="">Select...</option>
-                      {contractorsList.map(c => <option key={c.id || c.subcontractor_id || c._id} value={c.subContractorName || c.name}>{c.subContractorName || c.name}</option>)}
+                    <label className="mod-form-label">
+                      Contractor(s) involved {isContractor && <span style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 400 }}>(Locked to your company)</span>}
+                    </label>
+                    <select
+                      name="contractor"
+                      className="mod-form-select"
+                      value={isContractor ? (myContractorName || form.contractor) : form.contractor}
+                      onChange={handleChange}
+                      disabled={isContractor}
+                      style={isContractor ? { backgroundColor: "var(--bg-body, rgba(255,255,255,0.05))", cursor: "not-allowed", opacity: 0.85 } : {}}
+                    >
+                      {!isContractor && <option value="">Select...</option>}
+                      {contractorsList.map((c) => {
+                        const val = c.subContractorName || c.company_name || c.name;
+                        return (
+                          <option key={c.id || c.subcontractor_id || c._id} value={val}>
+                            {val}
+                          </option>
+                        );
+                      })}
+                      {isContractor && myContractorName && !contractorsList.some((c) => (c.subContractorName || c.company_name || c.name) === myContractorName) && (
+                        <option value={myContractorName}>{myContractorName}</option>
+                      )}
                     </select>
-                    {errors.contractor && <span style={{ fontSize: "0.75rem", color: "#DC2626" }}>{errors.contractor}</span>}
+                    {isContractor && (
+                      <span style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "4px", display: "block" }}>
+                        Contractor locked to your company: <strong>{myContractorName || form.contractor}</strong>
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -700,9 +762,9 @@ function IMCreate() {
                 <div className="mod-form-group">
                   <label className="mod-form-label">Incident Category <span style={{ color: "#DC2626" }}>*</span></label>
                   <div style={{ fontSize: "11px", color: "var(--text-muted)", marginBottom: "8px" }}>The categorisation may change following the incident investigation or if the incident develops further over time.</div>
-                  <select 
-                    className="mod-form-select" 
-                    value={form.categories[0] || ""} 
+                  <select
+                    className="mod-form-select"
+                    value={form.categories[0] || ""}
                     onChange={(e) => {
                       const val = e.target.value;
                       setForm(prev => ({ ...prev, categories: val ? [val] : [] }));
@@ -715,7 +777,7 @@ function IMCreate() {
                   </select>
                   {errors.categories && <span style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: "4px" }}>{errors.categories}</span>}
                 </div>
-                
+
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginTop: "16px" }}>
                   <div className="mod-form-group">
                     <label className="mod-form-label">Actual severity level & rating <span style={{ color: "#DC2626" }}>*</span></label>
@@ -814,16 +876,16 @@ function IMCreate() {
                         </>
                       )}
                     </div>
-                    
+
                     <div className="grid-2" style={{ gap: "16px", marginTop: "24px", paddingTop: "16px", borderTop: "1px dashed rgba(217,119,6,0.3)" }}>
                       <div className="mod-form-group">
                         <label className="mod-form-label" style={{ color: "#92400e", fontWeight: 700, textTransform: "uppercase", fontSize: "11px" }}>HAS THE GATEKEEPER BEEN INFORMED?</label>
                         <div style={{ display: "flex", gap: "16px", marginTop: "8px" }}>
                           <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px" }}>
-                            <input type="radio" name="gatekeeperInformed" checked={form.gatekeeperInformed === true} onChange={() => setForm(prev => ({...prev, gatekeeperInformed: true}))} /> Yes
+                            <input type="radio" name="gatekeeperInformed" checked={form.gatekeeperInformed === true} onChange={() => setForm(prev => ({ ...prev, gatekeeperInformed: true }))} /> Yes
                           </label>
                           <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px" }}>
-                            <input type="radio" name="gatekeeperInformed" checked={form.gatekeeperInformed === false} onChange={() => setForm(prev => ({...prev, gatekeeperInformed: false}))} /> No
+                            <input type="radio" name="gatekeeperInformed" checked={form.gatekeeperInformed === false} onChange={() => setForm(prev => ({ ...prev, gatekeeperInformed: false }))} /> No
                           </label>
                         </div>
                       </div>
@@ -844,7 +906,7 @@ function IMCreate() {
                   <span>{isEnv ? "5" : "4"}. Immediate Actions Taken <span style={{ color: "#DC2626" }}>*</span></span>
                   <button type="button" className="mod-btn-outline" onClick={addAction} style={{ padding: "4px 12px", fontSize: "12px", fontWeight: 600 }}>+ Add Action</button>
                 </div>
-                
+
                 {form.immActions.length === 0 ? (
                   <div style={{ fontStyle: "italic", color: "var(--text-muted)", padding: "12px", background: "#f8fafc", borderRadius: "6px" }}>No immediate actions added.</div>
                 ) : (
@@ -874,7 +936,7 @@ function IMCreate() {
                             <input type="text" readOnly className="mod-form-input" value={act.time} onClick={() => { setTempActionTime(act.time || "12:00"); setShowActionTimePicker(i); }} placeholder="Select time" style={{ cursor: "pointer" }} />
                             {errors.immActions?.[i]?.time && <span style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: "4px" }}>{errors.immActions[i].time}</span>}
                           </div>
-                          <button type="button" style={{ padding: "6px 12px", border: "1px solid #fca5a5", background: "var(--bg-card)", color: "#dc2626", borderRadius: "6px", fontSize: "12px", cursor: "pointer", height: "36px" }} onClick={() => setForm(prev => ({...prev, immActions: prev.immActions.filter((_, idx) => idx !== i)}))}>Remove</button>
+                          <button type="button" style={{ padding: "6px 12px", border: "1px solid #fca5a5", background: "var(--bg-card)", color: "#dc2626", borderRadius: "6px", fontSize: "12px", cursor: "pointer", height: "36px" }} onClick={() => setForm(prev => ({ ...prev, immActions: prev.immActions.filter((_, idx) => idx !== i) }))}>Remove</button>
                         </div>
                       </div>
                     ))}
@@ -893,23 +955,9 @@ function IMCreate() {
                 </div>
                 <div className="mod-form-group full-width">
                   <label className="mod-form-label">Signature <span style={{ color: "#DC2626" }}>*</span></label>
-                  <SignaturePad value={form.signature} onChange={val => setForm(prev => ({...prev, signature: val}))} onClear={() => setForm(prev => ({...prev, signature: false}))} />
+                  <SignaturePad value={form.signature} onChange={val => setForm(prev => ({ ...prev, signature: val }))} onClear={() => setForm(prev => ({ ...prev, signature: false }))} />
                   {errors.signature && <span style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: "4px", display: "block" }}>{errors.signature}</span>}
                 </div>
-              </div>
-
-              {/* No Further Investigation Checkbox */}
-              <div style={{ marginTop: 20, padding: "14px 16px", background: "var(--bg-dark, #f8fafc)", borderRadius: "8px", border: "1px solid var(--border-color)", display: "flex", alignItems: "center", gap: 10 }}>
-                <input
-                  type="checkbox"
-                  id="createNoFurtherInvestigation"
-                  checked={form.noFurtherInvestigation}
-                  onChange={e => setForm(prev => ({ ...prev, noFurtherInvestigation: e.target.checked }))}
-                  style={{ width: 18, height: 18, cursor: "pointer" }}
-                />
-                <label htmlFor="createNoFurtherInvestigation" style={{ fontWeight: 600, fontSize: 13.5, cursor: "pointer", color: "var(--text-main)" }}>
-                  No further investigation required (Incident can be closed after approval)
-                </label>
               </div>
 
               <div className="mod-form-actions" style={{ marginTop: 24, paddingTop: 16, borderTop: "1px solid var(--border-color)", display: "flex", justifyContent: "flex-end", gap: "12px" }}>
@@ -919,23 +967,23 @@ function IMCreate() {
             </div>
           </form>
           {showTimePicker && (
-            <AnalogTimePicker 
-              initialTime={tempTime} 
-              onSave={(val) => { 
-                handleChange({ target: { name: "time", value: val } }); 
-                setShowTimePicker(false); 
-              }} 
-              onCancel={() => setShowTimePicker(false)} 
+            <AnalogTimePicker
+              initialTime={tempTime}
+              onSave={(val) => {
+                handleChange({ target: { name: "time", value: val } });
+                setShowTimePicker(false);
+              }}
+              onCancel={() => setShowTimePicker(false)}
             />
           )}
           {showActionTimePicker !== null && (
-            <AnalogTimePicker 
-              initialTime={tempActionTime} 
-              onSave={(val) => { 
+            <AnalogTimePicker
+              initialTime={tempActionTime}
+              onSave={(val) => {
                 updateAction(showActionTimePicker, "time", val);
-                setShowActionTimePicker(null); 
-              }} 
-              onCancel={() => setShowActionTimePicker(null)} 
+                setShowActionTimePicker(null);
+              }}
+              onCancel={() => setShowActionTimePicker(null)}
             />
           )}
         </div>

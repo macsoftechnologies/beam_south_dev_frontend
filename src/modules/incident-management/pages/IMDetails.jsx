@@ -25,6 +25,37 @@ const getAttachmentUrl = (url) => {
   return `${baseUrl}/${clean}`;
 };
 
+const INCIDENT_CATEGORIES = [
+  "Near Miss",
+  "First Aid Injury",
+  "Medical Treatment Injury",
+  "Restricted Work Injury",
+  "Lost Time Injury",
+  "Property Damage",
+  "Environmental Incident",
+  "Personal Injury",
+  "Other"
+];
+
+const normalizeToStandardCategory = (c) => {
+  if (!c) return c;
+  if (typeof c === "string" && (c === "Other" || c.startsWith("Other:") || c.toLowerCase().startsWith("other:"))) return "Other";
+  const norm = String(c).toLowerCase().replace(/[^a-z0-9]/g, "");
+  for (const std of INCIDENT_CATEGORIES) {
+    const stdNorm = std.toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (stdNorm === norm) return std;
+    if (stdNorm === "medicaltreatmentinjury" && (norm.includes("medicaltreatment") || norm === "medical")) return std;
+    if (stdNorm === "firstaidinjury" && (norm.includes("firstaid") || norm === "firstaidtreatment")) return std;
+    if (stdNorm === "restrictedworkinjury" && (norm.includes("restrictedwork") || norm === "rwi")) return std;
+    if (stdNorm === "losttimeinjury" && (norm.includes("losttime") || norm.includes("losstime") || norm === "lti")) return std;
+    if (stdNorm === "nearmiss" && norm.includes("nearmiss")) return std;
+    if (stdNorm === "propertydamage" && norm.includes("property")) return std;
+    if (stdNorm === "environmentalincident" && norm.includes("environ")) return std;
+    if (stdNorm === "personalinjury" && (norm.includes("personalinjury") || norm === "injury")) return std;
+  }
+  return c;
+};
+
 const severityMeta = (level) => {
   const meta = {
     1: { level: 1, label: "Low", color: "#FBBF24" },
@@ -535,7 +566,7 @@ export default function IMDetails() {
   const [buildingsList, setBuildingsList] = useState([]);
   const [floorsList, setFloorsList] = useState([]);
   const [roomsList, setRoomsList] = useState([]);
-  
+
   // Location Selection States
   const [selectedRooms, setSelectedRooms] = useState([]);
   const [selectedZone, setSelectedZone] = useState(null);
@@ -977,7 +1008,7 @@ export default function IMDetails() {
     if (!pdfsForBuilding) return "";
     if (pdfsForBuilding[huFloorLevel]) return pdfsForBuilding[huFloorLevel];
     const levelLower = huFloorLevel.toLowerCase().trim();
-    const foundKey = Object.keys(pdfsForBuilding).find(k => 
+    const foundKey = Object.keys(pdfsForBuilding).find(k =>
       k.toLowerCase().trim().includes(levelLower) || levelLower.includes(k.toLowerCase().trim())
     );
     return foundKey ? pdfsForBuilding[foundKey] : "";
@@ -1198,7 +1229,12 @@ export default function IMDetails() {
         }
       }
 
-      setIrCategories(initialCats);
+      const mappedCats = initialCats.map(normalizeToStandardCategory).filter(Boolean);
+      setIrCategories([...new Set(mappedCats)]);
+      const otherCat = initialCats.find(c => typeof c === "string" && c.startsWith("Other: "));
+      if (otherCat) {
+        setIrCategoriesOther(otherCat.replace("Other: ", ""));
+      }
 
       // 4. Prefill Incident Description (only description of what happened)
       const primaryDesc = hu.descriptionWhatHappened || hu.whatHappened || inc.description || inc.details || "";
@@ -1346,13 +1382,13 @@ export default function IMDetails() {
         }
         if (ir.categories && Array.isArray(ir.categories) && ir.categories.length > 0) {
           const parsedCats = ir.categories.map(c => {
-            if (c.startsWith("Other: ")) {
+            if (typeof c === "string" && c.startsWith("Other: ")) {
               setIrCategoriesOther(c.replace("Other: ", ""));
               return "Other";
             }
-            return c;
-          });
-          setIrCategories(parsedCats);
+            return normalizeToStandardCategory(c);
+          }).filter(Boolean);
+          setIrCategories([...new Set(parsedCats)]);
         }
         if (ir.accidentCategories && Array.isArray(ir.accidentCategories)) setIrAccidentCategories(ir.accidentCategories);
         if (ir.injuryTypes && Array.isArray(ir.injuryTypes)) setIrInjuryTypes(ir.injuryTypes);
@@ -2141,7 +2177,7 @@ export default function IMDetails() {
 
     const incDateStr = huDate || incident?.incidentDate || incident?.date || "";
     const incTimeStr = huTime || incident?.incidentTime || incident?.time || "00:00";
-    
+
     let huDeadline = "-";
     let irDeadline = "-";
     let invDeadline = "-";
@@ -2149,7 +2185,7 @@ export default function IMDetails() {
     // Prioritize system creation time for SLA deadlines, fallback to incident date/time
     const createdStr = incident?.createdAt || rawIncident?.createdAt || incident?.createdTime || rawIncident?.createdTime;
     let baseDate = null;
-    
+
     if (createdStr) {
       baseDate = new Date(createdStr);
     } else if (incDateStr) {
@@ -3374,18 +3410,37 @@ export default function IMDetails() {
                     <input type="text" className="mod-form-input" placeholder="e.g. Room 102, Grid B-4" value={huSpecificLocation} onChange={(e) => setHuSpecificLocation(e.target.value)} />
                   </div>
                   <div className="mod-form-group">
-                    <label className="mod-form-label">Contractor(s) Involved *</label>
-                    <select className="mod-form-select" value={huContractor} onChange={(e) => setHuContractor(e.target.value)}>
+                    <label className="mod-form-label">
+                      Contractor(s) Involved * {isContractorUser() && <span style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 400 }}>(Locked to your company)</span>}
+                    </label>
+                    <select
+                      className="mod-form-select"
+                      value={huContractor}
+                      onChange={(e) => {
+                        if (isContractorUser()) return;
+                        setHuContractor(e.target.value);
+                      }}
+                      disabled={isContractorUser()}
+                      style={isContractorUser() ? { cursor: "not-allowed", opacity: 0.85, backgroundColor: "var(--bg-body, #f8fafc)" } : {}}
+                    >
                       <option value="">Select Contractor</option>
-                      {contractorsList.map((c) => (
-                        <option key={c.subcontractor_id || c.id || c.name} value={c.subcontractor_name || c.name}>
-                          {c.subcontractor_name || c.name}
-                        </option>
-                      ))}
-                      {huContractor && !contractorsList.some(c => (c.subcontractor_name || c.name) === huContractor) && (
+                      {contractorsList.map((c) => {
+                        const val = c.subcontractor_name || c.subContractorName || c.company_name || c.name;
+                        return (
+                          <option key={c.subcontractor_id || c.id || c.name} value={val}>
+                            {val}
+                          </option>
+                        );
+                      })}
+                      {huContractor && !contractorsList.some(c => (c.subcontractor_name || c.subContractorName || c.company_name || c.name) === huContractor) && (
                         <option value={huContractor}>{huContractor}</option>
                       )}
                     </select>
+                    {isContractorUser() && (
+                      <span style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "4px", display: "block" }}>
+                        Contractor locked to your company ({huContractor})
+                      </span>
+                    )}
                   </div>
                   <div className="mod-form-group full-width" style={{ gridColumn: "1 / -1" }}>
                     {selectedPdf && (
@@ -3527,15 +3582,37 @@ export default function IMDetails() {
                         <input type="text" className="mod-form-input" style={{ marginTop: "8px" }} placeholder="Specify other media/location entered..." value={huEnvSpecifyOther} onChange={(e) => setHuEnvSpecifyOther(e.target.value)} />
                       )}
                     </div>
+
+                    <div style={{ marginTop: "16px", padding: "14px", background: "var(--bg-dark, #f8fafc)", borderRadius: "6px", border: "1px solid var(--border-color)" }}>
+                      <label className="mod-form-label" style={{ fontWeight: 600, marginBottom: "8px" }}>Has the Gatekeeper been informed?</label>
+                      <div style={{ display: "flex", gap: "20px", alignItems: "center" }}>
+                        <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", cursor: "pointer" }}>
+                          <input type="radio" name="huGatekeeperInformed" checked={huGatekeeperInformed === true} onChange={() => setHuGatekeeperInformed(true)} />
+                          Yes
+                        </label>
+                        <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", cursor: "pointer" }}>
+                          <input type="radio" name="huGatekeeperInformed" checked={huGatekeeperInformed === false} onChange={() => setHuGatekeeperInformed(false)} />
+                          No
+                        </label>
+                      </div>
+                      {huGatekeeperInformed && (
+                        <div style={{ marginTop: "10px" }}>
+                          <label className="mod-form-label" style={{ fontSize: "12px" }}>Gatekeeper Contact Person Name</label>
+                          <input type="text" className="mod-form-input" placeholder="Type contact person name..." value={huGatekeeperName} onChange={(e) => setHuGatekeeperName(e.target.value)} />
+                        </div>
+                      )}
+                    </div>
                   </>
                 )}
 
                 <hr style={{ margin: "24px 0", borderColor: "var(--border-color)", borderStyle: "dashed" }} />
 
-                {/* 5. Immediate Actions Taken */}
+                {/* 5 / 4. Immediate Actions Taken */}
                 <div className="form-section-title" style={{ fontWeight: 700, fontSize: "15px", marginBottom: "16px", color: "var(--text-main)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                    <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, borderRadius: "50%", background: "rgba(59, 130, 246, 0.1)", color: "#3b82f6", fontSize: "12px", fontWeight: 700 }}>5</span>
+                    <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, borderRadius: "50%", background: "rgba(59, 130, 246, 0.1)", color: "#3b82f6", fontSize: "12px", fontWeight: 700 }}>
+                      {(huCategories.some(c => c && c.toLowerCase().includes("environment")) || headsUpData?.isEnvironmental) ? "5" : "4"}
+                    </span>
                     Immediate Actions Taken
                   </span>
                   <button type="button" className="mod-btn-outline" style={{ padding: "4px 10px", fontSize: "12px" }} onClick={addHuAction}>
@@ -3613,9 +3690,11 @@ export default function IMDetails() {
 
                 <hr style={{ margin: "24px 0", borderColor: "var(--border-color)", borderStyle: "dashed" }} />
 
-                {/* 6. Submitter & Revision Signatures */}
+                {/* Submitter & Revision Signatures */}
                 <div className="form-section-title" style={{ fontWeight: 700, fontSize: "15px", marginBottom: "16px", color: "var(--text-main)", display: "flex", alignItems: "center", gap: "8px" }}>
-                  <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, borderRadius: "50%", background: "rgba(59, 130, 246, 0.1)", color: "#3b82f6", fontSize: "12px", fontWeight: 700 }}>6</span>
+                  <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, borderRadius: "50%", background: "rgba(59, 130, 246, 0.1)", color: "#3b82f6", fontSize: "12px", fontWeight: 700 }}>
+                    {(huCategories.some(c => c && c.toLowerCase().includes("environment")) || headsUpData?.isEnvironmental) ? "6" : "5"}
+                  </span>
                   Editor Details & Revision Sign-Off
                 </div>
                 <div className="grid-2">
@@ -3829,16 +3908,20 @@ export default function IMDetails() {
                       <div className="mod-form-group"><label className="mod-form-label">Cause of Spillage</label><div className="readonly-box">{huEnvCause || headsUpData?.spillCause || "—"}</div></div>
                       <div className="mod-form-group"><label className="mod-form-label">Approx Quantity</label><div className="readonly-box">{huEnvQuantity || headsUpData?.spillQuantity || "—"}</div></div>
                       <div className="mod-form-group" style={{ gridColumn: "span 2" }}><label className="mod-form-label">System / Media Entered</label><div className="readonly-box">{Array.isArray(huEnvSpecify) ? huEnvSpecify.join(", ") : (huEnvSpecify || headsUpData?.spillSystemEntered || "—")}</div></div>
+                      <div className="mod-form-group"><label className="mod-form-label">Gatekeeper Informed?</label><div className="readonly-box">{huGatekeeperInformed ? "Yes" : "No"}</div></div>
+                      <div className="mod-form-group"><label className="mod-form-label">Gatekeeper Contact Person</label><div className="readonly-box">{huGatekeeperInformed ? (huGatekeeperName || "—") : "N/A"}</div></div>
                     </div>
                   </>
                 )}
 
                 <hr style={{ margin: "20px 0", borderColor: "var(--border-color)", borderStyle: "dashed" }} />
 
-                {/* 5. Immediate Actions Taken */}
+                {/* 5 / 4. Immediate Actions Taken */}
                 <div className="form-section-title" style={{ fontWeight: 700, fontSize: "14px", marginBottom: "14px", color: "var(--text-main)", display: "flex", alignItems: "center", gap: "8px" }}>
-                  <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 22, height: 22, borderRadius: "50%", background: "rgba(59, 130, 246, 0.1)", color: "#3b82f6", fontSize: "11px", fontWeight: 700 }}>5</span>
-                  Immediate Actions Taken & Gatekeeper Info
+                  <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 22, height: 22, borderRadius: "50%", background: "rgba(59, 130, 246, 0.1)", color: "#3b82f6", fontSize: "11px", fontWeight: 700 }}>
+                    {(huCategories.some(c => c && c.toLowerCase().includes("environment")) || headsUpData?.isEnvironmental) ? "5" : "4"}
+                  </span>
+                  Immediate Actions Taken
                 </div>
                 {huImmActions && huImmActions.length > 0 ? (
                   <div style={{ overflowX: "auto", marginBottom: "14px" }}>
@@ -3868,18 +3951,14 @@ export default function IMDetails() {
                     No immediate actions recorded.
                   </div>
                 )}
-                <div className="grid-2">
-                  <div className="mod-form-group"><label className="mod-form-label">Gatekeeper Informed?</label><div className="readonly-box">{huGatekeeperInformed ? "Yes" : "No"}</div></div>
-                  {huGatekeeperInformed && (
-                    <div className="mod-form-group"><label className="mod-form-label">Gatekeeper Contact Person</label><div className="readonly-box">{huGatekeeperName || "—"}</div></div>
-                  )}
-                </div>
 
                 <hr style={{ margin: "20px 0", borderColor: "var(--border-color)", borderStyle: "dashed" }} />
 
-                {/* 6. Submitter & Signatures */}
+                {/* Submitter & Signatures */}
                 <div className="form-section-title" style={{ fontWeight: 700, fontSize: "14px", marginBottom: "14px", color: "var(--text-main)", display: "flex", alignItems: "center", gap: "8px" }}>
-                  <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 22, height: 22, borderRadius: "50%", background: "rgba(59, 130, 246, 0.1)", color: "#3b82f6", fontSize: "11px", fontWeight: 700 }}>6</span>
+                  <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 22, height: 22, borderRadius: "50%", background: "rgba(59, 130, 246, 0.1)", color: "#3b82f6", fontSize: "11px", fontWeight: 700 }}>
+                    {(huCategories.some(c => c && c.toLowerCase().includes("environment")) || headsUpData?.isEnvironmental) ? "6" : "5"}
+                  </span>
                   Submitter Information & Signature
                 </div>
                 <div className="grid-2">
@@ -4013,6 +4092,21 @@ export default function IMDetails() {
                     <div className="mk-s">I have reviewed this report and confirm it is complete and accurate.</div>
                   </div>
                 </div>
+
+                {/* No Further Investigation Checkbox for Department Reviewer */}
+                <div style={{ marginTop: 16, padding: "12px 16px", background: huNoFurtherInvestigation ? "rgba(16, 185, 129, 0.08)" : "var(--bg-dark, #f8fafc)", borderRadius: "8px", border: huNoFurtherInvestigation ? "1px solid rgba(16, 185, 129, 0.3)" : "1px solid var(--border-color)", display: "flex", alignItems: "center", gap: 10 }}>
+                  <input
+                    type="checkbox"
+                    id="reviewHuNoFurtherInvestigation"
+                    checked={huNoFurtherInvestigation}
+                    onChange={e => setHuNoFurtherInvestigation(e.target.checked)}
+                    style={{ width: 18, height: 18, cursor: "pointer" }}
+                  />
+                  <label htmlFor="reviewHuNoFurtherInvestigation" style={{ fontWeight: 600, fontSize: 13.5, cursor: "pointer", color: "var(--text-main)" }}>
+                    No further investigation required (Incident can be closed after approval)
+                  </label>
+                </div>
+
                 <div style={{ display: "flex", gap: "12px", marginTop: "24px" }}>
                   <button
                     type="button"
@@ -4029,7 +4123,8 @@ export default function IMDetails() {
                       await approveHeadsUp(id, {
                         approvedBy: userName,
                         approverRole: reviewerRole || "NNE Peer Reviewer",
-                        signature: signature
+                        signature: signature,
+                        noFurtherInvestigation: huNoFurtherInvestigation
                       });
                       showSuccess("Heads-Up Notification Approved!");
                       setHeadsUpApproved(true);
@@ -4146,7 +4241,10 @@ export default function IMDetails() {
                         type="button"
                         className="mod-btn-outline"
                         style={{ padding: "6px 14px", fontSize: "13px", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "6px", color: "var(--accent-primary, #3b82f6)", borderColor: "var(--accent-primary, #3b82f6)" }}
-                        onClick={() => setIsEditingInitialReport(true)}
+                        onClick={() => {
+                          setIsEditingInitialReport(true);
+                          if (!irEditorName) setIrEditorName(getLoggedInUser() || "");
+                        }}
                       >
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
@@ -4199,36 +4297,11 @@ export default function IMDetails() {
                     <div className="fsec-note">Select all that apply. The categorisation may change following the incident investigation.</div>
                     <div className="chk-grid-2">
                       {INCIDENT_CATEGORIES.map(cat => {
-                        const isChecked = (() => {
-                          if (irCategories.includes(cat)) return true;
-                          const normCat = cat.toLowerCase().replace(/[^a-z0-9]/g, "");
-                          const allCandidateCategories = [
-                            ...(Array.isArray(irCategories) ? irCategories : []),
-                            ...(Array.isArray(incident?.categories) ? incident.categories : []),
-                            ...(Array.isArray(headsUpData?.categories) ? headsUpData.categories : []),
-                            ...(Array.isArray(initialReportData?.categories) ? initialReportData.categories : []),
-                            ...(Array.isArray(initialReportData?.treatmentProvided) ? initialReportData.treatmentProvided : []),
-                            incident?.category || "",
-                            headsUpData?.category || "",
-                            initialReportData?.medicalTreatmentClass || "",
-                            initialReportData?.treatmentPrescribed || ""
-                          ].filter(Boolean);
-
-                          return allCandidateCategories.some(c => {
-                            const norm = String(c).toLowerCase().replace(/[^a-z0-9]/g, "");
-                            if (!norm) return false;
-                            if (norm === normCat) return true;
-                            if (normCat === "medicaltreatmentinjury" && (norm.includes("medicaltreatment") || norm === "medical")) return true;
-                            if (normCat === "firstaidinjury" && (norm.includes("firstaid") || norm === "firstaidtreatment")) return true;
-                            if (normCat === "restrictedworkinjury" && (norm.includes("restrictedwork") || norm === "rwi")) return true;
-                            if (normCat === "losttimeinjury" && (norm.includes("losttime") || norm.includes("losstime") || norm === "lti")) return true;
-                            if (normCat === "nearmiss" && norm.includes("nearmiss")) return true;
-                            if (normCat === "propertydamage" && norm.includes("property")) return true;
-                            if (normCat === "environmentalincident" && norm.includes("environ")) return true;
-                            if (normCat === "personalinjury" && (norm.includes("personalinjury") || (norm.includes("injury") && !norm.includes("firstaid") && !norm.includes("medical") && !norm.includes("restricted") && !norm.includes("lost")))) return true;
-                            return false;
-                          });
-                        })();
+                        const normCat = cat.toLowerCase().replace(/[^a-z0-9]/g, "");
+                        const isChecked = irCategories.some(c => {
+                          const normC = String(c).toLowerCase().replace(/[^a-z0-9]/g, "");
+                          return normC === normCat || c === cat;
+                        });
 
                         return (
                           <label className="chk" key={cat}>
@@ -4237,9 +4310,14 @@ export default function IMDetails() {
                               checked={isChecked}
                               onChange={e => {
                                 if (e.target.checked) {
-                                  if (!irCategories.includes(cat)) setIrCategories([...irCategories, cat]);
+                                  if (!isChecked) {
+                                    setIrCategories([...irCategories, cat]);
+                                  }
                                 } else {
-                                  setIrCategories(irCategories.filter(c => c !== cat && c.toLowerCase().replace(/[^a-z0-9]/g, "") !== cat.toLowerCase().replace(/[^a-z0-9]/g, "")));
+                                  setIrCategories(irCategories.filter(c => {
+                                    const normC = String(c).toLowerCase().replace(/[^a-z0-9]/g, "");
+                                    return normC !== normCat && c !== cat;
+                                  }));
                                 }
                               }}
                             />
@@ -4248,49 +4326,19 @@ export default function IMDetails() {
                         );
                       })}
                     </div>
-                    {irCategories.includes('Other') && (
+                    {irCategories.some(c => String(c).toLowerCase() === 'other' || String(c).startsWith('Other:')) && (
                       <div className="mod-form-group" style={{ marginTop: 12 }}>
                         <label className="mod-form-label">Other Category</label>
                         <input className="mod-form-input" placeholder="Specify other incident category..." value={irCategoriesOther} onChange={e => setIrCategoriesOther(e.target.value)} />
                       </div>
                     )}
-                    {(() => {
-                      const extraCats = [
-                        ...(Array.isArray(incident?.categories) ? incident.categories : []),
-                        ...(Array.isArray(headsUpData?.categories) ? headsUpData.categories : []),
-                        ...(Array.isArray(irCategories) ? irCategories : [])
-                      ].filter(c => c && !INCIDENT_CATEGORIES.some(std => {
-                        const stdNorm = std.toLowerCase().replace(/[^a-z0-9]/g, "");
-                        const cNorm = String(c).toLowerCase().replace(/[^a-z0-9]/g, "");
-                        return stdNorm === cNorm || (stdNorm.includes("medical") && cNorm.includes("medical")) || (stdNorm.includes("firstaid") && cNorm.includes("firstaid")) || (stdNorm.includes("environ") && cNorm.includes("environ")) || (stdNorm.includes("property") && cNorm.includes("property"));
-                      }));
-
-                      const uniqueExtra = [...new Set(extraCats)];
-                      if (uniqueExtra.length === 0) return null;
-
-                      return (
-                        <div style={{ marginTop: 12, padding: "10px 14px", background: "var(--bg-dark, #f8fafc)", borderRadius: 6, border: "1px solid var(--border-color, #e2e8f0)", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                          <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)" }}>Active Categories from Initial Notice:</span>
-                          {uniqueExtra.map(c => (
-                            <span key={c} style={{ background: "var(--accent-primary, #0f172a)", color: "#fff", padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 600 }}>
-                              {c}
-                            </span>
-                          ))}
-                        </div>
-                      );
-                    })()}
                   </div>
 
                   {(() => {
-                    const allIncidentCats = [
-                      ...(incident?.categories || []),
-                      ...(headsUpData?.categories || []),
-                      ...(irCategories || []),
-                      incident?.category || ""
-                    ].map(c => String(c).toLowerCase());
+                    const activeIncidentCats = (irCategories.length > 0 ? irCategories : (incident?.categories || [])).map(c => String(c).toLowerCase());
 
-                    const isEnvIncident = allIncidentCats.some(c => c.includes("environment"));
-                    const isPropDamageIncident = allIncidentCats.some(c => c.includes("property"));
+                    const isEnvIncident = activeIncidentCats.some(c => c.includes("environment") || c.includes("environ"));
+                    const isPropDamageIncident = activeIncidentCats.some(c => c.includes("property"));
 
                     if (isEnvIncident) {
                       return (
@@ -4474,15 +4522,10 @@ export default function IMDetails() {
 
                   {/* G, I, J Conditional on Not Environmental / Property Damage */}
                   {(() => {
-                    const allIncidentCats = [
-                      ...(incident?.categories || []),
-                      ...(headsUpData?.categories || []),
-                      ...(irCategories || []),
-                      incident?.category || ""
-                    ].map(c => String(c).toLowerCase());
+                    const activeIncidentCats = (irCategories.length > 0 ? irCategories : (incident?.categories || [])).map(c => String(c).toLowerCase());
 
-                    const isEnvIncident = allIncidentCats.some(c => c.includes("environment"));
-                    const isPropDamageIncident = allIncidentCats.some(c => c.includes("property"));
+                    const isEnvIncident = activeIncidentCats.some(c => c.includes("environment") || c.includes("environ"));
+                    const isPropDamageIncident = activeIncidentCats.some(c => c.includes("property"));
 
                     if (isEnvIncident || isPropDamageIncident) return null;
 
@@ -4815,7 +4858,7 @@ export default function IMDetails() {
                           type="text"
                           className="mod-form-input"
                           placeholder="Type your full name..."
-                          value={irEditorName}
+                          value={irEditorName || getLoggedInUser() || ""}
                           onChange={e => setIrEditorName(e.target.value)}
                         />
                       </div>
@@ -4837,6 +4880,39 @@ export default function IMDetails() {
                           onClear={() => setIrEditorSignature(false)}
                         />
                       </div>
+                    </div>
+                  ) : initialReportSubmitted ? (
+                    <div className="fsec">
+                      <div className="fsec-title">M. Submitter Information & Digital Signature</div>
+                      <div className="grid-2">
+                        <div className="mod-form-group">
+                          <label className="mod-form-label" style={{ textTransform: "uppercase" }}>Submitted By</label>
+                          <div className="readonly-box">
+                            {irSubmittedBy || incident.reporterName || incident.reportedBy || "User"}
+                          </div>
+                        </div>
+                        <div className="mod-form-group">
+                          <label className="mod-form-label" style={{ textTransform: "uppercase" }}>Digital Signature</label>
+                          <div className="readonly-box" style={{ display: "flex", alignItems: "center", minHeight: "45px", overflowX: "auto" }}>
+                            {irSubSignature ? (
+                              typeof irSubSignature === "string" && (irSubSignature.startsWith("http") || irSubSignature.startsWith("data:") || irSubSignature.startsWith("/")) ? (
+                                <img src={getAttachmentUrl(irSubSignature)} alt="Submitter Signature" style={{ maxHeight: "35px", maxWidth: "150px" }} />
+                              ) : (
+                                <span style={{ fontStyle: "italic", fontFamily: "cursive", color: "var(--accent-primary, #3b82f6)" }}>✓ Signed Digitally ({irSubmittedBy || incident.reporterName || "User"})</span>
+                              )
+                            ) : (
+                              <span style={{ color: "var(--text-muted)" }}>—</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {irNoFurtherInvestigation && (
+                        <div style={{ marginTop: 16, padding: "12px 16px", background: "rgba(16, 185, 129, 0.08)", borderRadius: "8px", border: "1px solid rgba(16, 185, 129, 0.25)", display: "flex", alignItems: "center", gap: 10, color: "#059669", fontWeight: 600, fontSize: 13.5 }}>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.5"><polyline points="20 6 9 17 4 12" /></svg>
+                          No further investigation required (Incident can be closed after approval)
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="fsec">
@@ -4863,20 +4939,6 @@ export default function IMDetails() {
                           onClear={() => setIrSubSignature(false)}
                         />
                       </div>
-
-                      {/* No Further Investigation Checkbox */}
-                      <div style={{ marginTop: 20, padding: "14px 16px", background: "var(--bg-dark, #f8fafc)", borderRadius: "8px", border: "1px solid var(--border-color)", display: "flex", alignItems: "center", gap: 10 }}>
-                        <input
-                          type="checkbox"
-                          id="irNoFurtherInvestigation"
-                          checked={irNoFurtherInvestigation}
-                          onChange={e => setIrNoFurtherInvestigation(e.target.checked)}
-                          style={{ width: 18, height: 18, cursor: "pointer" }}
-                        />
-                        <label htmlFor="irNoFurtherInvestigation" style={{ fontWeight: 600, fontSize: 13.5, cursor: "pointer", color: "var(--text-main)" }}>
-                          No further investigation required (Incident can be closed after approval)
-                        </label>
-                      </div>
                     </div>
                   )}
 
@@ -4894,15 +4956,10 @@ export default function IMDetails() {
                       <div style={{ display: "flex", gap: "12px", marginTop: "16px" }}>
                         <button className="mod-btn-primary im-btn-primary" disabled={!headsUpApproved} title={!headsUpApproved ? "Stage 1 Heads-Up Notification must be approved first" : ""} onClick={async () => {
                           try {
-                            const allIncidentCats = [
-                              ...(incident?.categories || []),
-                              ...(headsUpData?.categories || []),
-                              ...(irCategories || []),
-                              incident?.category || ""
-                            ].map(c => String(c).toLowerCase());
+                            const activeIncidentCats = (irCategories.length > 0 ? irCategories : (incident?.categories || [])).map(c => String(c).toLowerCase());
 
-                            const isEnvIncident = allIncidentCats.some(c => c.includes("environment"));
-                            const isPropDamageIncident = allIncidentCats.some(c => c.includes("property"));
+                            const isEnvIncident = activeIncidentCats.some(c => c.includes("environment") || c.includes("environ"));
+                            const isPropDamageIncident = activeIncidentCats.some(c => c.includes("property"));
 
                             let newErrors = {};
                             if (!irInjuryNotApplicable) {
@@ -5091,6 +5148,21 @@ export default function IMDetails() {
                           <div className="mk-s">I have reviewed this report and confirm it is complete and accurate.</div>
                         </div>
                       </div>
+
+                      {/* No Further Investigation Checkbox for Department Reviewer */}
+                      <div style={{ marginTop: 16, padding: "12px 16px", background: irNoFurtherInvestigation ? "rgba(16, 185, 129, 0.08)" : "var(--bg-dark, #f8fafc)", borderRadius: "8px", border: irNoFurtherInvestigation ? "1px solid rgba(16, 185, 129, 0.3)" : "1px solid var(--border-color)", display: "flex", alignItems: "center", gap: 10 }}>
+                        <input
+                          type="checkbox"
+                          id="reviewIrNoFurtherInvestigation"
+                          checked={irNoFurtherInvestigation}
+                          onChange={e => setIrNoFurtherInvestigation(e.target.checked)}
+                          style={{ width: 18, height: 18, cursor: "pointer" }}
+                        />
+                        <label htmlFor="reviewIrNoFurtherInvestigation" style={{ fontWeight: 600, fontSize: 13.5, cursor: "pointer", color: "var(--text-main)" }}>
+                          No further investigation required (Incident can be closed after approval)
+                        </label>
+                      </div>
+
                       <div style={{ display: "flex", gap: "12px", marginTop: "24px" }}>
                         <button
                           type="button"
@@ -5104,10 +5176,18 @@ export default function IMDetails() {
                         <button className="mod-btn-primary im-btn-primary" disabled={!irMarkedOk || !irSignature || !irReviewerName} onClick={async () => {
                           try {
                             const userName = irReviewerName || getLoggedInUser();
-                            await approveInitialReport(id, { signature: irSignature, approvedBy: userName });
+                            await approveInitialReport(id, {
+                              signature: irSignature,
+                              approvedBy: userName,
+                              noFurtherInvestigation: irNoFurtherInvestigation
+                            });
                             showSuccess("Initial Report Approved!");
                             setInitialReportApproved(true);
-                            setActiveTab("investigation");
+                            if (irNoFurtherInvestigation || huNoFurtherInvestigation || incident.noFurtherInvestigation) {
+                              setActiveTab("initialReport");
+                            } else {
+                              setActiveTab("investigation");
+                            }
                             window.scrollTo(0, 0);
                             const data = await getIncidentById(id);
                             setRawIncident(data?.data || data);
@@ -5452,7 +5532,7 @@ export default function IMDetails() {
                   </div>
 
                   {/* 5. Effect Description */}
-                  <div className="fsec"><div className="fsec-title">5. Fishbone Diagram</div>
+                  <div className="fsec"><div className="fsec-title">5. Incident / Effect</div>
                     <div className="mod-form-group">
                       <label className="mod-form-label" style={{ textTransform: "none", letterSpacing: "normal" }}>Describe the effect/outcome of the incident for the fishbone diagram</label>
                       <textarea className="mod-form-textarea" placeholder="Describe the effect / incident event..." value={invEffect} onChange={e => setInvEffect(e.target.value)}></textarea>
@@ -5627,15 +5707,14 @@ export default function IMDetails() {
 
                   {/* Investigation Env / Property Damage Section */}
                   {(() => {
-                    const allIncidentCats = [
-                      ...(incident?.categories || []),
-                      ...(headsUpData?.categories || []),
-                      ...(irCategories || []),
-                      incident?.category || ""
-                    ].map(c => String(c).toLowerCase());
+                    const activeIncidentCats = (
+                      (initialReportData?.categories && initialReportData.categories.length > 0)
+                        ? initialReportData.categories
+                        : (irCategories.length > 0 ? irCategories : (incident?.categories || []))
+                    ).map(c => String(c).toLowerCase());
 
-                    const isEnvIncident = allIncidentCats.some(c => c.includes("environment"));
-                    const isPropDamageIncident = allIncidentCats.some(c => c.includes("property"));
+                    const isEnvIncident = activeIncidentCats.some(c => c.includes("environment") || c.includes("environ"));
+                    const isPropDamageIncident = activeIncidentCats.some(c => c.includes("property"));
 
                     if (isEnvIncident) {
                       return (
@@ -5955,7 +6034,7 @@ export default function IMDetails() {
                         </div>
                         <div className="mod-form-group" style={{ marginBottom: 12 }}>
                           <label className="mod-form-label">Edited By (Name) *</label>
-                          <input className="mod-form-input" value={invEditorName} onChange={e => setInvEditorName(e.target.value)} />
+                          <input className="mod-form-input" value={invEditorName || getLoggedInUser() || ""} onChange={e => setInvEditorName(e.target.value)} />
                         </div>
                         <div className="mod-form-group" style={{ marginBottom: 12 }}>
                           <label className="mod-form-label">Reason for Revision / What was edited *</label>
@@ -5965,6 +6044,43 @@ export default function IMDetails() {
                           <label className="mod-form-label">Editor Digital Signature *</label>
                           <SignaturePad value={invEditorSignature} onChange={setInvEditorSignature} onClear={() => setInvEditorSignature(false)} />
                         </div>
+                      </div>
+                    ) : investigationSubmitted ? (
+                      <div style={{ border: "1px dashed var(--border-color)", borderRadius: 8, padding: "16px", background: "var(--bg-dark)", width: "100%" }}>
+                        <div className="grid-2" style={{ rowGap: 12 }}>
+                          <div className="mod-form-group">
+                            <label className="mod-form-label">Investigator Name</label>
+                            <div className="readonly-box">{invInvName || "Investigator"}</div>
+                          </div>
+                          <div className="mod-form-group">
+                            <label className="mod-form-label">Role</label>
+                            <div className="readonly-box">{invInvRole || "—"}</div>
+                          </div>
+                          <div className="mod-form-group">
+                            <label className="mod-form-label">Date</label>
+                            <div className="readonly-box">{invInvDate || "—"}</div>
+                          </div>
+                          <div className="mod-form-group">
+                            <label className="mod-form-label">Investigator Signature</label>
+                            <div className="readonly-box" style={{ display: "flex", alignItems: "center", minHeight: "45px", overflowX: "auto" }}>
+                              {invInvSignature ? (
+                                typeof invInvSignature === "string" && (invInvSignature.startsWith("http") || invInvSignature.startsWith("data:") || invInvSignature.startsWith("/")) ? (
+                                  <img src={getAttachmentUrl(invInvSignature)} alt="Investigator Signature" style={{ maxHeight: "35px", maxWidth: "150px" }} />
+                                ) : (
+                                  <span style={{ fontStyle: "italic", fontFamily: "cursive", color: "var(--accent-primary, #3b82f6)" }}>✓ Signed Digitally ({invInvName || "Investigator"})</span>
+                                )
+                              ) : (
+                                <span style={{ color: "var(--text-muted)" }}>—</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        {invInvMarkedOk && (
+                          <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 8, color: "var(--color-safe)", fontSize: 12.5, fontWeight: 600 }}>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12" /></svg>
+                            Confirmed by investigator (Marked OK)
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <div style={{ border: "1px dashed var(--border-color)", borderRadius: 8, padding: "16px", background: "var(--bg-dark)", width: "100%" }}>
@@ -6370,13 +6486,13 @@ export default function IMDetails() {
 
                   {/* Specific Environmental & Property Damage Containment (only for Environmental or Property Damage incidents) */}
                   {(() => {
-                    const allIncidentCats = (huCategories || [])
-                      .concat(Array.isArray(incident?.categories) ? incident.categories : [incident?.category])
-                      .concat(Array.isArray(headsUpData?.categories) ? headsUpData.categories : [headsUpData?.category])
-                      .filter(Boolean)
-                      .map(c => String(c).toLowerCase());
-                    const isEnvIncident = allIncidentCats.some(c => c.includes("environment")) || Boolean(headsUpData?.isEnvironmental);
-                    const isPropIncident = allIncidentCats.some(c => c.includes("property")) || Boolean(headsUpData?.isPropertyDamage);
+                    const allIncidentCats = (
+                      (initialReportData?.categories && initialReportData.categories.length > 0)
+                        ? initialReportData.categories
+                        : (irCategories.length > 0 ? irCategories : (huCategories || []).concat(incident?.categories || []))
+                    ).filter(Boolean).map(c => String(c).toLowerCase());
+                    const isEnvIncident = allIncidentCats.some(c => c.includes("environment") || c.includes("environ"));
+                    const isPropIncident = allIncidentCats.some(c => c.includes("property"));
 
                     const showEnv = isEnvIncident && Boolean(irEnvContainment);
                     const showProp = isPropIncident && Boolean(irPropImmediateAction);

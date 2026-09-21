@@ -191,6 +191,26 @@ export default function SCList() {
                         }}>
                           {isCompliant ? 'Compliant' : (r.chk3_2 === 'No' ? 'Non-Compliant' : 'Pending')}
                         </span>
+                        {r.safetyIssueRef && (
+                          <div style={{ marginTop: '3px' }}>
+                            <span
+                              style={{
+                                fontSize: '11px',
+                                color: '#b91c1c',
+                                background: 'rgba(239, 68, 68, 0.08)',
+                                padding: '1px 5px',
+                                borderRadius: '3px',
+                                fontWeight: 600,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px'
+                              }}
+                              title="Linked Safety Observation"
+                            >
+                              <i className="ti ti-eye" style={{ fontSize: '10px' }}></i> {r.safetyIssueRef}
+                            </span>
+                          </div>
+                        )}
                       </td>
                       <td><b>{r.activityName || "HSE Inspection"}</b></td>
                       <td>{r.buildingName ? `${r.buildingName} ${r.floorLevel ? `(${r.floorLevel})` : ''}` : (r.floorLevel || "-")}</td>

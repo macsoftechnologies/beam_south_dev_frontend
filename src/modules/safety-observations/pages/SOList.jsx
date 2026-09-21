@@ -138,10 +138,27 @@ function SOList() {
   const rawRole = (localStorage.getItem("UserType") || user?.role || user?.userType || user?.user_type || "").toUpperCase();
   const isAdmin = rawRole.includes("ADMIN") || rawRole.includes("SUPERADMIN") || Boolean(user?.isSuperAdmin) || (Array.isArray(user?.userTypes) && user.userTypes.some(t => String(t).toUpperCase().includes("ADMIN")));
   const isContractor = rawRole.includes("CONTRACTOR") || rawRole.includes("SUBCONTRACTOR") || Boolean(user?.subcontractor_id) || Boolean(user?.typeId && rawRole.includes("SUBCONTRACTOR"));
+  const isDepartment = rawRole.includes("DEPARTMENT") || rawRole.includes("OPERATOR") || rawRole.includes("SITE_HSE") || rawRole.includes("SAFETY") || rawRole.includes("HSE");
+  const isDeptOrAdmin = (isAdmin || isDepartment || !isContractor) && !isContractor;
   const contractorId = user?.typeId || user?.subcontractor_id || user?.subContId || user?.contractorId;
 
   const [deletingObs, setDeletingObs] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [downloadingObsId, setDownloadingObsId] = useState(null);
+
+  const handleDownloadPdf = async (e, obsItem) => {
+    e.stopPropagation();
+    try {
+      setDownloadingObsId(obsItem.id);
+      const fileName = `${obsItem.observationNumber || `SO-${obsItem.id}`}_Safety_Observation.pdf`;
+      await observationService.downloadObservationPdf(obsItem.id, fileName, obsItem);
+    } catch (err) {
+      console.error("Failed to download observation PDF:", err);
+      alert("Failed to download Observation PDF.");
+    } finally {
+      setDownloadingObsId(null);
+    }
+  };
 
   const handleDeleteObservation = async () => {
     if (!deletingObs) return;
@@ -539,6 +556,67 @@ function SOList() {
                             <circle cx="12" cy="12" r="3" />
                           </svg>
                         </button>
+
+                        {/* Edit Observation Record Details (Department & Admin only, not CLOSED or ESCALATED) */}
+                        {isDeptOrAdmin && !isContractor && String(o.status || "").toUpperCase() !== "CLOSED" && String(o.status || "").toUpperCase() !== "ESCALATED" && (
+                          <button
+                            className="mod-btn-outline"
+                            style={{
+                              width: "30px",
+                              height: "30px",
+                              padding: 0,
+                              borderRadius: "6px",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              cursor: "pointer",
+                              color: "var(--nne-brand-blue, #131E40)",
+                            }}
+                            title="Edit Observation Details"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/safety-observations/edit/${o.id}`);
+                            }}
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                            </svg>
+                          </button>
+                        )}
+
+                        {/* Download Observation PDF Option (when status is CLOSED) */}
+                        {o.status === "CLOSED" && (
+                          <button
+                            className="mod-btn-outline"
+                            style={{
+                              width: "30px",
+                              height: "30px",
+                              padding: 0,
+                              borderRadius: "6px",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              cursor: "pointer",
+                              color: "#0284c7",
+                              borderColor: "rgba(2, 132, 199, 0.3)",
+                              background: "rgba(2, 132, 199, 0.06)",
+                            }}
+                            title="Download Closed Observation PDF"
+                            onClick={(e) => handleDownloadPdf(e, o)}
+                            disabled={downloadingObsId === o.id}
+                          >
+                            {downloadingObsId === o.id ? (
+                              <i className="ti ti-loader ti-spin" style={{ fontSize: "14px" }}></i>
+                            ) : (
+                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                <polyline points="7 10 12 15 17 10" />
+                                <line x1="12" y1="15" x2="12" y2="3" />
+                              </svg>
+                            )}
+                          </button>
+                        )}
 
                         {isAdmin && (
                           <button

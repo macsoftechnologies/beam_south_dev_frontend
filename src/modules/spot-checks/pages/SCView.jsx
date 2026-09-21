@@ -253,8 +253,8 @@ export default function SCView() {
             </div>
             <div className="sc-card-body">
               <div className="sc-meta-item">
-                <span className="sc-meta-label">Work Package:</span>
-                <span className="sc-meta-value">{spotCheck.workPackage || "Safety Internal - HSE Spot Check"}</span>
+                <span className="sc-meta-label">Project Name:</span>
+                <span className="sc-meta-value">{spotCheck.projectName || spotCheck.workPackage || "M3SOUTH"}</span>
               </div>
               <div className="sc-meta-item">
                 <span className="sc-meta-label">Building & Level:</span>
@@ -524,7 +524,38 @@ export default function SCView() {
                   </div>
                   <div className="sc-meta-item">
                     <span className="sc-meta-label">Safety issue / SPOT ref:</span>
-                    <span className="sc-meta-value">{spotCheck.safetyIssueRef || "N/A"}</span>
+                    <span className="sc-meta-value">
+                      {spotCheck.safetyIssueRef ? (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                          <span
+                            className="sc-badge sc-badge-danger"
+                            style={{
+                              fontWeight: 600,
+                              cursor: spotCheck.safetyIssueRef.startsWith("SO") ? "pointer" : "default",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 4
+                            }}
+                            title={spotCheck.safetyIssueRef.startsWith("SO") ? "View in Safety Observations" : ""}
+                            onClick={() => {
+                              if (spotCheck.safetyIssueRef.startsWith("SO")) {
+                                navigate(`/safety-observations/list?search=${spotCheck.safetyIssueRef}`);
+                              }
+                            }}
+                          >
+                            {spotCheck.safetyIssueRef}
+                            {spotCheck.safetyIssueRef.startsWith("SO") && (
+                              <i className="ti ti-external-link" style={{ fontSize: 11 }}></i>
+                            )}
+                          </span>
+                          <span style={{ fontSize: 11, color: "#b91c1c", fontWeight: 600, background: "rgba(239, 68, 68, 0.08)", padding: "2px 6px", borderRadius: "4px" }}>
+                            Needs Attention
+                          </span>
+                        </span>
+                      ) : (
+                        "N/A"
+                      )}
+                    </span>
                   </div>
                 </div>
               </div>

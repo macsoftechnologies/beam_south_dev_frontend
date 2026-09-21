@@ -34,6 +34,19 @@ export const observationService = {
   },
 
   /**
+   * Update core observation record details (Department/Admin only)
+   * PUT /observations/:id
+   */
+  async updateObservation(id, data) {
+    let headers = {};
+    if (data instanceof FormData) {
+      headers["Content-Type"] = "multipart/form-data";
+    }
+    const response = await api.put(`observations/${id}`, data, { headers });
+    return response.data;
+  },
+
+  /**
    * Upload photos via Multer into ./uploads/observations/
    */
   async uploadPhotos(files) {
@@ -111,6 +124,36 @@ export const observationService = {
   async deleteObservation(id, params = {}) {
     const response = await api.delete(`observations/${id}`, { params });
     return response.data;
+  },
+
+  /**
+   * Download Observation Official PDF
+   * Tries backend PDF stream first; seamlessly falls back to client-side HTML2PDF generator
+   * @param {string|number} id
+   * @param {string} fileName
+   * @param {Object} [obsData]
+   */
+  async downloadObservationPdf(id, fileName = "Safety_Observation.pdf", obsData = null) {
+    try {
+      const response = await api.get(`observations/${id}/download-pdf`, {
+        responseType: "blob",
+      });
+      const blob = new Blob([response.data], { type: "application/pdf" });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", fileName);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      return true;
+    } catch (err) {
+      console.warn("Backend PDF download failed, using client-side generator fallback:", err);
+      const details = obsData || (await this.getObservationDetails(id));
+      const { generateObservationClientPdf } = await import("../modules/safety-observations/utils/observationPdfGenerator");
+      return await generateObservationClientPdf(details, fileName);
+    }
   },
 };
 

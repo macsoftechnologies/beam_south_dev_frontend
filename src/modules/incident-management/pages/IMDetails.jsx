@@ -3549,37 +3549,39 @@ export default function IMDetails() {
                 ) : (
                   <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                     {huImmActions.map((act, idx) => (
-                      <div key={idx} style={{ padding: "12px", background: "var(--bg-dark, #f8fafc)", border: "1px solid var(--border-color)", borderRadius: "6px", display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr auto", gap: "10px", alignItems: "center" }}>
-                        <div>
-                          <label className="mod-form-label" style={{ fontSize: "11px" }}>Action Description</label>
-                          <input type="text" className="mod-form-input" placeholder="What action was taken?" value={act.action} onChange={(e) => updateHuAction(idx, "action", e.target.value)} />
+                      <div key={idx} style={{ padding: "16px", background: "var(--bg-card, #fff)", border: "1px solid var(--border-color)", borderRadius: "8px" }}>
+                        <div className="grid-2">
+                          <div className="mod-form-group">
+                            <label className="mod-form-label" style={{ textTransform: "uppercase", fontSize: 11, fontWeight: 700 }}>Action <span style={{ color: "#DC2626" }}>*</span></label>
+                            <input type="text" className="mod-form-input" placeholder="What action was taken?" value={act.action} onChange={(e) => updateHuAction(idx, "action", e.target.value)} />
+                          </div>
+                          <div className="mod-form-group">
+                            <label className="mod-form-label" style={{ textTransform: "uppercase", fontSize: 11, fontWeight: 700 }}>Responsible <span style={{ color: "#DC2626" }}>*</span></label>
+                            <input type="text" className="mod-form-input" placeholder="Person / Team" value={act.responsible} onChange={(e) => updateHuAction(idx, "responsible", e.target.value)} />
+                          </div>
                         </div>
-                        <div>
-                          <label className="mod-form-label" style={{ fontSize: "11px" }}>Responsible</label>
-                          <input type="text" className="mod-form-input" placeholder="Person / Team" value={act.responsible} onChange={(e) => updateHuAction(idx, "responsible", e.target.value)} />
-                        </div>
-                        <div>
-                          <label className="mod-form-label" style={{ fontSize: "11px" }}>Date</label>
-                          <input type="date" className="mod-form-input" value={act.date || huDate} onChange={(e) => updateHuAction(idx, "date", e.target.value)} />
-                        </div>
-                        <div>
-                          <label className="mod-form-label" style={{ fontSize: "11px" }}>Time</label>
-                          <input
-                            type="text"
-                            className="mod-form-input"
-                            placeholder="HH:MM"
-                            value={act.time}
-                            readOnly
-                            onClick={() => {
-                              setTempHuActionTime(act.time || "12:00");
-                              setShowHuActionTimePicker(idx);
-                            }}
-                            style={{ cursor: "pointer", background: "var(--input-bg, #fff)" }}
-                          />
-                        </div>
-                        <div style={{ paddingTop: "18px" }}>
-                          <button type="button" className="mod-btn-outline" style={{ padding: "6px 8px", color: "var(--color-risk)", borderColor: "rgba(227, 43, 80, 0.3)" }} onClick={() => removeHuAction(idx)} title="Remove action">
-                            ×
+                        <div style={{ display: "flex", alignItems: "flex-end", gap: 16, marginTop: 12, flexWrap: "wrap" }}>
+                          <div className="mod-form-group" style={{ flex: "1 1 120px" }}>
+                            <label className="mod-form-label" style={{ textTransform: "uppercase", fontSize: 11, fontWeight: 700 }}>Date <span style={{ color: "#DC2626" }}>*</span></label>
+                            <input type="date" className="mod-form-input" value={act.date || huDate} onChange={(e) => updateHuAction(idx, "date", e.target.value)} />
+                          </div>
+                          <div className="mod-form-group" style={{ flex: "1 1 120px" }}>
+                            <label className="mod-form-label" style={{ textTransform: "uppercase", fontSize: 11, fontWeight: 700 }}>Time Implemented <span style={{ color: "#DC2626" }}>*</span></label>
+                            <input
+                              type="text"
+                              className="mod-form-input"
+                              placeholder="HH:MM"
+                              value={act.time}
+                              readOnly
+                              onClick={() => {
+                                setTempHuActionTime(act.time || "12:00");
+                                setShowHuActionTimePicker(idx);
+                              }}
+                              style={{ cursor: "pointer", background: "var(--input-bg, #fff)" }}
+                            />
+                          </div>
+                          <button type="button" style={{ padding: "6px 12px", border: "1px solid var(--color-risk-bg)", background: "var(--bg-card)", color: "var(--color-risk)", borderRadius: 6, fontSize: 12, cursor: "pointer", height: 36 }} onClick={() => removeHuAction(idx)} title="Remove action">
+                            Remove
                           </button>
                         </div>
                       </div>
@@ -3587,22 +3589,24 @@ export default function IMDetails() {
                   </div>
                 )}
 
-                <div style={{ marginTop: "16px", padding: "14px", background: "var(--bg-dark, #f8fafc)", borderRadius: "6px", border: "1px solid var(--border-color)" }}>
-                  <label className="mod-form-label" style={{ fontWeight: 600, marginBottom: "8px" }}>Has the Gatekeeper been informed?</label>
-                  <div style={{ display: "flex", gap: "20px", alignItems: "center" }}>
-                    <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", cursor: "pointer" }}>
-                      <input type="radio" name="huGatekeeperInformed" checked={huGatekeeperInformed === true} onChange={() => setHuGatekeeperInformed(true)} />
-                      Yes
-                    </label>
-                    <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", cursor: "pointer" }}>
-                      <input type="radio" name="huGatekeeperInformed" checked={huGatekeeperInformed === false} onChange={() => setHuGatekeeperInformed(false)} />
-                      No
-                    </label>
+                <div style={{ marginTop: "16px", padding: "16px", background: "var(--bg-dark, #f8fafc)", borderRadius: "8px", border: "1px solid var(--border-color)" }}>
+                  <div className="mod-form-group">
+                    <label className="mod-form-label" style={{ textTransform: "uppercase", fontSize: 11, fontWeight: 700, marginBottom: "8px" }}>Has the Gatekeeper been informed?</label>
+                    <div style={{ display: "flex", gap: "20px", alignItems: "center" }}>
+                      <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", cursor: "pointer" }}>
+                        <input type="radio" name="huGatekeeperInformed" checked={huGatekeeperInformed === true} onChange={() => setHuGatekeeperInformed(true)} />
+                        Yes
+                      </label>
+                      <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", cursor: "pointer" }}>
+                        <input type="radio" name="huGatekeeperInformed" checked={huGatekeeperInformed === false} onChange={() => setHuGatekeeperInformed(false)} />
+                        No
+                      </label>
+                    </div>
                   </div>
                   {huGatekeeperInformed && (
-                    <div style={{ marginTop: "10px" }}>
-                      <label className="mod-form-label" style={{ fontSize: "12px" }}>Gatekeeper Contact Person Name</label>
-                      <input type="text" className="mod-form-input" placeholder="Type contact person name..." value={huGatekeeperName} onChange={(e) => setHuGatekeeperName(e.target.value)} />
+                    <div className="mod-form-group" style={{ marginTop: "16px", display: "flex", flexDirection: "column", gap: "6px" }}>
+                      <label className="mod-form-label" style={{ textTransform: "uppercase", fontSize: 11, fontWeight: 700 }}>Gatekeeper Contact Person Name</label>
+                      <input type="text" className="mod-form-input" style={{ width: "100%" }} placeholder="Type contact person name..." value={huGatekeeperName} onChange={(e) => setHuGatekeeperName(e.target.value)} />
                     </div>
                   )}
                 </div>
@@ -4407,7 +4411,11 @@ export default function IMDetails() {
                             {irErrors.irExperienceInRole && <span style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: "4px" }}>{irErrors.irExperienceInRole}</span>}
                           </div>
                         </div>
-                        <div className="mod-form-group" style={{ marginTop: 8 }}><label className="mod-form-label">What was the worker doing at the time of the incident?</label><textarea className="mod-form-textarea" placeholder="Describe the task / activity being performed..." value={irWorkerActivity} onChange={e => setIrWorkerActivity(e.target.value)}></textarea></div>
+                        <div className="mod-form-group" style={{ marginTop: 8 }}>
+                          <label className="mod-form-label">What was the worker doing at the time of the incident? <span style={{ color: "#DC2626" }}>*</span></label>
+                          <textarea className="mod-form-textarea" placeholder="Describe the task / activity being performed..." value={irWorkerActivity} onChange={e => { setIrWorkerActivity(e.target.value); if (irErrors.irWorkerActivity) setIrErrors({ ...irErrors, irWorkerActivity: null }) }}></textarea>
+                          {irErrors.irWorkerActivity && <span style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: "4px", display: "block" }}>{irErrors.irWorkerActivity}</span>}
+                        </div>
                       </div>
                     );
                   })()}
@@ -4904,6 +4912,7 @@ export default function IMDetails() {
                               if (!irInjuredJobTitle?.trim()) newErrors.irInjuredJobTitle = "Job title is required";
                               if (!irLengthOfService?.trim()) newErrors.irLengthOfService = "Length of service is required";
                               if (!irExperienceInRole?.trim()) newErrors.irExperienceInRole = "Years of experience is required";
+                              if (!irWorkerActivity?.trim()) newErrors.irWorkerActivity = "Worker activity is required";
                             }
 
                             if (!irDescription?.trim()) newErrors.irDescription = "Incident description is required";

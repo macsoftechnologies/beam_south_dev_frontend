@@ -409,7 +409,7 @@ function IMCreate() {
     }
   }, [building, level]);
 
-  const required = ["project", "title", "date", "time", "location"];
+  const required = ["project", "title", "date", "time", "location", "floor", "specificLocation", "contractor"];
   const isEnv = form.categories.includes("Environmental Incident") || form.categories.some(c => c && c.toLowerCase().includes("environment"));
 
   const validate = () => {
@@ -644,7 +644,7 @@ function IMCreate() {
                     {errors.location && <span style={{ fontSize: "0.75rem", color: "#DC2626" }}>{errors.location}</span>}
                   </div>
                   <div className="mod-form-group">
-                    <label className="mod-form-label">Floor/Level</label>
+                    <label className="mod-form-label">Floor/Level <span style={{ color: "#DC2626" }}>*</span></label>
                     <select
                       className="mod-form-select"
                       value={level}
@@ -662,6 +662,7 @@ function IMCreate() {
                         </option>
                       ))}
                     </select>
+                    {errors.floor && <span style={{ fontSize: "0.75rem", color: "#DC2626" }}>{errors.floor}</span>}
                   </div>
                   <div className="mod-form-group full-width">
                     {selectedPdf && (
@@ -676,15 +677,17 @@ function IMCreate() {
                         />
                       </div>
                     )}
-                    <label className="mod-form-label" style={{ marginTop: "16px" }}>Specific location / Rooms (Auto-filled from drawing)</label>
+                    <label className="mod-form-label" style={{ marginTop: "16px" }}>Specific location / Rooms (Auto-filled from drawing) <span style={{ color: "#DC2626" }}>*</span></label>
                     <input name="specificLocation" type="text" className="mod-form-input" value={form.specificLocation} readOnly style={{ backgroundColor: "rgba(255,255,255,0.05)", cursor: "not-allowed", opacity: 0.7 }} />
+                    {errors.specificLocation && <span style={{ fontSize: "0.75rem", color: "#DC2626" }}>{errors.specificLocation}</span>}
                   </div>
                   <div className="mod-form-group full-width">
-                    <label className="mod-form-label">Contractor(s) involved</label>
+                    <label className="mod-form-label">Contractor(s) involved <span style={{ color: "#DC2626" }}>*</span></label>
                     <select name="contractor" className="mod-form-select" value={form.contractor} onChange={handleChange}>
                       <option value="">Select...</option>
                       {contractorsList.map(c => <option key={c.id || c.subcontractor_id || c._id} value={c.subContractorName || c.name}>{c.subContractorName || c.name}</option>)}
                     </select>
+                    {errors.contractor && <span style={{ fontSize: "0.75rem", color: "#DC2626" }}>{errors.contractor}</span>}
                   </div>
                 </div>
               </div>

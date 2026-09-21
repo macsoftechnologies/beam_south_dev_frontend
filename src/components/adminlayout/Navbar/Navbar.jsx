@@ -505,10 +505,17 @@ function Navbar({ toggleSidebar, theme, onThemeChange }) {
   };
 
   useEffect(() => {
+    if (
+      location.pathname.includes('/spot-check') ||
+      location.pathname.includes('/safety-inspection') ||
+      location.pathname.includes('/inspection')
+    ) {
+      return;
+    }
     fetchUnreadCount();
     const interval = setInterval(fetchUnreadCount, 4000);
     return () => clearInterval(interval);
-  }, [activeModuleKey]);
+  }, [activeModuleKey, location.pathname]);
 
   useEffect(() => {
     try {
@@ -803,8 +810,8 @@ function Navbar({ toggleSidebar, theme, onThemeChange }) {
         {/* Theme switcher — now controlled via Layout state */}
         <ThemeSwitcher theme={theme} onThemeChange={onThemeChange} />
 
-        {/* Bell with badge (Hidden for Spot Checks) */}
-        {!location.pathname.includes('/spot-check') && (
+        {/* Bell with badge (Hidden for Spot Checks and Safety Inspection) */}
+        {!location.pathname.includes('/spot-check') && !location.pathname.includes('/safety-inspection') && !location.pathname.includes('/inspection') && (
           <div className="bell-wrap" ref={bellRef}>
             <button
             className="navbar-bell"

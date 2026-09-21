@@ -5,66 +5,134 @@ import FloorDrawing from "../../../pages/Request/FloorDrawing/FloorDrawing";
 import { FLOOR_PDFS } from "../../../data/pdfMapping";
 import { ZONE_MAPPING } from "../../../data/zones";
 import { BUILDINGS } from "../../../data/buildings";
-import { getBuildings, getRooms, getFloors } from "../../../services/authService";
+import { getBuildings, getRooms, getFloors, getEmployees } from "../../../services/authService";
+import { safetyInspectionService } from "../../../services/safetyInspectionService";
 import "./SICreate.css";
 
-// The 21 standard safety inspection items
+// The 20 standard safety inspection items
 const CHECKLIST_ITEMS = [
-  "1. Access/Exit/Walkway",
-  "2. Barriers/Signage/Shielding",
-  "3. Housekeeping/Waste",
-  "4. Noise/Dust/fumes/and health hazards",
-  "5. Traffic Management",
-  "6. PPE",
-  "7. Fire arrangements",
-  "8. First aid/Emergency arrangements",
-  "9. Training/Competence",
-  "10. Communication/Co-ordination",
-  "11. RAMS/Permits",
-  "12. Hand tools",
-  "13. Power tools (110v/battery/other)",
-  "14. Work equipment",
-  "15. Hazardous substances",
-  "16. Manual handling",
-  "17. Lifting equipment/accessories",
-  "18. Work at height equipment (harness/lanyards/steps)",
-  "19. Scaffolding",
-  "20. Excavations",
-  "21. Services"
+  "1. Access / Exit",
+  "2. Barriers / Signage / Shielding",
+  "3. Housekeeping / Waste",
+  "4. Noise / Dust / Fumes / Health Hazards",
+  "5. Storage & Handling",
+  "6. Electrical Hazards",
+  "7. Working at Heights",
+  "8. Lifting / Rigging",
+  "9. Hot Works",
+  "10. Mobile Elevating Work Equipment",
+  "11. Lighting",
+  "12. Documentation & Procedures",
+  "13. Scaffold / Alloy Towers",
+  "14. Slip / Trip Hazards",
+  "15. PPE",
+  "16. Tools & Machinery",
+  "17. Environmental Hazards",
+  "18. Emergency Equipment",
+  "19. Excavation / Trenches",
+  "20. Other"
 ];
 
 export default function SICreate() {
   const navigate = useNavigate();
   const [selections, setSelections] = useState({});
   const [completed, setCompleted] = useState(false);
+  const [openInfoIdx, setOpenInfoIdx] = useState(null);
   const [openWrenchIdx, setOpenWrenchIdx] = useState(null);
   const [openPaperclipIdx, setOpenPaperclipIdx] = useState(null);
   const [activeComments, setActiveComments] = useState({});
+  const [comments, setComments] = useState({});
+  const [itemPhotos, setItemPhotos] = useState({});
+  const [itemIssues, setItemIssues] = useState({});
+  const [otherCustomTexts, setOtherCustomTexts] = useState({});
+  const [activeUploadIdx, setActiveUploadIdx] = useState(null);
   const [safetyIssueModalData, setSafetyIssueModalData] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const fileInputRef = useRef(null);
 
   const [building, setBuilding] = useState("");
   const [level, setLevel] = useState("");
   const [selectedRooms, setSelectedRooms] = useState([]);
   const [selectedZone, setSelectedZone] = useState(null);
+  const [inspectionDate, setInspectionDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [performedBy, setPerformedBy] = useState([]);
+  const [participants, setParticipants] = useState([]);
+  const [isParticipantsOpen, setIsParticipantsOpen] = useState(false);
+  const [participantSearch, setParticipantSearch] = useState("");
+  const participantsRef = useRef(null);
+
   const [buildingsList, setBuildingsList] = useState([]);
   const [floorsList, setFloorsList] = useState([]);
   const [roomsList, setRoomsList] = useState([]);
+  const [employeesList, setEmployeesList] = useState([]);
   const [isLoadingSelectors, setIsLoadingSelectors] = useState(true);
   const [roomStatusMap, setRoomStatusMap] = useState({});
   const [specificLocation, setSpecificLocation] = useState("");
 
+  const currentUser = React.useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem('user')) || {};
+    } catch {
+      return {};
+    }
+  }, []);
+
+  const loggedInUserName = React.useMemo(() => {
+    const name = currentUser.name || `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || currentUser.username || "Superadmin";
+    const deptOrComp = currentUser.department || currentUser.company || currentUser.role || "";
+    return deptOrComp ? `${name} (${deptOrComp})` : name;
+  }, [currentUser]);
+
+  const formattedParticipantsList = React.useMemo(() => {
+    if (employeesList.length > 0) {
+      return employeesList.map((emp, i) => {
+        const empName = emp.name || `${emp.first_name || ''} ${emp.last_name || ''}`.trim() || emp.username || `User ${emp.id || i}`;
+        const label = emp.company || emp.department ? `${empName} (${emp.company || emp.department})` : empName;
+        return label;
+      });
+    }
+    return [
+      "Oliver O'Neill (STS)",
+      "Albert Glowniak (Multi-Tech)",
+      "Tor Busch Nielsen (Zeta)",
+      "Charles Luedtke (NNE A/S)",
+      "Ramiro Sancheira Borges (NNE A/S)",
+      "Kenneth Weigand (SKEL.DK LANDINSPEKTØRER P/S)"
+    ];
+  }, [employeesList]);
+
+  const filteredParticipants = React.useMemo(() => {
+    if (!participantSearch) return formattedParticipantsList;
+    return formattedParticipantsList.filter(p => p.toLowerCase().includes(participantSearch.toLowerCase()));
+  }, [formattedParticipantsList, participantSearch]);
+
+  const toggleParticipant = (person) => {
+    if (participants.includes(person)) {
+      setParticipants(participants.filter(p => p !== person));
+    } else {
+      setParticipants([...participants, person]);
+    }
+  };
+
+  const removeParticipant = (e, person) => {
+    e.stopPropagation();
+    setParticipants(participants.filter(p => p !== person));
+  };
+
   useEffect(() => {
     const loadSelectors = async () => {
       try {
-        const [buildingsRes, floorsRes, roomsRes] = await Promise.all([
+        const [buildingsRes, floorsRes, roomsRes, empRes] = await Promise.all([
           getBuildings(1, 1000),
           getFloors(1, 1000),
-          getRooms(1, 20000)
+          getRooms(1, 20000),
+          getEmployees(1, 1000).catch(() => ({ data: [] }))
         ]);
         setBuildingsList(buildingsRes?.data ?? []);
         setFloorsList(floorsRes?.data ?? []);
         setRoomsList(roomsRes?.data?.rows ?? roomsRes?.data ?? roomsRes ?? []);
+        const rawEmps = empRes?.data?.rows ?? empRes?.data ?? empRes ?? [];
+        setEmployeesList(Array.isArray(rawEmps) ? rawEmps : []);
       } catch (err) {
         console.error("Failed to load request form selector data", err);
       } finally {
@@ -134,18 +202,42 @@ export default function SICreate() {
     setSpecificLocation(formattedRooms);
   };
 
-  const handleFileUploadClick = () => {
+  const handleFileUploadClick = (idx) => {
+    setActiveUploadIdx(idx);
     if (fileInputRef.current) {
       fileInputRef.current.click();
     }
     setOpenPaperclipIdx(null);
   };
 
+  const handleFileChange = async (e) => {
+    const files = e.target.files;
+    if (!files || files.length === 0 || activeUploadIdx === null) return;
+    try {
+      const res = await safetyInspectionService.uploadPhotos(Array.from(files));
+      if (res?.urls && res.urls.length > 0) {
+        setItemPhotos(prev => ({
+          ...prev,
+          [activeUploadIdx]: [...(prev[activeUploadIdx] || []), ...res.urls]
+        }));
+      }
+    } catch (err) {
+      console.error("Failed to upload photos", err);
+      alert("Failed to upload attachment photo");
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
   useEffect(() => {
     const handleOutsideClick = (e) => {
-      if (!e.target.closest('.si-tooltip-wrap') && !e.target.closest('.beam-modal-dialog')) {
+      if (!e.target.closest('.si-check-icons') && !e.target.closest('.beam-modal-dialog')) {
+        setOpenInfoIdx(null);
         setOpenWrenchIdx(null);
         setOpenPaperclipIdx(null);
+      }
+      if (participantsRef.current && !participantsRef.current.contains(e.target)) {
+        setIsParticipantsOpen(false);
       }
     };
     document.addEventListener('mousedown', handleOutsideClick);
@@ -155,12 +247,94 @@ export default function SICreate() {
   const handleSelect = (idx, color) => {
     setSelections(prev => ({ ...prev, [idx]: color }));
     if (color === 'yellow' || color === 'red') {
-      setSafetyIssueModalData({ subject: CHECKLIST_ITEMS[idx], color });
+      const isOther = CHECKLIST_ITEMS[idx].toLowerCase().includes('other');
+      const effectiveSubject = isOther && otherCustomTexts[idx]?.trim()
+        ? `20. Other - ${otherCustomTexts[idx].trim()}`
+        : CHECKLIST_ITEMS[idx];
+      setSafetyIssueModalData({ subject: effectiveSubject, color, itemIndex: idx });
     }
+  };
+
+  const handleObservationCreated = (createdObs, itemIdx) => {
+    if (itemIdx === undefined || itemIdx === null) return;
+    const obsNum = createdObs?.observationNumber || (createdObs?.id ? `SO${createdObs.id}` : 'SO');
+    const subcatText = createdObs?.subcategory || createdObs?.subject || 'Safety Issue';
+    const issueTag = {
+      id: obsNum,
+      type: safetyIssueModalData?.color === 'red' ? 'red' : 'orange',
+      text: `${obsNum}: ${subcatText}`,
+      observationId: createdObs?.id,
+      observationNumber: obsNum
+    };
+    setItemIssues(prev => ({
+      ...prev,
+      [itemIdx]: [...(prev[itemIdx] || []), issueTag]
+    }));
+    setSelections(prev => ({
+      ...prev,
+      [itemIdx]: safetyIssueModalData?.color || 'yellow'
+    }));
   };
 
   const toggleComment = (idx) => {
     setActiveComments(prev => ({ ...prev, [idx]: !prev[idx] }));
+  };
+
+  const handleSave = async () => {
+    if (!building) {
+      alert("Please select a Location/Building.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const selectedBuildingObj = buildingsList.find(b => String(b.build_id || b.id) === String(building));
+      const bName = selectedBuildingObj?.building_name || "";
+
+      const checklistItems = CHECKLIST_ITEMS.map((item, idx) => {
+        const isOther = item.toLowerCase().includes('other');
+        const effectiveName = isOther && otherCustomTexts[idx]?.trim()
+          ? `20. Other - ${otherCustomTexts[idx].trim()}`
+          : item;
+        return {
+          itemIndex: idx + 1,
+          categoryName: effectiveName,
+          status: selections[idx] || 'na',
+          comment: comments[idx] || '',
+          commentAuthor: currentUser?.name || currentUser?.username || 'Safety Inspector',
+          photos: itemPhotos[idx] || [],
+          issues: itemIssues[idx] || []
+        };
+      });
+
+      const payload = {
+        projectName: 'M3SOUTH',
+        projectNo: '063205-010',
+        buildingId: building ? Number(building) : undefined,
+        buildingName: bName,
+        floorLevel: level,
+        specificLocation,
+        selectedRooms,
+        selectedZones,
+        inspectionDate,
+        performedBy: [loggedInUserName],
+        participants,
+        status: completed ? 'CLOSED' : 'IN_PROGRESS',
+        isCompleted: completed,
+        createdByUserId: currentUser?.id,
+        createdByUserName: currentUser?.name || currentUser?.username || 'Safety Inspector',
+        createdByRole: currentUser?.role || 'DEPARTMENT',
+        checklistItems
+      };
+
+      const result = await safetyInspectionService.createInspection(payload);
+      navigate("/safety-inspection/list");
+    } catch (err) {
+      console.error("Failed to create safety inspection:", err);
+      alert(err?.response?.data?.message || "Failed to save safety inspection.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -246,7 +420,12 @@ export default function SICreate() {
           <div className="si-form-group">
             <label className="si-form-label">Date</label>
             <div className="si-input-wrap">
-              <input type="date" className="si-form-input" />
+              <input 
+                type="date" 
+                className="si-form-input" 
+                value={inspectionDate} 
+                onChange={(e) => setInspectionDate(e.target.value)} 
+              />
             </div>
           </div>
 
@@ -254,23 +433,84 @@ export default function SICreate() {
           <div className="si-form-group">
             <label className="si-form-label">Performed by <span className="si-req">*</span></label>
             <div className="si-input-wrap">
-              <select className="si-form-select">
-                <option value="">Choose...</option>
-                <option value="user1">Alex Mercer</option>
-                <option value="user2">John Doe</option>
-              </select>
+              <input 
+                type="text" 
+                className="si-form-input" 
+                value={loggedInUserName} 
+                readOnly 
+                disabled 
+                style={{ 
+                  backgroundColor: "rgba(0,0,0,0.04)", 
+                  cursor: "not-allowed", 
+                  color: "var(--text-main, #1e293b)", 
+                  fontWeight: 500 
+                }} 
+              />
             </div>
           </div>
 
-          {/* Participants */}
+          {/* Participants (Multi-Select) */}
           <div className="si-form-group">
             <label className="si-form-label">Participants <span className="si-req">*</span></label>
-            <div className="si-input-wrap">
-              <select className="si-form-select">
-                <option value="">Choose...</option>
-                <option value="user1">Jane Smith</option>
-                <option value="user2">Mike Johnson</option>
-              </select>
+            <div className="si-multiselect-wrap" ref={participantsRef}>
+              <div 
+                className={`si-multiselect-trigger ${isParticipantsOpen ? 'active' : ''}`}
+                onClick={() => setIsParticipantsOpen(!isParticipantsOpen)}
+              >
+                {participants.length === 0 ? (
+                  <span className="si-multiselect-placeholder">Choose participants...</span>
+                ) : (
+                  <div className="si-multiselect-pills">
+                    {participants.map((person, i) => (
+                      <span key={i} className="si-pill">
+                        {person}
+                        <span className="si-pill-remove" onClick={(e) => removeParticipant(e, person)}>&times;</span>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <i className={`ti ti-chevron-${isParticipantsOpen ? 'up' : 'down'}`} style={{ color: 'var(--text-muted, #64748b)', fontSize: '14px', flexShrink: 0 }}></i>
+              </div>
+
+              {isParticipantsOpen && (
+                <div className="si-multiselect-dropdown">
+                  <div className="si-multiselect-search">
+                    <input 
+                      type="text" 
+                      placeholder="Search participant name, department..." 
+                      value={participantSearch}
+                      onChange={(e) => setParticipantSearch(e.target.value)}
+                      onClick={(e) => e.stopPropagation()}
+                      autoFocus
+                    />
+                  </div>
+                  <div className="si-multiselect-options">
+                    {filteredParticipants.length === 0 ? (
+                      <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
+                        No participants found
+                      </div>
+                    ) : (
+                      filteredParticipants.map((person, i) => {
+                        const isSelected = participants.includes(person);
+                        return (
+                          <div 
+                            key={i} 
+                            className={`si-multiselect-option ${isSelected ? 'selected' : ''}`}
+                            onClick={() => toggleParticipant(person)}
+                          >
+                            <input 
+                              type="checkbox" 
+                              checked={isSelected} 
+                              onChange={() => {}} 
+                            />
+                            <span>{person}</span>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -279,35 +519,115 @@ export default function SICreate() {
         <div className="si-checklist">
           {CHECKLIST_ITEMS.map((item, idx) => {
             const selectedColor = selections[idx];
+            const photosCount = itemPhotos[idx]?.length || 0;
 
             return (
               <React.Fragment key={idx}>
                 <div className="si-check-item">
-                  <p className="si-check-label">{item}</p>
+                  <div className="si-check-left">
+                    {item.toLowerCase().includes('other') ? (
+                      <div className="si-other-wrap">
+                        <p className="si-check-label" style={{ margin: 0 }}>{item}:</p>
+                        <input 
+                          type="text"
+                          className="si-form-input"
+                          placeholder="Please fill / specify custom topic..."
+                          value={otherCustomTexts[idx] || ""}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setOtherCustomTexts(prev => ({ ...prev, [idx]: val }));
+                          }}
+                          style={{ maxWidth: '300px', height: '32px', fontSize: '13px', padding: '4px 10px' }}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </div>
+                    ) : (
+                      <p className="si-check-label">{item}</p>
+                    )}
+
+                    {itemIssues[idx] && itemIssues[idx].length > 0 && (
+                      <div className="si-issues-list">
+                        {itemIssues[idx].map((iss, issIdx) => (
+                          <span 
+                            key={issIdx} 
+                            style={{ 
+                              display: 'inline-flex', 
+                              alignItems: 'center', 
+                              gap: '6px', 
+                              backgroundColor: iss.type === 'red' ? 'rgba(239, 68, 68, 0.12)' : 'rgba(245, 158, 11, 0.12)', 
+                              color: iss.type === 'red' ? '#dc2626' : '#d97706', 
+                              border: `1px solid ${iss.type === 'red' ? 'rgba(239, 68, 68, 0.3)' : 'rgba(245, 158, 11, 0.3)'}`,
+                              borderRadius: '4px',
+                              padding: '2px 8px',
+                              fontSize: '12px',
+                              fontWeight: 600
+                            }}
+                          >
+                            <i className="ti ti-alert-triangle" style={{ fontSize: '13px' }}></i>
+                            {iss.text || iss.id}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
                   <div className="si-check-right">
                     <div className="si-check-icons">
-                      <div className="si-hidden-icons">
+                      <div 
+                        className="si-info-trigger"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenInfoIdx(openInfoIdx === idx ? null : idx);
+                        }}
+                      >
+                        <span className={`si-icon-btn ${openInfoIdx === idx || comments[idx] || photosCount > 0 ? 'active-icon' : ''}`}>
+                          <i className="ti ti-info-circle"></i>
+                          {(photosCount > 0 || comments[idx]) && <span className="si-badge-dot"></span>}
+                        </span>
+                      </div>
+
+                      <div className={`si-hidden-icons ${openInfoIdx === idx ? 'open' : ''}`}>
                         <div className="si-tooltip-wrap">
-                          <span className="si-icon-btn" onClick={() => toggleComment(idx)}>
+                          <span 
+                            className={`si-icon-btn ${comments[idx] ? 'active-icon' : ''}`} 
+                            onClick={(e) => { e.stopPropagation(); toggleComment(idx); }} 
+                            title="Comment"
+                          >
                             <i className="ti ti-message-2"></i>
                           </span>
-                          <div className="si-tooltip">Comment</div>
+                          <div className="si-tooltip">{comments[idx] ? 'Edit comment' : 'Comment'}</div>
                         </div>
                         
                         <div className="si-tooltip-wrap">
-                          <span className="si-icon-btn"><i className="ti ti-medal"></i></span>
+                          <span className="si-icon-btn" title="Good Practice" onClick={(e) => e.stopPropagation()}>
+                            <i className="ti ti-medal"></i>
+                          </span>
                           <div className="si-tooltip">Good practice</div>
                         </div>
                         
                         <div className="si-tooltip-wrap">
-                          <span className="si-icon-btn" onClick={() => { setOpenWrenchIdx(openWrenchIdx === idx ? null : idx); setOpenPaperclipIdx(null); }}>
+                          <span 
+                            className={`si-icon-btn ${openWrenchIdx === idx ? 'active-icon' : ''}`} 
+                            title="Safety Issue" 
+                            onClick={(e) => { 
+                              e.stopPropagation(); 
+                              setOpenWrenchIdx(openWrenchIdx === idx ? null : idx); 
+                              setOpenPaperclipIdx(null); 
+                            }}
+                          >
                             <i className="ti ti-tool"></i>
                           </span>
+                          <div className="si-tooltip">Safety Issue</div>
                           {openWrenchIdx === idx && (
-                            <div className="si-popover-menu" style={{ minWidth: '180px' }}>
+                            <div className="si-popover-menu" style={{ minWidth: '180px' }} onClick={(e) => e.stopPropagation()}>
                               <div className="si-dropdown-item" onClick={() => {
-                                setSafetyIssueModalData({ subject: CHECKLIST_ITEMS[idx], color: 'red' });
+                                const isOther = CHECKLIST_ITEMS[idx].toLowerCase().includes('other');
+                                const effectiveSubject = isOther && otherCustomTexts[idx]?.trim()
+                                  ? `20. Other - ${otherCustomTexts[idx].trim()}`
+                                  : CHECKLIST_ITEMS[idx];
+                                setSafetyIssueModalData({ subject: effectiveSubject, color: 'red', itemIndex: idx });
                                 setOpenWrenchIdx(null);
+                                setOpenInfoIdx(null);
                               }}>
                                 <i className="ti ti-alert-triangle"></i> Safety Issue
                               </div>
@@ -317,12 +637,22 @@ export default function SICreate() {
                         </div>
                         
                         <div className="si-tooltip-wrap">
-                          <span className="si-icon-btn" onClick={() => { setOpenPaperclipIdx(openPaperclipIdx === idx ? null : idx); setOpenWrenchIdx(null); }}>
+                          <span 
+                            className={`si-icon-btn ${photosCount > 0 || openPaperclipIdx === idx ? 'active-icon' : ''}`} 
+                            title="Attachments" 
+                            onClick={(e) => { 
+                              e.stopPropagation(); 
+                              setOpenPaperclipIdx(openPaperclipIdx === idx ? null : idx); 
+                              setOpenWrenchIdx(null); 
+                            }}
+                          >
                             <i className="ti ti-paperclip"></i>
+                            {photosCount > 0 && <span className="si-badge-count">{photosCount}</span>}
                           </span>
+                          <div className="si-tooltip">Attachments</div>
                           {openPaperclipIdx === idx && (
-                            <div className="si-popover-menu si-paperclip-menu" style={{ minWidth: '220px' }}>
-                              <div className="si-dropdown-item" onClick={handleFileUploadClick}><i className="ti ti-upload"></i> Upload from computer</div>
+                            <div className="si-popover-menu si-paperclip-menu" style={{ minWidth: '220px' }} onClick={(e) => e.stopPropagation()}>
+                              <div className="si-dropdown-item" onClick={() => { handleFileUploadClick(idx); setOpenInfoIdx(null); }}><i className="ti ti-upload"></i> Upload from computer</div>
                               <div className="si-dropdown-item"><i className="ti ti-folder"></i> Box</div>
                               <div className="si-dropdown-item"><i className="ti ti-clipboard"></i> Paste from clipboard</div>
                               <div className="si-dropdown-item"><i className="ti ti-border-all"></i> Annotate drawing</div>
@@ -333,37 +663,44 @@ export default function SICreate() {
                           )}
                         </div>
                       </div>
-
-                      <span className="si-icon-btn"><i className="ti ti-info-circle"></i></span>
                     </div>
-                    
+
                     <div className="si-radio-group">
                       <button 
                         className={`si-radio-btn ${selectedColor === 'red' ? 'active red-btn' : ''}`}
                         onClick={() => handleSelect(idx, 'red')}
                         type="button"
+                        title="Needs Attention / Unsafe"
                       >
-                        <span className={`si-dot ${selectedColor === 'red' ? 'red' : 'red'}`}></span>
+                        <span className="si-dot red"></span>
                       </button>
                       <button 
                         className={`si-radio-btn ${selectedColor === 'yellow' ? 'active yellow-btn' : ''}`}
                         onClick={() => handleSelect(idx, 'yellow')}
                         type="button"
+                        title="Warning / Observation"
                       >
-                        <span className={`si-dot ${selectedColor === 'yellow' ? 'yellow' : 'yellow'}`}></span>
+                        <span className="si-dot yellow"></span>
                       </button>
                       <button 
                         className={`si-radio-btn ${selectedColor === 'green' ? 'active green-btn' : ''}`}
                         onClick={() => handleSelect(idx, 'green')}
                         type="button"
+                        title="Good / Safe"
                       >
-                        <span className={`si-dot ${selectedColor === 'green' ? 'green' : 'green'}`}></span>
+                        <span className="si-dot green"></span>
                       </button>
                     </div>
                   </div>
                 </div>
                 {activeComments[idx] && (
-                  <textarea className="si-comment-box" placeholder="Comment" autoFocus></textarea>
+                  <textarea 
+                    className="si-comment-box" 
+                    placeholder="Write a comment or observation notes..." 
+                    value={comments[idx] || ""}
+                    onChange={(e) => setComments({ ...comments, [idx]: e.target.value })}
+                    autoFocus
+                  ></textarea>
                 )}
               </React.Fragment>
             );
@@ -379,22 +716,26 @@ export default function SICreate() {
               checked={completed} 
               onChange={(e) => setCompleted(e.target.checked)} 
             />
-            <label htmlFor="completedCheck">Completed (safety report will be available for everyone)</label>
+            <label htmlFor="completedCheck">Closed (safety report will be available for everyone)</label>
           </div>
           <div className="si-footer-right">
-            <button className="si-btn-cancel" onClick={() => navigate("/safety-inspection/list")}>Cancel</button>
-            <button className="si-btn-save" onClick={() => navigate("/safety-inspection/list")}>Save</button>
+            <button className="si-btn-cancel" disabled={isSubmitting} onClick={() => navigate("/safety-inspection/list")}>Cancel</button>
+            <button className="si-btn-save" disabled={isSubmitting} onClick={handleSave}>
+              {isSubmitting ? "Saving..." : "Save"}
+            </button>
           </div>
         </div>
       </div>
       
-      <input type="file" ref={fileInputRef} style={{ display: 'none' }} />
+      <input type="file" ref={fileInputRef} onChange={handleFileChange} multiple accept="image/*,.pdf" style={{ display: 'none' }} />
 
       <SafetyIssueModal 
         open={!!safetyIssueModalData} 
         subject={safetyIssueModalData?.subject} 
         color={safetyIssueModalData?.color}
+        itemIndex={safetyIssueModalData?.itemIndex}
         initialLocation={{ building, level, specificLocation, selectedRooms, selectedZone }}
+        onObservationCreated={handleObservationCreated}
         onClose={() => setSafetyIssueModalData(null)} 
       />
     </div>

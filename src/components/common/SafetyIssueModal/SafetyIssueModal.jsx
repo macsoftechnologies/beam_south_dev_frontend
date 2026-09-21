@@ -1,81 +1,270 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState, useMemo } from "react";
 import Modal from "../Modal/Modal";
 import FloorDrawing from "../../../pages/Request/FloorDrawing/FloorDrawing";
 import { FLOOR_PDFS } from "../../../data/pdfMapping";
 import { ZONE_MAPPING } from "../../../data/zones";
 import { BUILDINGS } from "../../../data/buildings";
-import { getBuildings, getRooms, getFloors } from "../../../services/authService";
+import { getBuildings, getRooms, getFloors, getContractors } from "../../../services/authService";
+import { observationService } from "../../../services/observationService";
 import "./SafetyIssueModal.css";
 
-export default function SafetyIssueModal({ open, onClose, subject, color, initialLocation }) {
+export const SAFETY_SUBCATEGORIES = {
+  "1. Access / Exit": [
+    "1.1 Blocked access – pedestrian",
+    "1.2 Missing pedestrian walkways",
+    "1.3 Unsafe accessways",
+    "1.4 Narrow accessways",
+    "1.5 No escape route",
+    "1.6 Unorganized parking",
+    "1.7 Blocked roads"
+  ],
+  "2. Barriers / Signage / Shielding": [
+    "2.1 Inadequate barriers",
+    "2.2 No barriers",
+    "2.3 Missing signage",
+    "2.4 Damaged barriers",
+    "2.5 Floor opening ≥7 cm"
+  ],
+  "3. Housekeeping / Waste": [
+    "3.1 Poor housekeeping",
+    "3.2 Dust build‑up",
+    "3.3 Waste"
+  ],
+  "4. Noise / Dust / Fumes / Health Hazards": [
+    "4.1 Exposure to unnecessary noise",
+    "4.2 Exposure to dust",
+    "4.3 Exposure to fumes",
+    "4.4 Hazardous substances exposure",
+    "4.5 Poor body positioning",
+    "4.6 Unsafe manual handling"
+  ],
+  "5. Storage & Handling": [
+    "5.1 Unorganized storage",
+    "5.2 Unsafe material handling",
+    "5.3 Unsafe chemical storage",
+    "5.4 Unlabeled chemical containers"
+  ],
+  "6. Electrical Hazards": [
+    "6.1 Poor cable management",
+    "6.2 Unsafe electrical equipment",
+    "6.3 Exposed cable ends",
+    "6.4 Incorrect junction box setup / inspection"
+  ],
+  "7. Working at Heights": [
+    "7.1 Lack of fall protection",
+    "7.2 No rescue/evacuation plan",
+    "7.3 Unsafe work positions",
+    "7.4 Unsafe ladder use",
+    "7.5 Unsafe scaffolding work",
+    "7.6 Dropped object"
+  ],
+  "8. Lifting / Rigging": [
+    "8.1 Unsafe lifting methods",
+    "8.2 No flagman / barriers",
+    "8.3 Lifting over personnel",
+    "8.4 Missing 12‑month inspection"
+  ],
+  "9. Hot Works": [
+    "9.1 Sparks",
+    "9.2 Missing firefighting equipment",
+    "9.3 Missing extraction",
+    "9.4 Missing shielding",
+    "9.5 Fire watchers",
+    "9.6 ATEX – Flashback arrestors"
+  ],
+  "10. Mobile Elevating Work Equipment": [
+    "10.1 Unsafe use",
+    "10.2 Missing flagman/barricades",
+    "10.3 Missing 12‑month inspection"
+  ],
+  "11. Lighting": [
+    "11.1 Missing lighting",
+    "11.2 Insufficient lighting",
+    "11.3 Orientation lighting missing (25 lux)",
+    "11.4 Work lighting missing (100 lux)"
+  ],
+  "12. Documentation & Procedures": [
+    "12.1 Missing Permit to Work",
+    "12.2 Missing Toolbox Talk",
+    "12.3 RAMS not followed",
+    "12.4 Missing RAMS",
+    "12.5 Lack of RAMS instructions",
+    "12.6 Missing SDS",
+    "12.7 SDS not followed",
+    "12.8 Missing chemical risk assessment",
+    "12.9 Chemical risk assessment not followed",
+    "12.10 Alcohol & drugs"
+  ],
+  "13. Scaffold / Alloy Towers": [
+    "13.1 Green sign missing",
+    "13.2 Unsafe construction",
+    "13.3 Unauthorized reconstruction",
+    "13.4 Access blocked",
+    "13.5 Poor housekeeping on scaffold",
+    "13.6 Outdated inspection"
+  ],
+  "14. Slip / Trip Hazards": [
+    "14.1 Materials in walkways",
+    "14.2 Uneven surfaces",
+    "14.3 Slippery accessway",
+    "14.4 Cables in accessways"
+  ],
+  "15. PPE": [
+    "15.1 Missing mandatory PPE",
+    "15.2 Missing task‑specific PPE",
+    "15.3 Incorrect PPE use",
+    "15.4 PPE inspections missing"
+  ],
+  "16. Tools & Machinery": [
+    "16.1 Wrong tool use",
+    "16.2 Defective tools",
+    "16.3 Missing 12‑month inspection"
+  ],
+  "17. Environmental Hazards": [
+    "17.1 Chemical spills",
+    "17.2 Waste management issues",
+    "17.3 Oil / hydraulic spill",
+    "17.4 Missing spill precautions"
+  ],
+  "18. Emergency Equipment": [
+    "18.1 Missing first‑aid equipment",
+    "18.2 Missing first‑aid stations",
+    "18.3 Missing firefighting equipment",
+    "18.4 Missing inspections"
+  ],
+  "19. Excavation / Trenches": [
+    "19.1 Unsafe excavation",
+    "19.2 Incorrect angle",
+    "19.3 Missing escape routes",
+    "19.4 Insufficient barriers"
+  ],
+  "20. Other": [
+    "20.1 Please Fill"
+  ]
+};
+
+export function getSubcategoriesForCategory(categoryName) {
+  if (!categoryName) return ["Please Fill"];
+  const clean = String(categoryName).trim();
+  
+  if (SAFETY_SUBCATEGORIES[clean]) return SAFETY_SUBCATEGORIES[clean];
+  
+  const numMatch = clean.match(/^(\d+)\./);
+  if (numMatch) {
+    const num = numMatch[1];
+    const key = Object.keys(SAFETY_SUBCATEGORIES).find(k => k.startsWith(`${num}.`));
+    if (key) return SAFETY_SUBCATEGORIES[key];
+  }
+
+  const lower = clean.toLowerCase();
+  const foundKey = Object.keys(SAFETY_SUBCATEGORIES).find(k => {
+    const kLower = k.toLowerCase().replace(/^\d+\.\s*/, '');
+    return lower.includes(kLower) || kLower.includes(lower);
+  });
+  if (foundKey) return SAFETY_SUBCATEGORIES[foundKey];
+
+  return ["20.1 Please Fill"];
+}
+
+export default function SafetyIssueModal({ open, onClose, subject, color, itemIndex, initialLocation, onObservationCreated }) {
   const fileInputRef = useRef(null);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
 
-  const [photoFiles, setPhotoFiles] = React.useState([]);
-  const [photoPreviews, setPhotoPreviews] = React.useState([]);
-  const [isCameraActive, setIsCameraActive] = React.useState(false);
+  const [photoFiles, setPhotoFiles] = useState([]);
+  const [photoPreviews, setPhotoPreviews] = useState([]);
+  const [isCameraActive, setIsCameraActive] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const dataURLtoBlob = (dataurl) => {
-    if (!dataurl || typeof dataurl !== 'string') return null;
-    const arr = dataurl.split(',');
-    if (arr.length < 2) return null;
-    const mimeMatch = arr[0].match(/:(.*?);/);
-    const mime = mimeMatch ? mimeMatch[1] : 'image/png';
-    const bstr = atob(arr[1]);
-    let n = bstr.length;
-    const u8arr = new Uint8Array(n);
-    while (n--) {
-      u8arr[n] = bstr.charCodeAt(n);
+  // Form State
+  const [subjectInput, setSubjectInput] = useState("");
+  const [deadline, setDeadline] = useState("");
+  const [building, setBuilding] = useState("");
+  const [level, setLevel] = useState("");
+  const [selectedRooms, setSelectedRooms] = useState([]);
+  const [selectedZone, setSelectedZone] = useState(null);
+  const [specificLocation, setSpecificLocation] = useState("");
+  const [safetySubcategory, setSafetySubcategory] = useState("");
+  const [customOtherText, setCustomOtherText] = useState("");
+  const [contractorInvolved, setContractorInvolved] = useState("");
+  const [occurrenceDate, setOccurrenceDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [occurrenceTime, setOccurrenceTime] = useState(() => new Date().toTimeString().split(' ')[0].substring(0, 5));
+  const [hseTypology, setHseTypology] = useState("");
+  const [description, setDescription] = useState("");
+
+  const [buildingsList, setBuildingsList] = useState([]);
+  const [floorsList, setFloorsList] = useState([]);
+  const [roomsList, setRoomsList] = useState([]);
+  const [contractorsList, setContractorsList] = useState([]);
+  const [roomStatusMap, setRoomStatusMap] = useState({});
+
+  const currentUser = useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem('user')) || {};
+    } catch {
+      return {};
     }
-    return new Blob([u8arr], { type: mime });
-  };
+  }, []);
 
-  const [building, setBuilding] = React.useState("");
-  const [level, setLevel] = React.useState("");
-  const [selectedRooms, setSelectedRooms] = React.useState([]);
-  const [selectedZone, setSelectedZone] = React.useState(null);
-  const [buildingsList, setBuildingsList] = React.useState([]);
-  const [floorsList, setFloorsList] = React.useState([]);
-  const [roomsList, setRoomsList] = React.useState([]);
-  const [isLoadingSelectors, setIsLoadingSelectors] = React.useState(true);
-  const [roomStatusMap, setRoomStatusMap] = React.useState({});
-  const [specificLocation, setSpecificLocation] = React.useState("");
+  const availableSubcategories = useMemo(() => {
+    return getSubcategoriesForCategory(subject);
+  }, [subject]);
+
+  const isOtherCategory = useMemo(() => {
+    const cleanSubject = String(subject || "").toLowerCase().trim();
+    return cleanSubject.includes("other") || (availableSubcategories.length === 1 && availableSubcategories[0]?.includes("Please Fill"));
+  }, [subject, availableSubcategories]);
 
   useEffect(() => {
-    if (open && initialLocation) {
-      setBuilding(initialLocation.building || "");
-      setLevel(initialLocation.level || "");
-      setSelectedRooms(initialLocation.selectedRooms || []);
-      setSelectedZone(initialLocation.selectedZone || null);
-      setSpecificLocation(initialLocation.specificLocation || "");
+    if (open) {
+      setSubjectInput(subject || "");
+      setSafetySubcategory(isOtherCategory ? "" : (availableSubcategories[0] || ""));
+      setCustomOtherText("");
+      if (initialLocation) {
+        setBuilding(initialLocation.building || "");
+        setLevel(initialLocation.level || "");
+        setSelectedRooms(initialLocation.selectedRooms || []);
+        setSelectedZone(initialLocation.selectedZone || null);
+        setSpecificLocation(initialLocation.specificLocation || "");
+      }
     }
-  }, [open, initialLocation]);
+  }, [open, subject, initialLocation, availableSubcategories, isOtherCategory]);
 
   useEffect(() => {
     const loadSelectors = async () => {
       try {
-        const [buildingsRes, floorsRes, roomsRes] = await Promise.all([
+        const [buildingsRes, floorsRes, roomsRes, contRes] = await Promise.all([
           getBuildings(1, 1000),
           getFloors(1, 1000),
-          getRooms(1, 20000)
+          getRooms(1, 20000),
+          getContractors(1, 1000).catch(() => ({ data: [] }))
         ]);
         setBuildingsList(buildingsRes?.data ?? []);
         setFloorsList(floorsRes?.data ?? []);
         setRoomsList(roomsRes?.data?.rows ?? roomsRes?.data ?? roomsRes ?? []);
+        const rawCont = contRes?.data?.rows ?? contRes?.data ?? contRes ?? [];
+        let cList = Array.isArray(rawCont) ? [...rawCont] : [];
+        const hasNne = cList.some(c => {
+          const cName = String(c.subContractorName || c.company_name || c.contractor_name || c.name || "").toUpperCase().trim();
+          return cName === "NNE" || cName.includes("NNE");
+        });
+        if (!hasNne) {
+          cList.push({ id: "NNE", subContractorName: "NNE", company_name: "NNE", name: "NNE" });
+        }
+        setContractorsList(cList);
       } catch (err) {
-        console.error("Failed to load request form selector data", err);
-      } finally {
-        setIsLoadingSelectors(false);
+        console.error("Failed to load selectors", err);
       }
     };
-    loadSelectors();
-  }, []);
+    if (open) {
+      loadSelectors();
+    }
+  }, [open]);
 
   const levels = building ? floorsList.filter(f => String(f.build_id) === String(building)).map(f => f.floor_name) : [];
   
-  const selectedPdf = React.useMemo(() => {
+  const selectedPdf = useMemo(() => {
     if (!building || !level) return "";
     const dbBuilding = buildingsList.find(b => String(b.build_id || b.id) === String(building));
     const bName = dbBuilding ? dbBuilding.building_name : "";
@@ -93,7 +282,7 @@ export default function SafetyIssueModal({ open, onClose, subject, color, initia
     return foundKey ? pdfsForBuilding[foundKey] : "";
   }, [building, level, buildingsList]);
 
-  const selectedZones = React.useMemo(() => {
+  const selectedZones = useMemo(() => {
     if (!level) return [];
     let zonesForLevel = ZONE_MAPPING[level] || [];
     if (zonesForLevel.length === 0) {
@@ -131,6 +320,21 @@ export default function SafetyIssueModal({ open, onClose, subject, color, initia
       return zoneName ? `${zoneName}:${roomClean}` : roomClean;
     }).filter(Boolean).join(", ");
     setSpecificLocation(formattedRooms);
+  };
+
+  const dataURLtoBlob = (dataurl) => {
+    if (!dataurl || typeof dataurl !== 'string') return null;
+    const arr = dataurl.split(',');
+    if (arr.length < 2) return null;
+    const mimeMatch = arr[0].match(/:(.*?);/);
+    const mime = mimeMatch ? mimeMatch[1] : 'image/png';
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new Blob([u8arr], { type: mime });
   };
 
   const startCamera = async () => {
@@ -196,7 +400,6 @@ export default function SafetyIssueModal({ open, onClose, subject, color, initia
     setPhotoPreviews((prev) => prev.filter((_, i) => i !== idx));
   };
   
-  // Make this specific modal act as a right-side drawer
   useEffect(() => {
     if (open) {
       document.body.classList.add('si-right-modal-open');
@@ -206,8 +409,77 @@ export default function SafetyIssueModal({ open, onClose, subject, color, initia
     return () => document.body.classList.remove('si-right-modal-open');
   }, [open]);
 
-  // Determine dot color
-  let dotColor = '#1e293b'; // dark default
+  const handleSubmit = async () => {
+    if (!description && !safetySubcategory) {
+      alert("Please provide a description or select a subcategory for this safety observation.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const dbBuilding = buildingsList.find(b => String(b.build_id || b.id) === String(building));
+      const bName = dbBuilding ? dbBuilding.building_name : "";
+
+      const selectedCont = contractorsList.find(c => 
+        String(c.id || c.contractor_id) === String(contractorInvolved) || 
+        c.subContractorName === contractorInvolved || 
+        c.company_name === contractorInvolved || 
+        c.name === contractorInvolved
+      );
+      const contractorName = selectedCont 
+        ? (selectedCont.subContractorName || selectedCont.company_name || selectedCont.contractor_name || selectedCont.name || contractorInvolved) 
+        : contractorInvolved;
+      const contractorId = selectedCont ? (selectedCont.id || selectedCont.contractor_id) : undefined;
+
+      const isOtherSelection = safetySubcategory?.includes("Please Fill") || safetySubcategory?.toLowerCase().includes("other") || (subject || "").toLowerCase().includes("other");
+      const effectiveSubcategory = isOtherSelection && customOtherText.trim()
+        ? `20.1 ${customOtherText.trim()}`
+        : safetySubcategory;
+
+      const formData = new FormData();
+      formData.append("observationType", "NEEDS_ATTENTION");
+      formData.append("natureOfFinding", "UNSAFE_CONDITION");
+      formData.append("subject", subjectInput || subject || "Safety Issue");
+      formData.append("safetyCategory", subject || "General");
+      formData.append("subcategory", effectiveSubcategory || "");
+      formData.append("riskLevel", color === 'red' ? 'HIGH' : 'MEDIUM');
+      formData.append("description", description || `${subject}: ${effectiveSubcategory || 'Unsafe condition identified'}`);
+      
+      if (building) formData.append("buildingId", building);
+      if (bName) formData.append("buildingName", bName);
+      if (level) formData.append("floorLevel", level);
+      if (specificLocation) formData.append("specificLocation", specificLocation);
+      if (contractorId) formData.append("assignedContractorId", contractorId);
+      if (contractorName) formData.append("assignedContractorName", contractorName);
+      if (occurrenceDate) formData.append("observationDate", occurrenceDate);
+      if (occurrenceTime) formData.append("observationTime", occurrenceTime);
+      if (deadline) formData.append("deadline", deadline);
+
+      if (currentUser?.id) formData.append("createdByUserId", currentUser.id);
+      formData.append("createdByUserName", currentUser?.name || currentUser?.username || "Safety Inspector");
+      formData.append("createdByRole", currentUser?.role || "DEPARTMENT");
+
+      photoFiles.forEach(file => {
+        formData.append("photos", file);
+      });
+
+      const res = await observationService.createObservation(formData);
+      const createdObs = res?.observation || res;
+
+      if (onObservationCreated) {
+        onObservationCreated(createdObs, itemIndex);
+      }
+
+      onClose();
+    } catch (err) {
+      console.error("Failed to submit safety issue:", err);
+      alert(err?.response?.data?.message || "Failed to create safety observation.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  let dotColor = '#1e293b';
   if (color === 'red') dotColor = '#ef4444';
   if (color === 'yellow') dotColor = '#eab308';
   if (color === 'green') dotColor = '#22c55e';
@@ -242,8 +514,20 @@ export default function SafetyIssueModal({ open, onClose, subject, color, initia
         <div className="sim-row">
           <label className="sim-label">Responsible <span className="sim-req">*</span></label>
           <div className="sim-input-wrap">
-            <select className="sim-input">
-              <option value=""></option>
+            <select 
+              className="sim-input" 
+              value={contractorInvolved} 
+              onChange={(e) => setContractorInvolved(e.target.value)}
+            >
+              <option value="">Select Contractor / Company</option>
+              {contractorsList.map((c, i) => {
+                const cName = c.subContractorName || c.company_name || c.contractor_name || c.name || `Contractor ${c.id || i}`;
+                return (
+                  <option key={c.id || i} value={c.id || cName}>
+                    {cName}
+                  </option>
+                );
+              })}
             </select>
           </div>
         </div>
@@ -253,8 +537,15 @@ export default function SafetyIssueModal({ open, onClose, subject, color, initia
           <label className="sim-label">Subject <span className="sim-req">*</span></label>
           <div className="sim-input-group">
             <div className="sim-input-icon-wrap">
-              <input type="text" className="sim-input" defaultValue={subject || ""} />
-              <i className="ti ti-x sim-inner-icon clickable"></i>
+              <input 
+                type="text" 
+                className="sim-input" 
+                value={subjectInput} 
+                onChange={(e) => setSubjectInput(e.target.value)} 
+              />
+              {subjectInput && (
+                <i className="ti ti-x sim-inner-icon clickable" onClick={() => setSubjectInput("")}></i>
+              )}
             </div>
             <button className="sim-btn-icon"><i className="ti ti-plus"></i></button>
           </div>
@@ -264,7 +555,12 @@ export default function SafetyIssueModal({ open, onClose, subject, color, initia
         <div className="sim-row">
           <label className="sim-label">Deadline</label>
           <div className="sim-input-wrap sim-w-50">
-            <input type="date" className="sim-input grey-bg" />
+            <input 
+              type="date" 
+              className="sim-input grey-bg" 
+              value={deadline}
+              onChange={(e) => setDeadline(e.target.value)}
+            />
           </div>
         </div>
 
@@ -341,9 +637,12 @@ export default function SafetyIssueModal({ open, onClose, subject, color, initia
           <label className="sim-label">Risk Matrix Result <span className="sim-req">*</span></label>
           <div className="sim-input-group">
             <div className="sim-input-icon-wrap">
-              <select className="sim-input">
-                <option value="">{color === 'red' ? '🔴' : color === 'yellow' ? '🟡' : '⚫'}</option>
-              </select>
+              <input 
+                type="text" 
+                className="sim-input grey-bg" 
+                readOnly 
+                value={color === 'red' ? '🔴 Critical / High Risk' : color === 'yellow' ? '🟡 Medium Risk' : '🟢 Low Risk'} 
+              />
             </div>
             <button className="sim-btn-icon pdf-btn"><i className="ti ti-file-type-pdf"></i></button>
           </div>
@@ -353,19 +652,44 @@ export default function SafetyIssueModal({ open, onClose, subject, color, initia
         <div className="sim-row">
           <label className="sim-label">Safety category <br/><small>[24H]</small> <span className="sim-req">*</span></label>
           <div className="sim-input-wrap">
-            <select className="sim-input" disabled defaultValue={subject || ""}>
-              <option>{subject || "Choose..."}</option>
-            </select>
+            <input 
+              type="text" 
+              className="sim-input" 
+              readOnly 
+              disabled 
+              value={subject || ""} 
+              style={{ backgroundColor: "rgba(0,0,0,0.04)", cursor: "not-allowed", fontWeight: 500 }}
+            />
           </div>
         </div>
 
         {/* Safety subcategory */}
         <div className="sim-row">
-          <label className="sim-label">Safety subcategory</label>
+          <label className="sim-label">Safety subcategory <span className="sim-req">*</span></label>
           <div className="sim-input-wrap">
-            <select className="sim-input">
-              <option value="">Choose...</option>
-            </select>
+            {isOtherCategory ? (
+              <input 
+                type="text" 
+                className="sim-input"
+                placeholder="Enter custom subcategory text (e.g. 20.1 Loose scaffolding clips)..."
+                value={safetySubcategory}
+                onChange={(e) => setSafetySubcategory(e.target.value)}
+                autoFocus
+              />
+            ) : (
+              <select 
+                className="sim-input"
+                value={safetySubcategory}
+                onChange={(e) => setSafetySubcategory(e.target.value)}
+              >
+                <option value="">Select Subcategory</option>
+                {availableSubcategories.map((subcat, idx) => (
+                  <option key={idx} value={subcat}>
+                    {subcat}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
         </div>
 
@@ -373,8 +697,20 @@ export default function SafetyIssueModal({ open, onClose, subject, color, initia
         <div className="sim-row">
           <label className="sim-label">Contractor involved <span className="sim-req">*</span></label>
           <div className="sim-input-wrap">
-            <select className="sim-input">
-              <option value="">Choose...</option>
+            <select 
+              className="sim-input" 
+              value={contractorInvolved} 
+              onChange={(e) => setContractorInvolved(e.target.value)}
+            >
+              <option value="">Select Contractor...</option>
+              {contractorsList.map((c, i) => {
+                const cName = c.subContractorName || c.company_name || c.contractor_name || c.name || `Contractor ${c.id || i}`;
+                return (
+                  <option key={c.id || i} value={c.id || cName}>
+                    {cName}
+                  </option>
+                );
+              })}
             </select>
           </div>
         </div>
@@ -384,9 +720,19 @@ export default function SafetyIssueModal({ open, onClose, subject, color, initia
           <label className="sim-label">Date and time of<br/>occurrence <span className="sim-req">*</span></label>
           <div className="sim-date-time-group">
             <div className="sim-input-icon-left flex-1">
-              <input type="date" className="sim-input grey-bg" />
+              <input 
+                type="date" 
+                className="sim-input grey-bg" 
+                value={occurrenceDate}
+                onChange={(e) => setOccurrenceDate(e.target.value)}
+              />
             </div>
-            <input type="time" className="sim-input time-input grey-bg" />
+            <input 
+              type="time" 
+              className="sim-input time-input grey-bg" 
+              value={occurrenceTime}
+              onChange={(e) => setOccurrenceTime(e.target.value)}
+            />
           </div>
         </div>
 
@@ -395,8 +741,16 @@ export default function SafetyIssueModal({ open, onClose, subject, color, initia
           <label className="sim-label">HSE Typology <span className="sim-req">*</span></label>
           <div className="sim-input-group">
             <div className="sim-input-icon-wrap">
-              <select className="sim-input">
-                <option value="">Choose...</option>
+              <select 
+                className="sim-input"
+                value={hseTypology}
+                onChange={(e) => setHseTypology(e.target.value)}
+              >
+                <option value="">Choose HSE Typology...</option>
+                <option value="Unsafe Condition">Unsafe Condition</option>
+                <option value="Unsafe Act">Unsafe Act</option>
+                <option value="Positive Practice">Positive Practice</option>
+                <option value="Near Miss">Near Miss</option>
               </select>
             </div>
             <button className="sim-btn-icon pdf-btn"><i className="ti ti-file-type-pdf"></i></button>
@@ -407,7 +761,12 @@ export default function SafetyIssueModal({ open, onClose, subject, color, initia
         <div className="sim-row">
           <label className="sim-label">Description <span className="sim-req">*</span></label>
           <div className="sim-input-wrap">
-            <textarea className="sim-textarea"></textarea>
+            <textarea 
+              className="sim-textarea"
+              placeholder="Describe the safety observation / issue in detail..."
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            ></textarea>
           </div>
         </div>
 
@@ -526,8 +885,10 @@ export default function SafetyIssueModal({ open, onClose, subject, color, initia
 
       <div className="sim-footer">
         <div className="sim-footer-actions">
-          <button className="sim-btn-cancel" onClick={onClose}>Cancel</button>
-          <button className="sim-btn-submit">Submit</button>
+          <button className="sim-btn-cancel" disabled={isSubmitting} onClick={onClose}>Cancel</button>
+          <button className="sim-btn-submit" disabled={isSubmitting} onClick={handleSubmit}>
+            {isSubmitting ? "Creating Safety Observation..." : "Submit"}
+          </button>
         </div>
       </div>
     </Modal>

@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { spotCheckService } from "../../../services/spotCheckService";
 import "./SCDashboard.css";
 
 // ── Icons ──
@@ -29,37 +30,40 @@ const StatCard = ({ label, value, sub, foot, accent = "#131E40", valColor, icon 
   );
 };
 
-const TrendPill = ({ pct, goodIsDown = false }) => {
-  if (pct === null || pct === undefined) return <span className="trend flat"><Icons.activity /> --</span>;
-  if (pct === 0) return <span className="trend flat"><Icons.activity /> 0%</span>;
-  const isDown = pct < 0;
-  const good = goodIsDown ? isDown : !isDown;
-  const cls = (isDown ? 'down-' : 'up-') + (good ? 'good' : 'bad');
-  return (
-    <span className={`trend ${cls}`}>
-      <span style={{width: 14, height: 14}}>{isDown ? <Icons.down /> : <Icons.up />}</span>
-      {pct > 0 ? '+' : ''}{pct}%
-    </span>
-  );
-};
-
-// ── Mock Data ──
-const MOCK_CHECKS = [
-  { id: "SC-2026-101", location: "Zone A", type: "PPE Check", result: "PASS", date: "2026-09-09", inspector: "John Doe" },
-  { id: "SC-2026-102", location: "Zone B", type: "Scaffolding", result: "FAIL", date: "2026-09-09", inspector: "Jane Smith" },
-  { id: "SC-2026-103", location: "Zone C", type: "Electrical", result: "PASS", date: "2026-09-08", inspector: "Mike Johnson" },
-  { id: "SC-2026-104", location: "Zone A", type: "Housekeeping", result: "PASS", date: "2026-09-08", inspector: "John Doe" },
-  { id: "SC-2026-105", location: "Zone D", type: "PPE Check", result: "WARNING", date: "2026-09-07", inspector: "Jane Smith" }
-];
-
 export default function SCDashboard() {
   const navigate = useNavigate();
-  const [filter, setFilter] = useState({ q: '', location: '', result: '' });
-  
-  const filteredDeepDive = MOCK_CHECKS.filter(r => {
-    if (filter.q && !(r.id + ' ' + r.type).toLowerCase().includes(filter.q.toLowerCase())) return false;
-    if (filter.location && r.location !== filter.location) return false;
-    if (filter.result && r.result !== filter.result) return false;
+  const [stats, setStats] = useState({
+    totalChecks: 0,
+    compliantCount: 0,
+    nonCompliantCount: 0,
+    complianceRate: 100,
+  });
+  const [recentChecks, setRecentChecks] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [filter, setFilter] = useState({ q: '', compliance: '' });
+
+  useEffect(() => {
+    const loadDashboard = async () => {
+      try {
+        setIsLoading(true);
+        const [statsRes, checksRes] = await Promise.all([
+          spotCheckService.getSpotCheckStats().catch(() => ({ totalChecks: 0, compliantCount: 0, nonCompliantCount: 0, complianceRate: 100 })),
+          spotCheckService.getSpotChecks({ page: 1, limit: 10 }).catch(() => ({ spotChecks: [] }))
+        ]);
+        setStats(statsRes);
+        setRecentChecks(checksRes?.spotChecks || []);
+      } catch (err) {
+        console.error("Failed to load spot checks dashboard", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadDashboard();
+  }, []);
+
+  const filteredDeepDive = recentChecks.filter(r => {
+    if (filter.q && !(r.spotCheckRef + ' ' + (r.activityName || '') + ' ' + (r.location || '')).toLowerCase().includes(filter.q.toLowerCase())) return false;
+    if (filter.compliance && r.chk3_2 !== filter.compliance) return false;
     return true;
   });
 
@@ -76,97 +80,72 @@ export default function SCDashboard() {
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
           <button className="mod-btn-outline" style={{ height: '28px', padding: '0 12px' }} onClick={() => navigate("/spot-checks/list")}>View All</button>
-          <button className="mod-btn-primary">+ New Spot Check</button>
+          <button className="mod-btn-primary" onClick={() => navigate("/spot-checks/create")}>+ New Spot Check</button>
         </div>
       </div>
 
       {/* ── KPIs ── */}
       <div className="dash-kpis">
-        <StatCard label="Today" value="24" accent="#14B8A6" icon="eye" sub="checks completed" foot={<><TrendPill pct={8} /> <span style={{marginLeft: 4, color:'var(--text-muted)'}}>vs yesterday</span></>} />
-        <StatCard label="This Week" value="156" accent="#14B8A6" icon="calendar" sub="week to date" foot={<><TrendPill pct={12} /> <span style={{marginLeft: 4, color:'var(--text-muted)'}}>vs last week</span></>} />
-        <StatCard label="Pass Rate" value="88%" accent="#7BBE97" valColor="#7BBE97" icon="activity" sub="overall pass rate" />
-        <StatCard label="Total Checks" value="1,245" accent="#583C66" valColor="#583C66" icon="layers" sub="all time" />
-        <StatCard label="Failed Checks" value="18" accent="#E32B50" valColor="#E32B50" icon="target" sub="this week" />
-        <StatCard label="Last Week" value="142" accent="#8A8F9F" icon="clock" sub="complete week total" />
+        <StatCard label="Total Checks" value={stats.totalChecks || 0} accent="#583C66" valColor="#583C66" icon="layers" sub="all recorded spot checks" />
+        <StatCard label="Compliance Rate" value={`${stats.complianceRate || 100}%`} accent="#7BBE97" valColor="#7BBE97" icon="activity" sub="overall pass rate" />
+        <StatCard label="Compliant (Pass)" value={stats.compliantCount || 0} accent="#14B8A6" valColor="#14B8A6" icon="eye" sub="passed audits" />
+        <StatCard label="Non-Compliant" value={stats.nonCompliantCount || 0} accent="#E32B50" valColor="#E32B50" icon="target" sub="requiring corrective action" />
+        <StatCard label="Active Permitted" value={stats.totalChecks || 0} accent="#F97316" valColor="#F97316" icon="calendar" sub="verified PTWs" />
+        <StatCard label="Recent Period" value={recentChecks.length} accent="#8A8F9F" icon="clock" sub="latest inspections" />
       </div>
 
-      {/* ── Trend ── */}
-      <div className="panel">
-        <div className="panel-head">
-          <span className="panel-title">Daily Spot Check Trend</span>
-        </div>
-        <div className="panel-body">
-          <div className="vbars">
-            {[{label:'Mon', count:22}, {label:'Tue', count:25}, {label:'Wed', count:20}, {label:'Thu', count:28}, {label:'Fri', count:24}, {label:'Sat', count:15}, {label:'Sun', count:12}, {label:'Today', count:24}].map((w, i) => {
-              const h = Math.max((w.count / 28) * 90, 6);
-              const isCur = i === 7;
-              return (
-                <div key={i} className="vb">
-                  <span className="vnum" style={{ color: isCur ? '#14B8A6' : 'var(--text-muted)' }}>{w.count}</span>
-                  <div className="vbar" style={{ height: h, background: isCur ? '#14B8A6' : '#C4B79A' }}></div>
-                  <span className="vlbl">{w.label}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* ── Deep Dive Table ── */}
+      {/* ── Recent Inspections Table ── */}
       <div className="panel dash-tablecard">
         <div className="panel-head">
           <span className="panel-title">Recent Spot Checks</span>
         </div>
         <div className="dd-filters">
-          <input className="df-input" style={{ flex: 1 }} placeholder="Search ID or type..." value={filter.q} onChange={e => setFilter({ ...filter, q: e.target.value })} />
-          <select className="df-input" value={filter.location} onChange={e => setFilter({ ...filter, location: e.target.value })}>
-            <option value="">All Locations</option>
-            <option value="Zone A">Zone A</option>
-            <option value="Zone B">Zone B</option>
-            <option value="Zone C">Zone C</option>
-            <option value="Zone D">Zone D</option>
-          </select>
-          <select className="df-input" value={filter.result} onChange={e => setFilter({ ...filter, result: e.target.value })}>
-            <option value="">All Results</option>
-            <option value="PASS">Pass</option>
-            <option value="WARNING">Warning</option>
-            <option value="FAIL">Fail</option>
+          <input className="df-input" style={{ flex: 1 }} placeholder="Search Reference, Activity, Location..." value={filter.q} onChange={e => setFilter({ ...filter, q: e.target.value })} />
+          <select className="df-input" value={filter.compliance} onChange={e => setFilter({ ...filter, compliance: e.target.value })}>
+            <option value="">All Statuses</option>
+            <option value="Yes">Compliant</option>
+            <option value="No">Non-Compliant</option>
           </select>
         </div>
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>Number</th>
-                <th>Location</th>
-                <th>Type</th>
+                <th>Reference</th>
+                <th>Activity / Task</th>
+                <th>Building / Location</th>
+                <th>Company Involved</th>
                 <th>Inspector</th>
                 <th>Result</th>
                 <th>Date</th>
               </tr>
             </thead>
             <tbody>
-              {filteredDeepDive.map(r => {
-                const getStatusBadgeClass = (statusStr) => {
-                  switch (statusStr) {
-                    case 'PASS': return 'badge-green';
-                    case 'FAIL': return 'badge-red';
-                    case 'WARNING': return 'badge-orange';
-                    default: return 'badge-blue';
-                  }
-                };
+              {isLoading ? (
+                <tr>
+                  <td colSpan="7" style={{ textAlign: 'center', padding: 24, color: 'var(--text-muted)' }}>
+                    <i className="ti ti-loader ti-spin" style={{ marginRight: 8, color: '#0284c7' }}></i> Loading spot checks...
+                  </td>
+                </tr>
+              ) : filteredDeepDive.map(r => {
+                const isCompliant = r.chk3_2 === 'Yes';
                 return (
-                  <tr key={r.id}>
-                    <td><b>{r.id}</b></td>
-                    <td>{r.location}</td>
-                    <td>{r.type}</td>
-                    <td>{r.inspector}</td>
-                    <td><span className={`badge ${getStatusBadgeClass(r.result)}`}>{r.result}</span></td>
-                    <td>{r.date}</td>
+                  <tr key={r.id} onClick={() => navigate(`/spot-checks/${r.id}`)} style={{ cursor: 'pointer' }}>
+                    <td><b>{r.spotCheckRef || `SC-${r.id}`}</b></td>
+                    <td>{r.activityName || "HSE Inspection"}</td>
+                    <td>{r.buildingName ? `${r.buildingName} ${r.location ? `(${r.location})` : ''}` : (r.location || "-")}</td>
+                    <td>{r.companyInvolved || "-"}</td>
+                    <td>{r.inspectorName || r.createdByUserName || "-"}</td>
+                    <td>
+                      <span className={`badge ${isCompliant ? 'badge-green' : 'badge-red'}`}>
+                        {isCompliant ? 'COMPLIANT' : (r.chk3_2 === 'No' ? 'NON-COMPLIANT' : 'PENDING')}
+                      </span>
+                    </td>
+                    <td>{r.date || "-"}</td>
                   </tr>
                 );
               })}
-              {filteredDeepDive.length === 0 && <tr><td colSpan="6" style={{ textAlign: 'center', padding: 24, color: 'var(--text-muted)' }}>No checks match the filter.</td></tr>}
+              {!isLoading && filteredDeepDive.length === 0 && <tr><td colSpan="7" style={{ textAlign: 'center', padding: 24, color: 'var(--text-muted)' }}>No spot checks recorded yet.</td></tr>}
             </tbody>
           </table>
         </div>

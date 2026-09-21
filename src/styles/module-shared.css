@@ -746,3 +746,33 @@ html[data-theme="light"] .mod-description-box {
 
 .obs-detail-grid { display: grid !important; grid-template-columns: 130px 1fr !important; gap: 12px 16px; font-size: 13px; }
 @media (max-width: 400px) { .obs-detail-grid { grid-template-columns: 110px 1fr !important; font-size: 12px; } }
+
+/* ── Universal Spin & Loader Animation ── */
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@-webkit-keyframes spin {
+  0% { -webkit-transform: rotate(0deg); }
+  100% { -webkit-transform: rotate(360deg); }
+}
+
+.ti-spin,
+.spin,
+.spinning,
+.animate-spin,
+.fa-spin,
+i.ti-loader,
+i[class*="ti-loader"],
+i[class*="ti-refresh"].spinning,
+.sc-spinner,
+.si-spinner,
+.mod-spinner,
+.loading-spinner i {
+  display: inline-block !important;
+  animation: spin 1s linear infinite !important;
+  -webkit-animation: spin 1s linear infinite !important;
+  transform-origin: center center !important;
+}
+

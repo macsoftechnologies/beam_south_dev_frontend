@@ -1,8 +1,20 @@
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.ti-spin, i.ti-loader, .siview-spinner {
+  display: inline-block !important;
+  animation: spin 1s linear infinite !important;
+  transform-origin: center center !important;
+}
+
 .siview-page {
   padding: 16px 24px;
   background-color: var(--bg-dark, #f4f7f9);
   min-height: 100vh;
 }
+
 
 .siview-content {
   display: flex;
@@ -207,7 +219,8 @@ html[data-theme="steel-gray"] .siview-hero-icon {
   font-weight: 600;
 }
 
-.meta-badge.status-completed {
+.meta-badge.status-completed,
+.meta-badge.status-closed {
   background: #dcfce7;
   color: #166534;
   padding: 4px 12px;
@@ -378,6 +391,18 @@ html[data-theme="steel-gray"] .siview-hero-icon {
   border: 1px solid var(--border-color, #e2e8f0);
   box-shadow: 0 1px 3px rgba(0,0,0,0.04);
   font-size: 13px;
+  transition: all 0.2s ease;
+}
+
+.siview-issue-tag.clickable {
+  cursor: pointer;
+}
+
+.siview-issue-tag.clickable:hover {
+  border-color: #0284c7;
+  background: #f0f9ff;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(2, 132, 199, 0.15);
 }
 
 .issue-dot {
@@ -429,6 +454,165 @@ html[data-theme="steel-gray"] .siview-hero-icon {
 .siview-img-thumbnail:hover img {
   transform: scale(1.05);
 }
+
+/* ── Observation Details Modal ── */
+.obs-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(4px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 99999;
+  padding: 16px;
+}
+
+.obs-modal-container {
+  background: var(--bg-card, #ffffff);
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 14px;
+  max-width: 680px;
+  width: 100%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  animation: obsModalPop 0.2s ease-out;
+}
+
+@keyframes obsModalPop {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.obs-modal-header {
+  padding: 16px 20px;
+  background: var(--bg-card-hover, #f8fafc);
+  border-bottom: 1px solid var(--border-color, #e2e8f0);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.obs-modal-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.obs-modal-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--text-main, #0f172a);
+  margin: 0;
+}
+
+.obs-modal-close-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted, #64748b);
+  cursor: pointer;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  transition: all 0.15s ease;
+}
+
+.obs-modal-close-btn:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+.obs-modal-body {
+  padding: 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.obs-modal-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.obs-modal-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.obs-modal-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-muted, #64748b);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.obs-modal-value {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-main, #0f172a);
+}
+
+.obs-modal-desc-box {
+  background: var(--bg-card-hover, #f8fafc);
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--text-main, #334155);
+  white-space: pre-wrap;
+}
+
+.obs-modal-photos-grid {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.obs-modal-photo-thumb {
+  width: 100px;
+  height: 75px;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--border-color, #cbd5e1);
+}
+
+.obs-modal-photo-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.obs-modal-footer {
+  padding: 12px 20px;
+  background: var(--bg-card-hover, #f8fafc);
+  border-top: 1px solid var(--border-color, #e2e8f0);
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
 
 /* ── Responsive Mobile Styles ── */
 @media (max-width: 900px) {

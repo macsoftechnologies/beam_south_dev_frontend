@@ -1,80 +1,200 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { safetyInspectionService } from '../../../services/safetyInspectionService';
+import { observationService } from '../../../services/observationService';
+import { showSuccess, showError } from '../../../components/common/Toast/Toast';
+import Swal from 'sweetalert2';
 import "./SIView.css";
 
-const MOCK_DATA = {
-  project: 'M3 JG (Fermentation)',
-  projectNo: '063205-010',
-  createdBy: 'Petr Vaberer, Novo Nordisk A/S',
-  created: '26 Aug 2026, 18:43',
-  modifiedBy: 'Trine Sandberg-Christensen, Novo Nordisk A/S',
-  modified: '28 Aug 2026, 15:47',
-  status: 'Completed',
-  date: '26-08-2026',
-  performedBy: [
-    'Trine Sandberg-Christensen (Novo Nordisk A/S)',
-    'Petr Vaberer (Novo Nordisk A/S)'
-  ],
-  participants: [
-    'Oliver O\'Neill (STS)',
-    'Albert Glowniak (Multi-Tech)',
-    'Tor Busch Nielsen (Zeta)',
-    'Marko Rondic (MSL Engineering Ltd.)',
-    'Ali Khairandesh (Allan Ploug A/S)',
-    'Charles Luedtke (NNE A/S)',
-    'Ramiro Sancheira Borges (NNE A/S)',
-    'Kenneth Weigand (SKEL.DK LANDINSPEKTØRER P/S)'
-  ]
-};
-
-const CHECKLIST_DATA = [
-  { id: 1, title: '1. Access/Exit/Walkway', status: 'na' },
-  { id: 2, title: '2. Barriers/Signage/Shielding', status: 'yellow', commentAuthor: 'Changed by Trine Sandberg-Christensen, Novo Nordisk A/S, 28 Aug 2026, 13:30', issues: [
-      { id: 'SI4695', type: 'orange', text: '2. Barriers/Signage/Shielding' },
-      { id: 'SI4696', type: 'green', text: '2. Barriers/Signage/Shielding' },
-      { id: 'SI4697', type: 'orange', text: '2. Barriers/Signage/Shielding' },
-      { id: 'SI4717', type: 'green', text: '2. Barriers/Signage/Shielding' },
-      { id: 'SI4719', type: 'green', text: '2. Barriers/Signage/Shielding' },
-      { id: 'SI4720', type: 'green', text: '2. Barriers/Signage/Shielding' },
-      { id: 'SI4721', type: 'orange', text: '2. Barriers/Signage/Shielding' },
-      { id: 'SI4723', type: 'orange', text: '2. Barriers/Signage/Shielding' },
-    ],
-    images: ['https://images.unsplash.com/photo-1541888086225-ee50be1e62c2?w=800&q=80', 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=800&q=80']
-  },
-  { id: 3, title: '3. Housekeeping/Waste', status: 'yellow', commentAuthor: 'Changed by Petr Vaberer, Novo Nordisk A/S, 26 Aug 2026, 18:43', issues: [{ id: 'SI4703', type: 'orange', text: '3. Housekeeping/Waste' }] },
-  { id: 4, title: '4. Noise/Dust/fumes/and health hazards', status: 'yellow', commentAuthor: 'Changed by Petr Vaberer, Novo Nordisk A/S, 26 Aug 2026, 18:43', issues: [{ id: 'SI4702', type: 'orange', text: '4. Noise/Dust/fumes/and health hazards' }] },
-  { id: 5, title: '5. Storage and Handling of Materials', status: 'yellow', commentAuthor: 'Changed by Petr Vaberer, Novo Nordisk A/S, 26 Aug 2026, 18:43', issues: [
-      { id: 'SI4693', type: 'green', text: '5. Storage and Handling of Materials' },
-      { id: 'SI4698', type: 'green', text: '5. Storage and Handling of Materials' },
-      { id: 'SI4700', type: 'green', text: '5. Storage and Handling of Materials' },
-      { id: 'SI4704', type: 'orange', text: '5. Storage and Handling of Materials' }
-    ] },
-  { id: 6, title: '6. Electrical Hazards', status: 'na' },
-  { id: 7, title: '7. Working at heights', status: 'red', commentAuthor: 'Changed by Petr Vaberer, Novo Nordisk A/S, 26 Aug 2026, 18:43', issues: [{ id: 'SI4699', type: 'green', text: '7. Working at heights' }] },
-  { id: 8, title: '8. Lifting/Rigging', status: 'na' },
-  { id: 9, title: '9. Hot Works', status: 'na' },
-  { id: 10, title: '10. Mobile Elevating Work Equipment', status: 'na' },
-  { id: 11, title: '11. Lighting', status: 'na', comment: 'Orientation lighting (25lux) on good level across the building!', commentAuthor: 'Changed by Petr Vaberer, Novo Nordisk A/S, 26 Aug 2026, 18:43', issues: [
-    { id: 'SI4694', type: 'green', text: '11. Lighting' },
-    { id: 'GP362', type: 'green', text: '11. Lighting' }
-  ] },
-  { id: 12, title: '12. Documentation and Procedures', status: 'na' },
-  { id: 13, title: '13. Scaffold / Alloy Towers', status: 'red', commentAuthor: 'Changed by Petr Vaberer, Novo Nordisk A/S, 26 Aug 2026, 18:43', issues: [
-    { id: 'SI4701', type: 'orange', text: '13. Scaffold / Alloy Towers' },
-    { id: 'SI4716', type: 'orange', text: '13. Scaffold / Alloy Towers' }
-  ] },
-  { id: 14, title: '14. Slip/Trip Hazard', status: 'na' },
-  { id: 15, title: '15. Personal Protective Equipment', status: 'na' },
-  { id: 16, title: '16. Use of tools and machinery / technical aid', status: 'na' },
-  { id: 17, title: '17. Environmental Hazards', status: 'na' },
-  { id: 18, title: '18. Emergency Equipment', status: 'green', comment: 'Two first aid stations placed close to each other due to ongoing work in the area. On the day of the inspection, the escape route drawing had been updated to show the approximate locations of the stations.', commentAuthor: 'Changed by Trine Sandberg-Christensen, Novo Nordisk A/S, 28 Aug 2026, 13:30', issues: [
-    { id: 'GP361', type: 'green', text: '18. Emergency Equipment' }
-  ], images: ['https://images.unsplash.com/photo-1541888086225-ee50be1e62c2?w=800&q=80'] }
+const STANDARD_CATEGORIES = [
+  "1. Access / Exit",
+  "2. Barriers / Signage / Shielding",
+  "3. Housekeeping / Waste",
+  "4. Noise / Dust / Fumes / Health Hazards",
+  "5. Storage & Handling",
+  "6. Electrical Hazards",
+  "7. Working at Heights",
+  "8. Lifting / Rigging",
+  "9. Hot Works",
+  "10. Mobile Elevating Work Equipment",
+  "11. Lighting",
+  "12. Documentation & Procedures",
+  "13. Scaffold / Alloy Towers",
+  "14. Slip / Trip Hazards",
+  "15. PPE",
+  "16. Tools & Machinery",
+  "17. Environmental Hazards",
+  "18. Emergency Equipment",
+  "19. Excavation / Trenches",
+  "20. Other"
 ];
 
 export default function SIView() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [inspection, setInspection] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+
+  // Observation preview modal state
+  const [selectedObs, setSelectedObs] = useState(null);
+  const [isLoadingObs, setIsLoadingObs] = useState(false);
+  const [showObsModal, setShowObsModal] = useState(false);
+
+  useEffect(() => {
+    const fetchDetails = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const data = await safetyInspectionService.getInspectionDetails(id);
+        setInspection(data);
+      } catch (err) {
+        console.error("Failed to load inspection details", err);
+        setError("Failed to load safety inspection report.");
+        showError("Failed to load safety inspection report.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    if (id) fetchDetails();
+  }, [id]);
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return "-";
+    try {
+      const d = new Date(dateStr);
+      return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+    } catch {
+      return dateStr;
+    }
+  };
+
+  const handleDownloadPdf = async () => {
+    if (!inspection) return;
+    setIsDownloadingPdf(true);
+    try {
+      const refName = inspection.inspectionNumber || `SI-${inspection.id}`;
+      const fileName = `${refName}_Safety_Inspection.pdf`;
+      await safetyInspectionService.downloadInspectionPdf(inspection.id, fileName);
+      showSuccess("Inspection PDF downloaded successfully");
+    } catch (err) {
+      console.error("Failed to download inspection PDF:", err);
+      showError("Failed to export PDF directly. Opening browser preview...");
+      const pdfUrl = safetyInspectionService.getPdfUrl(inspection.id);
+      window.open(pdfUrl, '_blank');
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  };
+
+  const handleStatusToggle = async () => {
+    if (!inspection) return;
+    const isCl = inspection.status === 'CLOSED' || inspection.status === 'COMPLETED' || inspection.isCompleted;
+    const nextStatus = isCl ? 'IN_PROGRESS' : 'CLOSED';
+    
+    const result = await Swal.fire({
+      title: isCl ? 'Reopen Inspection?' : 'Close Inspection?',
+      text: isCl
+        ? 'Are you sure you want to reopen this inspection as In Progress?'
+        : 'Are you sure you want to mark this inspection as Closed?',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: isCl ? '#0284c7' : '#16a34a',
+      cancelButtonColor: '#64748b',
+      confirmButtonText: isCl ? 'Yes, Reopen' : 'Yes, Close'
+    });
+
+    if (!result.isConfirmed) return;
+
+    setIsUpdatingStatus(true);
+    try {
+      await safetyInspectionService.updateInspection(inspection.id, {
+        status: nextStatus,
+        isCompleted: nextStatus === 'CLOSED'
+      });
+      setInspection(prev => ({
+        ...prev,
+        status: nextStatus,
+        isCompleted: nextStatus === 'CLOSED'
+      }));
+      showSuccess(`Inspection marked as ${nextStatus === 'CLOSED' ? 'Closed' : 'In Progress'}`);
+    } catch (err) {
+      console.error('Failed to update inspection status:', err);
+      showError(err?.response?.data?.message || 'Failed to update inspection status.');
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
+
+  const handleViewObservation = async (iss) => {
+    const lookupKey = iss.observationId || iss.id || iss.observationNumber;
+    if (!lookupKey) return;
+
+    setShowObsModal(true);
+    setIsLoadingObs(true);
+    setSelectedObs(null);
+
+    try {
+      const data = await observationService.getObservationDetails(lookupKey);
+      const obsData = data?.observation || data;
+      setSelectedObs(obsData);
+    } catch (err) {
+      console.error("Failed to fetch observation details:", err);
+      // Fallback with what we have in the issue tag
+      setSelectedObs({
+        observationNumber: iss.id || iss.observationNumber || "SO-Record",
+        findingDescription: iss.text || iss.subject || "No detailed description available.",
+        observationType: iss.type ? iss.type.toUpperCase() : "GENERAL"
+      });
+    } finally {
+      setIsLoadingObs(false);
+    }
+  };
+
+  const getFullImageUrl = (url) => {
+    if (!url) return '';
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    const base = import.meta.env.VITE_API_URL || 'https://api.beam.safesiteworks.com/development/m3south';
+    const baseUrlClean = base.replace(/\/development\/m3south\/?$/, '');
+    return `${baseUrlClean}${url.startsWith('/') ? '' : '/'}${url}`;
+  };
+
+  if (isLoading) {
+    return (
+      <div className="siview-page" style={{ textAlign: "center", padding: "80px 20px" }}>
+        <i className="ti ti-loader ti-spin" style={{ fontSize: "32px", color: "var(--primary-color, #0ea5e9)" }}></i>
+        <p style={{ marginTop: "16px", color: "var(--text-muted, #64748b)" }}>Loading Safety Inspection Report #{id}...</p>
+      </div>
+    );
+  }
+
+  if (error || !inspection) {
+    return (
+      <div className="siview-page" style={{ textAlign: "center", padding: "80px 20px" }}>
+        <i className="ti ti-alert-triangle" style={{ fontSize: "36px", color: "#ef4444" }}></i>
+        <h2 style={{ marginTop: "16px" }}>Inspection Not Found</h2>
+        <p style={{ color: "var(--text-muted, #64748b)" }}>{error || "Could not retrieve the requested safety inspection."}</p>
+        <button className="mod-btn-primary" style={{ marginTop: "20px" }} onClick={() => navigate('/safety-inspection/list')}>
+          Back to List
+        </button>
+      </div>
+    );
+  }
+
+  const isClosed = inspection.status === 'CLOSED' || inspection.status === 'COMPLETED' || inspection.isCompleted;
+  const displayId = inspection.inspectionNumber || `SI${inspection.id}`;
+  const performedByList = Array.isArray(inspection.performedBy) ? inspection.performedBy : (inspection.performedBy ? [inspection.performedBy] : []);
+  const participantsList = Array.isArray(inspection.participants) ? inspection.participants : (inspection.participants ? [inspection.participants] : []);
+  const itemsList = inspection.items && inspection.items.length > 0 
+    ? inspection.items 
+    : STANDARD_CATEGORIES.map((cat, i) => ({
+        id: i + 1,
+        itemIndex: i + 1,
+        categoryName: cat,
+        status: 'na'
+      }));
 
   return (
     <div className="siview-page">
@@ -86,16 +206,17 @@ export default function SIView() {
           </div>
           <div className="siview-hero-text">
             <div className="siview-hero-subtitle">SAFETY INSPECTION</div>
-            <h1>Record <span>{id}</span></h1>
-            <p>Detailed view of the completed safety inspection report.</p>
+            <h1>Record <span>{displayId}</span></h1>
+            <p>Detailed compliance view of the safety inspection audit.</p>
           </div>
         </div>
         <div className="siview-hero-actions">
           <button className="siview-btn-back" onClick={() => navigate('/safety-inspection/list')}>
             <i className="ti ti-arrow-left"></i> Back to List
           </button>
-          <button className="siview-btn-download">
-            <i className="ti ti-download"></i> Download Report
+          <button className="siview-btn-download" onClick={handleDownloadPdf} disabled={isDownloadingPdf}>
+            <i className={`ti ${isDownloadingPdf ? 'ti-loader ti-spin' : 'ti-download'}`}></i>
+            {isDownloadingPdf ? 'Downloading...' : 'Download'}
           </button>
         </div>
       </div>
@@ -111,43 +232,82 @@ export default function SIView() {
             <div className="meta-card-body">
               <div className="meta-item">
                 <span className="meta-label">Project</span>
-                <span className="meta-value">{MOCK_DATA.project}</span>
+                <span className="meta-value">{inspection.projectName || "M3SOUTH"}</span>
               </div>
               <div className="meta-item">
                 <span className="meta-label">Project No.</span>
-                <span className="meta-value">{MOCK_DATA.projectNo}</span>
+                <span className="meta-value">{inspection.projectNo || "063205-010"}</span>
+              </div>
+              <div className="meta-item">
+                <span className="meta-label">Building / Location</span>
+                <span className="meta-value">{inspection.buildingName || "Main Building"}</span>
+              </div>
+              <div className="meta-item">
+                <span className="meta-label">Floor / Level</span>
+                <span className="meta-value">{inspection.floorLevel || "-"}</span>
               </div>
               <div className="meta-item">
                 <span className="meta-label">Inspection Date</span>
-                <span className="meta-value">{MOCK_DATA.date}</span>
+                <span className="meta-value">{inspection.inspectionDate || "-"}</span>
               </div>
               <div className="meta-item">
                 <span className="meta-label">Status</span>
-                <span className="meta-badge status-completed">{MOCK_DATA.status}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <span className={`meta-badge ${isClosed ? 'status-closed' : 'status-progress'}`}>
+                    {isClosed ? 'Closed' : 'In Progress'}
+                  </span>
+                  <button 
+                    type="button"
+                    onClick={handleStatusToggle}
+                    disabled={isUpdatingStatus}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      padding: '3px 8px',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      borderRadius: '4px',
+                      border: '1px solid var(--border-color, #cbd5e1)',
+                      backgroundColor: isClosed ? 'var(--card-bg, #ffffff)' : '#22c55e',
+                      color: isClosed ? '#475569' : '#ffffff',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <i className={`ti ${isClosed ? 'ti-rotate-clockwise' : 'ti-circle-check'}`}></i>
+                    {isUpdatingStatus ? 'Updating...' : isClosed ? 'Reopen' : 'Close Inspection'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
 
           <div className="siview-card meta-card">
             <div className="meta-card-header">
-              <i className="ti ti-clock"></i> Timeline & Activity
+              <i className="ti ti-clock"></i> Timeline & Compliance
             </div>
             <div className="meta-card-body">
               <div className="meta-item">
                 <span className="meta-label">Created By</span>
-                <span className="meta-value">{MOCK_DATA.createdBy}</span>
+                <span className="meta-value">{inspection.createdByUserName || "-"}</span>
               </div>
               <div className="meta-item">
                 <span className="meta-label">Created Date</span>
-                <span className="meta-value">{MOCK_DATA.created}</span>
+                <span className="meta-value">{formatDate(inspection.createdTime)}</span>
               </div>
               <div className="meta-item">
                 <span className="meta-label">Last Modified By</span>
-                <span className="meta-value">{MOCK_DATA.modifiedBy}</span>
+                <span className="meta-value">{inspection.modifiedByUserName || inspection.createdByUserName || "-"}</span>
               </div>
               <div className="meta-item">
                 <span className="meta-label">Modified Date</span>
-                <span className="meta-value">{MOCK_DATA.modified}</span>
+                <span className="meta-value">{formatDate(inspection.updatedTime || inspection.createdTime)}</span>
+              </div>
+              <div className="meta-item">
+                <span className="meta-label">Audit Score</span>
+                <span className="meta-value" style={{ fontWeight: 700, color: inspection.score >= 75 ? "#16a34a" : "#dc2626" }}>
+                  {inspection.score !== undefined ? `${inspection.score}%` : "100%"}
+                </span>
               </div>
             </div>
           </div>
@@ -160,13 +320,21 @@ export default function SIView() {
               <div className="meta-list-group">
                 <span className="meta-label">Performed By</span>
                 <ul className="meta-ul">
-                  {MOCK_DATA.performedBy.map((p, i) => <li key={i}><i className="ti ti-user-check"></i> {p}</li>)}
+                  {performedByList.length > 0 ? (
+                    performedByList.map((p, i) => <li key={i}><i className="ti ti-user-check"></i> {p}</li>)
+                  ) : (
+                    <li><i className="ti ti-user-check"></i> {inspection.createdByUserName || "Safety Inspector"}</li>
+                  )}
                 </ul>
               </div>
               <div className="meta-list-group">
                 <span className="meta-label">Participants</span>
                 <ul className="meta-ul">
-                  {MOCK_DATA.participants.map((p, i) => <li key={i}><i className="ti ti-user"></i> {p}</li>)}
+                  {participantsList.length > 0 ? (
+                    participantsList.map((p, i) => <li key={i}><i className="ti ti-user"></i> {p}</li>)
+                  ) : (
+                    <li style={{ color: "var(--text-muted)" }}>None specified</li>
+                  )}
                 </ul>
               </div>
             </div>
@@ -176,57 +344,197 @@ export default function SIView() {
 
         {/* Modern Elevated Checklist Rows */}
         <div className="siview-section-title">
-          <h2>Inspection Checklist Details</h2>
+          <h2>Inspection Checklist Details (20 Categories)</h2>
         </div>
 
         <div className="siview-checklist-wrapper">
-          {CHECKLIST_DATA.map(item => (
-            <div key={item.id} className="siview-cl-card">
-              <div className="siview-cl-header">
-                <div className="siview-cl-title-wrap">
-                  <div className="siview-cl-title">{item.title}</div>
-                  {item.comment && <div className="siview-cl-comment">{item.comment}</div>}
-                  {item.commentAuthor && <div className="siview-cl-author">{item.commentAuthor}</div>}
-                </div>
-                <div className="siview-cl-status-wrap">
-                  <span className={`siview-badge badge-${item.status}`}>
-                    {item.status === 'na' ? 'Not Applicable' : 
-                     item.status === 'green' ? 'Passed' : 
-                     item.status === 'yellow' ? 'Minor Issue' : 
-                     item.status === 'orange' ? 'Major Issue' : 
-                     item.status === 'red' ? 'Critical Action Needed' : item.status}
-                  </span>
-                </div>
-              </div>
+          {itemsList.map(item => {
+            const rawStatus = (item.status || 'na').toLowerCase();
+            const photosList = Array.isArray(item.photos) ? item.photos : [];
+            const issuesList = Array.isArray(item.issues) ? item.issues : [];
 
-              {(item.issues || item.images) && (
-                <div className="siview-cl-details">
-                  {item.issues && (
-                    <div className="siview-cl-issues">
-                      {item.issues.map((iss, i) => (
-                        <div key={i} className="siview-issue-tag">
-                          <span className={`issue-dot issue-${iss.type}`}></span>
-                          <span className="issue-id">{iss.id}</span>
-                          <span className="issue-text">{iss.text}</span>
-                        </div>
-                      ))}
+            return (
+              <div key={item.id || item.itemIndex} className="siview-cl-card">
+                <div className="siview-cl-header">
+                  <div className="siview-cl-title-wrap">
+                    <div className="siview-cl-title">{item.categoryName || STANDARD_CATEGORIES[(item.itemIndex || 1) - 1]}</div>
+                    {item.comment && <div className="siview-cl-comment">{item.comment}</div>}
+                    {item.commentAuthor && (
+                      <div className="siview-cl-author">
+                        Changed by {item.commentAuthor}{item.commentDate ? `, ${formatDate(item.commentDate)}` : ''}
+                      </div>
+                    )}
+                  </div>
+                  <div className="siview-cl-status-wrap">
+                    <span className={`siview-badge badge-${rawStatus}`}>
+                      {rawStatus === 'na' ? 'Not Applicable' : 
+                       rawStatus === 'green' ? 'Passed' : 
+                       rawStatus === 'yellow' ? 'Warning / Issue' : 
+                       rawStatus === 'red' ? 'Critical Action Needed' : rawStatus}
+                    </span>
+                  </div>
+                </div>
+
+                {(issuesList.length > 0 || photosList.length > 0) && (
+                  <div className="siview-cl-details">
+                    {issuesList.length > 0 && (
+                      <div className="siview-cl-issues">
+                        {issuesList.map((iss, i) => (
+                          <div 
+                            key={i} 
+                            className="siview-issue-tag clickable"
+                            onClick={() => handleViewObservation(iss)}
+                            title="Click to view full Safety Observation details"
+                          >
+                            <span className={`issue-dot issue-${iss.type || 'orange'}`}></span>
+                            <span className="issue-id">{iss.id || iss.observationNumber || `SO-${i}`}</span>
+                            <span className="issue-text">{iss.text || iss.subject || 'Safety Observation'}</span>
+                            <i className="ti ti-external-link" style={{ marginLeft: "6px", fontSize: "12px", opacity: 0.7 }}></i>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {photosList.length > 0 && (
+                      <div className="siview-cl-images">
+                        {photosList.map((img, i) => (
+                          <div key={i} className="siview-img-thumbnail">
+                            <a href={getFullImageUrl(img)} target="_blank" rel="noopener noreferrer">
+                              <img src={getFullImageUrl(img)} alt={`attachment-${i}`} />
+                            </a>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Observation Details Modal */}
+      {showObsModal && (
+        <div className="obs-modal-overlay" onClick={() => setShowObsModal(false)}>
+          <div className="obs-modal-container" onClick={(e) => e.stopPropagation()}>
+            <div className="obs-modal-header">
+              <div className="obs-modal-title-wrap">
+                <i className="ti ti-eye" style={{ color: "var(--primary-color, #0284c7)", fontSize: "20px" }}></i>
+                <h3 className="obs-modal-title">
+                  {selectedObs ? (selectedObs.observationNumber || `Observation #${selectedObs.id}`) : "Observation Details"}
+                </h3>
+                {selectedObs?.status && (
+                  <span className={`siview-badge badge-${selectedObs.status === 'CLOSED' ? 'green' : 'yellow'}`} style={{ fontSize: "11px", padding: "2px 8px" }}>
+                    {selectedObs.status}
+                  </span>
+                )}
+              </div>
+              <button className="obs-modal-close-btn" onClick={() => setShowObsModal(false)}>
+                <i className="ti ti-x"></i>
+              </button>
+            </div>
+
+            <div className="obs-modal-body">
+              {isLoadingObs ? (
+                <div style={{ padding: "40px", textAlign: "center" }}>
+                  <i className="ti ti-loader ti-spin" style={{ fontSize: "28px", color: "var(--primary-color, #0284c7)" }}></i>
+                  <p style={{ marginTop: "10px", color: "var(--text-muted, #64748b)" }}>Loading observation details...</p>
+                </div>
+              ) : selectedObs ? (
+                <>
+                  <div className="obs-modal-grid">
+                    <div className="obs-modal-item">
+                      <span className="obs-modal-label">Category</span>
+                      <span className="obs-modal-value">{selectedObs.category || selectedObs.mainCategory || "-"}</span>
+                    </div>
+                    <div className="obs-modal-item">
+                      <span className="obs-modal-label">Subcategory / Subject</span>
+                      <span className="obs-modal-value">{selectedObs.subcategory || selectedObs.subject || "-"}</span>
+                    </div>
+                    <div className="obs-modal-item">
+                      <span className="obs-modal-label">Assigned Contractor</span>
+                      <span className="obs-modal-value">{selectedObs.subcontractorName || selectedObs.contractorName || selectedObs.subcontractor || "-"}</span>
+                    </div>
+                    <div className="obs-modal-item">
+                      <span className="obs-modal-label">Risk Level / Severity</span>
+                      <span className="obs-modal-value" style={{ textTransform: "capitalize", fontWeight: 700, color: selectedObs.riskLevel === 'HIGH' || selectedObs.riskLevel === 'CRITICAL' ? '#dc2626' : '#2563eb' }}>
+                        {selectedObs.riskLevel || selectedObs.observationType || "-"}
+                      </span>
+                    </div>
+                    <div className="obs-modal-item">
+                      <span className="obs-modal-label">Location / Building</span>
+                      <span className="obs-modal-value">{selectedObs.buildingName || selectedObs.location || "-"}</span>
+                    </div>
+                    <div className="obs-modal-item">
+                      <span className="obs-modal-label">Reported By</span>
+                      <span className="obs-modal-value">{selectedObs.reportedByUserName || selectedObs.createdByUserName || "-"}</span>
+                    </div>
+                  </div>
+
+                  <div className="obs-modal-item">
+                    <span className="obs-modal-label">Finding / Observation Description</span>
+                    <div className="obs-modal-desc-box">
+                      {selectedObs.findingDescription || selectedObs.description || "No description provided."}
+                    </div>
+                  </div>
+
+                  {selectedObs.immediateActionTaken && (
+                    <div className="obs-modal-item">
+                      <span className="obs-modal-label">Immediate Action Taken</span>
+                      <div className="obs-modal-desc-box" style={{ background: "#f0fdf4", borderColor: "#bbf7d0" }}>
+                        {selectedObs.immediateActionTaken}
+                      </div>
                     </div>
                   )}
-                  {item.images && (
-                    <div className="siview-cl-images">
-                      {item.images.map((img, i) => (
-                        <div key={i} className="siview-img-thumbnail">
-                          <img src={img} alt="attachment" />
-                        </div>
-                      ))}
+
+                  {selectedObs.photos && Array.isArray(selectedObs.photos) && selectedObs.photos.length > 0 && (
+                    <div className="obs-modal-item">
+                      <span className="obs-modal-label">Observation Photos ({selectedObs.photos.length})</span>
+                      <div className="obs-modal-photos-grid">
+                        {selectedObs.photos.map((p, idx) => (
+                          <div key={idx} className="obs-modal-photo-thumb">
+                            <a href={getFullImageUrl(p)} target="_blank" rel="noopener noreferrer">
+                              <img src={getFullImageUrl(p)} alt={`obs-photo-${idx}`} />
+                            </a>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
+                </>
+              ) : (
+                <div style={{ padding: "30px", textAlign: "center", color: "var(--text-muted, #64748b)" }}>
+                  Observation data could not be loaded.
                 </div>
               )}
             </div>
-          ))}
+
+            <div className="obs-modal-footer">
+              {selectedObs?.id && (
+                <button
+                  type="button"
+                  className="siview-btn-back"
+                  style={{ fontSize: "13px", padding: "8px 14px" }}
+                  onClick={() => {
+                    setShowObsModal(false);
+                    navigate(`/safety-observations/details/${selectedObs.id}`);
+                  }}
+                >
+                  <i className="ti ti-external-link"></i> Go to Full Observation Page
+                </button>
+              )}
+              <button 
+                type="button"
+                className="siview-btn-download" 
+                style={{ fontSize: "13px", padding: "8px 16px" }}
+                onClick={() => setShowObsModal(false)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

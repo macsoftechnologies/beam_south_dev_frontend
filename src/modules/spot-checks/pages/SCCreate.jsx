@@ -1,9 +1,17 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import PageHeader from "../../../components/common/PageHeader/PageHeader";
 import { AnalogTimePicker } from "../../incident-management/pages/IMCreate";
+import FloorDrawing from "../../../pages/Request/FloorDrawing/FloorDrawing";
+import { FLOOR_PDFS } from "../../../data/pdfMapping";
+import { ZONE_MAPPING } from "../../../data/zones";
+import { BUILDINGS } from "../../../data/buildings";
+import { getBuildings, getRooms, getFloors, getContractors, getEmployees } from "../../../services/authService";
+import { spotCheckService } from "../../../services/spotCheckService";
+import { showSuccess, showError } from "../../../components/common/Toast/Toast";
 import "../../../styles/module-shared.css";
 import "./SCDashboard.css";
+import "./SCCreate.css";
 
 const CreateIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -79,8 +87,10 @@ const SignaturePad = ({ value, onChange, onClear }) => {
   const handleClear = (e) => {
     e.stopPropagation();
     const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
     if (onClear) onClear();
     if (onChange) onChange(false);
   };
@@ -135,11 +145,25 @@ export default function SCCreate() {
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
   const currentUserName = currentUser.username || currentUser.name || "";
 
+  // Location Selector States
+  const [building, setBuilding] = useState("");
+  const [level, setLevel] = useState("");
+  const [selectedRooms, setSelectedRooms] = useState([]);
+  const [selectedZone, setSelectedZone] = useState(null);
+  const [buildingsList, setBuildingsList] = useState([]);
+  const [floorsList, setFloorsList] = useState([]);
+  const [roomsList, setRoomsList] = useState([]);
+  const [contractorsList, setContractorsList] = useState([]);
+  const [employeesList, setEmployeesList] = useState([]);
+  const [roomStatusMap, setRoomStatusMap] = useState({});
+
   const [form, setForm] = useState({
     projectName: "",
     spotCheckRef: "",
     date: "",
     time: "",
+    buildingName: "",
+    floorLevel: "",
     location: "",
     activityName: "",
     companyInvolved: "",
@@ -148,7 +172,7 @@ export default function SCCreate() {
 
     // PTW
     highRiskActivities: [],
-    ifHotWork: "",
+    ifHotWork: "High Risk - Open Flame",
     chk1_2: "", chk1_3: "", chk1_4: "", chk1_5: "", chk1_6: "", chk1_7: "", chk1_8: "",
 
     // Communication
@@ -160,15 +184,130 @@ export default function SCCreate() {
 
     // Summary
     chk3_2: "",
-    safetyIssueCreated: "", safetyIssueRef: "",
+    safetyIssueCreated: "",
+    safetyIssueRef: "",
     findings: "",
     correctiveActions: [{ action: "", responsible: "", dueDate: "", closed: false }],
 
     // Signatures
-    foremanName: "", foremanCompany: "", foremanDate: "", foremanSignature: "",
-    attachments: [{ desc: "", attached: "" }, { desc: "", attached: "" }, { desc: "", attached: "" }],
-    inspectorName: "", inspectorCompany: "", inspectorDate: "", inspectorSignature: ""
+    foremanName: "",
+    foremanCompany: "",
+    foremanDate: "",
+    foremanSignature: "",
+    attachments: [{ desc: "", attached: "N/A" }, { desc: "", attached: "N/A" }, { desc: "", attached: "N/A" }],
+    inspectorName: "",
+    inspectorCompany: "",
+    inspectorDate: "",
+    inspectorSignature: ""
   });
+
+  // Load Master Selectors (Buildings, Floors, Rooms, Contractors, Employees)
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const [bRes, fRes, rRes, cRes, eRes] = await Promise.all([
+          getBuildings(1, 1000),
+          getFloors(1, 1000),
+          getRooms(1, 20000),
+          getContractors(1, 1000),
+          getEmployees(1, 1000).catch(() => ({ data: [] }))
+        ]);
+
+        const rawB = bRes?.data?.rows || bRes?.data || bRes || [];
+        setBuildingsList(Array.isArray(rawB) ? rawB : []);
+
+        const rawF = fRes?.data?.rows || fRes?.data || fRes || [];
+        setFloorsList(Array.isArray(rawF) ? rawF : []);
+
+        const rawR = rRes?.data?.rows || rRes?.data || rRes || [];
+        setRoomsList(Array.isArray(rawR) ? rawR : []);
+
+        const rawC = cRes?.data?.rows || cRes?.data || cRes?.subContractors || cRes || [];
+        let cList = Array.isArray(rawC) ? [...rawC] : [];
+        const hasNne = cList.some((c) => {
+          const cName = String(c.subContractorName || c.company_name || c.contractor_name || c.name || "").toUpperCase().trim();
+          return cName === "NNE" || cName.includes("NNE");
+        });
+        if (!hasNne) {
+          cList.push({ id: "NNE", subContractorName: "NNE", company_name: "NNE", name: "NNE" });
+        }
+        setContractorsList(cList);
+
+        const rawE = eRes?.data?.rows || eRes?.data || eRes || [];
+        setEmployeesList(Array.isArray(rawE) ? rawE : []);
+      } catch (err) {
+        console.error("Failed to load spot check form selector data", err);
+      }
+    };
+    loadData();
+  }, []);
+
+  const levels = useMemo(() => {
+    if (!building) return [];
+    return floorsList.filter(f => String(f.build_id) === String(building)).map(f => f.floor_name);
+  }, [building, floorsList]);
+
+  const selectedPdf = useMemo(() => {
+    if (!building || !level) return "";
+    const dbBuilding = buildingsList.find(b => String(b.build_id || b.id) === String(building));
+    const bName = dbBuilding ? dbBuilding.building_name : "";
+    if (!bName) return "";
+    const staticB = BUILDINGS.find(item => item.name.toLowerCase().trim() === bName.toLowerCase().trim());
+    const staticBuildingId = staticB ? staticB.id : "";
+    if (!staticBuildingId) return "";
+    const pdfsForBuilding = FLOOR_PDFS[staticBuildingId];
+    if (!pdfsForBuilding) return "";
+    if (pdfsForBuilding[level]) return pdfsForBuilding[level];
+    const levelLower = level.toLowerCase().trim();
+    const foundKey = Object.keys(pdfsForBuilding).find(k =>
+      k.toLowerCase().trim().includes(levelLower) || levelLower.includes(k.toLowerCase().trim())
+    );
+    return foundKey ? pdfsForBuilding[foundKey] : "";
+  }, [building, level, buildingsList]);
+
+  const selectedZones = useMemo(() => {
+    if (!level) return [];
+    let zonesForLevel = ZONE_MAPPING[level] || [];
+    if (zonesForLevel.length === 0) {
+      const levelLower = level.toLowerCase().trim();
+      const foundKey = Object.keys(ZONE_MAPPING).find(k =>
+        k.toLowerCase().trim().includes(levelLower) || levelLower.includes(k.toLowerCase().trim())
+      );
+      if (foundKey) zonesForLevel = ZONE_MAPPING[foundKey];
+    }
+    return zonesForLevel;
+  }, [level]);
+
+  const handleRoomsSelected = (rooms) => {
+    setSelectedRooms(rooms);
+    const formattedRooms = (rooms || []).map((rStr) => {
+      const roomClean = String(rStr).trim();
+      if (!roomClean) return "";
+      const matchedDbRoom = roomsList.find(
+        (dbR) =>
+          String(dbR.room_name || dbR.room || dbR.name || dbR.id).toLowerCase().trim() === roomClean.toLowerCase() ||
+          roomClean.toLowerCase().includes(String(dbR.room_name || dbR.room || "").toLowerCase().trim())
+      );
+      let zoneName = matchedDbRoom?.zone_name || matchedDbRoom?.zone || "";
+      if (!zoneName && selectedZones && selectedZones.length > 0) {
+        const foundZoneObj = selectedZones.find((zObj) => {
+          const roomListInZone = zObj.rooms || zObj.roomList || [];
+          return roomListInZone.some(
+            (zr) => String(zr).toLowerCase().trim() === roomClean.toLowerCase()
+          );
+        });
+        if (foundZoneObj) {
+          zoneName = foundZoneObj.zone || foundZoneObj.zone_name || foundZoneObj.name || "";
+        }
+      }
+      return zoneName ? `${zoneName}: ${roomClean}` : roomClean;
+    }).filter(Boolean).join(", ");
+
+    setForm(prev => ({
+      ...prev,
+      location: formattedRooms
+    }));
+  };
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -198,6 +337,88 @@ export default function SCCreate() {
     setForm({ ...form, attachments: atts });
   };
 
+  const handleAttachmentFileChange = (index, e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (uploadEvent) => {
+      const base64Url = uploadEvent.target?.result;
+      const atts = [...form.attachments];
+      atts[index] = {
+        ...atts[index],
+        fileName: file.name,
+        fileSize: (file.size / 1024).toFixed(1) + ' KB',
+        fileType: file.type,
+        previewUrl: base64Url,
+        attached: "Yes"
+      };
+      setForm(prev => ({ ...prev, attachments: atts }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveAttachmentFile = (index, e) => {
+    e.stopPropagation();
+    const atts = [...form.attachments];
+    atts[index] = {
+      ...atts[index],
+      fileName: "",
+      fileSize: "",
+      fileType: "",
+      previewUrl: "",
+      attached: "N/A"
+    };
+    setForm(prev => ({ ...prev, attachments: atts }));
+  };
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e) => {
+    if (e) e.preventDefault();
+    if (!form.companyInvolved) {
+      showError("Please select the Company / Contractor involved.");
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      let currentUser = {};
+      try {
+        currentUser = JSON.parse(localStorage.getItem("user") || "{}");
+      } catch {
+        currentUser = {};
+      }
+
+      const sanitizeDateVal = (d) => (!d || typeof d !== 'string' || d.trim() === '' ? null : d.trim());
+
+      const payload = {
+        ...form,
+        date: sanitizeDateVal(form.date) || new Date().toISOString().split('T')[0],
+        briefingDate: sanitizeDateVal(form.briefingDate),
+        foremanDate: sanitizeDateVal(form.foremanDate),
+        inspectorDate: sanitizeDateVal(form.inspectorDate) || new Date().toISOString().split('T')[0],
+        buildingId: building ? Number(building) : undefined,
+        buildingName: form.buildingName || (buildingsList.find(b => String(b.build_id || b.id) === String(building))?.building_name || ""),
+        floorLevel: level || form.floorLevel,
+        selectedRooms,
+        selectedZones,
+        createdByUserId: currentUser?.id,
+        createdByUserName: currentUser?.name || currentUser?.username || 'Superadmin',
+        createdByRole: currentUser?.role || 'Admin',
+      };
+
+      await spotCheckService.createSpotCheck(payload);
+      showSuccess("Spot Check record saved successfully!");
+      navigate("/spot-checks/list");
+    } catch (err) {
+      console.error("Failed to submit spot check:", err);
+      showError(err?.response?.data?.message || err?.message || "Failed to submit spot check.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const highRiskOptions = [
     "Hot work", "Working on electrical systems", "Hazardous substances / chemicals",
     "Pressure testing of equipment", "Working at height", "Working in confined spaces",
@@ -211,17 +432,27 @@ export default function SCCreate() {
   ];
 
   const renderRadioGroup = (name) => (
-    <div style={{ display: "flex", gap: "16px", justifyContent: "center" }}>
-      <label style={{ display: "flex", alignItems: "center", gap: "4px" }}><input type="radio" name={name} value="Yes" onChange={handleChange} checked={form[name] === "Yes"} /> Yes</label>
-      <label style={{ display: "flex", alignItems: "center", gap: "4px" }}><input type="radio" name={name} value="No" onChange={handleChange} checked={form[name] === "No"} /> No</label>
-      <label style={{ display: "flex", alignItems: "center", gap: "4px" }}><input type="radio" name={name} value="N/A" onChange={handleChange} checked={form[name] === "N/A"} /> N/A</label>
+    <div style={{ display: "flex", gap: "16px", justifyContent: "center", alignItems: "center" }}>
+      <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "0.88rem" }}>
+        <input type="radio" name={name} value="Yes" onChange={handleChange} checked={form[name] === "Yes"} /> Yes
+      </label>
+      <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "0.88rem" }}>
+        <input type="radio" name={name} value="No" onChange={handleChange} checked={form[name] === "No"} /> No
+      </label>
+      <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "0.88rem" }}>
+        <input type="radio" name={name} value="N/A" onChange={handleChange} checked={form[name] === "N/A"} /> N/A
+      </label>
     </div>
   );
 
   const renderYesNo = (name) => (
-    <div style={{ display: "flex", gap: "16px", justifyContent: "center" }}>
-      <label style={{ display: "flex", alignItems: "center", gap: "4px" }}><input type="radio" name={name} value="Yes" onChange={handleChange} checked={form[name] === "Yes"} /> Yes</label>
-      <label style={{ display: "flex", alignItems: "center", gap: "4px" }}><input type="radio" name={name} value="No" onChange={handleChange} checked={form[name] === "No"} /> No</label>
+    <div style={{ display: "flex", gap: "16px", justifyContent: "center", alignItems: "center" }}>
+      <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "0.88rem" }}>
+        <input type="radio" name={name} value="Yes" onChange={handleChange} checked={form[name] === "Yes"} /> Yes
+      </label>
+      <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "0.88rem" }}>
+        <input type="radio" name={name} value="No" onChange={handleChange} checked={form[name] === "No"} /> No
+      </label>
     </div>
   );
 
@@ -295,30 +526,52 @@ export default function SCCreate() {
         </div>
 
         {/* 1 | PERMIT TO WORK (PTW) */}
-        <div className="mod-card-header" style={{ backgroundColor: "var(--bg-card)", borderTop: "1px solid var(--border-color)", borderBottom: "1px solid var(--border-color)", marginTop: "32px", borderLeft: "4px solid var(--primary-color, #F97316)" }}>
-          <h3 className="mod-card-title" style={{ margin: 0, color: "var(--text-main)", fontSize: "1.1rem", fontWeight: "700" }}>1 | PERMIT TO WORK (PTW)</h3>
-        </div>
-        <div className="mod-card-body" style={{ padding: "0" }}>
-          <div style={{ padding: "12px 16px", backgroundColor: "var(--bg-card-hover)", color: "var(--text-main)", fontWeight: "600", fontSize: "0.9rem", borderBottom: "1px solid var(--border-color)" }}>
+        <div className="sc-section-card">
+          <div className="sc-section-header">
+            <h3 className="sc-section-title">
+              <i className="ti ti-file-certificate" style={{ color: "var(--primary-color, #F97316)" }}></i>
+              1 | PERMIT TO WORK (PTW)
+            </h3>
+          </div>
+
+          <div className="sc-section-subhead">
             1.1 High-risk activities included
           </div>
-          <div style={{ padding: "16px", display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px", borderBottom: "1px solid var(--border-color)" }}>
+          <div className="sc-chip-grid">
             {highRiskOptions.map(opt => (
-              <label key={opt} style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.9rem" }}>
+              <label key={opt} className={`sc-chip-label ${form.highRiskActivities.includes(opt) ? 'active' : ''}`}>
                 <input type="checkbox" checked={form.highRiskActivities.includes(opt)} onChange={() => handleArrayToggle("highRiskActivities", opt)} />
-                {opt}
+                <span>{opt}</span>
               </label>
             ))}
           </div>
-          <div style={{ padding: "16px", display: "flex", gap: "24px", alignItems: "center", borderBottom: "1px solid var(--border-color)" }}>
-            <span style={{ fontWeight: 600, width: "120px" }}>If Hot Work:</span>
-            <label style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <input type="radio" name="ifHotWork" value="High Risk" onChange={handleChange} checked={form.ifHotWork === "High Risk"} /> High Risk - Open Flame
-            </label>
-            <label style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <input type="radio" name="ifHotWork" value="Low Risk" onChange={handleChange} checked={form.ifHotWork === "Low Risk"} /> Low Risk - Spark Spreading
-            </label>
-          </div>
+
+          {/* If Hot Work: Only displayed when Hot work is checked in 1.1 */}
+          {form.highRiskActivities.includes("Hot work") && (
+            <div style={{ padding: "14px 20px", display: "flex", gap: "20px", alignItems: "center", flexWrap: "wrap", borderBottom: "1px solid var(--border-color)", backgroundColor: "rgba(249, 115, 22, 0.05)" }}>
+              <span style={{ fontWeight: 600, color: "var(--text-main)", fontSize: "0.88rem" }}>If Hot Work:</span>
+              <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "0.88rem" }}>
+                <input
+                  type="radio"
+                  name="ifHotWork"
+                  value="High Risk - Open Flame"
+                  onChange={handleChange}
+                  checked={form.ifHotWork === "High Risk - Open Flame" || form.ifHotWork === "High Risk"}
+                />
+                High Risk - Open Flame
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "0.88rem" }}>
+                <input
+                  type="radio"
+                  name="ifHotWork"
+                  value="Low Risk - Spark Spreading"
+                  onChange={handleChange}
+                  checked={form.ifHotWork === "Low Risk - Spark Spreading" || form.ifHotWork === "Low Risk"}
+                />
+                Low Risk - Spark Spreading
+              </label>
+            </div>
+          )}
 
           <table className="sc-table">
             <thead>
@@ -376,9 +629,9 @@ export default function SCCreate() {
           <table className="sc-table">
             <thead>
               <tr style={{ backgroundColor: "var(--bg-dark)" }}>
-                <th style={{ width: "50px", textAlign: "center", color: "var(--text-main)" }}>No.</th>
-                <th style={{ color: "var(--text-main)" }}>Checkpoint</th>
-                <th style={{ width: "150px", textAlign: "center", color: "var(--text-main)" }}>Yes / No / N/A</th>
+                <th style={{ width: "50px", textAlign: "center", color: "var(--text-main)" }}>NO.</th>
+                <th style={{ color: "var(--text-main)" }}>CHECKPOINT</th>
+                <th style={{ width: "150px", textAlign: "center", color: "var(--text-main)" }}>YES / NO / N/A</th>
               </tr>
             </thead>
             <tbody>
@@ -417,97 +670,113 @@ export default function SCCreate() {
                   </>
                 )}
               </tr>
-              <tr>
-                <td className="sc-td-label">2.1.2 Conducted by</td>
-                <td><input className="mod-form-input" name="conductedBy" value={form.conductedBy} readOnly style={{ cursor: "not-allowed", backgroundColor: "var(--bg-card-hover)", color: "var(--text-muted)" }} placeholder="Enter Name" /></td>
-                <td className="sc-td-label">Number of participants</td>
-                <td><input type="number" className="mod-form-input" name="participants" value={form.participants} onChange={handleChange} placeholder="Enter Number" /></td>
-              </tr>
-            </tbody>
-          </table>
-          <div style={{ padding: "12px 16px", backgroundColor: "var(--bg-card-hover)", color: "var(--text-main)", fontWeight: "600", fontSize: "0.9rem", borderTop: "1px solid var(--border-color)", borderBottom: "1px solid var(--border-color)" }}>
-            2.1.4 Key topics covered
-          </div>
-          <div style={{ padding: "16px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", borderBottom: "1px solid var(--border-color)" }}>
-            {topicOptions.map(opt => (
-              <label key={opt} style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.9rem" }}>
-                <input type="checkbox" checked={form.keyTopics.includes(opt)} onChange={() => handleArrayToggle("keyTopics", opt)} />
-                {opt}
-              </label>
-            ))}
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", gridColumn: "1 / -1" }}>
-              <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.9rem" }}>
-                <input type="checkbox" checked={form.keyTopics.includes("Other")} onChange={() => handleArrayToggle("keyTopics", "Other")} />
-                Other topics:
-              </label>
-              {form.keyTopics.includes("Other") && (
-                <input className="mod-form-input" style={{ flex: 1 }} name="otherTopic" value={form.otherTopic} onChange={handleChange} />
+              {form.chk2_1 === "Yes" && (
+                <tr>
+                  <td className="sc-td-label">2.1.2 Conducted by</td>
+                  <td><input className="mod-form-input" name="conductedBy" value={form.conductedBy} readOnly style={{ cursor: "not-allowed", backgroundColor: "var(--bg-card-hover)", color: "var(--text-muted)" }} placeholder="Enter Name" /></td>
+                  <td className="sc-td-label">Number of participants</td>
+                  <td><input type="number" className="mod-form-input" name="participants" value={form.participants} onChange={handleChange} placeholder="Enter Number" /></td>
+                </tr>
               )}
-            </div>
-          </div>
-          <table className="sc-table">
-            <thead>
-              <tr style={{ backgroundColor: "#0f172a", color: "#fff" }}>
-                <th style={{ width: "50px", textAlign: "center" }}>No.</th>
-                <th>Checkpoint</th>
-                <th style={{ width: "120px", textAlign: "center" }}>Yes / No</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td style={{ textAlign: "center", fontWeight: "bold" }}>2.1.5</td>
-                <td>Have all workers confirmed understanding of the PTW and RAMS requirements?</td>
-                <td>{renderYesNo("chk2_1_5")}</td>
-              </tr>
             </tbody>
           </table>
-          <div style={{ padding: "12px 16px", backgroundColor: "var(--bg-card-hover)", color: "var(--text-main)", fontWeight: "600", fontSize: "0.9rem", borderTop: "1px solid var(--border-color)", borderBottom: "1px solid var(--border-color)" }}>
-            2.1.6 If NO, explain why the Toolbox Talk / pre-start briefing was not held
-          </div>
-          <div style={{ padding: "16px", backgroundColor: "var(--bg-card)" }}>
-            <textarea className="mod-form-textarea" rows="4" name="explainNoBriefing" value={form.explainNoBriefing} onChange={handleChange}></textarea>
-          </div>
+
+          {form.chk2_1 === "Yes" ? (
+            <>
+              <div style={{ padding: "12px 16px", backgroundColor: "var(--bg-card-hover)", color: "var(--text-main)", fontWeight: "600", fontSize: "0.9rem", borderTop: "1px solid var(--border-color)", borderBottom: "1px solid var(--border-color)" }}>
+                2.1.4 Key topics covered
+              </div>
+              <div style={{ padding: "16px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", borderBottom: "1px solid var(--border-color)" }}>
+                {topicOptions.map(opt => (
+                  <label key={opt} style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.9rem", cursor: "pointer" }}>
+                    <input type="checkbox" checked={form.keyTopics.includes(opt)} onChange={() => handleArrayToggle("keyTopics", opt)} />
+                    {opt}
+                  </label>
+                ))}
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", gridColumn: "1 / -1" }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.9rem", cursor: "pointer" }}>
+                    <input type="checkbox" checked={form.keyTopics.includes("Other")} onChange={() => handleArrayToggle("keyTopics", "Other")} />
+                    Other topics:
+                  </label>
+                  {form.keyTopics.includes("Other") && (
+                    <input className="mod-form-input" style={{ flex: 1 }} name="otherTopic" value={form.otherTopic} onChange={handleChange} placeholder="Specify other topic..." />
+                  )}
+                </div>
+              </div>
+              <table className="sc-table">
+                <thead>
+                  <tr style={{ backgroundColor: "#0f172a", color: "#fff" }}>
+                    <th style={{ width: "50px", textAlign: "center" }}>NO.</th>
+                    <th>Checkpoint</th>
+                    <th style={{ width: "120px", textAlign: "center" }}>Yes / No</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td style={{ textAlign: "center", fontWeight: "bold" }}>2.1.5</td>
+                    <td>Have all workers confirmed understanding of the PTW and RAMS requirements?</td>
+                    <td>{renderYesNo("chk2_1_5")}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </>
+          ) : (
+            <>
+              <div style={{ padding: "12px 16px", backgroundColor: "var(--bg-card-hover)", color: "var(--text-main)", fontWeight: "600", fontSize: "0.9rem", borderTop: "1px solid var(--border-color)", borderBottom: "1px solid var(--border-color)" }}>
+                2.1.6 If NO, explain why the Toolbox Talk / pre-start briefing was not held
+              </div>
+              <div style={{ padding: "16px", backgroundColor: "var(--bg-card)" }}>
+                <textarea className="mod-form-textarea" rows="4" name="explainNoBriefing" value={form.explainNoBriefing} onChange={handleChange} placeholder="Provide explanation..."></textarea>
+              </div>
+            </>
+          )}
         </div>
 
         {/* 3 | SUMMARY */}
-        <div className="mod-card-header" style={{ backgroundColor: "var(--bg-card)", borderTop: "1px solid var(--border-color)", borderBottom: "1px solid var(--border-color)", marginTop: "32px", borderLeft: "4px solid var(--primary-color, #F97316)" }}>
-          <h3 className="mod-card-title" style={{ margin: 0, color: "var(--text-main)", fontSize: "1.1rem", fontWeight: "700" }}>3 | SUMMARY</h3>
-        </div>
-        <div className="mod-card-body" style={{ padding: "0" }}>
-          <table className="sc-table">
-            <thead>
-              <tr style={{ backgroundColor: "var(--bg-dark)" }}>
-                <th style={{ width: "50px", textAlign: "center", color: "var(--text-main)" }}>No.</th>
-                <th style={{ color: "var(--text-main)" }}>Checkpoint</th>
-                <th style={{ width: "120px", textAlign: "center", color: "var(--text-main)" }}>Yes / No</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td style={{ textAlign: "center", fontWeight: "bold" }}>3.2</td>
-                <td>Was the activity in compliance?</td>
-                <td>{renderYesNo("chk3_2")}</td>
-              </tr>
-            </tbody>
-          </table>
-          <div style={{ padding: "12px 16px", backgroundColor: "var(--bg-card-hover)", color: "var(--text-main)", fontWeight: "600", fontSize: "0.9rem", borderTop: "1px solid var(--border-color)", borderBottom: "1px solid var(--border-color)" }}>
-            3.2.1 Safety issue traceability, if activity is not compliant
+        <div className="sc-section-card">
+          <div className="sc-section-header">
+            <h3 className="sc-section-title">
+              <i className="ti ti-clipboard-check" style={{ color: "var(--primary-color, #F97316)" }}></i>
+              3 | SUMMARY
+            </h3>
           </div>
-          <table className="sc-table">
-            <tbody>
-              <tr>
-                <td className="sc-td-label" style={{ width: "200px" }}>Safety issue created?</td>
-                <td style={{ width: "150px" }}>{renderYesNo("safetyIssueCreated")}</td>
-                <td className="sc-td-label" style={{ width: "200px" }}>Safety issue / SPOT ref.</td>
-                <td><input className="mod-form-input" name="safetyIssueRef" value={form.safetyIssueRef} onChange={handleChange} /></td>
-              </tr>
-            </tbody>
-          </table>
-          <div style={{ padding: "12px 16px", backgroundColor: "var(--bg-card-hover)", color: "var(--text-main)", fontWeight: "600", fontSize: "0.9rem", borderTop: "1px solid var(--border-color)", borderBottom: "1px solid var(--border-color)" }}>
+
+          <div className="sc-checkpoints-list">
+            <div className="sc-checkpoint-row">
+              <div className="sc-checkpoint-left">
+                <span className="sc-checkpoint-num">3.2</span>
+                <p className="sc-checkpoint-text">Was the activity in compliance?</p>
+              </div>
+              {renderYesNo("chk3_2")}
+            </div>
+
+            {form.chk3_2 === "No" && (
+              <div className="sc-checkpoint-row">
+                <div className="sc-checkpoint-left">
+                  <span className="sc-checkpoint-num">3.2.1</span>
+                  <p className="sc-checkpoint-text">Safety issue created? (traceability if activity is not compliant)</p>
+                </div>
+                {renderYesNo("safetyIssueCreated")}
+              </div>
+            )}
+          </div>
+
+          {form.chk3_2 === "No" && (
+            <div className="sc-section-body" style={{ paddingTop: "14px", paddingBottom: "16px", borderBottom: "1px solid var(--border-color)" }}>
+              <div className="sc-form-grid">
+                <div className="sc-form-group span-2">
+                  <label className="sc-form-label">Safety issue / SPOT ref.</label>
+                  <input className="sc-form-input" name="safetyIssueRef" value={form.safetyIssueRef} onChange={handleChange} placeholder="e.g. SI-2026-0042" />
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="sc-section-subhead">
             Findings / comments
           </div>
-          <div style={{ padding: "16px", backgroundColor: "var(--bg-card)" }}>
-            <textarea className="mod-form-textarea" rows="4" name="findings" value={form.findings} onChange={handleChange}></textarea>
+          <div className="sc-section-body">
+            <textarea className="sc-form-textarea" rows="3" name="findings" value={form.findings} onChange={handleChange} placeholder="Enter findings, remarks, or observations..."></textarea>
           </div>
         </div>
 
@@ -547,31 +816,107 @@ export default function SCCreate() {
           <div style={{ padding: "12px 16px", backgroundColor: "var(--bg-card-hover)", color: "var(--text-main)", fontWeight: "600", fontSize: "0.9rem", borderTop: "1px solid var(--border-color)", borderBottom: "1px solid var(--border-color)" }}>
             3.3 Photographs and attachments <span style={{ color: "red", fontWeight: "normal", fontSize: "0.85rem" }}>(required)</span>
           </div>
-          <table className="sc-table">
-            <thead>
-              <tr style={{ backgroundColor: "var(--bg-dark)" }}>
-                <th style={{ width: "50px", textAlign: "center", color: "var(--text-main)" }}>No.</th>
-                <th style={{ color: "var(--text-main)" }}>Description / reference</th>
-                <th style={{ width: "120px", textAlign: "center", color: "var(--text-main)" }}>Attached</th>
-              </tr>
-            </thead>
-            <tbody>
-              {form.attachments.map((att, idx) => (
-                <tr key={idx}>
-                  <td style={{ textAlign: "center", fontWeight: "bold" }}>{idx + 1}</td>
-                  <td><input className="mod-form-input" value={att.desc} onChange={(e) => handleAttachmentChange(idx, "desc", e.target.value)} /></td>
-                  <td>
-                    <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
-                      <label style={{ display: "flex", alignItems: "center", gap: "4px" }}><input type="radio" name={`att_${idx}`} value="Yes" onChange={(e) => handleAttachmentChange(idx, "attached", "Yes")} checked={att.attached === "Yes"} /> Yes</label>
-                      <label style={{ display: "flex", alignItems: "center", gap: "4px" }}><input type="radio" name={`att_${idx}`} value="N/A" onChange={(e) => handleAttachmentChange(idx, "attached", "N/A")} checked={att.attached === "N/A"} /> N/A</label>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
 
-          <div style={{ padding: "12px 16px", backgroundColor: "var(--bg-card-hover)", color: "var(--text-main)", fontWeight: "600", fontSize: "0.9rem", borderTop: "1px solid var(--border-color)", borderBottom: "1px solid var(--border-color)" }}>
+          <div className="sc-section-subhead">
+            3.3 Photographs and attachments <span style={{ color: "var(--text-muted)", fontWeight: "normal", fontSize: "0.82rem" }}>(optional)</span>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            {form.attachments.map((att, idx) => (
+              <div key={idx} className="sc-attachment-item">
+                <div className="sc-attachment-grid">
+                  <div className="sc-form-group">
+                    <label className="sc-form-label" style={{ fontSize: "0.78rem" }}>Description / Reference</label>
+                    <input
+                      className="sc-form-input"
+                      placeholder="e.g. Scaffolding tag photo, Permit copy"
+                      value={att.desc || ""}
+                      onChange={(e) => handleAttachmentChange(idx, "desc", e.target.value)}
+                    />
+                  </div>
+
+                  <div className="sc-attachment-controls">
+                    <div className="sc-form-group">
+                      <label className="sc-form-label" style={{ fontSize: "0.78rem" }}>Photograph / File</label>
+                      {!att.previewUrl ? (
+                        <label className="sc-upload-btn">
+                          <i className="ti ti-upload"></i> Choose File / Photo
+                          <input
+                            type="file"
+                            accept="image/*,.pdf,.doc,.docx"
+                            style={{ display: "none" }}
+                            onChange={(e) => handleAttachmentFileChange(idx, e)}
+                          />
+                        </label>
+                      ) : (
+                        <div className="sc-file-preview-pill">
+                          {att.fileType?.startsWith("image/") ? (
+                            <img src={att.previewUrl} alt="preview" style={{ width: "24px", height: "24px", objectFit: "cover", borderRadius: "4px" }} />
+                          ) : (
+                            <i className="ti ti-file-text" style={{ fontSize: "18px", color: "var(--primary-color, #F97316)" }}></i>
+                          )}
+                          <div style={{ maxWidth: "140px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "12px" }} title={att.fileName}>
+                            <b style={{ color: "var(--text-main)" }}>{att.fileName}</b>
+                            <span style={{ display: "block", fontSize: "10px", color: "var(--text-muted)" }}>{att.fileSize}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={(e) => handleRemoveAttachmentFile(idx, e)}
+                            style={{ background: "transparent", border: "none", color: "#ef4444", cursor: "pointer", padding: "2px 4px", fontSize: "14px" }}
+                            title="Remove file"
+                          >
+                            <i className="ti ti-x"></i>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="sc-form-group" style={{ alignItems: "center" }}>
+                      <label className="sc-form-label" style={{ fontSize: "0.78rem" }}>Attached</label>
+                      <div style={{ display: "flex", gap: "8px", alignItems: "center", height: "36px" }}>
+                        <label style={{ display: "flex", alignItems: "center", gap: "4px", cursor: "pointer", fontSize: "12px" }}>
+                          <input type="radio" name={`att_${idx}`} value="Yes" onChange={() => handleAttachmentChange(idx, "attached", "Yes")} checked={att.attached === "Yes"} /> Yes
+                        </label>
+                        <label style={{ display: "flex", alignItems: "center", gap: "4px", cursor: "pointer", fontSize: "12px" }}>
+                          <input type="radio" name={`att_${idx}`} value="N/A" onChange={() => handleAttachmentChange(idx, "attached", "N/A")} checked={att.attached === "N/A"} /> N/A
+                        </label>
+                      </div>
+                    </div>
+
+                    {form.attachments.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const atts = form.attachments.filter((_, i) => i !== idx);
+                          setForm(prev => ({ ...prev, attachments: atts }));
+                        }}
+                        style={{ background: "transparent", border: "none", color: "#94a3b8", cursor: "pointer", fontSize: "16px", padding: "6px" }}
+                        title="Remove row"
+                      >
+                        <i className="ti ti-trash"></i>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+            <div style={{ padding: "12px 20px", background: "var(--bg-card-hover)", display: "flex", justifyContent: "center" }}>
+              <button
+                type="button"
+                className="mod-btn-outline"
+                style={{ fontSize: "12px", padding: "6px 16px" }}
+                onClick={() => {
+                  setForm(prev => ({
+                    ...prev,
+                    attachments: [...prev.attachments, { desc: "", attached: "N/A", fileName: "", fileSize: "", previewUrl: "", fileType: "" }]
+                  }));
+                }}
+              >
+                + Add Another Attachment / Photo
+              </button>
+            </div>
+          </div>
+
+          <div className="sc-section-subhead">
             Spot check performed by
           </div>
           <table className="sc-table">
@@ -600,13 +945,21 @@ export default function SCCreate() {
           </table>
         </div>
 
-        <div style={{ padding: "16px", textAlign: "center", fontSize: "0.85rem", color: "var(--text-muted)" }}>
+        <div className="sc-instructions-box" style={{ textAlign: "center" }}>
           Retain the completed paper form and associated evidence in accordance with the applicable project filing process.
         </div>
 
-        <div style={{ padding: "24px", display: "flex", justifyContent: "flex-end", gap: "12px", borderTop: "1px solid var(--border-color)" }}>
-          <button className="mod-btn-outline" onClick={() => navigate("/spot-checks/list")}>Cancel</button>
-          <button className="mod-btn-primary" onClick={() => navigate("/spot-checks/list")}>Submit Spot Check</button>
+        <div className="sc-form-footer">
+          <button type="button" className="mod-btn-outline" onClick={() => navigate("/spot-checks/list")} disabled={isSubmitting}>Cancel</button>
+          <button type="button" className="mod-btn-primary" onClick={handleSubmit} disabled={isSubmitting}>
+            {isSubmitting ? (
+              <>
+                <i className="ti ti-loader ti-spin" style={{ marginRight: "6px" }}></i> Submitting...
+              </>
+            ) : (
+              "Submit Spot Check"
+            )}
+          </button>
         </div>
       </div>
 

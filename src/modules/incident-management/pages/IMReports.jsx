@@ -95,7 +95,14 @@ function IMReports() {
   }, [catData, loading]);
 
   if (loading) {
-    return <div className="mod-page"><div className="mod-card" style={{ padding: 60, textAlign: "center" }}>Loading Reports...</div></div>;
+    return (
+      <div className="mod-page">
+        <div className="mod-card" style={{ padding: "80px 20px", textAlign: "center" }}>
+          <i className="ti ti-loader ti-spin" style={{ fontSize: "32px", color: "var(--accent-primary, #2563EB)" }}></i>
+          <p style={{ marginTop: "12px", color: "var(--text-muted, #64748b)", fontSize: "14px" }}>Loading Reports...</p>
+        </div>
+      </div>
+    );
   }
 
   return (

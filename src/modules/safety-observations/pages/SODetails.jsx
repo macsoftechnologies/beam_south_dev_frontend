@@ -87,7 +87,12 @@ function SODetails() {
   }, [id]);
 
   if (loading) {
-    return <div className="mod-page" style={{ padding: 40, textAlign: "center" }}>Loading observation details...</div>;
+    return (
+      <div className="mod-page" style={{ padding: "80px 20px", textAlign: "center" }}>
+        <i className="ti ti-loader ti-spin" style={{ fontSize: "32px", color: "var(--accent-primary, #3b82f6)" }}></i>
+        <p style={{ marginTop: "12px", color: "var(--text-muted, #64748b)", fontSize: "14px" }}>Loading observation details...</p>
+      </div>
+    );
   }
 
   if (!data || !data.observation) {

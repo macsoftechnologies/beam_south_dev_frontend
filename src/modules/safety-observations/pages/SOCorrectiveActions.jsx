@@ -142,7 +142,9 @@ function SOCorrectiveActions() {
 
         <div className="mod-table-wrap">
           {loading ? (
-            <div style={{ padding: 40, textAlign: "center", color: "var(--text-muted)" }}>Loading corrective actions...</div>
+            <div style={{ padding: 40, textAlign: "center", color: "var(--text-muted)" }}>
+              <i className="ti ti-loader ti-spin" style={{ marginRight: 8, color: "var(--accent-primary, #3b82f6)", fontSize: "20px", verticalAlign: "middle" }}></i> Loading corrective actions...
+            </div>
           ) : filtered.length === 0 ? (
             <div style={{ padding: 40, textAlign: "center", color: "var(--text-muted)" }}>No corrective actions found</div>
           ) : (

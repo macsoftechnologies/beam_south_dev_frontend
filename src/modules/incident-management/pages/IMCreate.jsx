@@ -215,7 +215,7 @@ const SignaturePad = ({ value, onChange, onClear }) => {
           position: "relative", 
           border: "1px dashed var(--border-color)", 
           borderRadius: 6, 
-          height: 120, 
+          height: 280, 
           background: "#f8fafc", 
           touchAction: "none", 
           overflow: "hidden" 
@@ -225,7 +225,7 @@ const SignaturePad = ({ value, onChange, onClear }) => {
         <canvas 
           ref={canvasRef}
           width={800}
-          height={120}
+          height={280}
           style={{ width: "100%", height: "100%", cursor: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='black'%3E%3Cpath d='M7.127 22.562l-7.127 1.438 1.438-7.128 5.689 5.69zm1.414-1.414l11.228-11.225-5.69-5.692-11.227 11.227 5.689 5.69zm9.768-21.148l-2.816 2.817 5.691 5.691 2.816-2.819-5.691-5.689z'/%3E%3C/svg%3E\") 0 20, pointer", display: "block" }}
           onMouseDown={startDrawing}
           onMouseMove={draw}
@@ -418,7 +418,21 @@ function IMCreate() {
     if (form.categories.length === 0) errs.categories = "Select at least one category";
     if (!form.actual && !form.categories.includes("Near Miss")) errs.actual = "Actual severity is required";
     if (!form.potential) errs.potential = "Potential severity is required";
+    if (!form.description?.trim()) errs.description = "Description is required";
+    if (!form.consequence?.trim()) errs.consequence = "Consequence is required";
     if (!form.signature) errs.signature = "Signature is required";
+
+    form.immActions.forEach((act, idx) => {
+      if (!act.action?.trim() || !act.responsible?.trim() || !act.date || !act.time) {
+        if (!errs.immActions) errs.immActions = [];
+        errs.immActions[idx] = {
+          action: !act.action?.trim() ? "Action is required" : null,
+          responsible: !act.responsible?.trim() ? "Responsible is required" : null,
+          date: !act.date ? "Date is required" : null,
+          time: !act.time ? "Time is required" : null,
+        };
+      }
+    });
 
     if (isEnv) {
       if (!form.envSpillType || form.envSpillType.length === 0) {
@@ -572,7 +586,7 @@ function IMCreate() {
 
       <div className="mod-card">
         <div className="mod-card-header">
-          <h3 className="mod-card-title">1. Location & Identification</h3>
+          <h3 className="mod-card-title">1. Location & Identification <span style={{ color: "#DC2626" }}>*</span></h3>
           {errors.api && <div style={{ color: "#DC2626", marginTop: "8px", fontSize: "0.875rem" }}>{errors.api}</div>}
           <div style={{ fontSize: "13px", color: "#b45309", background: "#fef3c7", border: "1px solid #fde68a", padding: "10px 16px", borderRadius: "8px", fontWeight: "600", display: "flex", overflow: "hidden", whiteSpace: "nowrap", marginTop: "8px" }}>
             <marquee scrollamount="5">⚠️ Must be completed within 2 hours of the incident occurrence.</marquee>
@@ -585,7 +599,7 @@ function IMCreate() {
               {/* 1. Project Details */}
               <div>
                 <div style={{ fontSize: "14px", fontWeight: 700, color: "var(--text-main)", borderBottom: "1px solid var(--border-color)", paddingBottom: "8px", marginBottom: "16px" }}>
-                  1. Project Details
+                  1. Project Details <span style={{ color: "#DC2626" }}>*</span>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
                   <div className="mod-form-group">
@@ -678,7 +692,7 @@ function IMCreate() {
               {/* 2. Incident Records */}
               <div>
                 <div style={{ fontSize: "14px", fontWeight: 700, color: "var(--text-main)", borderBottom: "1px solid var(--border-color)", paddingBottom: "8px", marginBottom: "16px" }}>
-                  2. Incident Records
+                  2. Incident Records <span style={{ color: "#DC2626" }}>*</span>
                 </div>
                 <div className="mod-form-group">
                   <label className="mod-form-label">Incident Category <span style={{ color: "#DC2626" }}>*</span></label>
@@ -724,15 +738,17 @@ function IMCreate() {
               {/* 3. Incident Description */}
               <div>
                 <div style={{ fontSize: "14px", fontWeight: 700, color: "var(--text-main)", borderBottom: "1px solid var(--border-color)", paddingBottom: "8px", marginBottom: "16px" }}>
-                  3. Incident Description
+                  3. Incident Description <span style={{ color: "#DC2626" }}>*</span>
                 </div>
                 <div className="mod-form-group full-width" style={{ marginBottom: "16px" }}>
-                  <label className="mod-form-label">Description of what happened?</label>
+                  <label className="mod-form-label">Description of what happened? <span style={{ color: "#DC2626" }}>*</span></label>
                   <textarea name="description" className="mod-form-textarea" value={form.description} onChange={handleChange} rows={4} placeholder="Describe the incident in detail"></textarea>
+                  {errors.description && <span style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: "4px" }}>{errors.description}</span>}
                 </div>
                 <div className="mod-form-group full-width">
-                  <label className="mod-form-label">What is the consequence of this incident?</label>
+                  <label className="mod-form-label">What is the consequence of this incident? <span style={{ color: "#DC2626" }}>*</span></label>
                   <textarea name="consequence" className="mod-form-textarea" value={form.consequence} onChange={handleChange} rows={3} placeholder="What was the consequence?"></textarea>
+                  {errors.consequence && <span style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: "4px" }}>{errors.consequence}</span>}
                 </div>
               </div>
 
@@ -740,7 +756,7 @@ function IMCreate() {
               {isEnv && (
                 <div>
                   <div style={{ fontSize: "14px", fontWeight: 700, color: "var(--color-caution)", borderBottom: "1px solid var(--color-caution-bg)", paddingBottom: "8px", marginBottom: "16px" }}>
-                    4. Environmental Incident Details
+                    4. Environmental Incident Details <span style={{ color: "#DC2626" }}>*</span>
                   </div>
                   <div style={{ background: "var(--color-caution-bg)", border: "1px solid rgba(217,119,6,0.3)", borderRadius: "8px", padding: "16px" }}>
                     <div className="mod-form-group" style={{ marginBottom: "16px" }}>
@@ -795,6 +811,26 @@ function IMCreate() {
                         </>
                       )}
                     </div>
+                    
+                    <div className="grid-2" style={{ gap: "16px", marginTop: "24px", paddingTop: "16px", borderTop: "1px dashed rgba(217,119,6,0.3)" }}>
+                      <div className="mod-form-group">
+                        <label className="mod-form-label" style={{ color: "#92400e", fontWeight: 700, textTransform: "uppercase", fontSize: "11px" }}>HAS THE GATEKEEPER BEEN INFORMED?</label>
+                        <div style={{ display: "flex", gap: "16px", marginTop: "8px" }}>
+                          <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px" }}>
+                            <input type="radio" name="gatekeeperInformed" checked={form.gatekeeperInformed === true} onChange={() => setForm(prev => ({...prev, gatekeeperInformed: true}))} /> Yes
+                          </label>
+                          <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px" }}>
+                            <input type="radio" name="gatekeeperInformed" checked={form.gatekeeperInformed === false} onChange={() => setForm(prev => ({...prev, gatekeeperInformed: false}))} /> No
+                          </label>
+                        </div>
+                      </div>
+                      {form.gatekeeperInformed === true && (
+                        <div className="mod-form-group">
+                          <label className="mod-form-label" style={{ color: "#92400e", fontWeight: 700, textTransform: "uppercase", fontSize: "11px" }}>NAME OF PERSON CONTACTED GATEKEEPER:</label>
+                          <input name="gatekeeperName" type="text" className="mod-form-input" value={form.gatekeeperName} onChange={handleChange} placeholder="Enter name" />
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
@@ -802,7 +838,7 @@ function IMCreate() {
               {/* 5. Immediate Actions Taken */}
               <div>
                 <div style={{ fontSize: "14px", fontWeight: 700, color: "var(--text-main)", borderBottom: "1px solid var(--border-color)", paddingBottom: "8px", marginBottom: "16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span>{isEnv ? "5" : "4"}. Immediate Actions Taken</span>
+                  <span>{isEnv ? "5" : "4"}. Immediate Actions Taken <span style={{ color: "#DC2626" }}>*</span></span>
                   <button type="button" className="mod-btn-outline" onClick={addAction} style={{ padding: "4px 12px", fontSize: "12px", fontWeight: 600 }}>+ Add Action</button>
                 </div>
                 
@@ -814,22 +850,26 @@ function IMCreate() {
                       <div key={i} style={{ border: "1px solid var(--border-color)", borderRadius: "8px", padding: "16px", background: "var(--bg-card)" }}>
                         <div className="grid-2" style={{ gap: "16px", marginBottom: "12px" }}>
                           <div className="mod-form-group">
-                            <label className="mod-form-label" style={{ textTransform: "uppercase", fontSize: "11px", fontWeight: 700 }}>Action</label>
+                            <label className="mod-form-label" style={{ textTransform: "uppercase", fontSize: "11px", fontWeight: 700 }}>Action <span style={{ color: "#DC2626" }}>*</span></label>
                             <input type="text" className="mod-form-input" value={act.action} onChange={e => updateAction(i, "action", e.target.value)} placeholder="Describe action" />
+                            {errors.immActions?.[i]?.action && <span style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: "4px" }}>{errors.immActions[i].action}</span>}
                           </div>
                           <div className="mod-form-group">
-                            <label className="mod-form-label" style={{ textTransform: "uppercase", fontSize: "11px", fontWeight: 700 }}>Responsible</label>
+                            <label className="mod-form-label" style={{ textTransform: "uppercase", fontSize: "11px", fontWeight: 700 }}>Responsible <span style={{ color: "#DC2626" }}>*</span></label>
                             <input type="text" className="mod-form-input" value={act.responsible} onChange={e => updateAction(i, "responsible", e.target.value)} placeholder="Person responsible" />
+                            {errors.immActions?.[i]?.responsible && <span style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: "4px" }}>{errors.immActions[i].responsible}</span>}
                           </div>
                         </div>
                         <div style={{ display: "flex", alignItems: "flex-end", gap: "16px", flexWrap: "wrap" }}>
                           <div className="mod-form-group" style={{ flex: "1 1 120px" }}>
-                            <label className="mod-form-label" style={{ textTransform: "uppercase", fontSize: "11px", fontWeight: 700 }}>Date</label>
+                            <label className="mod-form-label" style={{ textTransform: "uppercase", fontSize: "11px", fontWeight: 700 }}>Date <span style={{ color: "#DC2626" }}>*</span></label>
                             <input type="date" className="mod-form-input" value={act.date || ""} onChange={e => updateAction(i, "date", e.target.value)} placeholder="Select date" />
+                            {errors.immActions?.[i]?.date && <span style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: "4px" }}>{errors.immActions[i].date}</span>}
                           </div>
                           <div className="mod-form-group" style={{ flex: "1 1 120px" }}>
-                            <label className="mod-form-label" style={{ textTransform: "uppercase", fontSize: "11px", fontWeight: 700 }}>Time Implemented</label>
+                            <label className="mod-form-label" style={{ textTransform: "uppercase", fontSize: "11px", fontWeight: 700 }}>Time Implemented <span style={{ color: "#DC2626" }}>*</span></label>
                             <input type="text" readOnly className="mod-form-input" value={act.time} onClick={() => { setTempActionTime(act.time || "12:00"); setShowActionTimePicker(i); }} placeholder="Select time" style={{ cursor: "pointer" }} />
+                            {errors.immActions?.[i]?.time && <span style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: "4px" }}>{errors.immActions[i].time}</span>}
                           </div>
                           <button type="button" style={{ padding: "6px 12px", border: "1px solid #fca5a5", background: "var(--bg-card)", color: "#dc2626", borderRadius: "6px", fontSize: "12px", cursor: "pointer", height: "36px" }} onClick={() => setForm(prev => ({...prev, immActions: prev.immActions.filter((_, idx) => idx !== i)}))}>Remove</button>
                         </div>
@@ -837,24 +877,6 @@ function IMCreate() {
                     ))}
                   </div>
                 )}
-
-                <div className="grid-2" style={{ gap: "16px", marginTop: "24px" }}>
-                  <div className="mod-form-group">
-                    <label className="mod-form-label">Has the gatekeeper been informed?</label>
-                    <div style={{ display: "flex", gap: "16px", marginTop: "8px" }}>
-                      <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px" }}>
-                        <input type="radio" name="gatekeeperInformed" checked={form.gatekeeperInformed === true} onChange={() => setForm(prev => ({...prev, gatekeeperInformed: true}))} /> Yes
-                      </label>
-                      <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px" }}>
-                        <input type="radio" name="gatekeeperInformed" checked={form.gatekeeperInformed === false} onChange={() => setForm(prev => ({...prev, gatekeeperInformed: false}))} /> No
-                      </label>
-                    </div>
-                  </div>
-                  <div className="mod-form-group">
-                    <label className="mod-form-label">Name of person contacted gatekeeper:</label>
-                    <input name="gatekeeperName" type="text" className="mod-form-input" value={form.gatekeeperName} onChange={handleChange} placeholder="Enter name" />
-                  </div>
-                </div>
               </div>
 
               {/* 6. Signatures */}

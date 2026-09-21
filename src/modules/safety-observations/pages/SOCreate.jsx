@@ -8,6 +8,7 @@ import FloorDrawing from "../../../pages/Request/FloorDrawing/FloorDrawing";
 import { FLOOR_PDFS } from "../../../data/pdfMapping";
 import { ZONE_MAPPING } from "../../../data/zones";
 import { BUILDINGS } from "../../../data/buildings";
+import { AnalogTimePicker } from "../../incident-management/pages/IMCreate";
 import "../../../styles/module-shared.css";
 
 const initialForm = {
@@ -33,6 +34,8 @@ const initialForm = {
 
 function SOCreate() {
   const navigate = useNavigate();
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [tempTime, setTempTime] = useState("");
   const [form, setForm] = useState(initialForm);
 
   // Selector data
@@ -311,7 +314,7 @@ const dataURLtoBlob = (dataurl) => {
     if (!form.time) errs.time = "Time is required";
     if (!form.subject) errs.subject = "Required";
     if (!form.safetyCategory) errs.safetyCategory = "Required";
-    if (!form.subcategory) errs.subcategory = "Observation Subcategory is required";
+    if (form.observationType === "NEEDS_ATTENTION" && !form.subcategory) errs.subcategory = "Observation Subcategory is required";
     if ((form.subcategory === "Please Fill" || form.safetyCategory === "Other") && !form.customSubcategory?.trim()) {
       errs.customSubcategory = "Please specify details for other category";
     }
@@ -543,11 +546,14 @@ const dataURLtoBlob = (dataurl) => {
                 Observation Time <span style={{ color: "#E32B50" }}>*</span>
               </label>
               <input
-                type="time"
+                type="text"
+                readOnly
                 className={`mod-form-input ${errors.time ? "error" : ""}`}
                 name="time"
                 value={form.time}
-                onChange={handleChange}
+                onClick={() => { setTempTime(form.time || "12:00"); setShowTimePicker(true); }}
+                placeholder="--:-- --"
+                style={{ cursor: "pointer" }}
               />
               {errors.time && <div className="mod-form-error">{errors.time}</div>}
             </div>
@@ -601,26 +607,28 @@ const dataURLtoBlob = (dataurl) => {
               {errors.safetyCategory && <div className="mod-form-error">{errors.safetyCategory}</div>}
             </div>
 
-            <div className="mod-form-group">
-              <label className="mod-form-label">
-                Observation Subcategory <span style={{ color: "#E32B50" }}>*</span>
-              </label>
-              <select
-                className={`mod-form-select ${errors.subcategory ? "error" : ""}`}
-                name="subcategory"
-                value={form.subcategory}
-                disabled={!form.safetyCategory || availableSubcategories.length === 0}
-                onChange={handleChange}
-              >
-                <option value="">-- Select subcategory --</option>
-                {availableSubcategories.map((sub) => (
-                  <option key={sub} value={sub}>
-                    {sub}
-                  </option>
-                ))}
-              </select>
-              {errors.subcategory && <div className="mod-form-error">{errors.subcategory}</div>}
-            </div>
+            {isNeedsAttention && (
+              <div className="mod-form-group">
+                <label className="mod-form-label">
+                  Observation Subcategory <span style={{ color: "#E32B50" }}>*</span>
+                </label>
+                <select
+                  className={`mod-form-select ${errors.subcategory ? "error" : ""}`}
+                  name="subcategory"
+                  value={form.subcategory}
+                  disabled={!form.safetyCategory || availableSubcategories.length === 0}
+                  onChange={handleChange}
+                >
+                  <option value="">-- Select subcategory --</option>
+                  {availableSubcategories.map((sub) => (
+                    <option key={sub} value={sub}>
+                      {sub}
+                    </option>
+                  ))}
+                </select>
+                {errors.subcategory && <div className="mod-form-error">{errors.subcategory}</div>}
+              </div>
+            )}
           </div>
 
           {(form.subcategory === "Please Fill" || form.safetyCategory === "Other") && (
@@ -640,18 +648,16 @@ const dataURLtoBlob = (dataurl) => {
           )}
 
           {/* Risk Level & Project Name */}
-          <div className="grid-2" style={{ display: "grid", gridTemplateColumns: isNeedsAttention ? "1fr 1fr" : "1fr", gap: 16 }}>
-            {isNeedsAttention && (
-              <div className="mod-form-group">
-                <label className="mod-form-label">Risk level</label>
-                <select className="mod-form-select" name="riskLevel" value={form.riskLevel} onChange={handleChange}>
-                  <option value="LOW">Low</option>
-                  <option value="MEDIUM">Medium</option>
-                  <option value="HIGH">High</option>
-                  <option value="CRITICAL">Critical</option>
-                </select>
-              </div>
-            )}
+          <div className="grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <div className="mod-form-group">
+              <label className="mod-form-label">Risk level</label>
+              <select className="mod-form-select" name="riskLevel" value={form.riskLevel} onChange={handleChange}>
+                <option value="LOW">Low</option>
+                <option value="MEDIUM">Medium</option>
+                <option value="HIGH">High</option>
+                <option value="CRITICAL">Critical</option>
+              </select>
+            </div>
 
             <div className="mod-form-group">
               <label className="mod-form-label">Project Name</label>
@@ -910,6 +916,17 @@ const dataURLtoBlob = (dataurl) => {
           </div>
         </form>
       </div>
+
+      {showTimePicker && (
+        <AnalogTimePicker
+          initialTime={tempTime}
+          onSave={(timeVal) => {
+            setForm(prev => ({ ...prev, time: timeVal }));
+            setShowTimePicker(false);
+          }}
+          onCancel={() => setShowTimePicker(false)}
+        />
+      )}
     </div>
   );
 }

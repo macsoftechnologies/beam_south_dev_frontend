@@ -245,10 +245,10 @@ function SODetails() {
         </button>
       </div>
 
-      <div className="mod-page-header-row">
-        <div>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <span style={{ fontSize: 18, fontWeight: 700, fontFamily: "monospace", color: "var(--nne-brand-blue)" }}>
+      <div className="mod-page-header-row" style={{ background: "var(--bg-card, #fff)", padding: "24px", borderRadius: "12px", border: "1px solid var(--border-color)", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)", marginTop: "16px" }}>
+        <div style={{ flex: "1 1 min-content" }}>
+          <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 12 }}>
+            <span style={{ fontSize: 16, fontWeight: 700, fontFamily: "monospace", color: "var(--nne-brand-blue)", letterSpacing: "0.5px", whiteSpace: "nowrap", background: "var(--bg-body)", padding: "4px 10px", borderRadius: "6px", border: "1px solid var(--border-color)" }}>
               {obs.observationNumber}
             </span>
             <span
@@ -261,17 +261,18 @@ function SODetails() {
                   ? "badge-green"
                   : "badge-blue"
               }`}
+              style={{ fontSize: 12, padding: "4px 10px", fontWeight: 700 }}
             >
               {obs.status}
             </span>
           </div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, margin: "8px 0 0", color: "var(--text-main)" }}>{obs.subject}</h1>
+          <h1 style={{ fontSize: 26, fontWeight: 800, margin: 0, color: "var(--text-main)", lineHeight: "1.3", wordBreak: "break-word" }}>{obs.subject}</h1>
         </div>
 
         {/* Action Buttons Toolbar */}
         <div className="mod-action-toolbar">
           {/* Department & Admin Assign / Reassign Contractor */}
-          {obs.status !== "CLOSED" && obs.status !== "ESCALATED" && isDeptOrAdmin && !isContractor && (
+          {obs.status !== "CLOSED" && obs.status !== "ESCALATED" && obs.status !== "RESOLVED" && isDeptOrAdmin && !isContractor && (
             <button className="mod-btn-primary" style={{ background: "#131E40", borderColor: "#131E40", color: "#fff" }} onClick={() => setShowReassignModal(true)}>
               {obs.assignedContractorId || obs.assignedContractorName ? "Reassign Contractor" : "Assign Contractor"}
             </button>
@@ -318,7 +319,7 @@ function SODetails() {
           )}
 
           {/* Escalate to Incident (Department & Admin only) */}
-          {!isPositive && obs.status !== "ESCALATED" && obs.status !== "CLOSED" && isDeptOrAdmin && !isContractor && (
+          {!isPositive && obs.status !== "ESCALATED" && obs.status !== "CLOSED" && obs.status !== "RESOLVED" && isDeptOrAdmin && !isContractor && (
             <button className="mod-btn-primary" style={{ background: "#E32B50", borderColor: "#E32B50", color: "#fff" }} onClick={() => setShowEscalate(true)}>
               Escalate to Incident
             </button>

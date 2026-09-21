@@ -1,14 +1,15 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import PageHeader from "../../../components/common/PageHeader/PageHeader";
+import { AnalogTimePicker } from "../../incident-management/pages/IMCreate";
 import "../../../styles/module-shared.css";
 import "./SCDashboard.css";
 
 const CreateIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-    <polyline points="14 2 14 8 20 8"/>
-    <line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/>
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+    <polyline points="14 2 14 8 20 8" />
+    <line x1="12" y1="18" x2="12" y2="12" /><line x1="9" y1="15" x2="15" y2="15" />
   </svg>
 );
 
@@ -38,20 +39,20 @@ const SignaturePad = ({ value, onChange, onClear }) => {
     }
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
-    return { 
-      x: (clientX - rect.left) * scaleX, 
-      y: (clientY - rect.top) * scaleY 
+    return {
+      x: (clientX - rect.left) * scaleX,
+      y: (clientY - rect.top) * scaleY
     };
   };
 
   const startDrawing = (e) => {
     const { x, y } = getCoordinates(e);
     const ctx = canvasRef.current.getContext('2d');
-    
+
     // Dynamically get the current text color based on the theme
     const themeColor = getComputedStyle(document.documentElement).getPropertyValue('--text-main').trim();
     ctx.strokeStyle = themeColor || '#0f172a';
-    
+
     ctx.beginPath();
     ctx.moveTo(x, y);
     setIsDrawing(true);
@@ -59,7 +60,7 @@ const SignaturePad = ({ value, onChange, onClear }) => {
 
   const draw = (e) => {
     if (!isDrawing) return;
-    e.preventDefault(); 
+    e.preventDefault();
     const { x, y } = getCoordinates(e);
     const ctx = canvasRef.current.getContext('2d');
     ctx.lineTo(x, y);
@@ -86,23 +87,23 @@ const SignaturePad = ({ value, onChange, onClear }) => {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      <div 
-        style={{ 
-          position: "relative", 
-          border: "1px dashed var(--border-color)", 
-          borderRadius: 6, 
-          height: 120, 
-          background: "var(--bg-card)", 
-          touchAction: "none", 
-          overflow: "hidden" 
+      <div
+        style={{
+          position: "relative",
+          border: "1px dashed var(--border-color)",
+          borderRadius: 6,
+          height: 280,
+          background: "#f8fafc",
+          touchAction: "none",
+          overflow: "hidden"
         }}
       >
         {!value && <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", color: "var(--text-muted)", pointerEvents: "none", fontSize: 14 }}>Draw your signature here</div>}
-        <canvas 
+        <canvas
           ref={canvasRef}
           width={800}
-          height={120}
-          style={{ width: "100%", height: "100%", cursor: "crosshair", display: "block" }}
+          height={280}
+          style={{ width: "100%", height: "100%", cursor: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='black'%3E%3Cpath d='M7.127 22.562l-7.127 1.438 1.438-7.128 5.689 5.69zm1.414-1.414l11.228-11.225-5.69-5.692-11.227 11.227 5.689 5.69zm9.768-21.148l-2.816 2.817 5.691 5.691 2.816-2.819-5.691-5.689z'/%3E%3C/svg%3E\") 0 20, pointer", display: "block" }}
           onMouseDown={startDrawing}
           onMouseMove={draw}
           onMouseUp={stopDrawing}
@@ -113,9 +114,9 @@ const SignaturePad = ({ value, onChange, onClear }) => {
           onTouchCancel={stopDrawing}
         />
       </div>
-      <button 
-        type="button" 
-        style={{ alignSelf: "flex-start", color: "#e11d48", background: "transparent", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 500, padding: 0 }} 
+      <button
+        type="button"
+        style={{ alignSelf: "flex-start", color: "#e11d48", background: "transparent", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 500, padding: 0 }}
         onClick={handleClear}
       >
         Clear signature
@@ -126,36 +127,43 @@ const SignaturePad = ({ value, onChange, onClear }) => {
 
 export default function SCCreate() {
   const navigate = useNavigate();
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [tempTime, setTempTime] = useState("");
+  const [showBriefingTimePicker, setShowBriefingTimePicker] = useState(false);
+  const [tempBriefingTime, setTempBriefingTime] = useState("");
+
+  const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
+  const currentUserName = currentUser.username || currentUser.name || "";
+
   const [form, setForm] = useState({
-    workPackage: "Safety Internal - HSE Spot Check",
+    projectName: "",
     spotCheckRef: "",
     date: "",
     time: "",
     location: "",
-    weather: "",
     activityName: "",
     companyInvolved: "",
     permitId: "",
     ramsId: "",
-    
+
     // PTW
     highRiskActivities: [],
     ifHotWork: "",
     chk1_2: "", chk1_3: "", chk1_4: "", chk1_5: "", chk1_6: "", chk1_7: "", chk1_8: "",
-    
+
     // Communication
     chk2_1: "",
-    briefingDate: "", briefingTime: "", conductedBy: "", participants: "",
+    briefingDate: "", briefingTime: "", conductedBy: currentUserName, participants: "",
     keyTopics: [], otherTopic: "",
     chk2_1_5: "",
     explainNoBriefing: "",
-    
+
     // Summary
     chk3_2: "",
     safetyIssueCreated: "", safetyIssueRef: "",
     findings: "",
     correctiveActions: [{ action: "", responsible: "", dueDate: "", closed: false }],
-    
+
     // Signatures
     foremanName: "", foremanCompany: "", foremanDate: "", foremanSignature: "",
     attachments: [{ desc: "", attached: "" }, { desc: "", attached: "" }, { desc: "", attached: "" }],
@@ -196,7 +204,7 @@ export default function SCCreate() {
     "Working in ATEX area", "Securing facilities (LOTO)", "Excavation works",
     "Using crane or lifting equipment", "N/A"
   ];
-  
+
   const topicOptions = [
     "PPE", "Site hazards", "Task-specific risks", "Recent accidents",
     "Emergency procedures", "Permit To Work content", "Risk Assessment Method Statement content"
@@ -232,7 +240,7 @@ export default function SCCreate() {
       />
 
       <div className="mod-card" style={{ maxWidth: "1000px", margin: "0 auto" }}>
-        
+
         {/* 0 | GENERAL INFORMATION */}
         <div className="mod-card-header" style={{ backgroundColor: "var(--bg-card)", borderBottom: "1px solid var(--border-color)", borderLeft: "4px solid var(--primary-color, #F97316)" }}>
           <h3 className="mod-card-title" style={{ margin: 0, color: "var(--text-main)", fontSize: "1.1rem", fontWeight: "700" }}>0 | GENERAL INFORMATION</h3>
@@ -241,34 +249,43 @@ export default function SCCreate() {
           <table className="sc-table">
             <tbody>
               <tr>
-                <td className="sc-td-label">Work package</td>
-                <td><input className="mod-form-input" name="workPackage" value={form.workPackage} onChange={handleChange} /></td>
+                <td className="sc-td-label">Project Name</td>
+                <td><input className="mod-form-input" name="projectName" value={form.projectName} onChange={handleChange} placeholder="Enter Project Name" /></td>
                 <td className="sc-td-label">Spot check ref.</td>
-                <td><input className="mod-form-input" name="spotCheckRef" value={form.spotCheckRef} onChange={handleChange} /></td>
+                <td><input className="mod-form-input" name="spotCheckRef" value={form.spotCheckRef} onChange={handleChange} placeholder="Enter Spot Check Ref" /></td>
               </tr>
               <tr>
                 <td className="sc-td-label">Date</td>
                 <td><input type="date" className="mod-form-input" name="date" value={form.date} onChange={handleChange} /></td>
                 <td className="sc-td-label">Time</td>
-                <td><input type="time" className="mod-form-input" name="time" value={form.time} onChange={handleChange} /></td>
+                <td>
+                  <input
+                    type="text"
+                    readOnly
+                    className="mod-form-input"
+                    name="time"
+                    value={form.time}
+                    onClick={() => { setTempTime(form.time || "12:00"); setShowTimePicker(true); }}
+                    placeholder="--:-- --"
+                    style={{ cursor: "pointer" }}
+                  />
+                </td>
               </tr>
               <tr>
                 <td className="sc-td-label">Location</td>
-                <td><input className="mod-form-input" name="location" value={form.location} onChange={handleChange} /></td>
-                <td className="sc-td-label">Weather conditions</td>
-                <td><input className="mod-form-input" name="weather" value={form.weather} onChange={handleChange} /></td>
+                <td colSpan="3"><input className="mod-form-input" name="location" value={form.location} onChange={handleChange} placeholder="Enter Location" /></td>
               </tr>
               <tr>
                 <td className="sc-td-label">Activity / Task name</td>
-                <td><input className="mod-form-input" name="activityName" value={form.activityName} onChange={handleChange} /></td>
+                <td><input className="mod-form-input" name="activityName" value={form.activityName} onChange={handleChange} placeholder="Enter Activity / Task Name" /></td>
                 <td className="sc-td-label">Company involved</td>
-                <td><input className="mod-form-input" name="companyInvolved" value={form.companyInvolved} onChange={handleChange} /></td>
+                <td><input className="mod-form-input" name="companyInvolved" value={form.companyInvolved} onChange={handleChange} placeholder="Enter Company Involved" /></td>
               </tr>
               <tr>
                 <td className="sc-td-label">Permit ID</td>
-                <td><input className="mod-form-input" name="permitId" value={form.permitId} onChange={handleChange} /></td>
+                <td><input className="mod-form-input" name="permitId" value={form.permitId} onChange={handleChange} placeholder="Enter Permit ID" /></td>
                 <td className="sc-td-label">RAMS / SPA ID</td>
-                <td><input className="mod-form-input" name="ramsId" value={form.ramsId} onChange={handleChange} /></td>
+                <td><input className="mod-form-input" name="ramsId" value={form.ramsId} onChange={handleChange} placeholder="Enter RAMS / SPA ID" /></td>
               </tr>
             </tbody>
           </table>
@@ -302,7 +319,7 @@ export default function SCCreate() {
               <input type="radio" name="ifHotWork" value="Low Risk" onChange={handleChange} checked={form.ifHotWork === "Low Risk"} /> Low Risk - Spark Spreading
             </label>
           </div>
-          
+
           <table className="sc-table">
             <thead>
               <tr style={{ backgroundColor: "var(--bg-dark)" }}>
@@ -379,15 +396,32 @@ export default function SCCreate() {
             <tbody>
               <tr>
                 <td className="sc-td-label">2.1.1 Date of briefing</td>
-                <td><input type="date" className="mod-form-input" name="briefingDate" value={form.briefingDate} onChange={handleChange} /></td>
-                <td className="sc-td-label">Time</td>
-                <td><input type="time" className="mod-form-input" name="briefingTime" value={form.briefingTime} onChange={handleChange} /></td>
+                {form.chk2_1 === "Yes" ? (
+                  <td colSpan="3"><input type="date" className="mod-form-input" name="briefingDate" value={form.briefingDate} onChange={handleChange} /></td>
+                ) : (
+                  <>
+                    <td><input type="date" className="mod-form-input" name="briefingDate" value={form.briefingDate} onChange={handleChange} /></td>
+                    <td className="sc-td-label">Time</td>
+                    <td>
+                      <input
+                        type="text"
+                        readOnly
+                        className="mod-form-input"
+                        name="briefingTime"
+                        value={form.briefingTime}
+                        onClick={() => { setTempBriefingTime(form.briefingTime || "12:00"); setShowBriefingTimePicker(true); }}
+                        placeholder="--:-- --"
+                        style={{ cursor: "pointer" }}
+                      />
+                    </td>
+                  </>
+                )}
               </tr>
               <tr>
                 <td className="sc-td-label">2.1.2 Conducted by</td>
-                <td><input className="mod-form-input" name="conductedBy" value={form.conductedBy} onChange={handleChange} /></td>
+                <td><input className="mod-form-input" name="conductedBy" value={form.conductedBy} readOnly style={{ cursor: "not-allowed", backgroundColor: "var(--bg-card-hover)", color: "var(--text-muted)" }} placeholder="Enter Name" /></td>
                 <td className="sc-td-label">Number of participants</td>
-                <td><input type="number" className="mod-form-input" name="participants" value={form.participants} onChange={handleChange} /></td>
+                <td><input type="number" className="mod-form-input" name="participants" value={form.participants} onChange={handleChange} placeholder="Enter Number" /></td>
               </tr>
             </tbody>
           </table>
@@ -475,36 +509,6 @@ export default function SCCreate() {
           <div style={{ padding: "16px", backgroundColor: "var(--bg-card)" }}>
             <textarea className="mod-form-textarea" rows="4" name="findings" value={form.findings} onChange={handleChange}></textarea>
           </div>
-          <div style={{ padding: "12px 16px", backgroundColor: "var(--bg-card-hover)", color: "var(--text-main)", fontWeight: "600", fontSize: "0.9rem", borderTop: "1px solid var(--border-color)", borderBottom: "1px solid var(--border-color)" }}>
-            Corrective actions
-          </div>
-          <table className="sc-table">
-            <thead>
-              <tr style={{ backgroundColor: "var(--bg-dark)" }}>
-                <th style={{ color: "var(--text-main)" }}>Action required</th>
-                <th style={{ width: "200px", color: "var(--text-main)" }}>Responsible person</th>
-                <th style={{ width: "150px", color: "var(--text-main)" }}>Due date</th>
-                <th style={{ width: "80px", textAlign: "center", color: "var(--text-main)" }}>Closed</th>
-              </tr>
-            </thead>
-            <tbody>
-              {form.correctiveActions.map((action, idx) => (
-                <tr key={idx}>
-                  <td><input className="mod-form-input" value={action.action} onChange={(e) => handleActionChange(idx, "action", e.target.value)} /></td>
-                  <td><input className="mod-form-input" value={action.responsible} onChange={(e) => handleActionChange(idx, "responsible", e.target.value)} /></td>
-                  <td><input type="date" className="mod-form-input" value={action.dueDate} onChange={(e) => handleActionChange(idx, "dueDate", e.target.value)} /></td>
-                  <td style={{ textAlign: "center" }}><input type="checkbox" checked={action.closed} onChange={(e) => handleActionChange(idx, "closed", e.target.checked)} /></td>
-                </tr>
-              ))}
-              <tr>
-                <td colSpan="4" style={{ textAlign: "center", padding: "8px" }}>
-                  <button type="button" className="mod-btn-outline" style={{ padding: "4px 12px", fontSize: "0.85rem" }} onClick={() => setForm({ ...form, correctiveActions: [...form.correctiveActions, { action: "", responsible: "", dueDate: "", closed: false }] })}>
-                    + Add Action
-                  </button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
         </div>
 
         {/* 3 | SUMMARY - SIGNATURES AND EVIDENCE */}
@@ -513,7 +517,7 @@ export default function SCCreate() {
         </div>
         <div className="mod-card-body" style={{ padding: "0" }}>
           <div style={{ padding: "12px 16px", backgroundColor: "var(--bg-card-hover)", color: "var(--text-main)", fontWeight: "600", fontSize: "0.9rem", borderBottom: "1px solid var(--border-color)" }}>
-            3.1 Foreman / Lead-hand confirmation
+            3.1 Foreman/Supervisor Details
           </div>
           <table className="sc-table">
             <tbody>
@@ -530,10 +534,10 @@ export default function SCCreate() {
               <tr>
                 <td className="sc-td-label" style={{ verticalAlign: "top", paddingTop: "16px" }}>Signature <span style={{ color: "#DC2626" }}>*</span></td>
                 <td colSpan="3">
-                  <SignaturePad 
-                    value={form.foremanSignature} 
-                    onChange={val => setForm(prev => ({...prev, foremanSignature: val}))} 
-                    onClear={() => setForm(prev => ({...prev, foremanSignature: false}))} 
+                  <SignaturePad
+                    value={form.foremanSignature}
+                    onChange={val => setForm(prev => ({ ...prev, foremanSignature: val }))}
+                    onClear={() => setForm(prev => ({ ...prev, foremanSignature: false }))}
                   />
                 </td>
               </tr>
@@ -585,17 +589,17 @@ export default function SCCreate() {
               <tr>
                 <td className="sc-td-label" style={{ verticalAlign: "top", paddingTop: "16px" }}>Signature <span style={{ color: "#DC2626" }}>*</span></td>
                 <td colSpan="3">
-                  <SignaturePad 
-                    value={form.inspectorSignature} 
-                    onChange={val => setForm(prev => ({...prev, inspectorSignature: val}))} 
-                    onClear={() => setForm(prev => ({...prev, inspectorSignature: false}))} 
+                  <SignaturePad
+                    value={form.inspectorSignature}
+                    onChange={val => setForm(prev => ({ ...prev, inspectorSignature: val }))}
+                    onClear={() => setForm(prev => ({ ...prev, inspectorSignature: false }))}
                   />
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
-        
+
         <div style={{ padding: "16px", textAlign: "center", fontSize: "0.85rem", color: "var(--text-muted)" }}>
           Retain the completed paper form and associated evidence in accordance with the applicable project filing process.
         </div>
@@ -605,7 +609,28 @@ export default function SCCreate() {
           <button className="mod-btn-primary" onClick={() => navigate("/spot-checks/list")}>Submit Spot Check</button>
         </div>
       </div>
-      
+
+      {showTimePicker && (
+        <AnalogTimePicker
+          initialTime={tempTime}
+          onSave={(timeVal) => {
+            setForm(prev => ({ ...prev, time: timeVal }));
+            setShowTimePicker(false);
+          }}
+          onCancel={() => setShowTimePicker(false)}
+        />
+      )}
+
+      {showBriefingTimePicker && (
+        <AnalogTimePicker
+          initialTime={tempBriefingTime}
+          onSave={(timeVal) => {
+            setForm(prev => ({ ...prev, briefingTime: timeVal }));
+            setShowBriefingTimePicker(false);
+          }}
+          onCancel={() => setShowBriefingTimePicker(false)}
+        />
+      )}
     </div>
   );
 }

@@ -778,9 +778,10 @@ function Navbar({ toggleSidebar, theme, onThemeChange }) {
         {/* Theme switcher — now controlled via Layout state */}
         <ThemeSwitcher theme={theme} onThemeChange={onThemeChange} />
 
-        {/* Bell with badge */}
-        <div className="bell-wrap" ref={bellRef}>
-          <button
+        {/* Bell with badge (Hidden for Spot Checks) */}
+        {!location.pathname.includes('/spot-check') && (
+          <div className="bell-wrap" ref={bellRef}>
+            <button
             className="navbar-bell"
             title="Notifications"
             aria-label="Notifications"
@@ -876,6 +877,7 @@ function Navbar({ toggleSidebar, theme, onThemeChange }) {
             </div>
           )}
         </div>
+        )}
 
         {/* Avatar + name + dropdown */}
         <div className="avatar-wrap" ref={dropdownRef}>

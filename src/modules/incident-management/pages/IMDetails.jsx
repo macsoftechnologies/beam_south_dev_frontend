@@ -2930,36 +2930,6 @@ export default function IMDetails() {
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px", flexWrap: "wrap" }}>
             <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--text-muted)", background: "var(--bg-dark)", padding: "4px 10px", borderRadius: "6px", border: "1px solid var(--border-color)" }}>{incident.caseNumber || incident.id}</span>
-
-            {(() => {
-              const level = incident.actualSeverity || incident.severity;
-              if (!level) return null;
-              const meta = {
-                1: { label: "Insignificant", color: "#2D9E5A" },
-                2: { label: "Minor", color: "#C07D10" },
-                3: { label: "Moderate", color: "#D97706" },
-                4: { label: "Critical", color: "#E32B50" },
-                5: { label: "Catastrophic", color: "#8F1B32" }
-              };
-              const m = meta[level] || { label: "", color: "#A1A5B3" };
-              return (
-                <span className="inc-pill" style={{ background: m.color, color: "#fff", borderRadius: "6px", fontWeight: 700, padding: "4px 10px", fontSize: "11px" }}>
-                  {m.label.toUpperCase()}
-                </span>
-              );
-            })()}
-
-            {incident.stage && (
-              <span className="inc-pill" style={{ background: "rgba(227, 43, 80, 0.1)", color: "#E32B50", borderRadius: "6px", fontWeight: 700, padding: "4px 10px", fontSize: "11px", border: "1px solid rgba(227, 43, 80, 0.3)" }}>
-                {incident.stage === "INVESTIGATION" ? "INVESTIGATING" : incident.stage.replace("_", " ")}
-              </span>
-            )}
-
-            {incident.investigationLevel && (
-              <span className="inc-pill" title="Investigation required" style={{ background: "rgba(192, 125, 16, 0.14)", color: "#d97706", borderRadius: "6px", fontWeight: 700, padding: "4px 10px", fontSize: "11px", border: "1px solid rgba(192, 125, 16, 0.3)" }}>
-                INVESTIGATION {incident.investigationLevel.toUpperCase()}
-              </span>
-            )}
           </div>
           <div style={{ fontSize: "24px", fontWeight: 800, color: "var(--text-main)", marginBottom: "12px", letterSpacing: "-0.5px" }}>{incident.title || incident.categories?.[0] || incident.caseNumber}</div>
           <div style={{ display: "flex", alignItems: "center", gap: "12px", fontSize: "14px", color: "var(--text-muted)", fontWeight: 500 }}>
@@ -4262,7 +4232,7 @@ export default function IMDetails() {
 
           {!headsUpApproved && !isContractorUser() && (
             <div className="mod-card mb-4" id="headsUp-review-section">
-              <div className="mod-card-header"><span className="mod-card-title">Review: Heads-Up Notification {incident.id}</span></div>
+              <div className="mod-card-header"><span className="mod-card-title">Review: Heads-Up Notification</span></div>
               <div className="mod-card-body">
                 <div className="mod-form-group">
                   <label className="mod-form-label">Review Comments / Revision Reason</label>

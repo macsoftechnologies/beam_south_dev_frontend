@@ -62,20 +62,24 @@ export const spotCheckService = {
   /**
    * Get direct PDF export URL
    * @param {string|number} id
+   * @param {boolean} includeAttachments
    */
-  getPdfUrl(id) {
+  getPdfUrl(id, includeAttachments = true) {
     const base = import.meta.env.VITE_API_URL || 'http://localhost:5200';
     const baseUrlClean = base.replace(/\/development\/m3south\/?$/, '');
-    return `${baseUrlClean}/spot-checks/${id}/export-pdf`;
+    const query = includeAttachments !== undefined ? `?includeAttachments=${includeAttachments}` : '';
+    return `${baseUrlClean}/spot-checks/${id}/export-pdf${query}`;
   },
 
   /**
    * Trigger backend PDF download
    * @param {string|number} id
    * @param {string} fileName
+   * @param {boolean} includeAttachments
    */
-  async downloadSpotCheckPdf(id, fileName = 'HSE_Spot_Check.pdf') {
+  async downloadSpotCheckPdf(id, fileName = 'HSE_Spot_Check.pdf', includeAttachments = true) {
     const response = await api.get(`spot-checks/${id}/download-pdf`, {
+      params: { includeAttachments },
       responseType: 'blob',
     });
     const blob = new Blob([response.data], { type: 'application/pdf' });

@@ -17,15 +17,35 @@ export default function SCView() {
 
   const handleDownloadPdf = async () => {
     if (!spotCheck) return;
+
+    const result = await Swal.fire({
+      title: "Include Attached Files?",
+      text: "Do you want to combine attached document files into the exported PDF? (Selecting 'No' will still display all attachment details on the form without appending the document files).",
+      icon: "question",
+      showCancelButton: true,
+      showDenyButton: true,
+      confirmButtonText: "Yes, Combine Files",
+      denyButtonText: "No, Form Only",
+      cancelButtonText: "Cancel",
+      confirmButtonColor: "#F97316",
+      denyButtonColor: "#64748b"
+    });
+
+    if (result.isDismissed && result.dismiss === Swal.DismissReason.cancel) {
+      return;
+    }
+
+    const includeAttachments = result.isConfirmed;
+
     setIsDownloadingPdf(true);
     try {
       const fileName = `${spotCheck.spotCheckRef || `SC-${spotCheck.id}`}_HSE_Spot_Check.pdf`;
-      await spotCheckService.downloadSpotCheckPdf(spotCheck.id, fileName);
+      await spotCheckService.downloadSpotCheckPdf(spotCheck.id, fileName, includeAttachments);
       showSuccess("PDF export downloaded successfully");
     } catch (err) {
       console.error('Failed to download spot check PDF:', err);
       showError("Failed to export PDF directly. Opening browser preview...");
-      const pdfUrl = spotCheckService.getPdfUrl(spotCheck.id);
+      const pdfUrl = spotCheckService.getPdfUrl(spotCheck.id, includeAttachments);
       window.open(pdfUrl, '_blank');
     } finally {
       setIsDownloadingPdf(false);
@@ -64,8 +84,23 @@ export default function SCView() {
     }
   };
 
+  const currentUser = React.useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem('user')) || {};
+    } catch {
+      return {};
+    }
+  }, []);
+
+  const rawRole = (localStorage.getItem("UserType") || currentUser?.role || currentUser?.userType || currentUser?.user_type || "").toUpperCase();
+  const userRolesArr = Array.isArray(currentUser?.userTypes) ? currentUser.userTypes.map((t) => String(t).toUpperCase()) : [];
+  const allRoles = [rawRole, ...userRolesArr].join(" ");
+  const isContractor = allRoles.includes("CONTRACTOR") || allRoles.includes("SUBCONTRACTOR") || Boolean(currentUser?.subcontractor_id) || Boolean(currentUser?.contractorId) || Boolean(currentUser?.typeId && allRoles.includes("SUBCONTRACTOR"));
+  const isObserver = allRoles.includes("OBSERVER");
+  const isReadOnly = isContractor || isObserver;
+
   const handleStatusToggle = async () => {
-    if (!spotCheck) return;
+    if (!spotCheck || isReadOnly) return;
     const isClosed = spotCheck.status === 'CLOSED' || spotCheck.status === 'COMPLETED';
     const nextStatus = isClosed ? 'IN_PROGRESS' : 'CLOSED';
 
@@ -216,18 +251,20 @@ export default function SCView() {
         </div>
 
         <div className="scview-hero-actions">
-          <button
-            className="scview-btn-status"
-            onClick={handleStatusToggle}
-            disabled={isUpdatingStatus}
-            style={{
-              borderColor: isClosed ? '#10b981' : '#0284c7',
-              color: isClosed ? '#059669' : '#0284c7'
-            }}
-          >
-            <i className={`ti ${isClosed ? 'ti-refresh' : 'ti-circle-check'}`}></i>
-            {isUpdatingStatus ? 'Updating...' : (isClosed ? 'Reopen' : 'Mark Closed')}
-          </button>
+          {!isReadOnly && (
+            <button
+              className="scview-btn-status"
+              onClick={handleStatusToggle}
+              disabled={isUpdatingStatus}
+              style={{
+                borderColor: isClosed ? '#10b981' : '#0284c7',
+                color: isClosed ? '#059669' : '#0284c7'
+              }}
+            >
+              <i className={`ti ${isClosed ? 'ti-refresh' : 'ti-circle-check'}`}></i>
+              {isUpdatingStatus ? 'Updating...' : (isClosed ? 'Reopen' : 'Mark Closed')}
+            </button>
+          )}
 
           <button
             className="scview-btn-download"

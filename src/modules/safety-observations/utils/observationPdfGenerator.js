@@ -96,11 +96,15 @@ export async function generateObservationClientPdf(data, fileName = "Safety_Obse
 
   const container = document.createElement("div");
   container.style.position = "fixed";
-  container.style.top = "-99999px";
-  container.style.left = "-99999px";
+  container.style.left = "0px";
+  container.style.top = "0px";
   container.style.width = "210mm";
+  container.style.zIndex = "99999";
+  container.style.opacity = "1";
+  container.style.pointerEvents = "none";
   container.style.background = "#ffffff";
   container.style.padding = "10mm";
+  container.style.boxSizing = "border-box";
   container.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
   container.style.fontSize = "11px";
   container.style.color = "#1e293b";
@@ -143,10 +147,10 @@ export async function generateObservationClientPdf(data, fileName = "Safety_Obse
       </tr>
     </table>
 
-    <!-- 1. Classification & Location -->
+    <!-- Classification & Location -->
     <div style="border: 1px solid #cbd5e1; border-radius: 4px; margin-bottom: 12px; overflow: hidden;">
       <div style="background: #1e293b; color: #fff; padding: 5px 10px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
-        1 | Observation Classification &amp; Location
+        Observation Classification &amp; Location
       </div>
       <table style="width: 100%; border-collapse: collapse; font-size: 10.5px;">
         <tr>
@@ -184,10 +188,10 @@ export async function generateObservationClientPdf(data, fileName = "Safety_Obse
       </table>
     </div>
 
-    <!-- 2. Finding & Observations -->
+    <!-- Finding & Observations -->
     <div style="border: 1px solid #cbd5e1; border-radius: 4px; margin-bottom: 12px; overflow: hidden;">
       <div style="background: #1e293b; color: #fff; padding: 5px 10px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
-        2 | Finding Description &amp; Immediate Action
+        Finding Description &amp; Immediate Action
       </div>
       <div style="padding: 8px 10px;">
         <div style="font-weight: 700; color: #475569; margin-bottom: 3px;">Detailed Description:</div>
@@ -209,11 +213,11 @@ export async function generateObservationClientPdf(data, fileName = "Safety_Obse
       </div>
     </div>
 
-    <!-- 3. Contractor Resolution (if available) -->
+    <!-- Contractor Resolution (if available) -->
     ${(obs.resolutionNotes || (resolutionPhotos && resolutionPhotos.length > 0)) ? `
     <div style="border: 1px solid #cbd5e1; border-radius: 4px; margin-bottom: 12px; overflow: hidden;">
       <div style="background: #1e293b; color: #fff; padding: 5px 10px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
-        3 | Contractor Corrective Action &amp; Resolution
+        Contractor Corrective Action &amp; Resolution
       </div>
       <div style="padding: 8px 10px;">
         <div style="font-weight: 700; color: #475569; margin-bottom: 3px;">Resolution Notes &amp; Actions Implemented:</div>
@@ -229,10 +233,10 @@ export async function generateObservationClientPdf(data, fileName = "Safety_Obse
       </div>
     </div>` : ""}
 
-    <!-- 4. Sign-off & Closure Verification -->
+    <!-- Sign-off & Closure Verification -->
     <div style="border: 1px solid #cbd5e1; border-radius: 4px; margin-bottom: 12px; overflow: hidden;">
       <div style="background: #1e293b; color: #fff; padding: 5px 10px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
-        4 | HSE Department Sign-off &amp; Final Closure
+        HSE Department Sign-off &amp; Final Closure
       </div>
       <table style="width: 100%; border-collapse: collapse; font-size: 10.5px;">
         <tr>
@@ -255,11 +259,11 @@ export async function generateObservationClientPdf(data, fileName = "Safety_Obse
       </table>
     </div>
 
-    <!-- 5. Audit Trail History -->
+    <!-- Audit Trail History -->
     ${resolvedHistory && resolvedHistory.length > 0 ? `
     <div style="border: 1px solid #cbd5e1; border-radius: 4px; margin-bottom: 12px; overflow: hidden;">
       <div style="background: #1e293b; color: #fff; padding: 5px 10px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
-        5 | Action History &amp; Audit Trail
+        Action History &amp; Audit Trail
       </div>
       <table style="width: 100%; border-collapse: collapse; font-size: 10px;">
         <thead>
@@ -306,7 +310,14 @@ export async function generateObservationClientPdf(data, fileName = "Safety_Obse
       margin: [6, 6, 6, 6],
       filename: fileName,
       image: { type: "jpeg", quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, logging: false },
+      html2canvas: {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        scrollY: 0,
+        scrollX: 0,
+        windowWidth: 1200,
+      },
       jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
       pagebreak: { mode: ["css", "legacy"] },
     };

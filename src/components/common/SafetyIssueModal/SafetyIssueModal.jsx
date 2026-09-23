@@ -166,7 +166,7 @@ export function getSubcategoriesForCategory(categoryName) {
   return ["20.1 Please Fill"];
 }
 
-export default function SafetyIssueModal({ open, onClose, subject, color, itemIndex, initialLocation, onObservationCreated }) {
+export default function SafetyIssueModal({ open, onClose, subject, color, itemIndex, initialLocation, initialContractor, initialObservationType, onObservationCreated }) {
   const fileInputRef = useRef(null);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -187,10 +187,12 @@ export default function SafetyIssueModal({ open, onClose, subject, color, itemIn
   const [specificLocation, setSpecificLocation] = useState("");
   const [safetySubcategory, setSafetySubcategory] = useState("");
   const [customOtherText, setCustomOtherText] = useState("");
-  const [contractorInvolved, setContractorInvolved] = useState("");
+  const [contractorInvolved, setContractorInvolved] = useState(initialContractor || "");
   const [occurrenceDate, setOccurrenceDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [occurrenceTime, setOccurrenceTime] = useState(() => new Date().toTimeString().split(' ')[0].substring(0, 5));
-  const [hseTypology, setHseTypology] = useState("");
+  const [observationType, setObservationType] = useState(initialObservationType || "");
+  const [natureOfFinding, setNatureOfFinding] = useState("UNSAFE_CONDITION");
+  const [riskLevel, setRiskLevel] = useState("MEDIUM");
   const [description, setDescription] = useState("");
 
   const [buildingsList, setBuildingsList] = useState([]);
@@ -221,15 +223,27 @@ export default function SafetyIssueModal({ open, onClose, subject, color, itemIn
       setSubjectInput(subject || "");
       setSafetySubcategory(isOtherCategory ? "" : (availableSubcategories[0] || ""));
       setCustomOtherText("");
+      setObservationType(initialObservationType || "");
+      setNatureOfFinding(initialObservationType === "POSITIVE" ? "GOOD_PRACTICE" : "UNSAFE_CONDITION");
+      setRiskLevel("MEDIUM");
+      setDescription("");
+      setDeadline("");
+      setContractorInvolved(initialContractor || "");
       if (initialLocation) {
         setBuilding(initialLocation.building || "");
         setLevel(initialLocation.level || "");
         setSelectedRooms(initialLocation.selectedRooms || []);
         setSelectedZone(initialLocation.selectedZone || null);
         setSpecificLocation(initialLocation.specificLocation || "");
+      } else {
+        setBuilding("");
+        setLevel("");
+        setSelectedRooms([]);
+        setSelectedZone(null);
+        setSpecificLocation("");
       }
     }
-  }, [open, subject, initialLocation, availableSubcategories, isOtherCategory]);
+  }, [open, subject, initialLocation, initialContractor, initialObservationType, availableSubcategories, isOtherCategory]);
 
   useEffect(() => {
     const loadSelectors = async () => {
@@ -261,6 +275,36 @@ export default function SafetyIssueModal({ open, onClose, subject, color, itemIn
       loadSelectors();
     }
   }, [open]);
+
+  useEffect(() => {
+    if (initialContractor && contractorsList.length > 0) {
+      const matched = contractorsList.find(c => {
+        const cName = c.subContractorName || c.company_name || c.contractor_name || c.name;
+        return (
+          String(c.id || c.contractor_id) === String(initialContractor) ||
+          (cName && cName.toLowerCase().trim() === String(initialContractor).toLowerCase().trim())
+        );
+      });
+      if (matched) {
+        setContractorInvolved(String(matched.id || matched.subContractorName || matched.company_name || matched.name || initialContractor));
+      }
+    }
+  }, [initialContractor, contractorsList]);
+
+  const currentContractorValue = useMemo(() => {
+    if (!contractorInvolved) return "";
+    const matched = contractorsList.find(c => {
+      const cName = c.subContractorName || c.company_name || c.contractor_name || c.name;
+      return (
+        String(c.id || c.contractor_id) === String(contractorInvolved) ||
+        (cName && cName.toLowerCase().trim() === String(contractorInvolved).toLowerCase().trim())
+      );
+    });
+    if (matched) {
+      return matched.id || matched.subContractorName || matched.company_name || matched.name;
+    }
+    return contractorInvolved;
+  }, [contractorInvolved, contractorsList]);
 
   const levels = building ? floorsList.filter(f => String(f.build_id) === String(building)).map(f => f.floor_name) : [];
   
@@ -410,8 +454,18 @@ export default function SafetyIssueModal({ open, onClose, subject, color, itemIn
   }, [open]);
 
   const handleSubmit = async () => {
-    if (!description && !safetySubcategory) {
+    if (!observationType) {
+      alert("Please select an Observation Type (Positive Observation or Needs Attention).");
+      return;
+    }
+
+    if (observationType === "NEEDS_ATTENTION" && !description && !safetySubcategory) {
       alert("Please provide a description or select a subcategory for this safety observation.");
+      return;
+    }
+
+    if (observationType === "POSITIVE" && !description) {
+      alert("Please provide a description for this positive observation.");
       return;
     }
 
@@ -437,12 +491,12 @@ export default function SafetyIssueModal({ open, onClose, subject, color, itemIn
         : safetySubcategory;
 
       const formData = new FormData();
-      formData.append("observationType", "NEEDS_ATTENTION");
-      formData.append("natureOfFinding", "UNSAFE_CONDITION");
-      formData.append("subject", subjectInput || subject || "Safety Issue");
+      formData.append("observationType", observationType);
+      formData.append("natureOfFinding", natureOfFinding);
+      formData.append("subject", subjectInput || subject || "Safety Observation");
       formData.append("safetyCategory", subject || "General");
       formData.append("subcategory", effectiveSubcategory || "");
-      formData.append("riskLevel", color === 'red' ? 'HIGH' : 'MEDIUM');
+      formData.append("riskLevel", riskLevel);
       formData.append("description", description || `${subject}: ${effectiveSubcategory || 'Unsafe condition identified'}`);
       
       if (building) formData.append("buildingId", building);
@@ -487,7 +541,7 @@ export default function SafetyIssueModal({ open, onClose, subject, color, itemIn
   const titleNode = (
     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
       <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: dotColor }}></span>
-      Safety Issue (SI)
+      Safety Observation
     </div>
   );
 
@@ -500,73 +554,202 @@ export default function SafetyIssueModal({ open, onClose, subject, color, itemIn
       scrollable={true}
     >
       <div className="sim-container">
-        {/* Type */}
+
+        {/* ── Observation Type Toggle ── */}
         <div className="sim-row">
-          <label className="sim-label">Type</label>
+          <label className="sim-label">Observation Type <span className="sim-req">*</span></label>
           <div className="sim-input-wrap">
-            <select className="sim-input" disabled defaultValue="Safety Issue (SI)">
-              <option>Safety Issue (SI)</option>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <button
+                type="button"
+                onClick={() => { setObservationType("POSITIVE"); setNatureOfFinding("GOOD_PRACTICE"); }}
+                style={{
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                  padding: "10px 16px",
+                  border: `2px solid ${observationType === "POSITIVE" ? "#7BBE97" : "var(--border-light, #cbd5e1)"}`,
+                  borderRadius: 8,
+                  background: observationType === "POSITIVE" ? "rgba(123,190,151,0.12)" : "transparent",
+                  color: observationType === "POSITIVE" ? "#2D7A4F" : "var(--text-muted, #64748b)",
+                  cursor: "pointer", fontSize: 13, fontWeight: 600,
+                }}
+              >
+                <i className="ti ti-shield-check" style={{ fontSize: 16 }}></i>
+                Positive Observation
+              </button>
+              <button
+                type="button"
+                onClick={() => { setObservationType("NEEDS_ATTENTION"); setNatureOfFinding("UNSAFE_CONDITION"); }}
+                style={{
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                  padding: "10px 16px",
+                  border: `2px solid ${observationType === "NEEDS_ATTENTION" ? "#E32B50" : "var(--border-light, #cbd5e1)"}`,
+                  borderRadius: 8,
+                  background: observationType === "NEEDS_ATTENTION" ? "rgba(227,43,80,0.10)" : "transparent",
+                  color: observationType === "NEEDS_ATTENTION" ? "#E32B50" : "var(--text-muted, #64748b)",
+                  cursor: "pointer", fontSize: 13, fontWeight: 600,
+                }}
+              >
+                <i className="ti ti-alert-triangle" style={{ fontSize: 16 }}></i>
+                Needs Attention
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Nature of Finding (only for Needs Attention) */}
+        {observationType === "NEEDS_ATTENTION" && (
+          <div className="sim-row">
+            <label className="sim-label">Nature of Finding</label>
+            <div className="sim-input-wrap">
+              <select
+                className="sim-input"
+                value={natureOfFinding}
+                onChange={(e) => setNatureOfFinding(e.target.value)}
+              >
+                <option value="UNSAFE_ACT">Unsafe Act (behaviour)</option>
+                <option value="UNSAFE_CONDITION">Unsafe Condition (environment)</option>
+              </select>
+            </div>
+          </div>
+        )}
+
+        {/* ── Date & Time of Occurrence ── */}
+        <div className="sim-row">
+          <label className="sim-label">Observation Date &amp; Time <span className="sim-req">*</span></label>
+          <div className="sim-date-time-group">
+            <div className="sim-input-icon-left flex-1">
+              <input
+                type="date"
+                className="sim-input grey-bg"
+                value={occurrenceDate}
+                onChange={(e) => setOccurrenceDate(e.target.value)}
+              />
+            </div>
+            <input
+              type="time"
+              className="sim-input time-input grey-bg"
+              value={occurrenceTime}
+              onChange={(e) => setOccurrenceTime(e.target.value)}
+            />
+          </div>
+        </div>
+
+        {/* ── Subject ── */}
+        <div className="sim-row">
+          <label className="sim-label">Subject <span className="sim-req">*</span></label>
+          <div className="sim-input-icon-wrap" style={{ flex: 1 }}>
+            <input
+              type="text"
+              className="sim-input"
+              value={subjectInput}
+              onChange={(e) => setSubjectInput(e.target.value)}
+              placeholder="Brief title / subject of observation"
+            />
+            {subjectInput && (
+              <i className="ti ti-x sim-inner-icon clickable" onClick={() => setSubjectInput("")}></i>
+            )}
+          </div>
+        </div>
+
+        {/* ── Safety Category ── */}
+        <div className="sim-row">
+          <label className="sim-label">Safety Category <span className="sim-req">*</span></label>
+          <div className="sim-input-wrap">
+            <input
+              type="text"
+              className="sim-input"
+              readOnly
+              disabled
+              value={subject || ""}
+              style={{ backgroundColor: "rgba(0,0,0,0.04)", cursor: "not-allowed", fontWeight: 500 }}
+            />
+          </div>
+        </div>
+
+        {/* ── Subcategory ── */}
+        {observationType === "NEEDS_ATTENTION" && (
+          <div className="sim-row">
+            <label className="sim-label">Observation Subcategory <span className="sim-req">*</span></label>
+            <div className="sim-input-wrap">
+              {isOtherCategory ? (
+                <input
+                  type="text"
+                  className="sim-input"
+                  placeholder="Enter custom subcategory text (e.g. 20.1 Loose scaffolding clips)..."
+                  value={safetySubcategory}
+                  onChange={(e) => setSafetySubcategory(e.target.value)}
+                  autoFocus
+                />
+              ) : (
+                <select
+                  className="sim-input"
+                  value={safetySubcategory}
+                  onChange={(e) => setSafetySubcategory(e.target.value)}
+                >
+                  <option value="">-- Select subcategory --</option>
+                  {availableSubcategories.map((subcat, idx) => (
+                    <option key={idx} value={subcat}>{subcat}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── Risk Level ── */}
+        <div className="sim-row">
+          <label className="sim-label">Risk Level</label>
+          <div className="sim-input-wrap">
+            <select
+              className="sim-input"
+              value={riskLevel}
+              onChange={(e) => setRiskLevel(e.target.value)}
+            >
+              <option value="LOW">Low</option>
+              <option value="MEDIUM">Medium</option>
+              <option value="HIGH">High</option>
+              <option value="CRITICAL">Critical</option>
             </select>
           </div>
         </div>
 
-        {/* Responsible */}
+        {/* ── Assign to Contractor ── */}
         <div className="sim-row">
-          <label className="sim-label">Responsible <span className="sim-req">*</span></label>
+          <label className="sim-label">Assign to Contractor</label>
           <div className="sim-input-wrap">
-            <select 
-              className="sim-input" 
-              value={contractorInvolved} 
+            <select
+              className="sim-input"
+              value={currentContractorValue}
               onChange={(e) => setContractorInvolved(e.target.value)}
             >
-              <option value="">Select Contractor / Company</option>
+              <option value="">-- Select Contractor --</option>
               {contractorsList.map((c, i) => {
                 const cName = c.subContractorName || c.company_name || c.contractor_name || c.name || `Contractor ${c.id || i}`;
                 return (
-                  <option key={c.id || i} value={c.id || cName}>
-                    {cName}
-                  </option>
+                  <option key={c.id || i} value={c.id || cName}>{cName}</option>
                 );
               })}
             </select>
           </div>
         </div>
 
-        {/* Subject */}
+        {/* ── Description ── */}
         <div className="sim-row">
-          <label className="sim-label">Subject <span className="sim-req">*</span></label>
-          <div className="sim-input-group">
-            <div className="sim-input-icon-wrap">
-              <input 
-                type="text" 
-                className="sim-input" 
-                value={subjectInput} 
-                onChange={(e) => setSubjectInput(e.target.value)} 
-              />
-              {subjectInput && (
-                <i className="ti ti-x sim-inner-icon clickable" onClick={() => setSubjectInput("")}></i>
-              )}
-            </div>
-            <button className="sim-btn-icon"><i className="ti ti-plus"></i></button>
+          <label className="sim-label">Description <span className="sim-req">*</span></label>
+          <div className="sim-input-wrap">
+            <textarea
+              className="sim-textarea"
+              placeholder="Detailed description of what was observed..."
+              rows={4}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            ></textarea>
           </div>
         </div>
 
-        {/* Deadline */}
+        {/* ── Location / Building ── */}
         <div className="sim-row">
-          <label className="sim-label">Deadline</label>
-          <div className="sim-input-wrap sim-w-50">
-            <input 
-              type="date" 
-              className="sim-input grey-bg" 
-              value={deadline}
-              onChange={(e) => setDeadline(e.target.value)}
-            />
-          </div>
-        </div>
-
-        {/* Location/Building */}
-        <div className="sim-row">
-          <label className="sim-label">Location/Building</label>
+          <label className="sim-label">Location / Building</label>
           <div className="sim-input-wrap">
             <select
               className="sim-input"
@@ -580,17 +763,15 @@ export default function SafetyIssueModal({ open, onClose, subject, color, itemIn
             >
               <option value="">Select Building</option>
               {buildingsList.map((item) => (
-                <option key={item.build_id} value={item.build_id}>
-                  {item.building_name}
-                </option>
+                <option key={item.build_id} value={item.build_id}>{item.building_name}</option>
               ))}
             </select>
           </div>
         </div>
 
-        {/* Floor/Level */}
+        {/* ── Floor / Level ── */}
         <div className="sim-row">
-          <label className="sim-label">Floor/Level</label>
+          <label className="sim-label">Floor / Level</label>
           <div className="sim-input-wrap">
             <select
               className="sim-input"
@@ -604,15 +785,13 @@ export default function SafetyIssueModal({ open, onClose, subject, color, itemIn
             >
               <option value="">Select Level</option>
               {levels.map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
+                <option key={item} value={item}>{item}</option>
               ))}
             </select>
           </div>
         </div>
 
-        {/* Specific Location */}
+        {/* ── Floor Drawing + Specific Location ── */}
         <div className="sim-row sim-row-col">
           {selectedPdf && (
             <div style={{ position: "relative", marginBottom: "16px", border: "1px solid var(--border-light, #cbd5e1)", borderRadius: "8px", overflow: "hidden", minHeight: "300px", width: "100%" }}>
@@ -626,151 +805,32 @@ export default function SafetyIssueModal({ open, onClose, subject, color, itemIn
               />
             </div>
           )}
-          <label className="sim-label" style={{ marginBottom: "8px" }}>Specific location / Rooms (Auto-filled from drawing)</label>
+          <label className="sim-label" style={{ marginBottom: "8px" }}>Specific Location / Rooms (Auto-filled from drawing)</label>
           <div className="sim-input-wrap" style={{ width: "100%" }}>
-            <input type="text" className="sim-input grey-bg" value={specificLocation} readOnly />
-          </div>
-        </div>
-
-        {/* Risk Matrix Result */}
-        <div className="sim-row">
-          <label className="sim-label">Risk Matrix Result <span className="sim-req">*</span></label>
-          <div className="sim-input-group">
-            <div className="sim-input-icon-wrap">
-              <input 
-                type="text" 
-                className="sim-input grey-bg" 
-                readOnly 
-                value={color === 'red' ? '🔴 Critical / High Risk' : color === 'yellow' ? '🟡 Medium Risk' : '🟢 Low Risk'} 
-              />
-            </div>
-            <button className="sim-btn-icon pdf-btn"><i className="ti ti-file-type-pdf"></i></button>
-          </div>
-        </div>
-
-        {/* Safety category [24H] */}
-        <div className="sim-row">
-          <label className="sim-label">Safety category <br/><small>[24H]</small> <span className="sim-req">*</span></label>
-          <div className="sim-input-wrap">
-            <input 
-              type="text" 
-              className="sim-input" 
-              readOnly 
-              disabled 
-              value={subject || ""} 
-              style={{ backgroundColor: "rgba(0,0,0,0.04)", cursor: "not-allowed", fontWeight: 500 }}
+            <input
+              type="text"
+              className="sim-input"
+              value={specificLocation}
+              onChange={(e) => setSpecificLocation(e.target.value)}
+              placeholder="e.g. Room 204, Grid B4 (Auto-filled from drawing or enter manually)"
             />
           </div>
         </div>
 
-        {/* Safety subcategory */}
+        {/* ── Deadline ── */}
         <div className="sim-row">
-          <label className="sim-label">Safety subcategory <span className="sim-req">*</span></label>
-          <div className="sim-input-wrap">
-            {isOtherCategory ? (
-              <input 
-                type="text" 
-                className="sim-input"
-                placeholder="Enter custom subcategory text (e.g. 20.1 Loose scaffolding clips)..."
-                value={safetySubcategory}
-                onChange={(e) => setSafetySubcategory(e.target.value)}
-                autoFocus
-              />
-            ) : (
-              <select 
-                className="sim-input"
-                value={safetySubcategory}
-                onChange={(e) => setSafetySubcategory(e.target.value)}
-              >
-                <option value="">Select Subcategory</option>
-                {availableSubcategories.map((subcat, idx) => (
-                  <option key={idx} value={subcat}>
-                    {subcat}
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
-        </div>
-
-        {/* Contractor involved */}
-        <div className="sim-row">
-          <label className="sim-label">Contractor involved <span className="sim-req">*</span></label>
-          <div className="sim-input-wrap">
-            <select 
-              className="sim-input" 
-              value={contractorInvolved} 
-              onChange={(e) => setContractorInvolved(e.target.value)}
-            >
-              <option value="">Select Contractor...</option>
-              {contractorsList.map((c, i) => {
-                const cName = c.subContractorName || c.company_name || c.contractor_name || c.name || `Contractor ${c.id || i}`;
-                return (
-                  <option key={c.id || i} value={c.id || cName}>
-                    {cName}
-                  </option>
-                );
-              })}
-            </select>
-          </div>
-        </div>
-
-        {/* Date and time of occurrence */}
-        <div className="sim-row">
-          <label className="sim-label">Date and time of<br/>occurrence <span className="sim-req">*</span></label>
-          <div className="sim-date-time-group">
-            <div className="sim-input-icon-left flex-1">
-              <input 
-                type="date" 
-                className="sim-input grey-bg" 
-                value={occurrenceDate}
-                onChange={(e) => setOccurrenceDate(e.target.value)}
-              />
-            </div>
-            <input 
-              type="time" 
-              className="sim-input time-input grey-bg" 
-              value={occurrenceTime}
-              onChange={(e) => setOccurrenceTime(e.target.value)}
+          <label className="sim-label">Deadline</label>
+          <div className="sim-input-wrap sim-w-50">
+            <input
+              type="date"
+              className="sim-input grey-bg"
+              value={deadline}
+              onChange={(e) => setDeadline(e.target.value)}
             />
           </div>
         </div>
 
-        {/* HSE Typology */}
-        <div className="sim-row">
-          <label className="sim-label">HSE Typology <span className="sim-req">*</span></label>
-          <div className="sim-input-group">
-            <div className="sim-input-icon-wrap">
-              <select 
-                className="sim-input"
-                value={hseTypology}
-                onChange={(e) => setHseTypology(e.target.value)}
-              >
-                <option value="">Choose HSE Typology...</option>
-                <option value="Unsafe Condition">Unsafe Condition</option>
-                <option value="Unsafe Act">Unsafe Act</option>
-                <option value="Positive Practice">Positive Practice</option>
-                <option value="Near Miss">Near Miss</option>
-              </select>
-            </div>
-            <button className="sim-btn-icon pdf-btn"><i className="ti ti-file-type-pdf"></i></button>
-          </div>
-        </div>
-
-        {/* Description */}
-        <div className="sim-row">
-          <label className="sim-label">Description <span className="sim-req">*</span></label>
-          <div className="sim-input-wrap">
-            <textarea 
-              className="sim-textarea"
-              placeholder="Describe the safety observation / issue in detail..."
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-            ></textarea>
-          </div>
-        </div>
-
-        {/* Attachments */}
+        {/* ── Attachments ── */}
         <div className="sim-row">
           <label className="sim-label">Attachments</label>
           <div className="sim-input-wrap">

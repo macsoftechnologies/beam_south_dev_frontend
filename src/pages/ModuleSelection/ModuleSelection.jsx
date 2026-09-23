@@ -138,12 +138,7 @@ function ModuleSelection() {
   const isDepartment = allRoles.includes("DEPARTMENT") || allRoles.includes("OPERATOR") || allRoles.includes("SITE_HSE") || allRoles.includes("SAFETY") || allRoles.includes("HSE");
   const isDeptOrAdmin = (isAdmin || isDepartment) && !isContractor && !isObserver;
 
-  const visibleModules = modules.filter((mod) => {
-    if (mod.id === "safety-inspection" || mod.id === "spot-checks") {
-      return isDeptOrAdmin;
-    }
-    return true;
-  });
+  const visibleModules = modules;
 
   useEffect(() => {
     const handleScroll = () => {

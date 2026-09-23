@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { safetyInspectionService } from "../../../services/safetyInspectionService";
+import { getBuildings, getFloors, getRooms } from "../../../services/authService";
 import "./SIDashboard.css"; // Reusing dashboard CSS
 
 export default function SIList() {
@@ -12,12 +13,24 @@ export default function SIList() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalRecords, setTotalRecords] = useState(0);
 
-  const [filter, setFilter] = useState({ q: '', contractor: '', status: '' });
+  const [filter, setFilter] = useState({
+    q: '',
+    contractor: '',
+    status: '',
+    building: '',
+    floor: '',
+    room: ''
+  });
   const [deleteModalId, setDeleteModalId] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [downloadingId, setDownloadingId] = useState(null);
 
-  const currentUser = React.useMemo(() => {
+  // Selector data
+  const [buildingsList, setBuildingsList] = useState([]);
+  const [floorsList, setFloorsList] = useState([]);
+  const [roomsList, setRoomsList] = useState([]);
+
+  const currentUser = useMemo(() => {
     try {
       return JSON.parse(localStorage.getItem('user')) || {};
     } catch {
@@ -28,15 +41,115 @@ export default function SIList() {
   const roleUpper = String(currentUser?.role || '').toUpperCase();
   const isAdmin = roleUpper.includes('ADMIN') || roleUpper.includes('SUPERADMIN');
 
+  useEffect(() => {
+    const loadSelectors = async () => {
+      try {
+        const [bRes, fRes, rRes] = await Promise.all([
+          getBuildings(1, 1000),
+          getFloors(1, 1000),
+          getRooms(1, 20000),
+        ]);
+        setBuildingsList(bRes?.data ?? []);
+        setFloorsList(fRes?.data ?? []);
+        setRoomsList(rRes?.data?.rows ?? rRes?.data ?? rRes ?? []);
+      } catch (err) {
+        console.error("Failed to load location filters data", err);
+      }
+    };
+    loadSelectors();
+  }, []);
+
+  // Cascading floor options based on selected building
+  const availableFloors = useMemo(() => {
+    if (!filter.building) {
+      return floorsList;
+    }
+    return floorsList.filter(f => String(f.build_id) === String(filter.building));
+  }, [filter.building, floorsList]);
+
+  // Cascading room options based on selected building & floor
+  const availableRooms = useMemo(() => {
+    let rooms = roomsList;
+
+    if (filter.building) {
+      const buildingFloorIds = new Set(
+        floorsList
+          .filter(f => String(f.build_id) === String(filter.building))
+          .map(f => String(f.fl_id))
+      );
+      rooms = rooms.filter(r => 
+        (r.building_id && String(r.building_id) === String(filter.building)) ||
+        (r.fl_id && buildingFloorIds.has(String(r.fl_id)))
+      );
+    }
+
+    if (filter.floor) {
+      const matchedFloor = floorsList.find(f => f.floor_name === filter.floor);
+      if (matchedFloor) {
+        rooms = rooms.filter(r => String(r.fl_id) === String(matchedFloor.fl_id));
+      } else {
+        rooms = rooms.filter(r => 
+          String(r.floor_name || r.level || "").toLowerCase() === filter.floor.toLowerCase()
+        );
+      }
+    }
+
+    const seen = new Set();
+    const uniqueRooms = [];
+    rooms.forEach(r => {
+      const rName = r.room_name || r.name || r.room;
+      if (rName && !seen.has(rName.trim())) {
+        seen.add(rName.trim());
+        uniqueRooms.push({ ...r, displayName: rName.trim() });
+      }
+    });
+
+    return uniqueRooms.sort((a, b) => a.displayName.localeCompare(b.displayName, undefined, { numeric: true }));
+  }, [filter.building, filter.floor, roomsList, floorsList]);
+
+  const handleBuildingChange = (e) => {
+    const val = e.target.value;
+    setFilter(prev => ({
+      ...prev,
+      building: val,
+      floor: '',
+      room: ''
+    }));
+    setPage(1);
+  };
+
+  const handleFloorChange = (e) => {
+    const val = e.target.value;
+    setFilter(prev => ({
+      ...prev,
+      floor: val,
+      room: ''
+    }));
+    setPage(1);
+  };
+
+  const handleRoomChange = (e) => {
+    const val = e.target.value;
+    setFilter(prev => ({
+      ...prev,
+      room: val
+    }));
+    setPage(1);
+  };
+
   const fetchInspections = useCallback(async () => {
     setIsLoading(true);
     try {
+      const selectedBuildingObj = buildingsList.find(b => String(b.build_id || b.id) === String(filter.building));
       const data = await safetyInspectionService.getInspections({
         page,
         limit,
         search: filter.q,
         contractor: filter.contractor,
         status: filter.status,
+        building: selectedBuildingObj?.building_name || filter.building || undefined,
+        floor: filter.floor || undefined,
+        room: filter.room || undefined,
       });
 
       setInspections(data.inspections || []);
@@ -47,7 +160,7 @@ export default function SIList() {
     } finally {
       setIsLoading(false);
     }
-  }, [page, limit, filter]);
+  }, [page, limit, filter, buildingsList]);
 
   useEffect(() => {
     fetchInspections();
@@ -104,6 +217,13 @@ export default function SIList() {
     }
   };
 
+  const rawRole = (localStorage.getItem("UserType") || currentUser?.role || currentUser?.userType || currentUser?.user_type || "").toUpperCase();
+  const userRolesArr = Array.isArray(currentUser?.userTypes) ? currentUser.userTypes.map((t) => String(t).toUpperCase()) : [];
+  const allRoles = [rawRole, ...userRolesArr].join(" ");
+  const isContractor = allRoles.includes("CONTRACTOR") || allRoles.includes("SUBCONTRACTOR") || Boolean(currentUser?.subcontractor_id) || Boolean(currentUser?.contractorId) || Boolean(currentUser?.typeId && allRoles.includes("SUBCONTRACTOR"));
+  const isObserver = allRoles.includes("OBSERVER");
+  const isReadOnly = isContractor || isObserver;
+
   return (
     <div className="si-dashboard-container">
       <div className="dash-hero">
@@ -114,15 +234,17 @@ export default function SIList() {
           </div>
         </div>
         <div>
-          <button className="mod-btn-primary" onClick={() => navigate("/safety-inspection/create")}>+ New Inspection</button>
+          {!isReadOnly && (
+            <button className="mod-btn-primary" onClick={() => navigate("/safety-inspection/create")}>+ New Inspection</button>
+          )}
         </div>
       </div>
 
       <div className="panel dash-tablecard">
-        <div className="dd-filters">
+        <div className="dd-filters" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
           <input 
             className="df-input" 
-            style={{ flex: 1 }} 
+            style={{ flex: '1 1 200px', minWidth: '180px' }} 
             placeholder="Search Reference, Building, Location, Inspector..." 
             value={filter.q} 
             onChange={e => {
@@ -132,6 +254,46 @@ export default function SIList() {
           />
           <select 
             className="df-input" 
+            style={{ minWidth: '130px' }}
+            value={filter.building} 
+            onChange={handleBuildingChange}
+          >
+            <option value="">All Buildings</option>
+            {buildingsList.map(b => (
+              <option key={b.build_id || b.id} value={b.build_id || b.id}>
+                {b.building_name}
+              </option>
+            ))}
+          </select>
+          <select 
+            className="df-input" 
+            style={{ minWidth: '130px' }}
+            value={filter.floor} 
+            onChange={handleFloorChange}
+          >
+            <option value="">All Floors</option>
+            {availableFloors.map((f, idx) => (
+              <option key={f.fl_id || idx} value={f.floor_name}>
+                {f.floor_name}
+              </option>
+            ))}
+          </select>
+          <select 
+            className="df-input" 
+            style={{ minWidth: '130px' }}
+            value={filter.room} 
+            onChange={handleRoomChange}
+          >
+            <option value="">All Rooms</option>
+            {availableRooms.map((r, idx) => (
+              <option key={r.id || idx} value={r.displayName}>
+                {r.displayName}
+              </option>
+            ))}
+          </select>
+          <select 
+            className="df-input" 
+            style={{ minWidth: '120px' }}
             value={filter.status} 
             onChange={e => {
               setFilter({ ...filter, status: e.target.value });
@@ -143,6 +305,20 @@ export default function SIList() {
             <option value="IN_PROGRESS">In Progress</option>
             <option value="DRAFT">Draft</option>
           </select>
+          {(filter.q || filter.status || filter.building || filter.floor || filter.room) && (
+            <button
+              type="button"
+              className="mod-btn-outline"
+              style={{ height: '30px', padding: '0 8px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}
+              onClick={() => {
+                setFilter({ q: '', status: '', building: '', floor: '', room: '', contractor: '' });
+                setPage(1);
+              }}
+              title="Reset all filters"
+            >
+              <i className="ti ti-x"></i> Clear
+            </button>
+          )}
         </div>
 
         <div className="table-wrap">
@@ -162,13 +338,13 @@ export default function SIList() {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={isAdmin ? 8 : 7} style={{ textAlign: 'center', padding: 32, color: 'var(--text-muted)' }}>
+                  <td colSpan={8} style={{ textAlign: 'center', padding: 32, color: 'var(--text-muted)' }}>
                     <i className="ti ti-loader ti-spin" style={{ marginRight: 8 }}></i> Loading inspections...
                   </td>
                 </tr>
               ) : inspections.length === 0 ? (
                 <tr>
-                  <td colSpan={isAdmin ? 8 : 7} style={{ textAlign: 'center', padding: 32, color: 'var(--text-muted)' }}>
+                  <td colSpan={8} style={{ textAlign: 'center', padding: 32, color: 'var(--text-muted)' }}>
                     No safety inspections found matching the filter criteria.
                   </td>
                 </tr>
@@ -289,7 +465,7 @@ export default function SIList() {
                           </button>
 
                           {/* Delete Button */}
-                          {isAdmin && (
+                          {isAdmin && !isReadOnly && (
                             <button
                               type="button"
                               className="mod-btn-icon-danger"

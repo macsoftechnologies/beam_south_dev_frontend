@@ -38,11 +38,15 @@ function SODetails() {
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
 
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
-  const rawRole = (localStorage.getItem("UserType") || currentUser?.role || currentUser?.userType || currentUser?.user_type || "").toLowerCase();
-  const isContractor = rawRole.includes("contractor") || rawRole.includes("subcontractor") || Boolean(currentUser?.subcontractor_id) || Boolean(currentUser?.contractorId) || Boolean(currentUser?.typeId && rawRole.includes("subcontractor"));
-  const isAdmin = rawRole.includes("admin") || rawRole.includes("superadmin") || Boolean(currentUser?.isSuperAdmin) || (Array.isArray(currentUser?.userTypes) && currentUser.userTypes.some(t => String(t).toLowerCase().includes("admin")));
-  const isDepartment = rawRole.includes("department") || rawRole.includes("operator") || rawRole.includes("site_hse") || rawRole.includes("safety") || rawRole.includes("hse");
-  const isDeptOrAdmin = (isAdmin || isDepartment || !isContractor) && !isContractor;
+  const rawRole = (localStorage.getItem("UserType") || currentUser?.role || currentUser?.userType || currentUser?.user_type || "").toUpperCase();
+  const userRolesArr = Array.isArray(currentUser?.userTypes) ? currentUser.userTypes.map((t) => String(t).toUpperCase()) : [];
+  const allRoles = [rawRole, ...userRolesArr].join(" ");
+  const isContractor = allRoles.includes("CONTRACTOR") || allRoles.includes("SUBCONTRACTOR") || Boolean(currentUser?.subcontractor_id) || Boolean(currentUser?.contractorId) || Boolean(currentUser?.typeId && allRoles.includes("SUBCONTRACTOR"));
+  const isObserver = allRoles.includes("OBSERVER");
+  const isAdmin = allRoles.includes("ADMIN") || allRoles.includes("SUPERADMIN") || Boolean(currentUser?.isSuperAdmin);
+  const isDepartment = allRoles.includes("DEPARTMENT") || allRoles.includes("OPERATOR") || allRoles.includes("SITE_HSE") || allRoles.includes("SAFETY") || allRoles.includes("HSE");
+  const isDeptOrAdmin = (isAdmin || isDepartment) && !isContractor && !isObserver;
+  const isReadOnly = isContractor || isObserver;
 
   const handleDeleteObservation = async () => {
     try {
@@ -318,7 +322,7 @@ function SODetails() {
           )}
 
           {/* Department & Admin Edit Observation Option (Disabled when CLOSED or ESCALATED) */}
-          {String(obs.status || "").toUpperCase() !== "CLOSED" && String(obs.status || "").toUpperCase() !== "ESCALATED" && isDeptOrAdmin && !isContractor && (
+          {String(obs.status || "").toUpperCase() !== "CLOSED" && String(obs.status || "").toUpperCase() !== "ESCALATED" && isDeptOrAdmin && !isReadOnly && (
             <button
               type="button"
               className="mod-btn-outline"
@@ -340,14 +344,14 @@ function SODetails() {
           )}
 
           {/* Department & Admin Assign / Reassign Contractor */}
-          {obs.status !== "CLOSED" && obs.status !== "ESCALATED" && obs.status !== "RESOLVED" && isDeptOrAdmin && !isContractor && (
+          {obs.status !== "CLOSED" && obs.status !== "ESCALATED" && obs.status !== "RESOLVED" && isDeptOrAdmin && !isReadOnly && (
             <button className="mod-btn-primary" style={{ background: "#131E40", borderColor: "#131E40", color: "#fff" }} onClick={() => setShowReassignModal(true)}>
               {obs.assignedContractorId || obs.assignedContractorName ? "Reassign Contractor" : "Assign Contractor"}
             </button>
           )}
 
-          {/* Contractor Accept / Reject (or Admin) */}
-          {(obs.status === "ASSIGNED" || obs.status === "OPEN" || obs.status === "REJECTED") && (isContractor || isAdmin) && (
+          {/* Accept / Reject (Admin only, not read-only) */}
+          {(obs.status === "ASSIGNED" || obs.status === "OPEN" || obs.status === "REJECTED") && !isReadOnly && isAdmin && (
             <>
               <button
                 className="mod-btn-primary"
@@ -372,29 +376,29 @@ function SODetails() {
             </>
           )}
 
-          {/* Contractor Submit Resolution */}
-          {(obs.status === "ACCEPTED" || obs.status === "IN_PROGRESS") && (isContractor || isAdmin) && (
+          {/* Submit Resolution (Admin only, not read-only) */}
+          {(obs.status === "ACCEPTED" || obs.status === "IN_PROGRESS") && !isReadOnly && isAdmin && (
             <button className="mod-btn-primary" style={{ background: "#2D7A4F", borderColor: "#2D7A4F", color: "#fff" }} onClick={() => setShowResolveModal(true)}>
               Submit Resolution
             </button>
           )}
 
           {/* Department & Admin Close Observation */}
-          {(obs.status === "RESOLVED" || obs.status === "ACCEPTED") && isDeptOrAdmin && !isContractor && (
+          {(obs.status === "RESOLVED" || obs.status === "ACCEPTED") && isDeptOrAdmin && !isReadOnly && (
             <button className="mod-btn-primary" style={{ background: "#131E40", borderColor: "#131E40", color: "#fff" }} onClick={() => setShowCloseModal(true)}>
               Sign-Off & Close
             </button>
           )}
 
           {/* Escalate to Incident (Department & Admin only) */}
-          {!isPositive && obs.status !== "ESCALATED" && obs.status !== "CLOSED" && obs.status !== "RESOLVED" && isDeptOrAdmin && !isContractor && (
+          {!isPositive && obs.status !== "ESCALATED" && obs.status !== "CLOSED" && obs.status !== "RESOLVED" && isDeptOrAdmin && !isReadOnly && (
             <button className="mod-btn-primary" style={{ background: "#E32B50", borderColor: "#E32B50", color: "#fff" }} onClick={() => setShowEscalate(true)}>
               Escalate to Incident
             </button>
           )}
 
           {/* Admin & SuperAdmin Delete Observation */}
-          {isAdmin && (
+          {isAdmin && !isReadOnly && (
             <button
               className="mod-btn-outline"
               style={{

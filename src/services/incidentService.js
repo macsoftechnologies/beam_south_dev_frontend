@@ -143,11 +143,12 @@ export const getIncidentStats = async (filters = {}) => {
 };
 
 // Export / Download Incident PDF from backend (all or specific form: headsUp, initialReport, investigation)
-export const exportIncidentPdf = async (incidentId, formType = "all", includeWitnesses = false) => {
+export const exportIncidentPdf = async (incidentId, formType = "all", includeWitnesses = false, includeAttachments = true) => {
   const params = new URLSearchParams();
   if (formType && formType !== "all") params.append("form", formType);
   if (includeWitnesses) params.append("includeWitnesses", "true");
   else params.append("includeWitnesses", "false");
+  if (includeAttachments !== undefined) params.append("includeAttachments", includeAttachments ? "true" : "false");
   const query = params.toString() ? `?${params.toString()}` : "";
   try {
     const response = await api.get(`/incidents/${incidentId}/export-pdf${query}`, {

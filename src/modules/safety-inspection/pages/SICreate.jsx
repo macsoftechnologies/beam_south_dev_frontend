@@ -255,16 +255,36 @@ export default function SICreate() {
     }
   };
 
+  const handleGoodPracticeClick = (idx) => {
+    const isOther = CHECKLIST_ITEMS[idx].toLowerCase().includes('other');
+    const effectiveSubject = isOther && otherCustomTexts[idx]?.trim()
+      ? `20. Other - ${otherCustomTexts[idx].trim()}`
+      : CHECKLIST_ITEMS[idx];
+    setSelections(prev => ({ ...prev, [idx]: 'green' }));
+    setSafetyIssueModalData({
+      subject: effectiveSubject,
+      color: 'green',
+      observationType: 'POSITIVE',
+      itemIndex: idx
+    });
+    setOpenInfoIdx(null);
+    setOpenWrenchIdx(null);
+    setOpenPaperclipIdx(null);
+  };
+
   const handleObservationCreated = (createdObs, itemIdx) => {
     if (itemIdx === undefined || itemIdx === null) return;
     const obsNum = createdObs?.observationNumber || (createdObs?.id ? `SO${createdObs.id}` : 'SO');
-    const subcatText = createdObs?.subcategory || createdObs?.subject || 'Safety Issue';
+    const isPositive = safetyIssueModalData?.color === 'green' || createdObs?.observationType === 'POSITIVE';
+    const subcatText = createdObs?.subcategory || createdObs?.subject || (isPositive ? 'Good Practice' : 'Safety Issue');
     const issueTag = {
       id: obsNum,
-      type: safetyIssueModalData?.color === 'red' ? 'red' : 'orange',
+      type: isPositive ? 'green' : (safetyIssueModalData?.color === 'red' ? 'red' : 'orange'),
       text: `${obsNum}: ${subcatText}`,
       observationId: createdObs?.id,
-      observationNumber: obsNum
+      observationNumber: obsNum,
+      observationType: isPositive ? 'POSITIVE' : (createdObs?.observationType || 'NEEDS_ATTENTION'),
+      isGoodPractice: isPositive
     };
     setItemIssues(prev => ({
       ...prev,
@@ -272,7 +292,7 @@ export default function SICreate() {
     }));
     setSelections(prev => ({
       ...prev,
-      [itemIdx]: safetyIssueModalData?.color || 'yellow'
+      [itemIdx]: safetyIssueModalData?.color || (isPositive ? 'green' : 'yellow')
     }));
   };
 
@@ -296,6 +316,8 @@ export default function SICreate() {
         const effectiveName = isOther && otherCustomTexts[idx]?.trim()
           ? `20. Other - ${otherCustomTexts[idx].trim()}`
           : item;
+        const issuesForIdx = itemIssues[idx] || [];
+        const hasGoodPractice = issuesForIdx.some(iss => iss.isGoodPractice || iss.type === 'green' || iss.observationType === 'POSITIVE');
         return {
           itemIndex: idx + 1,
           categoryName: effectiveName,
@@ -303,7 +325,8 @@ export default function SICreate() {
           comment: comments[idx] || '',
           commentAuthor: currentUser?.name || currentUser?.username || 'Safety Inspector',
           photos: itemPhotos[idx] || [],
-          issues: itemIssues[idx] || []
+          issues: issuesForIdx,
+          isGoodPractice: hasGoodPractice
         };
       });
 
@@ -547,26 +570,30 @@ export default function SICreate() {
 
                     {itemIssues[idx] && itemIssues[idx].length > 0 && (
                       <div className="si-issues-list">
-                        {itemIssues[idx].map((iss, issIdx) => (
-                          <span 
-                            key={issIdx} 
-                            style={{ 
-                              display: 'inline-flex', 
-                              alignItems: 'center', 
-                              gap: '6px', 
-                              backgroundColor: iss.type === 'red' ? 'rgba(239, 68, 68, 0.12)' : 'rgba(245, 158, 11, 0.12)', 
-                              color: iss.type === 'red' ? '#dc2626' : '#d97706', 
-                              border: `1px solid ${iss.type === 'red' ? 'rgba(239, 68, 68, 0.3)' : 'rgba(245, 158, 11, 0.3)'}`,
-                              borderRadius: '4px',
-                              padding: '2px 8px',
-                              fontSize: '12px',
-                              fontWeight: 600
-                            }}
-                          >
-                            <i className="ti ti-alert-triangle" style={{ fontSize: '13px' }}></i>
-                            {iss.text || iss.id}
-                          </span>
-                        ))}
+                        {itemIssues[idx].map((iss, issIdx) => {
+                          const isGreen = iss.type === 'green';
+                          const isRed = iss.type === 'red';
+                          return (
+                            <span 
+                              key={issIdx} 
+                              style={{ 
+                                display: 'inline-flex', 
+                                alignItems: 'center', 
+                                gap: '6px', 
+                                backgroundColor: isGreen ? 'rgba(34, 197, 94, 0.12)' : (isRed ? 'rgba(239, 68, 68, 0.12)' : 'rgba(245, 158, 11, 0.12)'), 
+                                color: isGreen ? '#16a34a' : (isRed ? '#dc2626' : '#d97706'), 
+                                border: `1px solid ${isGreen ? 'rgba(34, 197, 94, 0.3)' : (isRed ? 'rgba(239, 68, 68, 0.3)' : 'rgba(245, 158, 11, 0.3)')}`,
+                                borderRadius: '4px',
+                                padding: '2px 8px',
+                                fontSize: '12px',
+                                fontWeight: 600
+                              }}
+                            >
+                              <i className={isGreen ? 'ti ti-shield-check' : 'ti ti-alert-triangle'} style={{ fontSize: '13px' }}></i>
+                              {iss.text || iss.id}
+                            </span>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
@@ -599,7 +626,14 @@ export default function SICreate() {
                         </div>
                         
                         <div className="si-tooltip-wrap">
-                          <span className="si-icon-btn" title="Good Practice" onClick={(e) => e.stopPropagation()}>
+                          <span 
+                            className={`si-icon-btn ${selections[idx] === 'green' && itemIssues[idx]?.some(iss => iss.type === 'green') ? 'active-icon' : ''}`} 
+                            title="Good Practice" 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleGoodPracticeClick(idx);
+                            }}
+                          >
                             <i className="ti ti-medal"></i>
                           </span>
                           <div className="si-tooltip">Good practice</div>
@@ -631,7 +665,6 @@ export default function SICreate() {
                               }}>
                                 <i className="ti ti-alert-triangle"></i> Safety Issue
                               </div>
-                              <div className="si-dropdown-item"><i className="ti ti-link"></i> Link to existing task</div>
                             </div>
                           )}
                         </div>
@@ -651,14 +684,8 @@ export default function SICreate() {
                           </span>
                           <div className="si-tooltip">Attachments</div>
                           {openPaperclipIdx === idx && (
-                            <div className="si-popover-menu si-paperclip-menu" style={{ minWidth: '220px' }} onClick={(e) => e.stopPropagation()}>
+                            <div className="si-popover-menu si-paperclip-menu" style={{ minWidth: '190px' }} onClick={(e) => e.stopPropagation()}>
                               <div className="si-dropdown-item" onClick={() => { handleFileUploadClick(idx); setOpenInfoIdx(null); }}><i className="ti ti-upload"></i> Upload from computer</div>
-                              <div className="si-dropdown-item"><i className="ti ti-folder"></i> Box</div>
-                              <div className="si-dropdown-item"><i className="ti ti-clipboard"></i> Paste from clipboard</div>
-                              <div className="si-dropdown-item"><i className="ti ti-border-all"></i> Annotate drawing</div>
-                              <div className="si-dropdown-item"><i className="ti ti-photo"></i> Photo album</div>
-                              <div className="si-dropdown-item"><i className="ti ti-360"></i> 360° photo</div>
-                              <div className="si-dropdown-item"><i className="ti ti-map-pin"></i> SiteWalk</div>
                             </div>
                           )}
                         </div>
@@ -726,6 +753,7 @@ export default function SICreate() {
         subject={safetyIssueModalData?.subject} 
         color={safetyIssueModalData?.color}
         itemIndex={safetyIssueModalData?.itemIndex}
+        initialObservationType={safetyIssueModalData?.observationType || (safetyIssueModalData?.color === 'green' ? 'POSITIVE' : '')}
         initialLocation={{ building, level, specificLocation, selectedRooms, selectedZone }}
         onObservationCreated={handleObservationCreated}
         onClose={() => setSafetyIssueModalData(null)} 

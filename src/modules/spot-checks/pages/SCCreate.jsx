@@ -179,7 +179,6 @@ export default function SCCreate() {
 
   const [form, setForm] = useState({
     projectName: "M3SOUTH",
-    spotCheckRef: "",
     date: todayDenmark,
     time: "",
     buildingName: "",
@@ -416,7 +415,12 @@ export default function SCCreate() {
       if (form.chk3_2 === "No" && form.safetyIssueCreated === "No" && !finalSafetyIssueRef) {
         try {
           const bName = form.buildingName || (buildingsList.find(b => String(b.build_id || b.id) === String(building))?.building_name || "");
-          const contractorObj = contractorsList.find(c => c.name === form.companyInvolved || c.company_name === form.companyInvolved);
+          const contractorObj = contractorsList.find(c => 
+            c.name === form.companyInvolved || 
+            c.company_name === form.companyInvolved || 
+            c.subContractorName === form.companyInvolved || 
+            c.contractor_name === form.companyInvolved
+          );
           const obsRes = await observationService.createObservation({
             observationType: "NEEDS_ATTENTION",
             natureOfFinding: "UNSAFE_CONDITION",
@@ -548,9 +552,7 @@ export default function SCCreate() {
             <tbody>
               <tr>
                 <td className="sc-td-label">Project Name</td>
-                <td><input className="mod-form-input" name="projectName" value={form.projectName} onChange={handleChange} placeholder="Enter Project Name" /></td>
-                <td className="sc-td-label">Spot check ref.</td>
-                <td><input className="mod-form-input" name="spotCheckRef" value={form.spotCheckRef} onChange={handleChange} placeholder="Enter Spot Check Ref" /></td>
+                <td colSpan="3"><input className="mod-form-input" name="projectName" value={form.projectName} onChange={handleChange} placeholder="Enter Project Name" /></td>
               </tr>
               <tr>
                 <td className="sc-td-label">Date</td>
@@ -570,14 +572,25 @@ export default function SCCreate() {
                 </td>
               </tr>
               <tr>
-                <td className="sc-td-label">Location</td>
-                <td colSpan="3"><input className="mod-form-input" name="location" value={form.location} onChange={handleChange} placeholder="Enter Location" /></td>
-              </tr>
-              <tr>
                 <td className="sc-td-label">Activity / Task name</td>
                 <td><input className="mod-form-input" name="activityName" value={form.activityName} onChange={handleChange} placeholder="Enter Activity / Task Name" /></td>
                 <td className="sc-td-label">Company involved</td>
-                <td><input className="mod-form-input" name="companyInvolved" value={form.companyInvolved} onChange={handleChange} placeholder="Enter Company Involved" /></td>
+                <td>
+                  <select
+                    className="mod-form-input"
+                    name="companyInvolved"
+                    value={form.companyInvolved}
+                    onChange={handleChange}
+                  >
+                    <option value="">Select Contractor / Company</option>
+                    {contractorsList.map((c, i) => {
+                      const cName = c.subContractorName || c.company_name || c.contractor_name || c.name || `Contractor ${c.id || i}`;
+                      return (
+                        <option key={c.id || i} value={cName}>{cName}</option>
+                      );
+                    })}
+                  </select>
+                </td>
               </tr>
               <tr>
                 <td className="sc-td-label">Permit ID</td>
@@ -587,6 +600,81 @@ export default function SCCreate() {
               </tr>
             </tbody>
           </table>
+
+          {/* Location — Building / Floor / Map Selector */}
+          <div style={{ padding: "16px 20px", borderTop: "1px solid var(--border-color)" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+              {/* Building */}
+              <div className="mod-form-group">
+                <label className="mod-form-label">Location / Building</label>
+                <select
+                  className="mod-form-input"
+                  value={building}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setBuilding(val);
+                    setLevel("");
+                    setSelectedRooms([]);
+                    setSelectedZone(null);
+                    const dbB = buildingsList.find(b => String(b.build_id || b.id) === String(val));
+                    setForm(prev => ({ ...prev, buildingName: dbB?.building_name || "", floorLevel: "", location: "" }));
+                  }}
+                >
+                  <option value="">Select Building</option>
+                  {buildingsList.map(item => (
+                    <option key={item.build_id} value={item.build_id}>{item.building_name}</option>
+                  ))}
+                </select>
+              </div>
+              {/* Floor / Level */}
+              <div className="mod-form-group">
+                <label className="mod-form-label">Floor / Level</label>
+                <select
+                  className="mod-form-input"
+                  value={level}
+                  disabled={!building}
+                  onChange={(e) => {
+                    setLevel(e.target.value);
+                    setSelectedRooms([]);
+                    setSelectedZone(null);
+                    setForm(prev => ({ ...prev, floorLevel: e.target.value, location: "" }));
+                  }}
+                >
+                  <option value="">Select Level</option>
+                  {levels.map(item => (
+                    <option key={item} value={item}>{item}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Interactive Floor PDF Drawing */}
+            {selectedPdf && (
+              <div style={{ position: "relative", border: "1px solid var(--border-color)", borderRadius: 8, overflow: "hidden", minHeight: 400, marginBottom: 16 }}>
+                <FloorDrawing
+                  pdf={selectedPdf}
+                  zones={selectedZones}
+                  level={level}
+                  selectedRooms={selectedRooms}
+                  onRoomsSelected={handleRoomsSelected}
+                  roomStatusMap={roomStatusMap}
+                />
+              </div>
+            )}
+
+            {/* Specific Location / Rooms */}
+            <div className="mod-form-group">
+              <label className="mod-form-label">Specific Location / Rooms <span style={{ color: "var(--text-muted)", fontWeight: 400, fontSize: 12 }}>(Auto-filled from map or enter manually)</span></label>
+              <input
+                type="text"
+                className="mod-form-input"
+                name="location"
+                value={form.location}
+                onChange={handleChange}
+                placeholder="e.g. Zone A: Room 204, Grid B4"
+              />
+            </div>
+          </div>
           <div style={{ padding: "12px 16px", fontSize: "0.85rem", color: "var(--text-muted)", backgroundColor: "var(--bg-card-hover)" }}>
             <b>Instructions:</b> Tick one response for each checkpoint. Use N/A only when the checkpoint does not apply. Record relevant facts in the comments field.
           </div>
@@ -1107,6 +1195,7 @@ export default function SCCreate() {
           onClose={() => setShowSafetyModal(false)}
           subject={form.activityName ? `Spot Check Non-Compliance: ${form.activityName}` : "Spot Check Non-Compliance"}
           color="red"
+          initialContractor={form.companyInvolved}
           initialLocation={{
             building,
             level,

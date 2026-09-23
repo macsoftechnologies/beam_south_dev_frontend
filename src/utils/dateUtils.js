@@ -22,6 +22,19 @@ export const parseUTCToDate = (dateStr) => {
 };
 
 /**
+ * Returns the current/provided date as a YYYY-MM-DD string in Europe/Copenhagen timezone.
+ */
+export const getDenmarkDateString = (date = new Date()) => {
+  const copenhagenString = date.toLocaleString('en-US', { timeZone: 'Europe/Copenhagen' });
+  const d = new Date(copenhagenString);
+  const pad = (num) => String(num).padStart(2, '0');
+  const year = d.getFullYear();
+  const month = pad(d.getMonth() + 1);
+  const day = pad(d.getDate());
+  return `${year}-${month}-${day}`;
+};
+
+/**
  * Returns the current/provided date as a YYYY-MM-DD HH:mm:ss string in Europe/Copenhagen timezone.
  */
 export const getDenmarkTimeISOString = (date = new Date()) => {

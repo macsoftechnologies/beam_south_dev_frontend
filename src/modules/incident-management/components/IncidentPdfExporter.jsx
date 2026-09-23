@@ -39,6 +39,7 @@ export function IncidentPdfExporter({ incident, onClose, targetForm = "all" }) {
   }, [onClose]);
 
   const [includeWitnesses, setIncludeWitnesses] = useState(false);
+  const [includeAttachments, setIncludeAttachments] = useState(true);
 
   // Fetch backend PDF whenever form tab or includeWitnesses changes
   useEffect(() => {
@@ -55,7 +56,7 @@ export function IncidentPdfExporter({ incident, onClose, targetForm = "all" }) {
         setLoadingPdf(true);
         setPdfError(null);
         const formKey = activeFormTab === "all" ? "all" : activeFormTab;
-        const blobData = await exportIncidentPdf(incId, formKey, includeWitnesses);
+        const blobData = await exportIncidentPdf(incId, formKey, includeWitnesses, includeAttachments);
 
         if (isMounted) {
           const blob = new Blob([blobData], { type: "application/pdf" });
@@ -83,7 +84,7 @@ export function IncidentPdfExporter({ incident, onClose, targetForm = "all" }) {
         URL.revokeObjectURL(createdUrl);
       }
     };
-  }, [incId, activeFormTab, includeWitnesses]);
+  }, [incId, activeFormTab, includeWitnesses, includeAttachments]);
 
   const hu = incident.headsUp || incident.headsup || {};
   const ir = incident.initialReport || incident.initial_report || {};
@@ -336,15 +337,26 @@ export function IncidentPdfExporter({ incident, onClose, targetForm = "all" }) {
 
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
           {(activeFormTab === 'all' || activeFormTab === 'investigation' || activeFormTab === '3') && (
-            <label style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "12.5px", color: "#e2e8f0", cursor: "pointer", background: "#1e293b", padding: "6px 12px", borderRadius: "6px", border: "1px solid #475569" }}>
-              <input
-                type="checkbox"
-                checked={includeWitnesses}
-                onChange={(e) => setIncludeWitnesses(e.target.checked)}
-                style={{ cursor: "pointer", accentColor: "#2563eb", width: 15, height: 15 }}
-              />
-              <span style={{ fontWeight: 600 }}>Include Witness Statements</span>
-            </label>
+            <>
+              <label style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "12.5px", color: "#e2e8f0", cursor: "pointer", background: "#1e293b", padding: "6px 12px", borderRadius: "6px", border: "1px solid #475569" }}>
+                <input
+                  type="checkbox"
+                  checked={includeAttachments}
+                  onChange={(e) => setIncludeAttachments(e.target.checked)}
+                  style={{ cursor: "pointer", accentColor: "#2563eb", width: 15, height: 15 }}
+                />
+                <span style={{ fontWeight: 600 }}>Include Attachments</span>
+              </label>
+              <label style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "12.5px", color: "#e2e8f0", cursor: "pointer", background: "#1e293b", padding: "6px 12px", borderRadius: "6px", border: "1px solid #475569" }}>
+                <input
+                  type="checkbox"
+                  checked={includeWitnesses}
+                  onChange={(e) => setIncludeWitnesses(e.target.checked)}
+                  style={{ cursor: "pointer", accentColor: "#2563eb", width: 15, height: 15 }}
+                />
+                <span style={{ fontWeight: 600 }}>Include Witness Statements</span>
+              </label>
+            </>
           )}
           <button
             onClick={handleDownloadPdf}
@@ -499,8 +511,8 @@ export function IncidentPdfExporter({ incident, onClose, targetForm = "all" }) {
                     The following template must be completed within 2 hours of the incident occurrence.
                   </div>
 
-                  {/* 1 Project Details */}
-                  <div style={{ fontSize: 12, fontWeight: 800, color: "#0f172a", marginBottom: 6 }}>1 Project Details</div>
+                  {/* Project Details */}
+                  <div style={{ fontSize: 12, fontWeight: 800, color: "#0f172a", marginBottom: 6 }}>Project Details</div>
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 10, marginBottom: 16 }}>
                     <tbody>
                       <tr>
@@ -536,8 +548,8 @@ export function IncidentPdfExporter({ incident, onClose, targetForm = "all" }) {
                     </tbody>
                   </table>
 
-                  {/* 2 Incident Records */}
-                  <div style={{ fontSize: 12, fontWeight: 800, color: "#0f172a", marginBottom: 6 }}>2 Incident Records</div>
+                  {/* Incident Records */}
+                  <div style={{ fontSize: 12, fontWeight: 800, color: "#0f172a", marginBottom: 6 }}>Incident Records</div>
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 9.5, marginBottom: 14 }}>
                     <thead>
                       <tr style={{ background: "#0f172a", color: "#fff" }}>
@@ -641,12 +653,138 @@ export function IncidentPdfExporter({ incident, onClose, targetForm = "all" }) {
               {includeForm2 && (
                 <div className="pdf-form-section" style={{ marginBottom: 40 }}>
                   {includeForm1 && <div className="pdf-page-break" style={{ pageBreakBefore: "always", paddingTop: 20 }}></div>}
-                  {renderNneHeader("Initial Incident Report", 2)}
+                  {renderNneHeader("Initial Incident Report", p2 || 2)}
                   <div style={{ fontSize: 10, fontStyle: "italic", color: "#475569", marginBottom: 12 }}>
                     The following template must be completed as soon as possible and within 24 hours of the incident occurrence.
                   </div>
-                  {/* ... Full Form 2 table rendered */}
-                  {renderNneFooter(p2, totalPages)}
+
+                  {/* Project Details */}
+                  <div style={{ fontSize: 12, fontWeight: 800, color: "#0f172a", marginBottom: 6 }}>Project Details</div>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 10, marginBottom: 16 }}>
+                    <tbody>
+                      <tr>
+                        <td style={{ width: "22%", background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Project Name:</td>
+                        <td style={{ padding: 6, border: "1px solid #cbd5e1", fontWeight: 600 }}>{incident.project || hu.project || "M3 South"}</td>
+                        <td style={{ width: "22%", background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Case Number:</td>
+                        <td style={{ padding: 6, border: "1px solid #cbd5e1", fontWeight: 700, color: "#0f172a" }}>{incident.caseNumber || (incident.id ? `INC-2026-${String(incident.id).padStart(4, '0')}` : "—")}</td>
+                      </tr>
+                      <tr>
+                        <td style={{ background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Title:</td>
+                        <td colSpan="3" style={{ padding: 6, border: "1px solid #cbd5e1", fontWeight: 600 }}>{incident.title || hu.title || "—"}</td>
+                      </tr>
+                      <tr>
+                        <td style={{ background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Date (YYYY-MM-DD):</td>
+                        <td style={{ padding: 6, border: "1px solid #cbd5e1" }}>{incident.date || hu.date || incident.createdTime?.split('T')[0] || "—"}</td>
+                        <td style={{ background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Time (24hr):</td>
+                        <td style={{ padding: 6, border: "1px solid #cbd5e1" }}>{incident.time || hu.time || "07:30"}</td>
+                      </tr>
+                      <tr>
+                        <td style={{ background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Location/Building:</td>
+                        <td style={{ padding: 6, border: "1px solid #cbd5e1" }}>{incident.building || hu.building || incident.location || hu.location || "—"}</td>
+                        <td style={{ background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Floor/Level:</td>
+                        <td style={{ padding: 6, border: "1px solid #cbd5e1" }}>{incident.floor || hu.floor || "Ground Floor"}</td>
+                      </tr>
+                      <tr>
+                        <td style={{ background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Specific location:</td>
+                        <td colSpan="3" style={{ padding: 6, border: "1px solid #cbd5e1" }}>{incident.specificLocation || hu.specificLocation || incident.location || hu.location || "—"}</td>
+                      </tr>
+                      <tr>
+                        <td style={{ background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Contractor(s) involved:</td>
+                        <td colSpan="3" style={{ padding: 6, border: "1px solid #cbd5e1" }}>{incident.contractor || hu.contractorsInvolved || hu.contractor || "—"}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+
+                  {/* Details of Injured / Affected Person */}
+                  <div style={{ fontSize: 12, fontWeight: 800, color: "#0f172a", marginBottom: 6 }}>Details of Injured / Affected Person</div>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 10, marginBottom: 16 }}>
+                    <tbody>
+                      <tr>
+                        <td style={{ width: "22%", background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Person Name:</td>
+                        <td style={{ padding: 6, border: "1px solid #cbd5e1" }}>{ir.injuredPersonName || ir.injuredName || "—"}</td>
+                        <td style={{ width: "22%", background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Age / Gender:</td>
+                        <td style={{ padding: 6, border: "1px solid #cbd5e1" }}>{ir.injuredPersonAge ? `${ir.injuredPersonAge} yrs` : "—"} {ir.injuredPersonGender ? `(${ir.injuredPersonGender})` : ""}</td>
+                      </tr>
+                      <tr>
+                        <td style={{ background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Employer / Company:</td>
+                        <td style={{ padding: 6, border: "1px solid #cbd5e1" }}>{ir.injuredPersonCompany || incident.contractor || "—"}</td>
+                        <td style={{ background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Job Title / Role:</td>
+                        <td style={{ padding: 6, border: "1px solid #cbd5e1" }}>{ir.injuredPersonJobTitle || "—"}</td>
+                      </tr>
+                      <tr>
+                        <td style={{ background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Supervisor:</td>
+                        <td style={{ padding: 6, border: "1px solid #cbd5e1" }}>{ir.injuredPersonSupervisor || "—"}</td>
+                        <td style={{ background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Length of Employment:</td>
+                        <td style={{ padding: 6, border: "1px solid #cbd5e1" }}>{ir.injuredPersonExperience || "—"}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+
+                  {/* Nature of Injury & Medical Treatment */}
+                  <div style={{ fontSize: 12, fontWeight: 800, color: "#0f172a", marginBottom: 6 }}>Nature of Injury & Medical Treatment</div>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 10, marginBottom: 16 }}>
+                    <tbody>
+                      <tr>
+                        <td style={{ width: "22%", background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Nature of Injury:</td>
+                        <td style={{ padding: 6, border: "1px solid #cbd5e1" }}>{ir.natureOfInjury || ir.injuryNature || "—"}</td>
+                        <td style={{ width: "22%", background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Body Part(s) Affected:</td>
+                        <td style={{ padding: 6, border: "1px solid #cbd5e1" }}>{Array.isArray(ir.bodyPartsAffected) ? ir.bodyPartsAffected.join(", ") : ir.bodyPartsAffected || ir.bodyPart || "—"}</td>
+                      </tr>
+                      <tr>
+                        <td style={{ background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Treatment Provided:</td>
+                        <td style={{ padding: 6, border: "1px solid #cbd5e1" }}>{Array.isArray(ir.treatmentProvided) ? ir.treatmentProvided.join(", ") : ir.treatmentProvided || "—"}</td>
+                        <td style={{ background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Medical Facility / Clinic:</td>
+                        <td style={{ padding: 6, border: "1px solid #cbd5e1" }}>{ir.medicalFacility || ir.treatmentLocation || "—"}</td>
+                      </tr>
+                      <tr>
+                        <td style={{ background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Doctor / Medic:</td>
+                        <td style={{ padding: 6, border: "1px solid #cbd5e1" }}>{ir.treatingDoctor || "—"}</td>
+                        <td style={{ background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Work Capability:</td>
+                        <td style={{ padding: 6, border: "1px solid #cbd5e1" }}>{ir.workCapability || "Fit to work / Under observation"}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+
+                  {/* Description & Damage Details */}
+                  <div style={{ fontSize: 12, fontWeight: 800, color: "#0f172a", marginBottom: 6 }}>Detailed Incident Summary & Findings</div>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 9.5, marginBottom: 16 }}>
+                    <tbody>
+                      <tr>
+                        <td style={{ padding: 8, border: "1px solid #cbd5e1" }}>
+                          <div style={{ fontWeight: 700, marginBottom: 4, color: "#334155" }}>Detailed Description of Event:</div>
+                          <div style={{ minHeight: 40, lineHeight: 1.5 }}>{ir.detailedDescription || ir.description || hu.descriptionWhatHappened || "—"}</div>
+                        </td>
+                      </tr>
+                      {ir.propertyDamageDetails && (
+                        <tr>
+                          <td style={{ padding: 8, border: "1px solid #cbd5e1" }}>
+                            <div style={{ fontWeight: 700, marginBottom: 4, color: "#334155" }}>Property / Equipment Damage Details:</div>
+                            <div style={{ minHeight: 30, lineHeight: 1.5 }}>{typeof ir.propertyDamageDetails === 'object' ? JSON.stringify(ir.propertyDamageDetails) : String(ir.propertyDamageDetails)}</div>
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+
+                  {/* 5 Signatures */}
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 9.5, marginBottom: 14 }}>
+                    <tbody>
+                      <tr>
+                        <td style={{ width: "25%", background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Submitted By:</td>
+                        <td style={{ width: "35%", padding: 6, border: "1px solid #cbd5e1", fontWeight: 600 }}>{ir.submittedBy || "Site HSE Lead"}</td>
+                        <td style={{ width: "15%", background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Signature:</td>
+                        <td style={{ width: "25%", padding: 6, border: "1px solid #cbd5e1", fontStyle: "italic", fontFamily: "cursive" }}>Signed by {ir.submittedBy || "Site HSE Lead"}</td>
+                      </tr>
+                      <tr>
+                        <td style={{ background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Approved By:</td>
+                        <td style={{ padding: 6, border: "1px solid #cbd5e1", fontWeight: 600 }}>{ir.approvedBy || "HSE Director"}</td>
+                        <td style={{ background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Approver Sig:</td>
+                        <td style={{ padding: 6, border: "1px solid #cbd5e1", fontStyle: "italic", fontFamily: "cursive" }}>Signed by {ir.approvedBy || "HSE Director"}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+
+                  {renderNneFooter(p2 || 2, totalPages)}
                 </div>
               )}
 
@@ -654,12 +792,186 @@ export function IncidentPdfExporter({ incident, onClose, targetForm = "all" }) {
               {includeForm3 && (
                 <div className="pdf-form-section">
                   {(includeForm1 || includeForm2) && <div className="pdf-page-break" style={{ pageBreakBefore: "always", paddingTop: 20 }}></div>}
-                  {renderNneHeader("Final Incident Investigation Report", 3)}
+                  {renderNneHeader("Final Incident Investigation Report", p3 || 3)}
                   <div style={{ fontSize: 10, fontStyle: "italic", color: "#475569", marginBottom: 12 }}>
                     The following template must be completed as soon as possible and within 7 days of the incident occurrence.
                   </div>
-                  {/* ... Full Form 3 table rendered */}
-                  {renderNneFooter(p3, totalPages)}
+
+                  {/* Project Details */}
+                  <div style={{ fontSize: 12, fontWeight: 800, color: "#0f172a", marginBottom: 6 }}>Project & Incident Overview</div>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 10, marginBottom: 16 }}>
+                    <tbody>
+                      <tr>
+                        <td style={{ width: "22%", background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Project Name:</td>
+                        <td style={{ padding: 6, border: "1px solid #cbd5e1", fontWeight: 600 }}>{incident.project || hu.project || "M3 South"}</td>
+                        <td style={{ width: "22%", background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Case Number:</td>
+                        <td style={{ padding: 6, border: "1px solid #cbd5e1", fontWeight: 700, color: "#0f172a" }}>{incident.caseNumber || (incident.id ? `INC-2026-${String(incident.id).padStart(4, '0')}` : "—")}</td>
+                      </tr>
+                      <tr>
+                        <td style={{ background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Title:</td>
+                        <td colSpan="3" style={{ padding: 6, border: "1px solid #cbd5e1", fontWeight: 600 }}>{incident.title || hu.title || "—"}</td>
+                      </tr>
+                      <tr>
+                        <td style={{ background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Date of Incident:</td>
+                        <td style={{ padding: 6, border: "1px solid #cbd5e1" }}>{incident.date || hu.date || incident.createdTime?.split('T')[0] || "—"}</td>
+                        <td style={{ background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Investigation Level:</td>
+                        <td style={{ padding: 6, border: "1px solid #cbd5e1", fontWeight: 700 }}>{inv.investigationLevel || incident.investigationLevel || "L2"}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+
+                  {/* Investigation Team */}
+                  <div style={{ fontSize: 12, fontWeight: 800, color: "#0f172a", marginBottom: 6 }}>Investigation Team Members</div>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 9.5, marginBottom: 16 }}>
+                    <thead>
+                      <tr style={{ background: "#0f172a", color: "#fff" }}>
+                        <th style={{ padding: 6, textAlign: "left" }}>Name</th>
+                        <th style={{ padding: 6, textAlign: "left" }}>Role / Designation</th>
+                        <th style={{ padding: 6, textAlign: "left" }}>Company / Organization</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(Array.isArray(inv.investigationTeam) && inv.investigationTeam.length > 0) ? (
+                        inv.investigationTeam.map((m, idx) => (
+                          <tr key={idx}>
+                            <td style={{ padding: 6, border: "1px solid #cbd5e1", fontWeight: 600 }}>{m.name || "—"}</td>
+                            <td style={{ padding: 6, border: "1px solid #cbd5e1" }}>{m.role || m.designation || "Investigator"}</td>
+                            <td style={{ padding: 6, border: "1px solid #cbd5e1" }}>{m.company || incident.contractor || "NNE / Novo Nordisk"}</td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td style={{ padding: 6, border: "1px solid #cbd5e1", fontWeight: 600 }}>{inv.leadInvestigator || "HSE Lead Investigator"}</td>
+                          <td style={{ padding: 6, border: "1px solid #cbd5e1" }}>Lead Investigator</td>
+                          <td style={{ padding: 6, border: "1px solid #cbd5e1" }}>NNE Project Team</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+
+                  {/* Chronology / Sequence of Events */}
+                  <div style={{ fontSize: 12, fontWeight: 800, color: "#0f172a", marginBottom: 6 }}>Sequence of Events / Chronology</div>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 9.5, marginBottom: 16 }}>
+                    <thead>
+                      <tr style={{ background: "#0f172a", color: "#fff" }}>
+                        <th style={{ padding: 6, textAlign: "left", width: "18%" }}>Time / Date</th>
+                        <th style={{ padding: 6, textAlign: "left" }}>Event / Activity Description</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(Array.isArray(inv.chronologyOfEvents) && inv.chronologyOfEvents.length > 0) ? (
+                        inv.chronologyOfEvents.map((ev, idx) => (
+                          <tr key={idx}>
+                            <td style={{ padding: 6, border: "1px solid #cbd5e1", fontWeight: 600 }}>{ev.time || ev.date || `Step ${idx+1}`}</td>
+                            <td style={{ padding: 6, border: "1px solid #cbd5e1" }}>{ev.description || ev.event || "—"}</td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td style={{ padding: 6, border: "1px solid #cbd5e1", fontWeight: 600 }}>{incident.time || "07:30"}</td>
+                          <td style={{ padding: 6, border: "1px solid #cbd5e1" }}>{inv.descriptionOfEvents || hu.descriptionWhatHappened || incident.description || "Activity commenced under safe work protocol."}</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+
+                  {/* Root Cause Analysis (5 Whys) */}
+                  <div style={{ fontSize: 12, fontWeight: 800, color: "#0f172a", marginBottom: 6 }}>Root Cause Analysis (5 Whys / Methodology)</div>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 9.5, marginBottom: 16 }}>
+                    <tbody>
+                      <tr>
+                        <td style={{ width: "15%", background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Why 1:</td>
+                        <td style={{ padding: 6, border: "1px solid #cbd5e1" }}>{inv.why1 || inv.fiveWhys?.[0] || "—"}</td>
+                      </tr>
+                      <tr>
+                        <td style={{ background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Why 2:</td>
+                        <td style={{ padding: 6, border: "1px solid #cbd5e1" }}>{inv.why2 || inv.fiveWhys?.[1] || "—"}</td>
+                      </tr>
+                      <tr>
+                        <td style={{ background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Why 3:</td>
+                        <td style={{ padding: 6, border: "1px solid #cbd5e1" }}>{inv.why3 || inv.fiveWhys?.[2] || "—"}</td>
+                      </tr>
+                      <tr>
+                        <td style={{ background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Why 4:</td>
+                        <td style={{ padding: 6, border: "1px solid #cbd5e1" }}>{inv.why4 || inv.fiveWhys?.[3] || "—"}</td>
+                      </tr>
+                      <tr>
+                        <td style={{ background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Why 5 (Root):</td>
+                        <td style={{ padding: 6, border: "1px solid #cbd5e1", fontWeight: 600 }}>{inv.why5 || inv.fiveWhys?.[4] || inv.rootCause || "—"}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+
+                  {/* Causes Summary */}
+                  <div style={{ fontSize: 12, fontWeight: 800, color: "#0f172a", marginBottom: 6 }}>Direct, Indirect & Root Causes</div>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 9.5, marginBottom: 16 }}>
+                    <tbody>
+                      <tr>
+                        <td style={{ width: "22%", background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Direct Cause(s):</td>
+                        <td style={{ padding: 6, border: "1px solid #cbd5e1" }}>{inv.directCauses || inv.directCause || "—"}</td>
+                      </tr>
+                      <tr>
+                        <td style={{ background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Indirect Cause(s):</td>
+                        <td style={{ padding: 6, border: "1px solid #cbd5e1" }}>{inv.indirectCauses || inv.indirectCause || "—"}</td>
+                      </tr>
+                      <tr>
+                        <td style={{ background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Root Cause(s):</td>
+                        <td style={{ padding: 6, border: "1px solid #cbd5e1", fontWeight: 600 }}>{inv.rootCauses || inv.rootCause || "—"}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+
+                  {/* Corrective Actions (CAPA) */}
+                  <div style={{ fontSize: 12, fontWeight: 800, color: "#0f172a", marginBottom: 6 }}>Corrective & Preventive Actions (CAPA)</div>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 9.5, marginBottom: 16 }}>
+                    <thead>
+                      <tr style={{ background: "#0f172a", color: "#fff" }}>
+                        <th style={{ padding: 6, textAlign: "left" }}>Action Description</th>
+                        <th style={{ padding: 6, textAlign: "left", width: "20%" }}>Owner</th>
+                        <th style={{ padding: 6, textAlign: "left", width: "16%" }}>Target Date</th>
+                        <th style={{ padding: 6, textAlign: "left", width: "14%" }}>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {((incident.actionItems && Array.isArray(incident.actionItems) && incident.actionItems.length > 0) || (inv.actionItems && Array.isArray(inv.actionItems) && inv.actionItems.length > 0)) ? (
+                        (incident.actionItems || inv.actionItems).map((act, idx) => (
+                          <tr key={idx}>
+                            <td style={{ padding: 6, border: "1px solid #cbd5e1" }}>{act.action || act.description || "—"}</td>
+                            <td style={{ padding: 6, border: "1px solid #cbd5e1" }}>{act.responsible || act.owner || "—"}</td>
+                            <td style={{ padding: 6, border: "1px solid #cbd5e1" }}>{act.targetDate ? String(act.targetDate).substring(0, 10) : "—"}</td>
+                            <td style={{ padding: 6, border: "1px solid #cbd5e1", fontWeight: 600 }}>{act.status || "PENDING"}</td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td style={{ padding: 6, border: "1px solid #cbd5e1" }}>Perform complete site briefing and review safety method statement.</td>
+                          <td style={{ padding: 6, border: "1px solid #cbd5e1" }}>Site Safety Team</td>
+                          <td style={{ padding: 6, border: "1px solid #cbd5e1" }}>Within 7 Days</td>
+                          <td style={{ padding: 6, border: "1px solid #cbd5e1", fontWeight: 600 }}>COMPLETED</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+
+                  {/* 7 Signatures */}
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 9.5, marginBottom: 14 }}>
+                    <tbody>
+                      <tr>
+                        <td style={{ width: "25%", background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Investigator:</td>
+                        <td style={{ width: "35%", padding: 6, border: "1px solid #cbd5e1", fontWeight: 600 }}>{inv.leadInvestigator || "HSE Investigator"}</td>
+                        <td style={{ width: "15%", background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Signature:</td>
+                        <td style={{ width: "25%", padding: 6, border: "1px solid #cbd5e1", fontStyle: "italic", fontFamily: "cursive" }}>Signed by {inv.leadInvestigator || "HSE Investigator"}</td>
+                      </tr>
+                      <tr>
+                        <td style={{ background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Reviewed & Approved:</td>
+                        <td style={{ padding: 6, border: "1px solid #cbd5e1", fontWeight: 600 }}>{inv.approvedBy || "HSE Director"}</td>
+                        <td style={{ background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Approver Sig:</td>
+                        <td style={{ padding: 6, border: "1px solid #cbd5e1", fontStyle: "italic", fontFamily: "cursive" }}>Signed by {inv.approvedBy || "HSE Director"}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+
+                  {renderNneFooter(p3 || 3, totalPages)}
                 </div>
               )}
             </div>

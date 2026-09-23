@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { spotCheckService } from "../../../services/spotCheckService";
+import { getBuildings, getContractors } from "../../../services/authService";
 import { showSuccess, showError, showDeleteConfirm, showDeleteSuccess } from "../../../components/common/Toast/Toast";
+import Swal from "sweetalert2";
 import "./SCDashboard.css";
 
 export default function SCList() {
@@ -13,8 +15,34 @@ export default function SCList() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalRecords, setTotalRecords] = useState(0);
 
-  const [filter, setFilter] = useState({ q: '', compliance: '', contractor: '' });
+  const [filter, setFilter] = useState({ q: '', compliance: '', building: '', company: '' });
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Dropdown option lists
+  const [buildingsList, setBuildingsList] = useState([]);
+  const [contractorsList, setContractorsList] = useState([]);
+
+  // Load dropdown data once on mount
+  useEffect(() => {
+    const loadDropdowns = async () => {
+      try {
+        const [bRes, cRes] = await Promise.all([
+          getBuildings(1, 1000),
+          getContractors(1, 1000).catch(() => ({ data: [] }))
+        ]);
+        const rawB = bRes?.data?.rows || bRes?.data || bRes || [];
+        setBuildingsList(Array.isArray(rawB) ? rawB : []);
+        const rawC = cRes?.data?.rows || cRes?.data || cRes?.subContractors || cRes || [];
+        let cList = Array.isArray(rawC) ? [...rawC] : [];
+        const hasNne = cList.some(c => String(c.subContractorName || c.company_name || c.name || '').toUpperCase().includes('NNE'));
+        if (!hasNne) cList.push({ id: 'NNE', subContractorName: 'NNE', name: 'NNE' });
+        setContractorsList(cList);
+      } catch (err) {
+        console.error('Failed to load filter dropdowns', err);
+      }
+    };
+    loadDropdowns();
+  }, []);
 
   const currentUser = React.useMemo(() => {
     try {
@@ -24,8 +52,10 @@ export default function SCList() {
     }
   }, []);
 
-  const roleUpper = String(currentUser?.role || '').toUpperCase();
-  const isAdmin = roleUpper.includes('ADMIN') || roleUpper.includes('SUPERADMIN');
+  const rawRoleAdmin = (localStorage.getItem("UserType") || currentUser?.role || currentUser?.userType || currentUser?.user_type || "").toUpperCase();
+  const userRolesArrAdmin = Array.isArray(currentUser?.userTypes) ? currentUser.userTypes.map((t) => String(t).toUpperCase()) : [];
+  const allRolesAdmin = [rawRoleAdmin, ...userRolesArrAdmin].join(" ");
+  const isAdmin = (allRolesAdmin.includes("ADMIN") || allRolesAdmin.includes("SUPERADMIN") || Boolean(currentUser?.isSuperAdmin));
 
   const fetchSpotChecks = useCallback(async () => {
     setIsLoading(true);
@@ -35,7 +65,8 @@ export default function SCList() {
         limit,
         q: filter.q || undefined,
         compliance: filter.compliance || undefined,
-        contractor: filter.contractor || undefined,
+        contractor: filter.company || undefined,
+        building: filter.building || undefined,
       });
 
       setSpotChecks(data.spotChecks || []);
@@ -76,6 +107,37 @@ export default function SCList() {
     }
   };
 
+  const handleDownloadPdf = async (r, e) => {
+    e.stopPropagation();
+    const result = await Swal.fire({
+      title: "Include Attached Files?",
+      text: "Do you want to combine attached document files into the exported PDF? (Selecting 'No' will still display all attachment details on the form without appending the document files).",
+      icon: "question",
+      showCancelButton: true,
+      showDenyButton: true,
+      confirmButtonText: "Yes, Combine Files",
+      denyButtonText: "No, Form Only",
+      cancelButtonText: "Cancel",
+      confirmButtonColor: "#F97316",
+      denyButtonColor: "#64748b"
+    });
+
+    if (result.isDismissed && result.dismiss === Swal.DismissReason.cancel) {
+      return;
+    }
+
+    const includeAttachments = result.isConfirmed;
+    try {
+      await spotCheckService.downloadSpotCheckPdf(r.id, `${r.spotCheckRef || `SC-${r.id}`}_HSE_Spot_Check.pdf`, includeAttachments);
+      showSuccess("PDF export downloaded successfully");
+    } catch (err) {
+      console.error('Failed to download spot check PDF:', err);
+      showError("Failed to export PDF directly. Opening browser preview...");
+      const pdfUrl = spotCheckService.getPdfUrl(r.id, includeAttachments);
+      window.open(pdfUrl, '_blank');
+    }
+  };
+
   const formatDate = (dateStr) => {
     if (!dateStr) return "-";
     try {
@@ -85,6 +147,13 @@ export default function SCList() {
       return dateStr;
     }
   };
+
+  const rawRole = (localStorage.getItem("UserType") || currentUser?.role || currentUser?.userType || currentUser?.user_type || "").toUpperCase();
+  const userRolesArr = Array.isArray(currentUser?.userTypes) ? currentUser.userTypes.map((t) => String(t).toUpperCase()) : [];
+  const allRoles = [rawRole, ...userRolesArr].join(" ");
+  const isContractor = allRoles.includes("CONTRACTOR") || allRoles.includes("SUBCONTRACTOR") || Boolean(currentUser?.subcontractor_id) || Boolean(currentUser?.contractorId) || Boolean(currentUser?.typeId && allRoles.includes("SUBCONTRACTOR"));
+  const isObserver = allRoles.includes("OBSERVER");
+  const isReadOnly = isContractor || isObserver;
 
   return (
     <div className="sc-dashboard-container">
@@ -96,34 +165,100 @@ export default function SCList() {
           </div>
         </div>
         <div>
-          <button className="mod-btn-primary" onClick={() => navigate('/spot-checks/create')}>+ New Spot Check</button>
+          {!isReadOnly && (
+            <button className="mod-btn-primary" onClick={() => navigate('/spot-checks/create')}>+ New Spot Check</button>
+          )}
         </div>
       </div>
 
       <div className="panel dash-tablecard">
-        <div className="dd-filters">
-          <input 
-            className="df-input" 
-            style={{ flex: 1 }} 
-            placeholder="Search Reference, Activity, Building, Location, Contractor, Inspector..." 
-            value={filter.q} 
+        <div className="dd-filters" style={{ flexWrap: 'wrap', gap: '8px' }}>
+          {/* Text search */}
+          <input
+            className="df-input"
+            style={{ flex: '1 1 260px', minWidth: 200 }}
+            placeholder="Search Reference, Activity, Inspector..."
+            value={filter.q}
             onChange={e => {
               setFilter({ ...filter, q: e.target.value });
               setPage(1);
-            }} 
+            }}
           />
-          <select 
-            className="df-input" 
-            value={filter.compliance} 
+
+          {/* Building dropdown */}
+          <select
+            className="df-input"
+            style={{ flex: '0 1 200px', minWidth: 160 }}
+            value={filter.building}
+            onChange={e => {
+              setFilter({ ...filter, building: e.target.value });
+              setPage(1);
+            }}
+          >
+            <option value="">All Buildings</option>
+            {buildingsList.map(b => (
+              <option key={b.build_id || b.id} value={b.building_name || b.name}>
+                {b.building_name || b.name}
+              </option>
+            ))}
+          </select>
+
+          {/* Company / Contractor dropdown */}
+          <select
+            className="df-input"
+            style={{ flex: '0 1 200px', minWidth: 160 }}
+            value={filter.company}
+            onChange={e => {
+              setFilter({ ...filter, company: e.target.value });
+              setPage(1);
+            }}
+          >
+            <option value="">All Companies</option>
+            {contractorsList.map((c, i) => {
+              const name = c.subContractorName || c.company_name || c.contractor_name || c.name || `Contractor ${c.id || i}`;
+              return <option key={c.id || i} value={name}>{name}</option>;
+            })}
+          </select>
+
+          {/* Compliance dropdown */}
+          <select
+            className="df-input"
+            style={{ flex: '0 1 180px', minWidth: 150 }}
+            value={filter.compliance}
             onChange={e => {
               setFilter({ ...filter, compliance: e.target.value });
               setPage(1);
             }}
           >
-            <option value="">All Compliance Statuses</option>
+            <option value="">All Compliance</option>
             <option value="Yes">Compliant (PASS)</option>
             <option value="No">Non-Compliant (FAIL)</option>
           </select>
+
+          {/* Clear all filters */}
+          {(filter.q || filter.building || filter.company || filter.compliance) && (
+            <button
+              type="button"
+              style={{
+                flex: '0 0 auto',
+                padding: '0 14px',
+                height: '36px',
+                border: '1px solid var(--border-color, #e2e8f0)',
+                borderRadius: '6px',
+                background: 'transparent',
+                color: 'var(--text-muted, #64748b)',
+                cursor: 'pointer',
+                fontSize: '13px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                whiteSpace: 'nowrap'
+              }}
+              onClick={() => { setFilter({ q: '', compliance: '', building: '', company: '' }); setPage(1); }}
+            >
+              <i className="ti ti-x" style={{ fontSize: 13 }}></i> Clear
+            </button>
+          )}
         </div>
 
         <div className="table-wrap">
@@ -221,6 +356,44 @@ export default function SCList() {
                       <td>{r.inspectorName || r.createdByUserName || "-"}</td>
                       <td>{formatDate(r.date || r.createdTime)}</td>
                       <td style={{ textAlign: "center", whiteSpace: "nowrap" }} onClick={e => e.stopPropagation()}>
+                        {/* View Button */}
+                        <button
+                          type="button"
+                          style={{
+                            border: "1px solid rgba(99, 102, 241, 0.3)",
+                            color: "#6366f1",
+                            background: "rgba(99, 102, 241, 0.06)",
+                            width: "32px",
+                            height: "32px",
+                            borderRadius: "6px",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            cursor: "pointer",
+                            padding: 0,
+                            fontSize: "15px",
+                            marginRight: "6px",
+                            transition: "all 0.15s ease-in-out"
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = "#6366f1";
+                            e.currentTarget.style.color = "#ffffff";
+                            e.currentTarget.style.borderColor = "#6366f1";
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = "rgba(99, 102, 241, 0.06)";
+                            e.currentTarget.style.color = "#6366f1";
+                            e.currentTarget.style.borderColor = "rgba(99, 102, 241, 0.3)";
+                          }}
+                          title="View Spot Check"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/spot-checks/${r.id}`);
+                          }}
+                        >
+                          <i className="ti ti-eye"></i>
+                        </button>
+                        {/* Download PDF Button */}
                         <button
                           type="button"
                           className="mod-btn-icon"
@@ -237,7 +410,7 @@ export default function SCList() {
                             cursor: "pointer",
                             padding: 0,
                             fontSize: "15px",
-                            marginRight: isAdmin ? "6px" : "0",
+                            marginRight: isAdmin && !isReadOnly ? "6px" : "0",
                             transition: "all 0.15s ease-in-out"
                           }}
                           onMouseEnter={(e) => {
@@ -251,14 +424,11 @@ export default function SCList() {
                             e.currentTarget.style.borderColor = "rgba(14, 165, 233, 0.3)";
                           }}
                           title="Download PDF"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            spotCheckService.downloadSpotCheckPdf(r.id, `${r.spotCheckRef || `SC-${r.id}`}_HSE_Spot_Check.pdf`);
-                          }}
+                          onClick={(e) => handleDownloadPdf(r, e)}
                         >
                           <i className="ti ti-download"></i>
                         </button>
-                        {isAdmin && (
+                        {isAdmin && !isReadOnly && (
                           <button
                             type="button"
                             className="mod-btn-icon-danger"

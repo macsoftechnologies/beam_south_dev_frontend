@@ -43,6 +43,21 @@ export default function SIView() {
   const [isLoadingObs, setIsLoadingObs] = useState(false);
   const [showObsModal, setShowObsModal] = useState(false);
 
+  const currentUser = React.useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem('user')) || {};
+    } catch {
+      return {};
+    }
+  }, []);
+
+  const rawRole = (localStorage.getItem("UserType") || currentUser?.role || currentUser?.userType || currentUser?.user_type || "").toUpperCase();
+  const userRolesArr = Array.isArray(currentUser?.userTypes) ? currentUser.userTypes.map((t) => String(t).toUpperCase()) : [];
+  const allRoles = [rawRole, ...userRolesArr].join(" ");
+  const isContractor = allRoles.includes("CONTRACTOR") || allRoles.includes("SUBCONTRACTOR") || Boolean(currentUser?.subcontractor_id) || Boolean(currentUser?.contractorId) || Boolean(currentUser?.typeId && allRoles.includes("SUBCONTRACTOR"));
+  const isObserver = allRoles.includes("OBSERVER");
+  const isReadOnly = isContractor || isObserver;
+
   useEffect(() => {
     const fetchDetails = async () => {
       setIsLoading(true);
@@ -90,7 +105,7 @@ export default function SIView() {
   };
 
   const handleStatusToggle = async () => {
-    if (!inspection) return;
+    if (!inspection || isReadOnly) return;
     const isCl = inspection.status === 'CLOSED' || inspection.status === 'COMPLETED' || inspection.isCompleted;
     const nextStatus = isCl ? 'IN_PROGRESS' : 'CLOSED';
     
@@ -256,27 +271,29 @@ export default function SIView() {
                   <span className={`meta-badge ${isClosed ? 'status-closed' : 'status-progress'}`}>
                     {isClosed ? 'Closed' : 'In Progress'}
                   </span>
-                  <button 
-                    type="button"
-                    onClick={handleStatusToggle}
-                    disabled={isUpdatingStatus}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                      padding: '3px 8px',
-                      fontSize: '11px',
-                      fontWeight: 600,
-                      borderRadius: '4px',
-                      border: '1px solid var(--border-color, #cbd5e1)',
-                      backgroundColor: isClosed ? 'var(--card-bg, #ffffff)' : '#22c55e',
-                      color: isClosed ? '#475569' : '#ffffff',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <i className={`ti ${isClosed ? 'ti-rotate-clockwise' : 'ti-circle-check'}`}></i>
-                    {isUpdatingStatus ? 'Updating...' : isClosed ? 'Reopen' : 'Close Inspection'}
-                  </button>
+                  {!isReadOnly && (
+                    <button 
+                      type="button"
+                      onClick={handleStatusToggle}
+                      disabled={isUpdatingStatus}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        padding: '3px 8px',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        borderRadius: '4px',
+                        border: '1px solid var(--border-color, #cbd5e1)',
+                        backgroundColor: isClosed ? 'var(--card-bg, #ffffff)' : '#22c55e',
+                        color: isClosed ? '#475569' : '#ffffff',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <i className={`ti ${isClosed ? 'ti-rotate-clockwise' : 'ti-circle-check'}`}></i>
+                      {isUpdatingStatus ? 'Updating...' : isClosed ? 'Reopen' : 'Close Inspection'}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -368,7 +385,7 @@ export default function SIView() {
                   <div className="siview-cl-status-wrap">
                     <span className={`siview-badge badge-${rawStatus}`}>
                       {rawStatus === 'na' ? 'Not Applicable' : 
-                       rawStatus === 'green' ? 'Passed' : 
+                       rawStatus === 'green' ? (item.isGoodPractice || issuesList.some(iss => iss.type === 'green' || iss.isGoodPractice) ? 'Passed • Good Practice' : 'Passed') : 
                        rawStatus === 'yellow' ? 'Warning / Issue' : 
                        rawStatus === 'red' ? 'Critical Action Needed' : rawStatus}
                     </span>
@@ -379,19 +396,23 @@ export default function SIView() {
                   <div className="siview-cl-details">
                     {issuesList.length > 0 && (
                       <div className="siview-cl-issues">
-                        {issuesList.map((iss, i) => (
-                          <div 
-                            key={i} 
-                            className="siview-issue-tag clickable"
-                            onClick={() => handleViewObservation(iss)}
-                            title="Click to view full Safety Observation details"
-                          >
-                            <span className={`issue-dot issue-${iss.type || 'orange'}`}></span>
-                            <span className="issue-id">{iss.id || iss.observationNumber || `SO-${i}`}</span>
-                            <span className="issue-text">{iss.text || iss.subject || 'Safety Observation'}</span>
-                            <i className="ti ti-external-link" style={{ marginLeft: "6px", fontSize: "12px", opacity: 0.7 }}></i>
-                          </div>
-                        ))}
+                        {issuesList.map((iss, i) => {
+                          const isGreen = iss.type === 'green' || iss.isGoodPractice || iss.observationType === 'POSITIVE';
+                          return (
+                            <div 
+                              key={i} 
+                              className="siview-issue-tag clickable"
+                              onClick={() => handleViewObservation(iss)}
+                              title="Click to view full Safety Observation details"
+                              style={isGreen ? { borderColor: 'rgba(34, 197, 94, 0.4)', background: 'rgba(34, 197, 94, 0.05)' } : {}}
+                            >
+                              <span className={`issue-dot issue-${isGreen ? 'green' : (iss.type || 'orange')}`}></span>
+                              <span className="issue-id">{iss.id || iss.observationNumber || `SO-${i}`}</span>
+                              <span className="issue-text">{iss.text || iss.subject || (isGreen ? 'Good Practice' : 'Safety Observation')}</span>
+                              <i className="ti ti-external-link" style={{ marginLeft: "6px", fontSize: "12px", opacity: 0.7 }}></i>
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                     {photosList.length > 0 && (

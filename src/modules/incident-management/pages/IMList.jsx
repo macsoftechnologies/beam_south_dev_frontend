@@ -259,14 +259,13 @@ function IMList() {
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
 
-  // 9 Column Filters + 1 top chip filter
+  // Column Filters + top chip filter
   const [filters, setFilters] = useState({
-    statusChip: "all", // "all", "open", "closed", "hipo"
+    statusChip: "all", // "all", "open", "closed"
     category: "",
     building: "",
     actualSeverity: "",
     potentialSeverity: "",
-    isHipo: "",
     investigationLevel: "",
     contractor: "",
     stage: "",
@@ -278,8 +277,11 @@ function IMList() {
 
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
   const rawRole = (localStorage.getItem("UserType") || currentUser?.role || currentUser?.userType || currentUser?.user_type || "").toUpperCase();
-  const isAdmin = rawRole.includes("ADMIN") || rawRole.includes("SUPERADMIN") || Boolean(currentUser?.isSuperAdmin) || (Array.isArray(currentUser?.userTypes) && currentUser.userTypes.some(t => String(t).toUpperCase().includes("ADMIN")));
-  const isContractor = rawRole.includes("CONTRACTOR") || rawRole.includes("SUBCONTRACTOR") || Boolean(currentUser?.subcontractor_id) || Boolean(currentUser?.typeId && rawRole.includes("SUBCONTRACTOR"));
+  const userRolesArr = Array.isArray(currentUser?.userTypes) ? currentUser.userTypes.map((t) => String(t).toUpperCase()) : [];
+  const allRoles = [rawRole, ...userRolesArr].join(" ");
+  const isObserver = allRoles.includes("OBSERVER");
+  const isAdmin = (allRoles.includes("ADMIN") || allRoles.includes("SUPERADMIN") || Boolean(currentUser?.isSuperAdmin)) && !isObserver;
+  const isContractor = allRoles.includes("CONTRACTOR") || allRoles.includes("SUBCONTRACTOR") || Boolean(currentUser?.subcontractor_id) || Boolean(currentUser?.typeId && allRoles.includes("SUBCONTRACTOR"));
   const contractorId = currentUser?.typeId || currentUser?.subcontractor_id || currentUser?.subContId || currentUser?.contractorId;
 
   const [deletingIncident, setDeletingIncident] = useState(null);
@@ -340,8 +342,6 @@ function IMList() {
       if (filters.potentialSeverity) apiFilters.potentialSeverity = filters.potentialSeverity;
       
       if (filters.statusChip && filters.statusChip !== "all") apiFilters.statusChip = filters.statusChip;
-      if (filters.isHipo === "true" || filters.statusChip === "hipo") apiFilters.isHipo = "true";
-      if (filters.isHipo === "false") apiFilters.isHipo = "false";
       
       if (filters.investigationLevel) apiFilters.investigationLevel = filters.investigationLevel;
       if (filters.stage) apiFilters.stage = filters.stage;
@@ -404,7 +404,6 @@ function IMList() {
   const total = isContractor ? filteredIncidents.length : totalItems;
   const openCount = filteredIncidents.filter(i => i.stage !== "CLOSED" && i.status !== "Closed").length;
   const invCount = filteredIncidents.filter(i => i.stage === "INITIAL_REPORT" || i.stage === "INVESTIGATION" || i.pipeline === "Initial" || i.pipeline === "Investigation").length;
-  const hipoCount = filteredIncidents.filter(i => i.isHipo === true || String(i.isHipo) === "true" || i.hipo).length;
   const ltiCount = filteredIncidents.filter(i => i.category === "Lost Time Injury" || i.type === "LTI" || i.classification === "Lost Time Injury").length;
 
   // Pipeline Stages
@@ -464,9 +463,11 @@ function IMList() {
           </div>
         </div>
         <div>
-          <button type="button" className="mod-btn-primary" onClick={() => navigate("/incident-management/create")}>
-            + Report Incident
-          </button>
+          {!isObserver && (
+            <button type="button" className="mod-btn-primary" onClick={() => navigate("/incident-management/create")}>
+              + Report Incident
+            </button>
+          )}
         </div>
       </div>
 
@@ -482,7 +483,6 @@ function IMList() {
           { label: "Total Incidents", value: total, sub: "this period", accent: "var(--accent-primary)" },
           { label: "Open", value: openCount, sub: "awaiting close-out", accent: "var(--color-caution)", valColor: "var(--color-caution)" },
           { label: "Under Investigation", value: invCount, sub: "initial / investigation", accent: "var(--text-muted)", valColor: "var(--text-muted)" },
-          { label: "High-Potential", value: hipoCount, sub: "HiPo flagged", accent: "var(--color-risk)", valColor: "var(--color-risk)" },
           { label: "LTIs", value: ltiCount, sub: "lost-time injuries", accent: "var(--color-risk)", valColor: "var(--color-risk)" }
         ].map(k => (
           <div key={k.label} className="im-stat" style={{ "--a": k.accent }}>
@@ -549,9 +549,9 @@ function IMList() {
 
       {/* Filter Bar */}
       <div className="filter-bar">
-        {["all", "open", "closed", "hipo"].map(f => (
+        {["all", "open", "closed"].map(f => (
           <span key={f} className={`filter-chip ${filters.statusChip === f ? "active" : ""}`} onClick={() => handleFilterChange('statusChip', f)}>
-            {f === "all" ? "All" : f === "open" ? "Open" : f === "closed" ? "Closed" : "High-Potential"}
+            {f === "all" ? "All" : f === "open" ? "Open" : "Closed"}
           </span>
         ))}
       </div>
@@ -570,7 +570,6 @@ function IMList() {
                 <th className="ith">BUILDING</th>
                 <th className="ith">ACTUAL</th>
                 <th className="ith">POTENTIAL</th>
-                <th className="ith">HIPO</th>
                 <th className="ith">INV.</th>
                 <th className="ith">CONTRACTOR</th>
                 <th className="ith">ORIGIN</th>
@@ -617,13 +616,6 @@ function IMList() {
                   </select>
                 </th>
                 <th>
-                  <select className="mod-form-select" style={{ padding: "4px 24px 4px 8px", fontSize: "11px", height: "auto" }} value={filters.isHipo} onChange={e => handleFilterChange('isHipo', e.target.value)}>
-                    <option value="">All</option>
-                    <option value="true">Yes</option>
-                    <option value="false">No</option>
-                  </select>
-                </th>
-                <th>
                   <select className="mod-form-select" style={{ padding: "4px 24px 4px 8px", fontSize: "11px", height: "auto" }} value={filters.investigationLevel} onChange={e => handleFilterChange('investigationLevel', e.target.value)}>
                     <option value="">All</option>
                     <option value="L1">L1</option>
@@ -659,9 +651,9 @@ function IMList() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={isAdmin ? 15 : 14} style={{ textAlign: "center", padding: "48px 0" }}><Loader size="md" text="Loading Incidents..." /></td></tr>
+                <tr><td colSpan={isAdmin ? 14 : 13} style={{ textAlign: "center", padding: "48px 0" }}><Loader size="md" text="Loading Incidents..." /></td></tr>
               ) : currentIncidents.length === 0 ? (
-                <tr><td colSpan={isAdmin ? 15 : 14} style={{ textAlign: "center", padding: "48px 0", color: "var(--text-muted)" }}>No incidents found</td></tr>
+                <tr><td colSpan={isAdmin ? 14 : 13} style={{ textAlign: "center", padding: "48px 0", color: "var(--text-muted)" }}>No incidents found</td></tr>
               ) : currentIncidents.map(inc => (
                 <tr key={inc.id} onClick={() => navigate(`/incident-management/details/${inc.id}`)} style={{ cursor: "pointer" }}>
                   <td style={{ maxWidth: "180px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontWeight: 600 }}>{inc.caseNumber || inc.title || "—"}</td>
@@ -672,9 +664,6 @@ function IMList() {
                   <td>{inc.buildingName || inc.building || "—"}</td>
                   <td><SevPill level={inc.actualSeverity} /></td>
                   <td><SevPill level={inc.potentialSeverity} /></td>
-                  <td>
-                    {inc.isHipo || inc.hipo ? <span className="badge" style={{ background: "var(--color-risk)", color: "#fff" }}>HiPo</span> : <span style={{ color: "var(--text-muted)" }}>—</span>}
-                  </td>
                   <td>
                     {(inc.investigationLevel || inc.investigation) ? (
                       <span className={`badge ${(inc.investigationLevel || inc.investigation) === "L3" ? "badge-red" : (inc.investigationLevel || inc.investigation) === "L2" ? "badge-orange" : "badge-gray"}`}>

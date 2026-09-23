@@ -1,4 +1,4 @@
-﻿const fs = require('fs');
+const fs = require('fs');
 const file = 'd:/Projects/React/Beam/Development/Beam2.o_South_Incidents/src/modules/safety-observations/pages/SODetails.jsx';
 
 let content = `import React, { useState } from "react";
@@ -182,8 +182,7 @@ function SODetails() {
               </div>
 
               <div style={{ background: "rgba(19,30,64,0.04)", border: "1px solid var(--border-color)", borderRadius: 9, padding: "10px 13px", marginBottom: 14, fontSize: 12.5 }}>
-                <span><b>HiPo:</b> <span style={{ color: escForm.potential === 5 && escForm.actual <= 4 ? '#E32B50' : 'inherit', fontWeight: escForm.potential === 5 && escForm.actual <= 4 ? 700 : 400 }}>{escForm.potential === 5 && escForm.actual <= 4 ? 'Yes (High Potential)' : 'No'}</span></span>
-                <span style={{ marginLeft: 16 }}><b>Investigation:</b> <span>{escForm.potential === 5 ? 'L3' : escForm.potential >= 3 ? 'L2' : 'L1'}</span></span>
+                <span><b>Investigation:</b> <span>{escForm.potential === 5 ? 'L3' : escForm.potential >= 3 ? 'L2' : 'L1'}</span></span>
               </div>
 
               <div className="mod-form-group" style={{ marginTop: 20 }}>

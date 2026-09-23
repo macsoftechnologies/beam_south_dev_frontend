@@ -270,7 +270,7 @@ export default function IMDashboard() {
 
   /* Aggregations */
   const agg = useMemo(() => {
-    let closed = 0, active = 0, hipo = 0, lti = 0, needsAction = 0;
+    let closed = 0, active = 0, lti = 0, needsAction = 0;
     const sevCount = { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0 };
     const typeCountMap = {};
     const pipeCount = { 'Heads-Up': 0, 'Initial': 0, 'Investigation': 0, 'Closed': 0 };
@@ -286,7 +286,6 @@ export default function IMDashboard() {
     displayedIncidents.forEach(r => {
       const isClosed = r.status === 'closed' || r.status === 'Closed' || r.pipeline === 'Closed' || r.stage === 'CLOSED';
       if (isClosed) closed++; else active++;
-      if (r.isHipo || r.hipo) hipo++;
       const ty = (r.categories?.[0] || r.category || r.classification || r.type || 'Other');
       if (/Lost Time|LTI/i.test(ty)) lti++;
       if (!isClosed) needsAction++;
@@ -335,7 +334,6 @@ export default function IMDashboard() {
         total: serverStats.kpis.total,
         active: serverStats.kpis.active,
         closed: serverStats.kpis.closed,
-        hipo: serverStats.kpis.hipo,
         lti: 0,
         needsAction: serverStats.kpis.needsAction,
         severity: serverStats.severity.map(s => ({ level: s.level, count: s.count, color: sevHex(s.level) })),
@@ -346,7 +344,7 @@ export default function IMDashboard() {
     }
 
     return {
-      total: displayedIncidents.length, active, closed, hipo, lti, needsAction,
+      total: displayedIncidents.length, active, closed, lti, needsAction,
       severity: ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].map(k => ({ level: k, count: sevCount[k], color: sevHex(k) })),
       types: typeList,
       typesTotal: typeList.reduce((acc, curr) => acc + curr.count, 0),
@@ -523,8 +521,7 @@ export default function IMDashboard() {
       "Severity",
       "Stage",
       "Contractor",
-      "Building / Location",
-      "HiPo"
+      "Building / Location"
     ];
 
     const formatCsvField = (val, isDate = false) => {
@@ -556,7 +553,6 @@ export default function IMDashboard() {
 
       const contractor = i.contractorsInvolved || i.contractor || 'Unassigned';
       const building = i.buildingName || i.building || i.location || '—';
-      const hipo = (i.isHipo || i.hipo) ? 'Yes' : 'No';
 
       return [
         formatCsvField(code),
@@ -565,8 +561,7 @@ export default function IMDashboard() {
         formatCsvField(sev),
         formatCsvField(stage),
         formatCsvField(contractor),
-        formatCsvField(building),
-        formatCsvField(hipo)
+        formatCsvField(building)
       ].join(",");
     });
 
@@ -657,7 +652,6 @@ export default function IMDashboard() {
         <StatCard label="Total Incidents" value={agg.total} icon={Icons.alert} sub={`${agg.active} active`} accent="#131E40" />
         <StatCard label="Active" value={agg.active} icon={Icons.activity} sub="in progress" accent="#E32B50" valColor="#E32B50" throb={agg.active > 0 ? 'throb-red' : ''} />
         <StatCard label="Needs Action" value={agg.needsAction} icon={Icons.todo} sub="open items" accent="#C07D10" valColor="#C07D10" throb={agg.needsAction > 0 ? 'throb-amber' : ''} />
-        <StatCard label="High-Potential" value={agg.hipo} icon={Icons.zap} sub="HiPo safety signal" accent="#583C66" valColor="#583C66" throb={agg.hipo > 0 ? 'throb-red' : ''} />
         <StatCard label="Closed" value={agg.closed} icon={Icons.check} sub="resolved" accent="#7BBE97" valColor="#7BBE97" />
       </div>
 
@@ -891,7 +885,7 @@ export default function IMDashboard() {
 
                   return (
                     <tr key={r.id || Math.random()} style={{ cursor: 'pointer' }} onClick={() => navigate(`/incident-management/details/${r.id}`)}>
-                      <td className="code">{r.caseNumber || (r.id ? `INC-2026-${String(r.id).padStart(4, '0')}` : '—')} {(r.isHipo || r.hipo) && <span className="hipo-badge">HiPo</span>}</td>
+                      <td className="code">{r.caseNumber || (r.id ? `INC-2026-${String(r.id).padStart(4, '0')}` : '—')}</td>
                       <td style={{ whiteSpace: 'nowrap' }}>{formatDateStr(r.incidentDate || r.date || r.createdAt)}</td>
                       <td>{r.categories?.[0] || r.category || r.classification || r.type || "—"}</td>
                       <td><span className="sev-badge" style={{ background: hexA(sevHex(sev), 0.14), color: sevHex(sev) }}>{sev}</span></td>

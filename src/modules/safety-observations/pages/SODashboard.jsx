@@ -255,7 +255,11 @@ export default function SODashboard() {
 
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
   const rawRole = (localStorage.getItem("UserType") || currentUser?.role || currentUser?.userType || currentUser?.user_type || "").toUpperCase();
-  const isContractor = rawRole.includes("CONTRACTOR") || rawRole.includes("SUBCONTRACTOR") || Boolean(currentUser?.subcontractor_id) || Boolean(currentUser?.typeId && rawRole.includes("SUBCONTRACTOR"));
+  const userRolesArr = Array.isArray(currentUser?.userTypes) ? currentUser.userTypes.map((t) => String(t).toUpperCase()) : [];
+  const allRoles = [rawRole, ...userRolesArr].join(" ");
+  const isContractor = allRoles.includes("CONTRACTOR") || allRoles.includes("SUBCONTRACTOR") || Boolean(currentUser?.subcontractor_id) || Boolean(currentUser?.typeId && allRoles.includes("SUBCONTRACTOR"));
+  const isObserver = allRoles.includes("OBSERVER");
+  const isReadOnly = isContractor || isObserver;
   const contractorId = currentUser?.typeId || currentUser?.subcontractor_id || currentUser?.subContId || currentUser?.contractorId;
 
   const myContractor = useMemo(() => {
@@ -460,7 +464,9 @@ export default function SODashboard() {
           </div>
         </div>
         <div>
-          <button className="mod-btn-primary" onClick={() => navigate("/safety-observations/create")}>+ New Observation</button>
+          {!isReadOnly && (
+            <button className="mod-btn-primary" onClick={() => navigate("/safety-observations/create")}>+ New Observation</button>
+          )}
         </div>
       </div>
 

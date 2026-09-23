@@ -360,12 +360,7 @@ function ModuleSwitcher() {
   const isDepartment = allRoles.includes("DEPARTMENT") || allRoles.includes("OPERATOR") || allRoles.includes("SITE_HSE") || allRoles.includes("SAFETY") || allRoles.includes("HSE");
   const isDeptOrAdmin = (isAdmin || isDepartment) && !isContractor && !isObserver;
 
-  const allowedModules = MODULES.filter(m => {
-    if (m.id === 'si' || m.id === 'sc') {
-      return isDeptOrAdmin;
-    }
-    return true;
-  });
+  const allowedModules = MODULES;
 
   const getActiveModule = () => {
     if (location.pathname.includes('/spot-checks')) return MODULES[4];

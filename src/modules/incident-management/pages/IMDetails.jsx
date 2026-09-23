@@ -13,6 +13,7 @@ import { BUILDINGS } from "../../../data/buildings";
 import nneLogo from "../../../assets/images/nne_logo.png";
 import novoLogo from "../../../assets/images/Logo.jpeg";
 import { IncidentPdfExporter } from "../components/IncidentPdfExporter";
+import { getDenmarkDateString } from "../../../utils/dateUtils";
 import "../../../styles/module-shared.css";
 import "./IMDetails.css";
 import { AnalogTimePicker } from "./IMCreate";
@@ -297,6 +298,25 @@ const getLoggedInUser = () => {
   }
 };
 
+const isObserverUser = () => {
+  try {
+    const u = localStorage.getItem("user");
+    const userType = localStorage.getItem("UserType") || "";
+    if (!u && !userType) return false;
+    const parsed = typeof u === "string" && u.startsWith("{") ? JSON.parse(u) : {};
+    const role = String(userType || parsed.role || parsed.userType || parsed.user_type || "").toLowerCase();
+    const userTypes = Array.isArray(parsed.userTypes) ? parsed.userTypes.map(t => String(t).toLowerCase()) : [];
+    const username = String(parsed.username || parsed.name || "").toLowerCase();
+    return (
+      role.includes("observer") ||
+      userTypes.some(t => t.includes("observer")) ||
+      username.includes("observer")
+    );
+  } catch (e) {
+    return false;
+  }
+};
+
 const isContractorUser = () => {
   try {
     const u = localStorage.getItem("user");
@@ -312,6 +332,7 @@ const isContractorUser = () => {
 };
 
 const isNneUser = () => {
+  if (isObserverUser()) return false;
   if (isContractorUser()) return false;
   try {
     const u = localStorage.getItem("user");
@@ -360,6 +381,7 @@ const isNneUser = () => {
 };
 
 const isAdminUser = () => {
+  if (isObserverUser()) return false;
   try {
     const u = localStorage.getItem("user");
     const userType = localStorage.getItem("UserType") || "";
@@ -454,34 +476,77 @@ export default function IMDetails() {
     }
   };
 
+  const scrollToReviewSection = (stageKey) => {
+    const reviewCardId = `${stageKey}-review-section`;
+    setTimeout(() => {
+      const el = document.getElementById(reviewCardId);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 150);
+  };
+
   const handleExportPdf = async () => {
     const incObj = rawIncident?.incident || rawIncident || {};
     const incId = incObj?.id || id;
     if (!incId) return;
 
-    const result = await Swal.fire({
-      title: "Include Witness Section?",
-      text: "Do you want to include the Witness Statements section in the exported PDF report?",
+    const { value: formValues, isConfirmed } = await Swal.fire({
+      title: "Export Incident PDF",
+      html: `
+        <div style="text-align: left; padding: 4px 6px; font-size: 13.5px; color: #1e293b;">
+          <p style="margin-bottom: 14px; color: #64748b; font-size: 13px;">
+            Configure what to include in the exported official PDF report:
+          </p>
+          <div style="margin-bottom: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px;">
+            <label style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer; user-select: none;">
+              <input type="checkbox" id="swal-include-attachments" style="margin-top: 3px; accent-color: #0f172a; width: 17px; height: 17px; cursor: pointer;" />
+              <div>
+                <span style="font-weight: 700; color: #0f172a; font-size: 13.5px;">Combine Attached Files (Appendices & Documents)</span>
+                <div style="font-size: 12px; color: #64748b; margin-top: 2px;">
+                  Merge uploaded documents and appendix images into the PDF. (Unchecked: exports form records only without appending attached files).
+                </div>
+              </div>
+            </label>
+          </div>
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px;">
+            <label style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer; user-select: none;">
+              <input type="checkbox" id="swal-include-witnesses" style="margin-top: 3px; accent-color: #0f172a; width: 17px; height: 17px; cursor: pointer;" />
+              <div>
+                <span style="font-weight: 700; color: #0f172a; font-size: 13.5px;">Include Witness Statements Section</span>
+                <div style="font-size: 12px; color: #64748b; margin-top: 2px;">
+                  Include witness statements and testimonies in the investigation report.
+                </div>
+              </div>
+            </label>
+          </div>
+        </div>
+      `,
       icon: "question",
       showCancelButton: true,
-      showDenyButton: true,
-      confirmButtonText: "Yes, Include",
-      denyButtonText: "No, Exclude",
+      confirmButtonText: "Export PDF",
       cancelButtonText: "Cancel",
       confirmButtonColor: "#0f172a",
-      denyButtonColor: "#64748b"
+      cancelButtonColor: "#64748b",
+      focusConfirm: false,
+      preConfirm: () => {
+        return {
+          includeAttachments: !!document.getElementById("swal-include-attachments")?.checked,
+          includeWitnesses: !!document.getElementById("swal-include-witnesses")?.checked,
+        };
+      }
     });
 
-    if (result.isDismissed && result.dismiss === Swal.DismissReason.cancel) {
+    if (!isConfirmed || !formValues) {
       return;
     }
 
-    const includeWitnesses = result.isConfirmed;
+    const { includeAttachments, includeWitnesses } = formValues;
 
     try {
       setDownloadingPdf(true);
       showSuccess("Downloading incident PDF report from backend...");
-      const blobData = await exportIncidentPdf(incId, "all", includeWitnesses);
+      const blobData = await exportIncidentPdf(incId, "all", includeWitnesses, includeAttachments);
 
       const blob = new Blob([blobData], { type: "application/pdf" });
       const url = window.URL.createObjectURL(blob);
@@ -509,31 +574,66 @@ export default function IMDetails() {
     if (!incId) return;
 
     let includeWitnesses = false;
+    let includeAttachments = true;
     if (formKey === "investigation") {
-      const result = await Swal.fire({
-        title: "Include Witness Section?",
-        text: "Do you want to include the Witness Statements section in the Investigation Report PDF?",
+      const { value: formValues, isConfirmed } = await Swal.fire({
+        title: "Export Investigation Report PDF",
+        html: `
+          <div style="text-align: left; padding: 4px 6px; font-size: 13.5px; color: #1e293b;">
+            <p style="margin-bottom: 14px; color: #64748b; font-size: 13px;">
+              Configure what to include in the Investigation Report PDF:
+            </p>
+            <div style="margin-bottom: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px;">
+              <label style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer; user-select: none;">
+                <input type="checkbox" id="swal-single-attachments" style="margin-top: 3px; accent-color: #0f172a; width: 17px; height: 17px; cursor: pointer;" />
+                <div>
+                  <span style="font-weight: 700; color: #0f172a; font-size: 13.5px;">Combine Attached Files (Appendices & Documents)</span>
+                  <div style="font-size: 12px; color: #64748b; margin-top: 2px;">
+                    Merge uploaded documents and appendix images into the PDF. (Unchecked: exports form records only without appending attached files).
+                  </div>
+                </div>
+              </label>
+            </div>
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px;">
+              <label style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer; user-select: none;">
+                <input type="checkbox" id="swal-single-witnesses" style="margin-top: 3px; accent-color: #0f172a; width: 17px; height: 17px; cursor: pointer;" />
+                <div>
+                  <span style="font-weight: 700; color: #0f172a; font-size: 13.5px;">Include Witness Statements Section</span>
+                  <div style="font-size: 12px; color: #64748b; margin-top: 2px;">
+                    Include witness statements and testimonies in the investigation report.
+                  </div>
+                </div>
+              </label>
+            </div>
+          </div>
+        `,
         icon: "question",
         showCancelButton: true,
-        showDenyButton: true,
-        confirmButtonText: "Yes, Include",
-        denyButtonText: "No, Exclude",
+        confirmButtonText: "Export PDF",
         cancelButtonText: "Cancel",
         confirmButtonColor: "#0f172a",
-        denyButtonColor: "#64748b"
+        cancelButtonColor: "#64748b",
+        focusConfirm: false,
+        preConfirm: () => {
+          return {
+            includeAttachments: !!document.getElementById("swal-single-attachments")?.checked,
+            includeWitnesses: !!document.getElementById("swal-single-witnesses")?.checked,
+          };
+        }
       });
 
-      if (result.isDismissed && result.dismiss === Swal.DismissReason.cancel) {
+      if (!isConfirmed || !formValues) {
         return;
       }
 
-      includeWitnesses = result.isConfirmed;
+      includeAttachments = formValues.includeAttachments;
+      includeWitnesses = formValues.includeWitnesses;
     }
 
     try {
       setDownloadingForm(formKey);
       showSuccess(`Downloading ${formTitle} PDF...`);
-      const blobData = await exportIncidentPdf(incId, formKey, includeWitnesses);
+      const blobData = await exportIncidentPdf(incId, formKey, includeWitnesses, includeAttachments);
 
       const blob = new Blob([blobData], { type: "application/pdf" });
       const url = window.URL.createObjectURL(blob);
@@ -668,6 +768,7 @@ export default function IMDetails() {
 
   const [irSubmittedBy, setIrSubmittedBy] = useState(() => getLoggedInUser());
   const [irSubSignature, setIrSubSignature] = useState(false);
+  const [initialReportStarted, setInitialReportStarted] = useState(false);
 
   // Edit / Revision state for Initial Report
   const [irEditorName, setIrEditorName] = useState(() => getLoggedInUser());
@@ -780,24 +881,7 @@ export default function IMDetails() {
 
       const stageLabel = stage === "HEADS_UP" ? "Heads-Up Notification" : stage === "INITIAL_REPORT" ? "Initial Incident Report" : "Investigation Report";
       showSuccess(`${stageLabel} Returned for Revision!`);
-
-      if (stage === "HEADS_UP") {
-        setHeadsUpApproved(false);
-        setIsEditingHeadsUp(true);
-        setActiveTab("headsUp");
-      } else if (stage === "INITIAL_REPORT") {
-        setInitialReportApproved(false);
-        setIsEditingInitialReport(true);
-        setActiveTab("initialReport");
-      } else if (stage === "INVESTIGATION") {
-        setInvestigationApproved(false);
-        setIsEditingInvestigation(true);
-        setActiveTab("investigation");
-      }
-
-      // Refresh incident from API
-      const data = await getIncidentById(id);
-      setRawIncident(data?.data || data);
+      navigate("/incident-management/list");
     } catch (err) {
       console.error("Failed to return for revision", err);
       const msg = err.response?.data?.message || err.message || "Failed to return for revision";
@@ -868,7 +952,7 @@ export default function IMDetails() {
 
   const [invInvName, setInvInvName] = useState(() => getLoggedInUser());
   const [invInvRole, setInvInvRole] = useState("");
-  const [invInvDate, setInvInvDate] = useState("");
+  const [invInvDate, setInvInvDate] = useState(() => getDenmarkDateString());
   const [invInvSignature, setInvInvSignature] = useState(false);
   const [invInvMarkedOk, setInvInvMarkedOk] = useState(false);
   const [invRevSignature, setInvRevSignature] = useState(false);
@@ -889,7 +973,17 @@ export default function IMDetails() {
   const [actionsList, setActionsList] = useState([]);
   const [showAddAction, setShowAddAction] = useState(false);
   const [editingActionId, setEditingActionId] = useState(null);
-  const [newAction, setNewAction] = useState({ action: "", responsible: "", targetDate: "", status: "PENDING" });
+  const [newAction, setNewAction] = useState({
+    action: "",
+    responsible: "",
+    targetDate: "",
+    status: "PENDING",
+    attachmentUrl: "",
+    attachmentName: "",
+    fileSize: null,
+    fileType: ""
+  });
+  const [actionFileUploading, setActionFileUploading] = useState(false);
   const [expandedActionIds, setExpandedActionIds] = useState({});
   const [loadingActions, setLoadingActions] = useState(false);
   const [actionPage, setActionPage] = useState(1);
@@ -968,10 +1062,7 @@ export default function IMDetails() {
 
       await updateHeadsUp(id, payload);
       showSuccess("Heads-Up Notification Updated Successfully!");
-      setIsEditingHeadsUp(false);
-      window.scrollTo(0, 0);
-      const data = await getIncidentById(id);
-      setRawIncident(data?.data || data);
+      navigate("/incident-management/list");
     } catch (err) {
       console.error("Failed to update Heads-Up notification", err);
       const msg = err.response?.data?.message || err.message || "Failed to update Heads-Up Notification";
@@ -1101,6 +1192,7 @@ export default function IMDetails() {
 
         const isIrApproved = Boolean(resData?.initialReport?.approvedBy || (hasIrData && isClosedInc));
         setInitialReportApproved(isIrApproved);
+        setInitialReportStarted(Boolean(hasIrData || isIrApproved));
 
         // Sync Investigation states (ONLY true if actual data exists)
         const hasInvData = Boolean(
@@ -1513,7 +1605,10 @@ export default function IMDetails() {
           if (firstSig.name) setInvInvName(firstSig.name);
           if (firstSig.role) setInvInvRole(firstSig.role);
           if (firstSig.date) setInvInvDate(firstSig.date);
+          else setInvInvDate(getDenmarkDateString());
           if (firstSig.signature) setInvInvSignature(firstSig.signature);
+        } else {
+          setInvInvDate(getDenmarkDateString());
         }
         if (inv.mandatoryAttachments) {
           const mAtt = typeof inv.mandatoryAttachments === "string" ? JSON.parse(inv.mandatoryAttachments) : inv.mandatoryAttachments;
@@ -1746,6 +1841,44 @@ export default function IMDetails() {
     }));
   };
 
+  const handleActionFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setActionFileUploading(true);
+    try {
+      const res = await uploadIncidentAttachment(file);
+      const uploadedUrl = res.url || res.fileUrl || res.path || (res.data && (res.data.url || res.data.fileUrl));
+      const uploadedName = res.fileName || file.name;
+      const uploadedSize = res.fileSize || file.size;
+      const uploadedType = res.mimeType || file.type;
+
+      setNewAction(prev => ({
+        ...prev,
+        attachmentUrl: uploadedUrl,
+        attachmentName: uploadedName,
+        fileSize: uploadedSize,
+        fileType: uploadedType
+      }));
+      showSuccess("File attached successfully!");
+    } catch (err) {
+      console.error("Failed to upload action attachment", err);
+      showError("Failed to upload file attachment.");
+    } finally {
+      setActionFileUploading(false);
+      e.target.value = null;
+    }
+  };
+
+  const removeActionFile = () => {
+    setNewAction(prev => ({
+      ...prev,
+      attachmentUrl: "",
+      attachmentName: "",
+      fileSize: null,
+      fileType: ""
+    }));
+  };
+
   const addActionToList = async () => {
     if (!newAction.action || !newAction.responsible) return;
     try {
@@ -1754,7 +1887,17 @@ export default function IMDetails() {
         responsible: newAction.responsible,
         targetDate: newAction.targetDate,
         status: newAction.status,
-        actionType: "CORRECTIVE"
+        actionType: "CORRECTIVE",
+        attachmentUrl: newAction.attachmentUrl || null,
+        attachmentName: newAction.attachmentName || null,
+        fileSize: newAction.fileSize || null,
+        fileType: newAction.fileType || null,
+        attachments: newAction.attachmentUrl ? [{
+          url: newAction.attachmentUrl,
+          name: newAction.attachmentName,
+          size: newAction.fileSize,
+          type: newAction.fileType
+        }] : null
       };
       if (editingActionId) {
         await updateActionItem(id, editingActionId, payload);
@@ -1765,7 +1908,16 @@ export default function IMDetails() {
       }
       setShowAddAction(false);
       setEditingActionId(null);
-      setNewAction({ action: "", responsible: "", targetDate: "", status: "PENDING" });
+      setNewAction({
+        action: "",
+        responsible: "",
+        targetDate: "",
+        status: "PENDING",
+        attachmentUrl: "",
+        attachmentName: "",
+        fileSize: null,
+        fileType: ""
+      });
       loadActions();
     } catch (err) {
       const msg = err.response?.data?.message || err.message || "Failed to save action";
@@ -1797,11 +1949,19 @@ export default function IMDetails() {
   };
 
   const editAction = (action) => {
+    if (action.status === 'COMPLETED' || action.status === 'CLOSED' || String(action.status || '').toUpperCase() === 'COMPLETED' || String(action.status || '').toUpperCase() === 'CLOSED') {
+      return;
+    }
+    const att = (action.attachments && action.attachments[0]) || {};
     setNewAction({
       action: action.action || "",
       responsible: action.responsible || "",
       targetDate: action.targetDate ? action.targetDate.substring(0, 10) : "",
-      status: action.status || "PENDING"
+      status: action.status || "PENDING",
+      attachmentUrl: action.attachmentUrl || action.fileUrl || att.url || att.fileUrl || "",
+      attachmentName: action.attachmentName || action.fileName || att.name || att.fileName || "",
+      fileSize: action.fileSize || att.size || null,
+      fileType: action.fileType || att.type || ""
     });
     setEditingActionId(action.id);
     setShowAddAction(true);
@@ -2389,7 +2549,7 @@ export default function IMDetails() {
                           </button>
 
                           {/* 2. Edit Button - ONLY when filled but NOT approved (Icon only) */}
-                          {!isFormApproved && (
+                          {!isFormApproved && !isObserverUser() && (
                             <button
                               type="button"
                               style={{
@@ -2410,7 +2570,10 @@ export default function IMDetails() {
                               title={`Edit ${stg.st.label}`}
                               onClick={() => {
                                 if (stg.key === "headsUp") setIsEditingHeadsUp(true);
-                                if (stg.key === "initialReport") setIsEditingInitialReport(true);
+                                if (stg.key === "initialReport") {
+                                  setInitialReportStarted(true);
+                                  setIsEditingInitialReport(true);
+                                }
                                 if (stg.key === "investigation") {
                                   setInvestigationStarted(true);
                                   setIsEditingInvestigation(true);
@@ -2767,6 +2930,36 @@ export default function IMDetails() {
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px", flexWrap: "wrap" }}>
             <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--text-muted)", background: "var(--bg-dark)", padding: "4px 10px", borderRadius: "6px", border: "1px solid var(--border-color)" }}>{incident.caseNumber || incident.id}</span>
+
+            {(() => {
+              const level = incident.actualSeverity || incident.severity;
+              if (!level) return null;
+              const meta = {
+                1: { label: "Insignificant", color: "#2D9E5A" },
+                2: { label: "Minor", color: "#C07D10" },
+                3: { label: "Moderate", color: "#D97706" },
+                4: { label: "Critical", color: "#E32B50" },
+                5: { label: "Catastrophic", color: "#8F1B32" }
+              };
+              const m = meta[level] || { label: "", color: "#A1A5B3" };
+              return (
+                <span className="inc-pill" style={{ background: m.color, color: "#fff", borderRadius: "6px", fontWeight: 700, padding: "4px 10px", fontSize: "11px" }}>
+                  {m.label.toUpperCase()}
+                </span>
+              );
+            })()}
+
+            {incident.stage && (
+              <span className="inc-pill" style={{ background: "rgba(227, 43, 80, 0.1)", color: "#E32B50", borderRadius: "6px", fontWeight: 700, padding: "4px 10px", fontSize: "11px", border: "1px solid rgba(227, 43, 80, 0.3)" }}>
+                {incident.stage === "INVESTIGATION" ? "INVESTIGATING" : incident.stage.replace("_", " ")}
+              </span>
+            )}
+
+            {incident.investigationLevel && (
+              <span className="inc-pill" title="Investigation required" style={{ background: "rgba(192, 125, 16, 0.14)", color: "#d97706", borderRadius: "6px", fontWeight: 700, padding: "4px 10px", fontSize: "11px", border: "1px solid rgba(192, 125, 16, 0.3)" }}>
+                INVESTIGATION {incident.investigationLevel.toUpperCase()}
+              </span>
+            )}
           </div>
           <div style={{ fontSize: "24px", fontWeight: 800, color: "var(--text-main)", marginBottom: "12px", letterSpacing: "-0.5px" }}>{incident.title || incident.categories?.[0] || incident.caseNumber}</div>
           <div style={{ display: "flex", alignItems: "center", gap: "12px", fontSize: "14px", color: "var(--text-muted)", fontWeight: 500 }}>
@@ -2827,17 +3020,6 @@ export default function IMDetails() {
         </div>
       </div>
 
-      {incident.isHipo && (
-        <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "12px 16px", marginBottom: "20px", borderRadius: "8px", background: "var(--color-risk-bg)", borderLeft: "4px solid var(--color-risk)", color: "var(--color-risk)", fontWeight: 600, fontSize: "13px" }}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-            <line x1="12" y1="9" x2="12" y2="13" />
-            <line x1="12" y1="17" x2="12.01" y2="17" />
-          </svg>
-          <span>High-Potential (HiPo) incident {incident.investigationLevel ? `· Investigation Level ${incident.investigationLevel} (L1 = basic, L2 = intermediate, L3 = full / serious)` : ""}</span>
-        </div>
-      )}
-
       {/* Banner above Timeline: No Further Investigation Required */}
       {(incident.noFurtherInvestigation || huNoFurtherInvestigation || irNoFurtherInvestigation || headsUpData?.noFurtherInvestigation || initialReportData?.noFurtherInvestigation) && (
         <div style={{
@@ -2891,7 +3073,9 @@ export default function IMDetails() {
               if (lastHist && (lastHist.status === "RETURNED_FOR_REVISION" || String(lastHist.action).toLowerCase().includes("return")) && !headsUpApproved) {
                 return "REVISION REQUIRED";
               }
-              return (incident.stage === "HEADS_UP" && !headsUpApproved) ? "IN PROGRESS" : "COMPLETED";
+              if (headsUpApproved) return "COMPLETED";
+              const isSubmitted = Boolean(headsUpData?.submittedBy || headsUpData?.signature || headsUpData?.submittedTime || incident?.id || incident?.caseNumber);
+              return isSubmitted ? "IN REVIEW" : "PENDING";
             })(),
             tabBadgeClass: (() => {
               const hist = headsUpData?.editHistory || [];
@@ -2899,7 +3083,9 @@ export default function IMDetails() {
               if (lastHist && (lastHist.status === "RETURNED_FOR_REVISION" || String(lastHist.action).toLowerCase().includes("return")) && !headsUpApproved) {
                 return "chip-inprogress";
               }
-              return (incident.stage === "HEADS_UP" && !headsUpApproved) ? "chip-inprogress" : "chip-approved";
+              if (headsUpApproved) return "chip-approved";
+              const isSubmitted = Boolean(headsUpData?.submittedBy || headsUpData?.signature || headsUpData?.submittedTime || incident?.id || incident?.caseNumber);
+              return isSubmitted ? "chip-inprogress" : "chip-upcoming";
             })()
           },
           {
@@ -2911,7 +3097,10 @@ export default function IMDetails() {
               if (lastHist && (lastHist.status === "RETURNED_FOR_REVISION" || String(lastHist.action).toLowerCase().includes("return")) && !initialReportApproved) {
                 return "REVISION REQUIRED";
               }
-              return (isNoFurtherInvestigation && !hasInitialReportData) ? "WAIVED" : incident.stage === "HEADS_UP" ? "PENDING" : (initialReportApproved || (incident.stage !== "HEADS_UP" && incident.stage !== "INITIAL_REPORT") ? "COMPLETED" : "IN PROGRESS");
+              if (isNoFurtherInvestigation && !hasInitialReportData) return "WAIVED";
+              if (initialReportApproved) return "COMPLETED";
+              if (hasInitialReportData || initialReportSubmitted) return "IN REVIEW";
+              return "PENDING";
             })(),
             tabBadgeClass: (() => {
               const hist = initialReportData?.editHistory || [];
@@ -2919,7 +3108,10 @@ export default function IMDetails() {
               if (lastHist && (lastHist.status === "RETURNED_FOR_REVISION" || String(lastHist.action).toLowerCase().includes("return")) && !initialReportApproved) {
                 return "chip-inprogress";
               }
-              return (isNoFurtherInvestigation && !hasInitialReportData) ? "chip-approved" : incident.stage === "HEADS_UP" ? "chip-upcoming" : (initialReportApproved || (incident.stage !== "HEADS_UP" && incident.stage !== "INITIAL_REPORT") ? "chip-approved" : "chip-inprogress");
+              if (isNoFurtherInvestigation && !hasInitialReportData) return "chip-approved";
+              if (initialReportApproved) return "chip-approved";
+              if (hasInitialReportData || initialReportSubmitted) return "chip-inprogress";
+              return "chip-upcoming";
             })()
           },
           {
@@ -2931,7 +3123,10 @@ export default function IMDetails() {
               if (lastHist && (lastHist.status === "RETURNED_FOR_REVISION" || String(lastHist.action).toLowerCase().includes("return")) && !investigationApproved) {
                 return "REVISION REQUIRED";
               }
-              return (isNoFurtherInvestigation && !hasInvestigationData) ? "WAIVED" : (investigationApproved ? "COMPLETED" : (investigationSubmitted ? "IN REVIEW" : "IN PROGRESS"));
+              if (isNoFurtherInvestigation && !hasInvestigationData) return "WAIVED";
+              if (investigationApproved || isClosed) return "COMPLETED";
+              if (hasInvestigationData || investigationSubmitted) return "IN REVIEW";
+              return "PENDING";
             })(),
             tabBadgeClass: (() => {
               const hist = investigationData?.editHistory || [];
@@ -2939,7 +3134,10 @@ export default function IMDetails() {
               if (lastHist && (lastHist.status === "RETURNED_FOR_REVISION" || String(lastHist.action).toLowerCase().includes("return")) && !investigationApproved) {
                 return "chip-inprogress";
               }
-              return (isNoFurtherInvestigation && !hasInvestigationData) ? "chip-approved" : (investigationApproved ? "chip-approved" : (investigationSubmitted ? "chip-current" : "chip-inprogress"));
+              if (isNoFurtherInvestigation && !hasInvestigationData) return "chip-approved";
+              if (investigationApproved || isClosed) return "chip-approved";
+              if (hasInvestigationData || investigationSubmitted) return "chip-inprogress";
+              return "chip-upcoming";
             })()
           },
           {
@@ -2970,9 +3168,36 @@ export default function IMDetails() {
           },
           { id: "actions", label: "Corrective Actions" }
         ].map(t => (
-          <button key={t.id} className={`inc-tab ${activeTab === t.id ? "active" : ""}`} onClick={() => setActiveTab(t.id)}>
+          <button
+            key={t.id}
+            className={`inc-tab ${activeTab === t.id ? "active" : ""}`}
+            onClick={() => {
+              setActiveTab(t.id);
+              if (!isContractorUser() && (t.tabBadge === "IN REVIEW" || t.tabBadge === "REVISION REQUIRED" || t.tabBadge === "Pending NNE Review")) {
+                scrollToReviewSection(t.id);
+              }
+            }}
+          >
             {t.label}
-            {t.tabBadge && <span className={`inv-chip ${t.tabBadgeClass}`} style={{ marginLeft: "8px" }}>{t.tabBadge}</span>}
+            {t.tabBadge && (
+              <span
+                className={`inv-chip ${t.tabBadgeClass}`}
+                style={{
+                  marginLeft: "8px",
+                  cursor: (!isContractorUser() && (t.tabBadge === "IN REVIEW" || t.tabBadge === "REVISION REQUIRED" || t.tabBadge === "Pending NNE Review")) ? "pointer" : "inherit"
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActiveTab(t.id);
+                  if (!isContractorUser()) {
+                    scrollToReviewSection(t.id);
+                  }
+                }}
+                title={!isContractorUser() && (t.tabBadge === "IN REVIEW" || t.tabBadge === "REVISION REQUIRED") ? "Click to scroll to Review Section" : undefined}
+              >
+                {t.tabBadge}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -3059,10 +3284,6 @@ export default function IMDetails() {
                   <div>
                     <dt style={{ color: "var(--text-muted)", fontSize: "11px", fontWeight: 700, letterSpacing: "0.5px", textTransform: "uppercase", marginBottom: "4px" }}>Actual Severity</dt>
                     <dd style={{ fontWeight: 500, fontSize: "14px", color: "var(--text-main)" }}><SevPill level={incident.actualSeverity} /></dd>
-                  </div>
-                  <div>
-                    <dt style={{ color: "var(--text-muted)", fontSize: "11px", fontWeight: 700, letterSpacing: "0.5px", textTransform: "uppercase", marginBottom: "4px" }}>High-Potential</dt>
-                    <dd style={{ fontWeight: 500, fontSize: "14px", color: "var(--text-main)" }}>{incident.isHipo ? "Yes" : "No"}</dd>
                   </div>
                   <div>
                     <dt style={{ color: "var(--text-muted)", fontSize: "11px", fontWeight: 700, letterSpacing: "0.5px", textTransform: "uppercase", marginBottom: "4px" }}>Investigation Team</dt>
@@ -3474,7 +3695,7 @@ export default function IMDetails() {
                 {(Number(huActualSeverity) >= 4 || Number(huPotentialSeverity) >= 4) && (
                   <div style={{ marginTop: "12px", padding: "10px 14px", background: "rgba(227, 43, 80, 0.1)", border: "1px solid rgba(227, 43, 80, 0.3)", borderRadius: "6px", color: "#E32B50", fontSize: "13px", fontWeight: 600, display: "flex", alignItems: "center", gap: "8px" }}>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
-                    High Potential (HiPo) Incident — Level 3 / Escalated Investigation Protocol Applies.
+                    Critical Incident — Level 3 / Escalated Investigation Protocol Applies.
                   </div>
                 )}
 
@@ -3711,7 +3932,14 @@ export default function IMDetails() {
                   {headsUpApproved ? (
                     <span className="inv-chip chip-approved">Reviewed & Approved</span>
                   ) : (
-                    <span className="inv-chip chip-inprogress">Pending NNE Review</span>
+                    <span
+                      className="inv-chip chip-inprogress"
+                      style={{ cursor: !isContractorUser() ? "pointer" : "default" }}
+                      title={!isContractorUser() ? "Click to scroll down to Review Section" : undefined}
+                      onClick={() => !isContractorUser() && scrollToReviewSection("headsUp")}
+                    >
+                      Pending NNE Review
+                    </span>
                   )}
                 </div>
                 <div style={{ display: "flex", gap: "8px" }}>
@@ -3843,9 +4071,6 @@ export default function IMDetails() {
                           </span>
                         );
                       })()}
-                      {(incident.isHipo || Number(huActualSeverity) >= 4 || Number(huPotentialSeverity) >= 4) && (
-                        <span className="badge" style={{ background: "var(--color-risk)", color: "#fff" }}>HiPo</span>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -4036,8 +4261,8 @@ export default function IMDetails() {
           )}
 
           {!headsUpApproved && !isContractorUser() && (
-            <div className="mod-card mb-4">
-              <div className="mod-card-header"><span className="mod-card-title">Review: Heads-Up Notification</span></div>
+            <div className="mod-card mb-4" id="headsUp-review-section">
+              <div className="mod-card-header"><span className="mod-card-title">Review: Heads-Up Notification {incident.id}</span></div>
               <div className="mod-card-body">
                 <div className="mod-form-group">
                   <label className="mod-form-label">Review Comments / Revision Reason</label>
@@ -4103,15 +4328,7 @@ export default function IMDetails() {
                         noFurtherInvestigation: huNoFurtherInvestigation
                       });
                       showSuccess("Heads-Up Notification Approved!");
-                      setHeadsUpApproved(true);
-                      if (huNoFurtherInvestigation || incident.noFurtherInvestigation) {
-                        setActiveTab("headsUp");
-                      } else {
-                        setActiveTab("initialReport");
-                      }
-                      // Refresh incident
-                      const data = await getIncidentById(id);
-                      setRawIncident(data?.data || data);
+                      navigate("/incident-management/list");
                     } catch (err) {
                       console.error("Failed to approve Heads Up", err);
                       const msg = err.response?.data?.message || err.message || "Failed to approve Heads Up";
@@ -4152,8 +4369,7 @@ export default function IMDetails() {
                           const userName = getLoggedInUser() || "Site HSE Admin";
                           await closeIncident(id, { closedBy: userName });
                           showSuccess("Incident Closed Successfully!");
-                          const updated = await getIncidentById(id);
-                          setRawIncident(updated?.data || updated);
+                          navigate("/incident-management/list");
                         } catch (err) {
                           const msg = err.response?.data?.message || err.message || "Failed to close incident";
                           showError(Array.isArray(msg) ? msg[0] : msg);
@@ -4168,17 +4384,16 @@ export default function IMDetails() {
             </div>
           ) : !headsUpApproved && !isClosed ? (
             <div className="mod-card"><div className="mod-card-body"><div className="locked-state">
-              <div className="locked-icon">
-                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                  <circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" />
-                </svg>
-              </div>
-              <div className="locked-title">Initial Incident Report (24hr) Pending</div>
-              <div className="locked-text">The 24-hour Initial Incident Report is due by <b>{stages.initialReport.dueLabel}</b>. This report captures injured person details, incident categories, severity assessment, photos, injury information, accident types, body parts and immediate actions.</div>
-              <div style={{ marginTop: 24, fontSize: "13px", color: "var(--color-caution)" }}>
-                ⚠️ Heads-Up Notification must be reviewed and approved before starting the Initial Report.
-              </div>
+              <div className="locked-icon"><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" /><path d="M14 2v4a2 2 0 0 0 2 2h4" /></svg></div>
+              <div className="locked-title">Initial Incident Report Not Yet Available</div>
+              <div className="locked-text">Available after the Heads-Up Notification is completed and approved. Due by <b>{stages.initialReport.dueLabel || "24h from event"}</b>.</div>
             </div></div></div>
+          ) : (!initialReportStarted && !hasInitialReportData && !initialReportSubmitted && !isClosed) ? (
+            <div className="mod-card" style={{ padding: "80px 32px", textAlign: "center", borderTop: "4px solid var(--accent-primary)" }}>
+              <div style={{ fontSize: 20, fontWeight: 700, color: "var(--text-main)", marginBottom: 12 }}>Initial Incident Report (24hr)</div>
+              <div style={{ color: "var(--text-muted)", marginBottom: 24, fontSize: 14 }}>The Heads-Up Notification has been approved. You can now begin the 24-hour Initial Incident Report.</div>
+              <button className="mod-btn-primary im-btn-primary" style={{ padding: "10px 24px", fontSize: 14 }} onClick={() => { setInitialReportStarted(true); setIsEditingInitialReport(false); window.scrollTo(0, 0); }}>Start Initial Report</button>
+            </div>
           ) : (
             <div className="mod-card">
               <div className="mod-card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
@@ -4189,7 +4404,14 @@ export default function IMDetails() {
                   ) : (isEditingInitialReport && initialReportSubmitted) ? (
                     <span className="inv-chip chip-inprogress">Editing</span>
                   ) : initialReportSubmitted ? (
-                    <span className="inv-chip chip-current">In Review</span>
+                    <span
+                      className="inv-chip chip-current"
+                      style={{ cursor: !isContractorUser() ? "pointer" : "default" }}
+                      title={!isContractorUser() ? "Click to scroll down to Review Section" : undefined}
+                      onClick={() => !isContractorUser() && scrollToReviewSection("initialReport")}
+                    >
+                      In Review
+                    </span>
                   ) : (
                     <span className="inv-chip chip-upcoming">In Progress</span>
                   )}
@@ -5073,11 +5295,7 @@ export default function IMDetails() {
 
                             await submitInitialReport(id, formData);
                             showSuccess(isEditingInitialReport ? "Initial Incident Report Updated Successfully!" : "Initial Incident Report Submitted Successfully!");
-                            setIsEditingInitialReport(false);
-                            setInitialReportSubmitted(true);
-                            window.scrollTo(0, 0);
-                            const data = await getIncidentById(id);
-                            setRawIncident(data?.data || data);
+                            navigate("/incident-management/list");
                           } catch (err) {
                             console.error("Failed to submit initial report", err);
                             const msg = err.response?.data?.message || err.message || "Failed to submit initial report";
@@ -5094,7 +5312,7 @@ export default function IMDetails() {
 
                 {/* Review & Sign-Off Section if submitted and pending approval */}
                 {initialReportSubmitted && !initialReportApproved && !isClosed && !isContractorUser() && (
-                  <div className="mod-card mb-4" style={{ marginTop: 24, borderTop: "3px solid var(--accent-primary, #3b82f6)" }}>
+                  <div className="mod-card mb-4" id="initialReport-review-section" style={{ marginTop: 24, borderTop: "3px solid var(--accent-primary, #3b82f6)" }}>
                     <div className="mod-card-header"><span className="mod-card-title">Review & Sign-Off: Initial Incident Report {incident.id}</span></div>
                     <div className="mod-card-body">
                       <div className="mod-form-group">
@@ -5160,15 +5378,7 @@ export default function IMDetails() {
                               noFurtherInvestigation: irNoFurtherInvestigation
                             });
                             showSuccess("Initial Report Approved!");
-                            setInitialReportApproved(true);
-                            if (irNoFurtherInvestigation || huNoFurtherInvestigation || incident.noFurtherInvestigation) {
-                              setActiveTab("initialReport");
-                            } else {
-                              setActiveTab("investigation");
-                            }
-                            window.scrollTo(0, 0);
-                            const data = await getIncidentById(id);
-                            setRawIncident(data?.data || data);
+                            navigate("/incident-management/list");
                           } catch (err) {
                             const msg = err.response?.data?.message || err.message || "Failed to approve initial report";
                             showError(Array.isArray(msg) ? msg[0] : msg);
@@ -5219,8 +5429,7 @@ export default function IMDetails() {
                             const userName = getLoggedInUser() || "Site HSE Admin";
                             await closeIncident(id, { closedBy: userName });
                             showSuccess("Incident Closed Successfully!");
-                            const data = await getIncidentById(id);
-                            setRawIncident(data?.data || data);
+                            navigate("/incident-management/list");
                           } catch (err) {
                             const msg = err.response?.data?.message || err.response?.data?.error || err.message || "Failed to close incident";
                             showError(Array.isArray(msg) ? msg[0] : msg);
@@ -5266,8 +5475,7 @@ export default function IMDetails() {
                           const userName = getLoggedInUser() || "Site HSE Admin";
                           await closeIncident(id, { closedBy: userName });
                           showSuccess("Incident Closed Successfully!");
-                          const updated = await getIncidentById(id);
-                          setRawIncident(updated?.data || updated);
+                          navigate("/incident-management/list");
                         } catch (err) {
                           const msg = err.response?.data?.message || err.message || "Failed to close incident";
                           showError(Array.isArray(msg) ? msg[0] : msg);
@@ -5302,7 +5510,14 @@ export default function IMDetails() {
                   ) : (isEditingInvestigation && investigationSubmitted) ? (
                     <span className="inv-chip chip-inprogress">Editing</span>
                   ) : investigationSubmitted ? (
-                    <span className="inv-chip chip-current">In Review</span>
+                    <span
+                      className="inv-chip chip-current"
+                      style={{ cursor: !isContractorUser() ? "pointer" : "default" }}
+                      title={!isContractorUser() ? "Click to scroll down to Review Section" : undefined}
+                      onClick={() => !isContractorUser() && scrollToReviewSection("investigation")}
+                    >
+                      In Review
+                    </span>
                   ) : (
                     <span className="inv-chip chip-upcoming">In Progress</span>
                   )}
@@ -6067,7 +6282,17 @@ export default function IMDetails() {
                         {/* <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12 }}>Site HSE Investigator</div> */}
                         <div className="mod-form-group" style={{ marginBottom: 12 }}><label className="mod-form-label">Name</label><input className="mod-form-input" value={invInvName} onChange={e => setInvInvName(e.target.value)} readOnly style={{ backgroundColor: "var(--bg-dark)", cursor: "not-allowed", color: "var(--text-muted)", opacity: 0.8 }} /></div>
                         <div className="mod-form-group" style={{ marginBottom: 12 }}><label className="mod-form-label">Role</label><input className="mod-form-input" value={invInvRole} onChange={e => setInvInvRole(e.target.value)} /></div>
-                        <div className="mod-form-group" style={{ marginBottom: 12 }}><label className="mod-form-label">Date</label><input type="date" className="mod-form-input" value={invInvDate} onChange={e => setInvInvDate(e.target.value)} /></div>
+                        <div className="mod-form-group" style={{ marginBottom: 12 }}>
+                          <label className="mod-form-label">Date</label>
+                          <input
+                            type="date"
+                            className="mod-form-input"
+                            value={invInvDate || getDenmarkDateString()}
+                            readOnly
+                            disabled
+                            style={{ backgroundColor: "var(--bg-dark)", cursor: "not-allowed", color: "var(--text-muted)", opacity: 0.8 }}
+                          />
+                        </div>
                         <div className="mod-form-group">
                           <label className="mod-form-label">Investigator Signature</label>
                           <SignaturePad value={invInvSignature} onChange={setInvInvSignature} onClear={() => setInvInvSignature(false)} />
@@ -6201,7 +6426,7 @@ export default function IMDetails() {
                                     role: invInvRole || "Site HSE Investigator",
                                     name: invInvName || userName,
                                     signature: invInvSignature,
-                                    date: invInvDate || new Date().toISOString().split('T')[0]
+                                    date: invInvDate || getDenmarkDateString()
                                   }
                                 ]
                               }),
@@ -6234,12 +6459,7 @@ export default function IMDetails() {
                             };
                             await saveInvestigation(id, payload);
                             await Swal.fire({ title: "Success!", text: (isEditingInvestigation && investigationSubmitted) ? "Investigation Report Updated Successfully!" : "Investigation Report Submitted!", icon: "success", confirmButtonColor: "#0f172a" });
-                            setIsEditingInvestigation(false);
-                            setInvestigationSubmitted(true);
-                            window.scrollTo(0, 0);
-                            const data = await getIncidentById(id);
-                            setRawIncident(data?.data || data);
-                            await loadActions();
+                            navigate("/incident-management/list");
                           } catch (err) {
                             console.error("Failed to submit investigation", err);
                           }
@@ -6254,7 +6474,7 @@ export default function IMDetails() {
 
                 {/* Review & Sign-Off Section if submitted and pending approval */}
                 {investigationSubmitted && !investigationApproved && !isClosed && !isContractorUser() && (
-                  <div className="mod-card mb-4" style={{ marginTop: 24, borderTop: "3px solid var(--accent-primary, #3b82f6)" }}>
+                  <div className="mod-card mb-4" id="investigation-review-section" style={{ marginTop: 24, borderTop: "3px solid var(--accent-primary, #3b82f6)" }}>
                     <div className="mod-card-header">
                       <span className="mod-card-title">Review & Sign-Off: Investigation Report {incident.id}</span>
                     </div>
@@ -6307,10 +6527,7 @@ export default function IMDetails() {
                               signature: invRevSignature
                             });
                             showSuccess("Investigation Report Signed Off!");
-                            setInvestigationApproved(true);
-                            setActiveTab("actions");
-                            const data = await getIncidentById(id);
-                            setRawIncident(data?.data || data);
+                            navigate("/incident-management/list");
                           } catch (err) {
                             console.error("Failed to sign off investigation", err);
                             const msg = err.response?.data?.message || err.message || "Failed to sign off investigation";
@@ -6533,7 +6750,7 @@ export default function IMDetails() {
                 )}
               </div>
               <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-                {!isContractorUser() && (
+                {!isContractorUser() && !isObserverUser() && (
                   <button className="mod-btn-primary im-btn-primary" disabled={incident?.closedBy || incident?.status === 2 || String(incident?.stage).toUpperCase() === "CLOSED"} style={{ background: "var(--color-risk)", padding: "6px 16px", fontSize: "13px", fontWeight: 600, opacity: (incident?.closedBy || incident?.status === 2 || String(incident?.stage).toUpperCase() === "CLOSED") ? 0.5 : 1, cursor: (incident?.closedBy || incident?.status === 2 || String(incident?.stage).toUpperCase() === "CLOSED") ? "not-allowed" : "pointer" }} onClick={async () => {
                     try {
                       const userName = getLoggedInUser() || "Site HSE Admin";
@@ -6552,7 +6769,7 @@ export default function IMDetails() {
                     if (showAddAction) {
                       setShowAddAction(false);
                       setEditingActionId(null);
-                      setNewAction({ action: "", responsible: "", targetDate: "", status: "PENDING" });
+                      setNewAction({ action: "", responsible: "", targetDate: "", status: "PENDING", attachmentUrl: "", attachmentName: "", fileSize: null, fileType: "" });
                     } else {
                       setShowAddAction(true);
                     }
@@ -6583,6 +6800,82 @@ export default function IMDetails() {
                       <option value="COMPLETED">Completed</option>
                     </select>
                   </div>
+                  <div className="mod-form-group" style={{ gridColumn: "1 / -1", marginTop: "4px" }}>
+                    <label className="mod-form-label" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                      Attachment (Document / Photo)
+                    </label>
+                    {newAction.attachmentUrl ? (
+                      <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "8px 14px", borderRadius: "8px", background: "var(--bg-card, #fff)", border: "1px solid var(--border-color)", width: "fit-content", maxWidth: "100%", flexWrap: "wrap" }}>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                        <div style={{ display: "flex", flexDirection: "column" }}>
+                          <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-main)", maxWidth: "260px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={newAction.attachmentName}>
+                            {newAction.attachmentName || "Attached File"}
+                          </span>
+                          {newAction.fileSize && (
+                            <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>
+                              {Math.round(newAction.fileSize / 1024)} KB
+                            </span>
+                          )}
+                        </div>
+                        <a
+                          href={getAttachmentUrl(newAction.attachmentUrl)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ fontSize: "12px", color: "#2563eb", fontWeight: 600, textDecoration: "underline", marginLeft: "6px" }}
+                        >
+                          View File
+                        </a>
+                        <label
+                          style={{
+                            cursor: actionFileUploading ? "not-allowed" : "pointer",
+                            fontSize: "12px",
+                            color: "var(--text-muted)",
+                            textDecoration: "underline",
+                            marginLeft: "4px"
+                          }}
+                        >
+                          {actionFileUploading ? "Uploading..." : "Replace"}
+                          <input type="file" style={{ display: "none" }} onChange={handleActionFileUpload} disabled={actionFileUploading} />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={removeActionFile}
+                          style={{ background: "transparent", border: "none", color: "var(--color-risk, #ef4444)", cursor: "pointer", padding: "2px 6px", borderRadius: "4px", fontSize: "15px", fontWeight: 700, marginLeft: "4px" }}
+                          title="Remove attached file"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+                        <label
+                          className="mod-btn-outline"
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "8px",
+                            cursor: actionFileUploading ? "not-allowed" : "pointer",
+                            padding: "7px 14px",
+                            borderRadius: "6px",
+                            fontSize: "12.5px",
+                            fontWeight: 600,
+                            background: "var(--bg-card, #fff)",
+                            border: "1px dashed var(--border-color)",
+                            color: "var(--text-main)",
+                            opacity: actionFileUploading ? 0.7 : 1
+                          }}
+                        >
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                          {actionFileUploading ? "Uploading..." : "Attach File / Photo"}
+                          <input type="file" style={{ display: "none" }} onChange={handleActionFileUpload} disabled={actionFileUploading} />
+                        </label>
+                        <span style={{ fontSize: "11px", color: "var(--text-muted)", fontStyle: "italic" }}>
+                          Supports PDF, JPG, PNG, WEBP, DOCX
+                        </span>
+                      </div>
+                    )}
+                  </div>
                   <div className="mod-form-group" style={{ gridColumn: "1 / -1", display: "flex", justifyContent: "flex-end", marginTop: "8px" }}>
                     <button type="button" className="mod-btn-primary im-btn-primary" style={{ padding: "0 24px", height: "36px", width: "max-content", flexShrink: 0 }} onClick={addActionToList}>Save Action</button>
                   </div>
@@ -6593,7 +6886,7 @@ export default function IMDetails() {
             {(() => {
               const totalPages = Math.ceil(actionsList.length / actionsPerPage);
               const currentActions = actionsList.slice((actionPage - 1) * actionsPerPage, actionPage * actionsPerPage);
-              const colCount = isNneUser() ? 5 : 4;
+              const colCount = isNneUser() ? 6 : 5;
 
               return (
                 <>
@@ -6605,6 +6898,7 @@ export default function IMDetails() {
                             <th>Action</th>
                             <th>Owner</th>
                             <th>Due</th>
+                            <th>Attachment</th>
                             <th>Status</th>
                             {isNneUser() && <th style={{ width: 100, textAlign: "right" }}>Actions</th>}
                           </tr>
@@ -6617,6 +6911,10 @@ export default function IMDetails() {
                           ) : currentActions.map((a, i) => {
                             const statusColor = a.status === 'COMPLETED' ? { bg: '#dcfce7', text: '#16a34a' } : a.status === 'IN_PROGRESS' ? { bg: '#fef08a', text: '#ca8a04' } : { bg: '#f1f5f9', text: '#64748b' };
                             const isExpanded = Boolean(expandedActionIds[a.id || i]);
+                            const actionAttachmentUrl = a.attachmentUrl || a.fileUrl || (a.attachments && a.attachments[0]?.url) || (a.attachments && a.attachments[0]?.fileUrl);
+                            const actionAttachmentName = a.attachmentName || a.fileName || (a.attachments && a.attachments[0]?.name) || (a.attachments && a.attachments[0]?.fileName) || "Attached File";
+                            const actionAttachmentSize = a.fileSize || (a.attachments && a.attachments[0]?.size);
+
                             return (
                               <React.Fragment key={a.id || i}>
                                 <tr
@@ -6655,13 +6953,47 @@ export default function IMDetails() {
                                   <td>{a.responsible || "—"}</td>
                                   <td>{a.targetDate ? new Date(a.targetDate).toLocaleDateString() : '—'}</td>
                                   <td>
+                                    {actionAttachmentUrl ? (
+                                      <a
+                                        href={getAttachmentUrl(actionAttachmentUrl)}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        onClick={e => e.stopPropagation()}
+                                        style={{
+                                          display: "inline-flex",
+                                          alignItems: "center",
+                                          gap: "5px",
+                                          padding: "3px 8px",
+                                          borderRadius: "6px",
+                                          background: "var(--bg-dark, #f1f5f9)",
+                                          border: "1px solid var(--border-color)",
+                                          color: "#2563eb",
+                                          fontSize: "11.5px",
+                                          fontWeight: 600,
+                                          textDecoration: "none",
+                                          maxWidth: "160px"
+                                        }}
+                                        title={actionAttachmentName}
+                                      >
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                          {actionAttachmentName}
+                                        </span>
+                                      </a>
+                                    ) : (
+                                      <span style={{ color: "var(--text-muted)", fontSize: "12px" }}>—</span>
+                                    )}
+                                  </td>
+                                  <td>
                                     <span style={{ display: "inline-block", padding: "4px 10px", borderRadius: "999px", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", background: statusColor.bg, color: statusColor.text }}>{a.status?.replace('_', ' ')}</span>
                                   </td>
                                   {isNneUser() && (
                                     <td style={{ textAlign: "right", whiteSpace: "nowrap" }} onClick={e => e.stopPropagation()}>
-                                      <button onClick={() => editAction(a)} style={{ background: "var(--color-caution-bg)", border: "none", color: "var(--color-caution)", cursor: "pointer", marginRight: 8, padding: "6px", borderRadius: "6px", display: "inline-flex", alignItems: "center", justifyContent: "center" }} title="Edit">
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
-                                      </button>
+                                      {a.status !== 'COMPLETED' && a.status !== 'CLOSED' && String(a.status || '').toUpperCase() !== 'COMPLETED' && String(a.status || '').toUpperCase() !== 'CLOSED' && (
+                                        <button onClick={() => editAction(a)} style={{ background: "var(--color-caution-bg)", border: "none", color: "var(--color-caution)", cursor: "pointer", marginRight: 8, padding: "6px", borderRadius: "6px", display: "inline-flex", alignItems: "center", justifyContent: "center" }} title="Edit">
+                                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                                        </button>
+                                      )}
                                       <button onClick={() => deleteAction(a.id)} style={{ background: "var(--color-risk-bg)", border: "none", color: "var(--color-risk)", cursor: "pointer", padding: "6px", borderRadius: "6px", display: "inline-flex", alignItems: "center", justifyContent: "center" }} title="Delete">
                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                                       </button>
@@ -6673,6 +7005,45 @@ export default function IMDetails() {
                                   <tr style={{ background: "#f8fafc" }}>
                                     <td colSpan={colCount} style={{ padding: "16px 24px", borderBottom: "1px solid var(--border-color)" }}>
                                       <div style={{ padding: "16px", background: "var(--bg-card, #fff)", borderRadius: "8px", border: "1px solid var(--border-color)", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+                                        {actionAttachmentUrl && (
+                                          <div style={{ marginBottom: "16px", padding: "12px 14px", borderRadius: "6px", background: "var(--bg-dark, #f1f5f9)", border: "1px solid var(--border-color)" }}>
+                                            <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-main)", marginBottom: "8px", display: "flex", alignItems: "center", gap: "6px" }}>
+                                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                                              Attached File / Supporting Document
+                                            </div>
+                                            <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+                                              <span style={{ fontSize: "12.5px", color: "var(--text-main)", fontWeight: 600 }}>
+                                                {actionAttachmentName}
+                                              </span>
+                                              {actionAttachmentSize && (
+                                                <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>
+                                                  ({Math.round(actionAttachmentSize / 1024)} KB)
+                                                </span>
+                                              )}
+                                              <a
+                                                href={getAttachmentUrl(actionAttachmentUrl)}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                style={{
+                                                  display: "inline-flex",
+                                                  alignItems: "center",
+                                                  gap: "4px",
+                                                  padding: "4px 10px",
+                                                  borderRadius: "4px",
+                                                  background: "#2563eb",
+                                                  color: "#fff",
+                                                  fontSize: "11px",
+                                                  fontWeight: 600,
+                                                  textDecoration: "none",
+                                                  marginLeft: "auto"
+                                                }}
+                                              >
+                                                Open / Download File
+                                              </a>
+                                            </div>
+                                          </div>
+                                        )}
+
                                         <div style={{ fontSize: "13px", fontWeight: 700, color: "var(--text-main)", marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px" }}>
                                           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                             <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
@@ -6793,7 +7164,7 @@ export default function IMDetails() {
                 : (invInvName || investigationSubmitted || investigationApproved) ? [{
                   role: invInvRole || "Site HSE Investigator",
                   name: invInvName || rawIncident?.investigation?.submittedBy || rawIncident?.incident?.reportedBy || "HSE Lead",
-                  date: invInvDate || rawIncident?.incident?.date || new Date().toISOString().split('T')[0]
+                  date: invInvDate || rawIncident?.incident?.date || getDenmarkDateString()
                 }] : []
             } : null,
             categories: rawIncident?.incident?.categories || rawIncident?.categories || [],

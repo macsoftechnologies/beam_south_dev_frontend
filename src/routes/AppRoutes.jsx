@@ -239,7 +239,14 @@ function AppRoutes() {
           {/* ── Incident Management Routes ── */}
           <Route path="/incident-management/dashboard" element={<IMDashboard />} />
           <Route path="/incident-management/list" element={<IMList />} />
-          <Route path="/incident-management/create" element={<IMCreate />} />
+          <Route
+            path="/incident-management/create"
+            element={
+              <ProtectedRoute allowedRoles={["Admin", "admin", "SuperAdmin", "superadmin", "Department", "department", "Department1", "department1", "Operator", "operator", "Site_HSE", "site_hse", "HSE", "hse", "Safety", "safety", "Contractor", "contractor", "Subcontractor", "subcontractor"]}>
+                <IMCreate />
+              </ProtectedRoute>
+            }
+          />
           <Route path="/incident-management/details/:id" element={<IMDetails />} />
           <Route path="/incident-management/investigation/:id" element={<IMInvestigation />} />
           <Route
@@ -254,17 +261,31 @@ function AppRoutes() {
           {/* ── Safety Observations Routes ── */}
           <Route path="/safety-observations/dashboard" element={<SODashboard />} />
           <Route path="/safety-observations/list" element={<SOList />} />
-          <Route path="/safety-observations/create" element={<SOCreate />} />
-          <Route path="/safety-observations/edit/:id" element={<SOCreate />} />
+          <Route
+            path="/safety-observations/create"
+            element={
+              <ProtectedRoute allowedRoles={["Admin", "admin", "SuperAdmin", "superadmin", "Department", "department", "Department1", "department1", "Operator", "operator", "Site_HSE", "site_hse", "HSE", "hse", "Safety", "safety"]}>
+                <SOCreate />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/safety-observations/edit/:id"
+            element={
+              <ProtectedRoute allowedRoles={["Admin", "admin", "SuperAdmin", "superadmin", "Department", "department", "Department1", "department1", "Operator", "operator", "Site_HSE", "site_hse", "HSE", "hse", "Safety", "safety"]}>
+                <SOCreate />
+              </ProtectedRoute>
+            }
+          />
           <Route path="/safety-observations/details/:id" element={<SODetails />} />
           <Route path="/safety-observations/corrective-actions" element={<SOCorrectiveActions />} />
           <Route path="/safety-observations/reports" element={<SOReports />} />
 
-          {/* ── Safety Inspection Routes (Department & Admin only) ── */}
+          {/* ── Safety Inspection Routes ── */}
           <Route
             path="/safety-inspection/dashboard"
             element={
-              <ProtectedRoute allowedRoles={["Admin", "admin", "SuperAdmin", "superadmin", "Department", "department", "Department1", "department1", "Operator", "operator", "Site_HSE", "site_hse", "HSE", "hse", "Safety", "safety"]}>
+              <ProtectedRoute allowedRoles={["Admin", "admin", "SuperAdmin", "superadmin", "Department", "department", "Department1", "department1", "Operator", "operator", "Site_HSE", "site_hse", "HSE", "hse", "Safety", "safety", "Contractor", "contractor", "Subcontractor", "subcontractor", "Observer", "observer"]}>
                 <SIDashboard />
               </ProtectedRoute>
             }
@@ -272,7 +293,7 @@ function AppRoutes() {
           <Route
             path="/safety-inspection/list"
             element={
-              <ProtectedRoute allowedRoles={["Admin", "admin", "SuperAdmin", "superadmin", "Department", "department", "Department1", "department1", "Operator", "operator", "Site_HSE", "site_hse", "HSE", "hse", "Safety", "safety"]}>
+              <ProtectedRoute allowedRoles={["Admin", "admin", "SuperAdmin", "superadmin", "Department", "department", "Department1", "department1", "Operator", "operator", "Site_HSE", "site_hse", "HSE", "hse", "Safety", "safety", "Contractor", "contractor", "Subcontractor", "subcontractor", "Observer", "observer"]}>
                 <SIList />
               </ProtectedRoute>
             }
@@ -288,17 +309,17 @@ function AppRoutes() {
           <Route
             path="/safety-inspection/:id"
             element={
-              <ProtectedRoute allowedRoles={["Admin", "admin", "SuperAdmin", "superadmin", "Department", "department", "Department1", "department1", "Operator", "operator", "Site_HSE", "site_hse", "HSE", "hse", "Safety", "safety"]}>
+              <ProtectedRoute allowedRoles={["Admin", "admin", "SuperAdmin", "superadmin", "Department", "department", "Department1", "department1", "Operator", "operator", "Site_HSE", "site_hse", "HSE", "hse", "Safety", "safety", "Contractor", "contractor", "Subcontractor", "subcontractor", "Observer", "observer"]}>
                 <SIView />
               </ProtectedRoute>
             }
           />
 
-          {/* ── Spot Checks Routes (Department & Admin only) ── */}
+          {/* ── Spot Checks Routes ── */}
           <Route
             path="/spot-checks/dashboard"
             element={
-              <ProtectedRoute allowedRoles={["Admin", "admin", "SuperAdmin", "superadmin", "Department", "department", "Department1", "department1", "Operator", "operator", "Site_HSE", "site_hse", "HSE", "hse", "Safety", "safety"]}>
+              <ProtectedRoute allowedRoles={["Admin", "admin", "SuperAdmin", "superadmin", "Department", "department", "Department1", "department1", "Operator", "operator", "Site_HSE", "site_hse", "HSE", "hse", "Safety", "safety", "Contractor", "contractor", "Subcontractor", "subcontractor", "Observer", "observer"]}>
                 <SCDashboard />
               </ProtectedRoute>
             }
@@ -306,7 +327,7 @@ function AppRoutes() {
           <Route
             path="/spot-checks/list"
             element={
-              <ProtectedRoute allowedRoles={["Admin", "admin", "SuperAdmin", "superadmin", "Department", "department", "Department1", "department1", "Operator", "operator", "Site_HSE", "site_hse", "HSE", "hse", "Safety", "safety"]}>
+              <ProtectedRoute allowedRoles={["Admin", "admin", "SuperAdmin", "superadmin", "Department", "department", "Department1", "department1", "Operator", "operator", "Site_HSE", "site_hse", "HSE", "hse", "Safety", "safety", "Contractor", "contractor", "Subcontractor", "subcontractor", "Observer", "observer"]}>
                 <SCList />
               </ProtectedRoute>
             }
@@ -322,7 +343,7 @@ function AppRoutes() {
           <Route
             path="/spot-checks/:id"
             element={
-              <ProtectedRoute allowedRoles={["Admin", "admin", "SuperAdmin", "superadmin", "Department", "department", "Department1", "department1", "Operator", "operator", "Site_HSE", "site_hse", "HSE", "hse", "Safety", "safety"]}>
+              <ProtectedRoute allowedRoles={["Admin", "admin", "SuperAdmin", "superadmin", "Department", "department", "Department1", "department1", "Operator", "operator", "Site_HSE", "site_hse", "HSE", "hse", "Safety", "safety", "Contractor", "contractor", "Subcontractor", "subcontractor", "Observer", "observer"]}>
                 <SCView />
               </ProtectedRoute>
             }
@@ -330,7 +351,7 @@ function AppRoutes() {
           <Route
             path="/spot-checks/details/:id"
             element={
-              <ProtectedRoute allowedRoles={["Admin", "admin", "SuperAdmin", "superadmin", "Department", "department", "Department1", "department1", "Operator", "operator", "Site_HSE", "site_hse", "HSE", "hse", "Safety", "safety"]}>
+              <ProtectedRoute allowedRoles={["Admin", "admin", "SuperAdmin", "superadmin", "Department", "department", "Department1", "department1", "Operator", "operator", "Site_HSE", "site_hse", "HSE", "hse", "Safety", "safety", "Contractor", "contractor", "Subcontractor", "subcontractor", "Observer", "observer"]}>
                 <SCView />
               </ProtectedRoute>
             }

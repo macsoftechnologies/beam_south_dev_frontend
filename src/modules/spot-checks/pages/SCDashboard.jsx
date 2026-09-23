@@ -67,6 +67,21 @@ export default function SCDashboard() {
     return true;
   });
 
+  const currentUser = React.useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem('user')) || {};
+    } catch {
+      return {};
+    }
+  }, []);
+
+  const rawRole = (localStorage.getItem("UserType") || currentUser?.role || currentUser?.userType || currentUser?.user_type || "").toUpperCase();
+  const userRolesArr = Array.isArray(currentUser?.userTypes) ? currentUser.userTypes.map((t) => String(t).toUpperCase()) : [];
+  const allRoles = [rawRole, ...userRolesArr].join(" ");
+  const isContractor = allRoles.includes("CONTRACTOR") || allRoles.includes("SUBCONTRACTOR") || Boolean(currentUser?.subcontractor_id) || Boolean(currentUser?.contractorId) || Boolean(currentUser?.typeId && allRoles.includes("SUBCONTRACTOR"));
+  const isObserver = allRoles.includes("OBSERVER");
+  const isReadOnly = isContractor || isObserver;
+
   return (
     <div className="sc-dashboard-container">
       {/* ── Hero ── */}
@@ -80,7 +95,9 @@ export default function SCDashboard() {
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
           <button className="mod-btn-outline" style={{ height: '28px', padding: '0 12px' }} onClick={() => navigate("/spot-checks/list")}>View All</button>
-          <button className="mod-btn-primary" onClick={() => navigate("/spot-checks/create")}>+ New Spot Check</button>
+          {!isReadOnly && (
+            <button className="mod-btn-primary" onClick={() => navigate("/spot-checks/create")}>+ New Spot Check</button>
+          )}
         </div>
       </div>
 

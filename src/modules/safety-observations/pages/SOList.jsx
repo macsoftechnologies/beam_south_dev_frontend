@@ -136,10 +136,14 @@ function SOList() {
 
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   const rawRole = (localStorage.getItem("UserType") || user?.role || user?.userType || user?.user_type || "").toUpperCase();
-  const isAdmin = rawRole.includes("ADMIN") || rawRole.includes("SUPERADMIN") || Boolean(user?.isSuperAdmin) || (Array.isArray(user?.userTypes) && user.userTypes.some(t => String(t).toUpperCase().includes("ADMIN")));
-  const isContractor = rawRole.includes("CONTRACTOR") || rawRole.includes("SUBCONTRACTOR") || Boolean(user?.subcontractor_id) || Boolean(user?.typeId && rawRole.includes("SUBCONTRACTOR"));
-  const isDepartment = rawRole.includes("DEPARTMENT") || rawRole.includes("OPERATOR") || rawRole.includes("SITE_HSE") || rawRole.includes("SAFETY") || rawRole.includes("HSE");
-  const isDeptOrAdmin = (isAdmin || isDepartment || !isContractor) && !isContractor;
+  const userRolesArr = Array.isArray(user?.userTypes) ? user.userTypes.map((t) => String(t).toUpperCase()) : [];
+  const allRoles = [rawRole, ...userRolesArr].join(" ");
+  const isContractor = allRoles.includes("CONTRACTOR") || allRoles.includes("SUBCONTRACTOR") || Boolean(user?.subcontractor_id) || Boolean(user?.typeId && allRoles.includes("SUBCONTRACTOR"));
+  const isObserver = allRoles.includes("OBSERVER");
+  const isAdmin = allRoles.includes("ADMIN") || allRoles.includes("SUPERADMIN") || Boolean(user?.isSuperAdmin) || (Array.isArray(user?.userTypes) && user.userTypes.some(t => String(t).toUpperCase().includes("ADMIN")));
+  const isDepartment = allRoles.includes("DEPARTMENT") || allRoles.includes("OPERATOR") || allRoles.includes("SITE_HSE") || allRoles.includes("SAFETY") || allRoles.includes("HSE");
+  const isDeptOrAdmin = (isAdmin || isDepartment) && !isContractor && !isObserver;
+  const isReadOnly = isContractor || isObserver;
   const contractorId = user?.typeId || user?.subcontractor_id || user?.subContId || user?.contractorId;
 
   const [deletingObs, setDeletingObs] = useState(null);
@@ -322,9 +326,11 @@ function SOList() {
           </div>
         </div>
         <div>
-          <button type="button" className="mod-btn-primary" onClick={() => navigate("/safety-observations/create")}>
-            + New Observation
-          </button>
+          {!isReadOnly && (
+            <button type="button" className="mod-btn-primary" onClick={() => navigate("/safety-observations/create")}>
+              + New Observation
+            </button>
+          )}
         </div>
       </div>
 
@@ -558,7 +564,7 @@ function SOList() {
                         </button>
 
                         {/* Edit Observation Record Details (Department & Admin only, not CLOSED or ESCALATED) */}
-                        {isDeptOrAdmin && !isContractor && String(o.status || "").toUpperCase() !== "CLOSED" && String(o.status || "").toUpperCase() !== "ESCALATED" && (
+                        {isDeptOrAdmin && !isReadOnly && String(o.status || "").toUpperCase() !== "CLOSED" && String(o.status || "").toUpperCase() !== "ESCALATED" && (
                           <button
                             className="mod-btn-outline"
                             style={{
@@ -618,7 +624,7 @@ function SOList() {
                           </button>
                         )}
 
-                        {isAdmin && (
+                        {isAdmin && !isReadOnly && (
                           <button
                             className="mod-btn-outline"
                             style={{

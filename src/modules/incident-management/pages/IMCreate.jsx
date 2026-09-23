@@ -284,7 +284,7 @@ const initialForm = {
   project: "M3 South", title: "", date: "", time: "", location: "", floor: "", specificLocation: "", contractor: "",
   categories: [], actual: "", potential: "", description: "", consequence: "",
   envSpillType: [], envSpillOther: "", envSpilledWhat: "", envCause: "", envQuantity: "", envSpecify: [], envSpecifyOther: "",
-  immActions: [{ action: "", responsible: "", date: "", time: "", implemented: false }],
+  immActions: [],
   gatekeeperInformed: null, gatekeeperName: "",
   noFurtherInvestigation: false,
   submitterName: getLoggedInUser(), signature: false
@@ -722,7 +722,7 @@ function IMCreate() {
                   </div>
                   <div className="mod-form-group full-width">
                     <label className="mod-form-label">
-                      Contractor(s) involved {isContractor && <span style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 400 }}>(Locked to your company)</span>}
+                      Contractor(s) involved <span style={{ color: "#DC2626" }}>*</span> {isContractor && <span style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 400 }}>(Locked to your company)</span>}
                     </label>
                     <select
                       name="contractor"

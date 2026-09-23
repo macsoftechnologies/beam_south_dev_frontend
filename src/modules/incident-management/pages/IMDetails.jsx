@@ -924,6 +924,10 @@ export default function IMDetails() {
   };
 
   const handleSaveHeadsUp = async () => {
+    if (!huContractor) {
+      showError("Contractor(s) Involved is required");
+      return;
+    }
     try {
       const selectedB = buildingsList.find(b => String(b.build_id || b.id) === String(huBuildingId));
       const payload = {
@@ -1694,13 +1698,17 @@ export default function IMDetails() {
   };
 
   const handleFileUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPhotos([...photos, reader.result]);
-      };
-      reader.readAsDataURL(file);
+    const files = Array.from(e.target.files);
+    if (files.length > 0) {
+      Promise.all(files.map(file => {
+        return new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.readAsDataURL(file);
+        });
+      })).then(results => {
+        setPhotos(prev => [...prev, ...results]);
+      });
     }
     e.target.value = null;
   };
@@ -2759,38 +2767,6 @@ export default function IMDetails() {
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px", flexWrap: "wrap" }}>
             <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--text-muted)", background: "var(--bg-dark)", padding: "4px 10px", borderRadius: "6px", border: "1px solid var(--border-color)" }}>{incident.caseNumber || incident.id}</span>
-
-            {(() => {
-              const level = incident.actualSeverity || incident.severity;
-              if (!level) return null;
-              const meta = {
-                1: { label: "Insignificant", color: "#2D9E5A" },
-                2: { label: "Minor", color: "#C07D10" },
-                3: { label: "Moderate", color: "#D97706" },
-                4: { label: "Critical", color: "#E32B50" },
-                5: { label: "Catastrophic", color: "#8F1B32" }
-              };
-              const m = meta[level] || { label: "", color: "#A1A5B3" };
-              return (
-                <span className="inc-pill" style={{ background: m.color, color: "#fff", borderRadius: "6px", fontWeight: 700, padding: "4px 10px", fontSize: "11px" }}>
-                  {m.label.toUpperCase()}
-                </span>
-              );
-            })()}
-
-            {incident.stage && (
-              <span className="inc-pill" style={{ background: "rgba(227, 43, 80, 0.1)", color: "#E32B50", borderRadius: "6px", fontWeight: 700, padding: "4px 10px", fontSize: "11px", border: "1px solid rgba(227, 43, 80, 0.3)" }}>
-                {incident.stage === "INVESTIGATION" ? "INVESTIGATING" : incident.stage.replace("_", " ")}
-              </span>
-            )}
-
-            {incident.isHipo && <span className="inc-pill" style={{ background: "#dc2626", color: "#fff", borderRadius: "6px", fontWeight: 700, padding: "4px 10px", fontSize: "11px" }}>HIPO</span>}
-
-            {incident.investigationLevel && (
-              <span className="inc-pill" title="Investigation required" style={{ background: "rgba(192, 125, 16, 0.14)", color: "#d97706", borderRadius: "6px", fontWeight: 700, padding: "4px 10px", fontSize: "11px", border: "1px solid rgba(192, 125, 16, 0.3)" }}>
-                INVESTIGATION {incident.investigationLevel.toUpperCase()}
-              </span>
-            )}
           </div>
           <div style={{ fontSize: "24px", fontWeight: 800, color: "var(--text-main)", marginBottom: "12px", letterSpacing: "-0.5px" }}>{incident.title || incident.categories?.[0] || incident.caseNumber}</div>
           <div style={{ display: "flex", alignItems: "center", gap: "12px", fontSize: "14px", color: "var(--text-muted)", fontWeight: 500 }}>
@@ -4061,7 +4037,7 @@ export default function IMDetails() {
 
           {!headsUpApproved && !isContractorUser() && (
             <div className="mod-card mb-4">
-              <div className="mod-card-header"><span className="mod-card-title">Review: Heads-Up Notification {incident.id}</span></div>
+              <div className="mod-card-header"><span className="mod-card-title">Review: Heads-Up Notification</span></div>
               <div className="mod-card-body">
                 <div className="mod-form-group">
                   <label className="mod-form-label">Review Comments / Revision Reason</label>
@@ -4449,7 +4425,7 @@ export default function IMDetails() {
                             {irErrors.irInjuredJobTitle && <span style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: "4px" }}>{irErrors.irInjuredJobTitle}</span>}
                           </div>
                           <div className="mod-form-group">
-                            <label className="mod-form-label">LENGTH OF SERVICE FOR PROJECT <span style={{ color: "#DC2626" }}>*</span></label>
+                            <label className="mod-form-label">LENGTH OF SERVICE IN THE PROJECT<span style={{ color: "#DC2626" }}>*</span></label>
                             <input className="mod-form-input" placeholder="e.g. 2 years" value={irLengthOfService} onChange={e => { setIrLengthOfService(e.target.value); if (irErrors.irLengthOfService) setIrErrors({ ...irErrors, irLengthOfService: null }) }} />
                             {irErrors.irLengthOfService && <span style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: "4px" }}>{irErrors.irLengthOfService}</span>}
                           </div>
@@ -4482,7 +4458,7 @@ export default function IMDetails() {
 
                     {irErrors.photos && <div style={{ fontSize: "0.85rem", color: "#DC2626", marginBottom: "8px", fontWeight: "bold" }}>{irErrors.photos}</div>}
 
-                    <input type="file" accept="image/*" ref={fileInputRef} style={{ display: 'none' }} onChange={handleFileUpload} />
+                    <input type="file" accept="image/*" multiple ref={fileInputRef} style={{ display: 'none' }} onChange={handleFileUpload} />
 
                     {!isCameraActive && (!initialReportSubmitted || isEditingInitialReport) && (
                       <div style={{ display: "flex", gap: "8px" }}>
@@ -4819,9 +4795,10 @@ export default function IMDetails() {
                   </div>
 
                   {/* L. Initial Root Cause Assessment */}
-                  <div className="fsec"><div className="fsec-title">L. Initial Root Cause Assessment</div>
+                  <div className="fsec"><div className="fsec-title">L. Initial Root Cause Assessment <span style={{ color: "#DC2626" }}>*</span></div>
                     <div className="mod-form-group">
-                      <textarea className="mod-form-textarea" placeholder="Initial view on why the incident occurred..." value={irInitialRootCause} onChange={e => setIrInitialRootCause(e.target.value)}></textarea>
+                      <textarea className="mod-form-textarea" style={{ borderColor: irErrors.irInitialRootCause ? "#DC2626" : undefined }} placeholder="Initial view on why the incident occurred..." value={irInitialRootCause} onChange={e => { setIrInitialRootCause(e.target.value); if (irErrors.irInitialRootCause) setIrErrors({ ...irErrors, irInitialRootCause: null }) }}></textarea>
+                      {irErrors.irInitialRootCause && <span style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: "4px", display: "block" }}>{irErrors.irInitialRootCause}</span>}
                     </div>
                     <div className="grid-2">
                       <div className="mod-form-group"><label className="mod-form-label">Environmental Conditions</label>
@@ -4973,6 +4950,7 @@ export default function IMDetails() {
                             }
 
                             if (!irDescription?.trim()) newErrors.irDescription = "Incident description is required";
+                            if (!irInitialRootCause?.trim()) newErrors.irInitialRootCause = "Initial root cause is required";
                             if (photos.length < 2) newErrors.photos = "A minimum of 2 photos are required";
 
                             if (Object.keys(newErrors).length > 0) {
@@ -5433,10 +5411,11 @@ export default function IMDetails() {
                   </div>
 
                   {/* 2. Investigation Details */}
-                  <div className="fsec"><div className="fsec-title">2. Investigation Details</div>
+                  <div className="fsec"><div className="fsec-title">2. Investigation Details <span style={{ color: "#DC2626" }}>*</span></div>
                     <div className="mod-form-group">
                       <label className="mod-form-label" style={{ textTransform: "none", letterSpacing: "normal" }}>Description of process, timelines, tools, parties involved, systems reviewed, equipment and findings.</label>
-                      <textarea className="mod-form-textarea" style={{ minHeight: 120 }} placeholder="Describe the investigation process..." value={invDetails} onChange={e => setInvDetails(e.target.value)}></textarea>
+                      <textarea className="mod-form-textarea" style={{ minHeight: 120, borderColor: invErrors.invDetails ? "#DC2626" : undefined }} placeholder="Describe the investigation process..." value={invDetails} onChange={e => { setInvDetails(e.target.value); if (invErrors.invDetails) setInvErrors({ ...invErrors, invDetails: null }); }}></textarea>
+                      {invErrors.invDetails && <span style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: "4px", display: "block" }}>{invErrors.invDetails}</span>}
                     </div>
                   </div>
 
@@ -5532,10 +5511,11 @@ export default function IMDetails() {
                   </div>
 
                   {/* 5. Effect Description */}
-                  <div className="fsec"><div className="fsec-title">5. Incident / Effect</div>
+                  <div className="fsec"><div className="fsec-title">5. Incident / Effect <span style={{ color: "#DC2626" }}>*</span></div>
                     <div className="mod-form-group">
                       <label className="mod-form-label" style={{ textTransform: "none", letterSpacing: "normal" }}>Describe the effect/outcome of the incident for the fishbone diagram</label>
-                      <textarea className="mod-form-textarea" placeholder="Describe the effect / incident event..." value={invEffect} onChange={e => setInvEffect(e.target.value)}></textarea>
+                      <textarea className="mod-form-textarea" style={{ borderColor: invErrors.invEffect ? "#DC2626" : undefined }} placeholder="Describe the effect / incident event..." value={invEffect} onChange={e => { setInvEffect(e.target.value); if (invErrors.invEffect) setInvErrors({ ...invErrors, invEffect: null }); }}></textarea>
+                      {invErrors.invEffect && <span style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: "4px", display: "block" }}>{invErrors.invEffect}</span>}
                     </div>
                   </div>
 
@@ -5586,24 +5566,26 @@ export default function IMDetails() {
                   </div>
 
                   {/* 7. Problem Statement */}
-                  <div className="fsec"><div className="fsec-title">7. Problem Statement</div>
+                  <div className="fsec"><div className="fsec-title">7. Problem Statement <span style={{ color: "#DC2626" }}>*</span></div>
                     <div className="mod-form-group">
                       <label className="mod-form-label" style={{ textTransform: "none", letterSpacing: "normal" }}>Clearly state the problem being investigated</label>
-                      <textarea className="mod-form-textarea" placeholder="State the problem..." value={invProblem} onChange={e => setInvProblem(e.target.value)}></textarea>
+                      <textarea className="mod-form-textarea" style={{ borderColor: invErrors.invProblem ? "#DC2626" : undefined }} placeholder="State the problem..." value={invProblem} onChange={e => { setInvProblem(e.target.value); if (invErrors.invProblem) setInvErrors({ ...invErrors, invProblem: null }); }}></textarea>
+                      {invErrors.invProblem && <span style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: "4px", display: "block" }}>{invErrors.invProblem}</span>}
                     </div>
                   </div>
 
                   {/* 8. Root Causes */}
                   <div className="fsec"><div className="fsec-title" style={{ justifyContent: "space-between", display: "flex" }}>
-                    <span>8. Identified Root Causes</span>
+                    <span>8. Identified Root Causes <span style={{ color: "#DC2626" }}>*</span></span>
                     {(!investigationSubmitted || isEditingInvestigation) && (
-                      <button className="mod-btn-outline" style={{ padding: "4px 12px", fontSize: "12px" }} onClick={addInvRootCause}>+ Add Root Cause</button>
+                      <button className="mod-btn-outline" style={{ padding: "4px 12px", fontSize: "12px" }} onClick={() => { addInvRootCause(); if (invErrors.invRootCauses) setInvErrors({ ...invErrors, invRootCauses: null }); }}>+ Add Root Cause</button>
                     )}
                   </div>
+                    {invErrors.invRootCauses && <div style={{ fontSize: "0.75rem", color: "#DC2626", marginBottom: "8px", fontWeight: "bold" }}>{invErrors.invRootCauses}</div>}
                     {invRootCauses.length === 0 ? <div className="muted-empty" style={{ fontStyle: "italic", fontSize: 13, color: "var(--text-muted)", padding: "8px 0" }}>No root causes added yet.</div> : invRootCauses.map((rc, i) => (
                       <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center" }}>
                         <span style={{ fontWeight: 700, color: "var(--accent-primary)", width: 24 }}>{i + 1}.</span>
-                        <input className="mod-form-input" style={{ flex: 1 }} value={rc} onChange={e => updateInvRootCause(i, e.target.value)} />
+                        <input className="mod-form-input" style={{ flex: 1, borderColor: (invErrors.invRootCauses && !rc.trim()) ? "#DC2626" : undefined }} value={rc} onChange={e => { updateInvRootCause(i, e.target.value); if (invErrors.invRootCauses) setInvErrors({ ...invErrors, invRootCauses: null }); }} />
                         {(!investigationSubmitted || isEditingInvestigation) && (
                           <button className="subcard-remove" style={{ color: "var(--color-risk)", background: "transparent", border: "1px solid var(--border-color)", padding: "4px 8px", borderRadius: 4, cursor: "pointer", fontSize: 12 }} onClick={() => removeInvRootCause(i)}>Remove</button>
                         )}
@@ -5768,9 +5750,7 @@ export default function IMDetails() {
                     <div className="mod-form-group" style={{ marginBottom: 16 }}><label className="mod-form-label" style={{ textTransform: "none", letterSpacing: "normal" }}>What was learned from this incident...</label>
                       <textarea className="mod-form-textarea" value={invLessons} onChange={e => setInvLessons(e.target.value)}></textarea>
                     </div>
-                    <div className="mod-form-group"><label className="mod-form-label" style={{ textTransform: "none", letterSpacing: "normal" }}>Prevent Recurrence</label>
-                      <textarea className="mod-form-textarea" value={invPrevention} onChange={e => setInvPrevention(e.target.value)}></textarea>
-                    </div>
+
                   </div>
 
                   {/* 13. Photos */}
@@ -6110,6 +6090,11 @@ export default function IMDetails() {
                         <button className="mod-btn-primary im-btn-primary" onClick={async () => {
                           let hasError = false;
                           const newErrors = {};
+
+                          if (!invDetails || !invDetails.trim()) { newErrors.invDetails = "Investigation Details are required."; hasError = true; }
+                          if (!invEffect || !invEffect.trim()) { newErrors.invEffect = "Incident/Effect description is required."; hasError = true; }
+                          if (!invProblem || !invProblem.trim()) { newErrors.invProblem = "Problem Statement is required."; hasError = true; }
+                          if (invRootCauses.length === 0 || !invRootCauses.some(rc => rc.trim())) { newErrors.invRootCauses = "At least one Root Cause is required."; hasError = true; }
 
                           const probableCausesList = getProbableCauses();
                           if (probableCausesList.length === 0) {

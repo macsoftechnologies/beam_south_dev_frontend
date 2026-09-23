@@ -15,6 +15,7 @@ export default function SIList() {
   const [filter, setFilter] = useState({ q: '', contractor: '', status: '' });
   const [deleteModalId, setDeleteModalId] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [downloadingId, setDownloadingId] = useState(null);
 
   const currentUser = React.useMemo(() => {
     try {
@@ -73,6 +74,23 @@ export default function SIList() {
       } finally {
         setIsDeleting(false);
       }
+    }
+  };
+
+  const handleDownloadPdf = async (e, inspection) => {
+    e.stopPropagation();
+    if (!inspection) return;
+    setDownloadingId(inspection.id);
+    try {
+      const refName = inspection.inspectionNumber || `SI-${inspection.id}`;
+      const fileName = `${refName}_Safety_Inspection.pdf`;
+      await safetyInspectionService.downloadInspectionPdf(inspection.id, fileName);
+    } catch (err) {
+      console.error("Failed to download inspection PDF:", err);
+      const pdfUrl = safetyInspectionService.getPdfUrl(inspection.id);
+      window.open(pdfUrl, '_blank');
+    } finally {
+      setDownloadingId(null);
     }
   };
 
@@ -138,7 +156,7 @@ export default function SIList() {
                 <th>Room(s)</th>
                 <th>Inspector</th>
                 <th>Date Modified</th>
-                {isAdmin && <th style={{ textAlign: "center" }}>Actions</th>}
+                <th style={{ textAlign: "center" }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -200,15 +218,15 @@ export default function SIList() {
                       </td>
                       <td>{inspectorName}</td>
                       <td>{formatDate(r.updatedTime || r.createdTime)}</td>
-                      {isAdmin && (
-                        <td style={{ textAlign: "center" }} onClick={e => e.stopPropagation()}>
+                      <td style={{ textAlign: "center" }} onClick={e => e.stopPropagation()}>
+                        <div style={{ display: "flex", gap: "8px", justifyContent: "center", alignItems: "center" }}>
+                          {/* View Button */}
                           <button
                             type="button"
-                            className="mod-btn-icon-danger"
                             style={{
-                              border: "1px solid rgba(239, 68, 68, 0.3)",
-                              color: "#ef4444",
-                              background: "rgba(239, 68, 68, 0.06)",
+                              border: "1px solid rgba(148, 163, 184, 0.5)",
+                              color: "#475569",
+                              background: "rgba(241, 245, 249, 0.4)",
                               width: "32px",
                               height: "32px",
                               borderRadius: "6px",
@@ -221,23 +239,94 @@ export default function SIList() {
                               transition: "all 0.15s ease-in-out"
                             }}
                             onMouseEnter={(e) => {
-                              e.currentTarget.style.background = "#ef4444";
-                              e.currentTarget.style.color = "#ffffff";
-                              e.currentTarget.style.borderColor = "#ef4444";
+                              e.currentTarget.style.background = "#e2e8f0";
+                              e.currentTarget.style.color = "#1e293b";
                             }}
                             onMouseLeave={(e) => {
-                              e.currentTarget.style.background = "rgba(239, 68, 68, 0.06)";
-                              e.currentTarget.style.color = "#ef4444";
-                              e.currentTarget.style.borderColor = "rgba(239, 68, 68, 0.3)";
+                              e.currentTarget.style.background = "rgba(241, 245, 249, 0.4)";
+                              e.currentTarget.style.color = "#475569";
                             }}
-                            title="Delete inspection"
-                            onClick={(e) => handleDelete(e, r.id)}
-                            disabled={isDeleting}
+                            title="View Details"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/safety-inspection/${r.id}`);
+                            }}
                           >
-                            <i className="ti ti-trash"></i>
+                            <i className="ti ti-eye"></i>
                           </button>
-                        </td>
-                      )}
+
+                          {/* Download Button */}
+                          <button
+                            type="button"
+                            style={{
+                              border: "1px solid rgba(14, 165, 233, 0.3)",
+                              color: "#0ea5e9",
+                              background: "rgba(14, 165, 233, 0.06)",
+                              width: "32px",
+                              height: "32px",
+                              borderRadius: "6px",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              cursor: "pointer",
+                              padding: 0,
+                              fontSize: "15px",
+                              transition: "all 0.15s ease-in-out"
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.background = "#0ea5e9";
+                              e.currentTarget.style.color = "#ffffff";
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.background = "rgba(14, 165, 233, 0.06)";
+                              e.currentTarget.style.color = "#0ea5e9";
+                            }}
+                            title="Download PDF"
+                            onClick={(e) => handleDownloadPdf(e, r)}
+                            disabled={downloadingId === r.id}
+                          >
+                            <i className={downloadingId === r.id ? "ti ti-loader ti-spin" : "ti ti-download"}></i>
+                          </button>
+
+                          {/* Delete Button */}
+                          {isAdmin && (
+                            <button
+                              type="button"
+                              className="mod-btn-icon-danger"
+                              style={{
+                                border: "1px solid rgba(239, 68, 68, 0.3)",
+                                color: "#ef4444",
+                                background: "rgba(239, 68, 68, 0.06)",
+                                width: "32px",
+                                height: "32px",
+                                borderRadius: "6px",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                cursor: "pointer",
+                                padding: 0,
+                                fontSize: "15px",
+                                transition: "all 0.15s ease-in-out"
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.background = "#ef4444";
+                                e.currentTarget.style.color = "#ffffff";
+                                e.currentTarget.style.borderColor = "#ef4444";
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.background = "rgba(239, 68, 68, 0.06)";
+                                e.currentTarget.style.color = "#ef4444";
+                                e.currentTarget.style.borderColor = "rgba(239, 68, 68, 0.3)";
+                              }}
+                              title="Delete inspection"
+                              onClick={(e) => handleDelete(e, r.id)}
+                              disabled={isDeleting}
+                            >
+                              <i className="ti ti-trash"></i>
+                            </button>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   );
                 })

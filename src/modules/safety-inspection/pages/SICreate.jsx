@@ -709,15 +709,7 @@ export default function SICreate() {
 
         {/* Footer */}
         <div className="si-footer">
-          <div className="si-footer-left">
-            <input 
-              type="checkbox" 
-              id="completedCheck" 
-              checked={completed} 
-              onChange={(e) => setCompleted(e.target.checked)} 
-            />
-            <label htmlFor="completedCheck">Closed (safety report will be available for everyone)</label>
-          </div>
+
           <div className="si-footer-right">
             <button className="si-btn-cancel" disabled={isSubmitting} onClick={() => navigate("/safety-inspection/list")}>Cancel</button>
             <button className="si-btn-save" disabled={isSubmitting} onClick={handleSave}>

@@ -143,7 +143,7 @@ function SOList() {
   const isAdmin = allRoles.includes("ADMIN") || allRoles.includes("SUPERADMIN") || Boolean(user?.isSuperAdmin) || (Array.isArray(user?.userTypes) && user.userTypes.some(t => String(t).toUpperCase().includes("ADMIN")));
   const isDepartment = allRoles.includes("DEPARTMENT") || allRoles.includes("OPERATOR") || allRoles.includes("SITE_HSE") || allRoles.includes("SAFETY") || allRoles.includes("HSE");
   const isDeptOrAdmin = (isAdmin || isDepartment) && !isContractor && !isObserver;
-  const isReadOnly = isContractor || isObserver;
+  const isReadOnly = isObserver;
   const contractorId = user?.typeId || user?.subcontractor_id || user?.subContId || user?.contractorId;
 
   const [deletingObs, setDeletingObs] = useState(null);

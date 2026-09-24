@@ -259,7 +259,7 @@ export default function SODashboard() {
   const allRoles = [rawRole, ...userRolesArr].join(" ");
   const isContractor = allRoles.includes("CONTRACTOR") || allRoles.includes("SUBCONTRACTOR") || Boolean(currentUser?.subcontractor_id) || Boolean(currentUser?.typeId && allRoles.includes("SUBCONTRACTOR"));
   const isObserver = allRoles.includes("OBSERVER");
-  const isReadOnly = isContractor || isObserver;
+  const isReadOnly = isObserver;
   const contractorId = currentUser?.typeId || currentUser?.subcontractor_id || currentUser?.subContId || currentUser?.contractorId;
 
   const myContractor = useMemo(() => {

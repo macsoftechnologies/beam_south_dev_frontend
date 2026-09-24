@@ -264,7 +264,7 @@ function AppRoutes() {
           <Route
             path="/safety-observations/create"
             element={
-              <ProtectedRoute allowedRoles={["Admin", "admin", "SuperAdmin", "superadmin", "Department", "department", "Department1", "department1", "Operator", "operator", "Site_HSE", "site_hse", "HSE", "hse", "Safety", "safety"]}>
+              <ProtectedRoute allowedRoles={["Admin", "admin", "SuperAdmin", "superadmin", "Department", "department", "Department1", "department1", "Operator", "operator", "Site_HSE", "site_hse", "HSE", "hse", "Safety", "safety", "Contractor", "contractor", "Subcontractor", "subcontractor"]}>
                 <SOCreate />
               </ProtectedRoute>
             }
@@ -272,7 +272,7 @@ function AppRoutes() {
           <Route
             path="/safety-observations/edit/:id"
             element={
-              <ProtectedRoute allowedRoles={["Admin", "admin", "SuperAdmin", "superadmin", "Department", "department", "Department1", "department1", "Operator", "operator", "Site_HSE", "site_hse", "HSE", "hse", "Safety", "safety"]}>
+              <ProtectedRoute allowedRoles={["Admin", "admin", "SuperAdmin", "superadmin", "Department", "department", "Department1", "department1", "Operator", "operator", "Site_HSE", "site_hse", "HSE", "hse", "Safety", "safety", "Contractor", "contractor", "Subcontractor", "subcontractor"]}>
                 <SOCreate />
               </ProtectedRoute>
             }

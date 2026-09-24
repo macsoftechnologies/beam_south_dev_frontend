@@ -46,7 +46,7 @@ function SODetails() {
   const isAdmin = allRoles.includes("ADMIN") || allRoles.includes("SUPERADMIN") || Boolean(currentUser?.isSuperAdmin);
   const isDepartment = allRoles.includes("DEPARTMENT") || allRoles.includes("OPERATOR") || allRoles.includes("SITE_HSE") || allRoles.includes("SAFETY") || allRoles.includes("HSE");
   const isDeptOrAdmin = (isAdmin || isDepartment) && !isContractor && !isObserver;
-  const isReadOnly = isContractor || isObserver;
+  const isReadOnly = isObserver;
 
   const handleDeleteObservation = async () => {
     try {
@@ -350,8 +350,8 @@ function SODetails() {
             </button>
           )}
 
-          {/* Accept / Reject (Admin only, not read-only) */}
-          {(obs.status === "ASSIGNED" || obs.status === "OPEN" || obs.status === "REJECTED") && !isReadOnly && isAdmin && (
+          {/* Contractor Accept / Reject (or Admin) */}
+          {(obs.status === "ASSIGNED" || obs.status === "OPEN" || obs.status === "REJECTED") && !isReadOnly && (isContractor || isAdmin) && (
             <>
               <button
                 className="mod-btn-primary"
@@ -376,8 +376,8 @@ function SODetails() {
             </>
           )}
 
-          {/* Submit Resolution (Admin only, not read-only) */}
-          {(obs.status === "ACCEPTED" || obs.status === "IN_PROGRESS") && !isReadOnly && isAdmin && (
+          {/* Contractor Submit Resolution (or Admin) */}
+          {(obs.status === "ACCEPTED" || obs.status === "IN_PROGRESS") && !isReadOnly && (isContractor || isAdmin) && (
             <button className="mod-btn-primary" style={{ background: "#2D7A4F", borderColor: "#2D7A4F", color: "#fff" }} onClick={() => setShowResolveModal(true)}>
               Submit Resolution
             </button>

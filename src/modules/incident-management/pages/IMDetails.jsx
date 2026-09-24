@@ -20,9 +20,15 @@ import { AnalogTimePicker } from "./IMCreate";
 
 const getAttachmentUrl = (url) => {
   if (!url) return "#";
-  if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("data:")) return url;
+  if (url.startsWith("data:")) return url;
+  if (url.startsWith("http://") || url.startsWith("https://")) {
+    return url.replace(/\/uploads\/incidents\//, "/incidents/");
+  }
   const baseUrl = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/+$/, "");
-  const clean = url.replace(/^\/+/, "");
+  let clean = url.replace(/^\/+/, "");
+  if (clean.startsWith("uploads/")) {
+    clean = clean.replace(/^uploads\//, "");
+  }
   return `${baseUrl}/${clean}`;
 };
 
@@ -1494,6 +1500,31 @@ export default function IMDetails() {
         if (ir.description) setIrDescription(ir.description);
         if (ir.submittedBy) setIrSubmittedBy(ir.submittedBy);
         if (ir.signature) setIrSubSignature(ir.signature);
+        if (ir.photos) {
+          let pArr = [];
+          if (Array.isArray(ir.photos)) pArr = ir.photos;
+          else if (typeof ir.photos === "string") {
+            try {
+              const parsed = JSON.parse(ir.photos);
+              pArr = Array.isArray(parsed) ? parsed : [parsed];
+            } catch {
+              pArr = [ir.photos];
+            }
+          }
+          setPhotos(pArr.filter(Boolean));
+        } else if (rawIncident.photos) {
+          let pArr = [];
+          if (Array.isArray(rawIncident.photos)) pArr = rawIncident.photos;
+          else if (typeof rawIncident.photos === "string") {
+            try {
+              const parsed = JSON.parse(rawIncident.photos);
+              pArr = Array.isArray(parsed) ? parsed : [parsed];
+            } catch {
+              pArr = [rawIncident.photos];
+            }
+          }
+          setPhotos(pArr.filter(Boolean));
+        }
       }
 
       // 8. Load saved Investigation data if present
@@ -1588,6 +1619,20 @@ export default function IMDetails() {
         }
         if (inv.contributingFactors && Array.isArray(inv.contributingFactors) && inv.contributingFactors.length > 0) {
           setInvFactors(inv.contributingFactors);
+        }
+
+        if (inv.photos) {
+          let pArr = [];
+          if (Array.isArray(inv.photos)) pArr = inv.photos;
+          else if (typeof inv.photos === "string") {
+            try {
+              const parsed = JSON.parse(inv.photos);
+              pArr = Array.isArray(parsed) ? parsed : [parsed];
+            } catch {
+              pArr = [inv.photos];
+            }
+          }
+          setInvPhotos(pArr.filter(Boolean));
         }
 
         if (inv.environmentalDetails) {
@@ -4687,7 +4732,7 @@ export default function IMDetails() {
                       )}
                       {photos.map((p, idx) => (
                         <div key={idx} style={{ position: "relative", width: 120, height: 120, borderRadius: 8, overflow: "hidden", border: "1px solid var(--border-color)" }}>
-                          <img src={p} alt={`Captured ${idx}`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          <img src={getAttachmentUrl(p)} alt={`Captured ${idx}`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                           {(!initialReportSubmitted || isEditingInitialReport) && (
                             <button onClick={() => removePhoto(idx)} style={{ position: "absolute", top: 4, right: 4, background: "var(--color-risk)", color: "#fff", border: "none", borderRadius: "50%", width: 20, height: 20, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: 14, fontWeight: "bold" }}>×</button>
                           )}
@@ -5177,6 +5222,7 @@ export default function IMDetails() {
                             const userName = irSubmittedBy || getLoggedInUser() || incident.reporterName || incident.reportedBy || "User";
 
                             // 1. Photos
+                            const existingPhotos = [];
                             photos.forEach((p, idx) => {
                               if (typeof p === "string" && p.startsWith("data:")) {
                                 const blob = dataURLtoBlob(p);
@@ -5185,8 +5231,13 @@ export default function IMDetails() {
                                 }
                               } else if (p instanceof File || p instanceof Blob) {
                                 formData.append("photos", p);
+                              } else if (typeof p === "string" && p.trim()) {
+                                existingPhotos.push(p.trim());
                               }
                             });
+                            if (existingPhotos.length > 0) {
+                              formData.append("existingPhotos", JSON.stringify(existingPhotos));
+                            }
 
                             // 2. Severities & Flags
                             if (irActualSeverity) formData.append("actualSeverity", irActualSeverity);
@@ -6008,7 +6059,7 @@ export default function IMDetails() {
                     <div className="photo-grid" style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 12 }}>
                       {invPhotos.map((p, i) => (
                         <div key={i} className="photo-thumb" style={{ position: "relative", width: 96, height: 96, borderRadius: 8, overflow: "hidden", border: "1px solid var(--border-color)", background: "var(--bg-dark)" }}>
-                          <img src={p} alt={`photo ${i + 1}`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          <img src={getAttachmentUrl(p)} alt={`photo ${i + 1}`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                           <button style={{ position: "absolute", top: 2, right: 2, width: 20, height: 20, borderRadius: "50%", border: "none", background: "var(--color-risk)", color: "#fff", cursor: "pointer", fontSize: 12, lineHeight: 1 }} onClick={() => setInvPhotos(invPhotos.filter((_, idx) => idx !== i))}>×</button>
                         </div>
                       ))}

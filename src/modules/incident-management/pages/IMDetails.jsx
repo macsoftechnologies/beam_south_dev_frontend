@@ -1705,6 +1705,7 @@ export default function IMDetails() {
   }, [rawIncident]);
 
   const handleEnvToggle = (field, opt) => {
+    if (irErrors && irErrors[field]) setIrErrors(prev => ({ ...prev, [field]: null }));
     if (field === "irEnvSpillType") {
       setIrEnvSpillType(prev => {
         const arr = Array.isArray(prev) ? prev : prev ? [prev] : [];
@@ -1751,6 +1752,7 @@ export default function IMDetails() {
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       const dataUrl = canvas.toDataURL('image/png');
       setPhotos([...photos, dataUrl]);
+      if (irErrors.photos) setIrErrors(prev => ({ ...prev, photos: null }));
     }
   };
 
@@ -1803,6 +1805,7 @@ export default function IMDetails() {
         });
       })).then(results => {
         setPhotos(prev => [...prev, ...results]);
+        if (irErrors.photos) setIrErrors(prev => ({ ...prev, photos: null }));
       });
     }
     e.target.value = null;
@@ -4525,20 +4528,24 @@ export default function IMDetails() {
                               {irEnvSpillType.includes("Other") && (
                                 <input type="text" className="mod-form-input" placeholder="Specify other type of spillage..." value={irEnvSpillOther} onChange={e => setIrEnvSpillOther(e.target.value)} />
                               )}
+                              {irErrors.irEnvSpillType && <span style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: "4px", display: "block" }}>{irErrors.irEnvSpillType}</span>}
                             </div>
                             <div className="mod-form-group full-width" style={{ marginBottom: "16px" }}>
                               <label className="mod-form-label">What has been spilled: <span style={{ color: "#DC2626" }}>*</span></label>
                               <div style={{ fontSize: "11px", color: "var(--text-muted)", marginBottom: "4px" }}>Include the chemical name from the SDS, if available at the time of reporting</div>
-                              <textarea className="mod-form-textarea" value={irEnvSpillSubstance} onChange={e => setIrEnvSpillSubstance(e.target.value)} rows={2} placeholder="What was spilled?"></textarea>
+                              <textarea className="mod-form-textarea" style={{ borderColor: irErrors.irEnvSpillSubstance ? "#DC2626" : undefined }} value={irEnvSpillSubstance} onChange={e => { setIrEnvSpillSubstance(e.target.value); if (irErrors.irEnvSpillSubstance) setIrErrors({ ...irErrors, irEnvSpillSubstance: null }); }} rows={2} placeholder="What was spilled?"></textarea>
+                              {irErrors.irEnvSpillSubstance && <span style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: "4px", display: "block" }}>{irErrors.irEnvSpillSubstance}</span>}
                             </div>
                             <div className="grid-2" style={{ gap: "16px", marginBottom: "16px" }}>
                               <div className="mod-form-group">
                                 <label className="mod-form-label">Cause of Spillage: <span style={{ color: "#DC2626" }}>*</span></label>
-                                <input type="text" className="mod-form-input" value={irEnvSpillCause} onChange={e => setIrEnvSpillCause(e.target.value)} placeholder="Enter cause of spillage" />
+                                <input type="text" className="mod-form-input" style={{ borderColor: irErrors.irEnvSpillCause ? "#DC2626" : undefined }} value={irEnvSpillCause} onChange={e => { setIrEnvSpillCause(e.target.value); if (irErrors.irEnvSpillCause) setIrErrors({ ...irErrors, irEnvSpillCause: null }); }} placeholder="Enter cause of spillage" />
+                                {irErrors.irEnvSpillCause && <span style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: "4px", display: "block" }}>{irErrors.irEnvSpillCause}</span>}
                               </div>
                               <div className="mod-form-group">
                                 <label className="mod-form-label">Approximate quantity of spillage (Liter /Kg): <span style={{ color: "#DC2626" }}>*</span></label>
-                                <input type="text" className="mod-form-input" value={irEnvSpillQuantity} onChange={e => setIrEnvSpillQuantity(e.target.value)} placeholder="e.g. 50 Liters" />
+                                <input type="text" className="mod-form-input" style={{ borderColor: irErrors.irEnvSpillQuantity ? "#DC2626" : undefined }} value={irEnvSpillQuantity} onChange={e => { setIrEnvSpillQuantity(e.target.value); if (irErrors.irEnvSpillQuantity) setIrErrors({ ...irErrors, irEnvSpillQuantity: null }); }} placeholder="e.g. 50 Liters" />
+                                {irErrors.irEnvSpillQuantity && <span style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: "4px", display: "block" }}>{irErrors.irEnvSpillQuantity}</span>}
                               </div>
                             </div>
                             <div className="mod-form-group" style={{ marginBottom: "16px" }}>
@@ -4553,6 +4560,7 @@ export default function IMDetails() {
                               {irEnvSystemEntered.includes("Other") && (
                                 <input type="text" className="mod-form-input" placeholder="Specify other entry location..." value={irEnvSystemOther} onChange={e => setIrEnvSystemOther(e.target.value)} style={{ marginTop: "8px" }} />
                               )}
+                              {irErrors.irEnvSystemEntered && <span style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: "4px", display: "block" }}>{irErrors.irEnvSystemEntered}</span>}
                             </div>
                             <div className="mod-form-group">
                               <label className="mod-form-label">Containment & Cleanup Actions Taken</label>
@@ -5131,7 +5139,7 @@ export default function IMDetails() {
                             const isPropDamageIncident = activeIncidentCats.some(c => c.includes("property"));
 
                             let newErrors = {};
-                            if (!irInjuryNotApplicable) {
+                            if (!isEnvIncident && !isPropDamageIncident && !irInjuryNotApplicable) {
                               if (!irInjuredName?.trim()) newErrors.irInjuredName = "Name of injured person is required";
                               if (!irInjuredCompany?.trim()) newErrors.irInjuredCompany = "Company is required";
                               if (!irInjuredSupervisor?.trim()) newErrors.irInjuredSupervisor = "Manager/Supervisor is required";
@@ -5141,13 +5149,27 @@ export default function IMDetails() {
                               if (!irWorkerActivity?.trim()) newErrors.irWorkerActivity = "Worker activity is required";
                             }
 
+                            if (isEnvIncident) {
+                              if (!irEnvSpillType || irEnvSpillType.length === 0) newErrors.irEnvSpillType = "Type of spillage is required";
+                              if (!irEnvSpillSubstance?.trim()) newErrors.irEnvSpillSubstance = "What has been spilled is required";
+                              if (!irEnvSpillCause?.trim()) newErrors.irEnvSpillCause = "Cause of spillage is required";
+                              if (!irEnvSpillQuantity?.trim()) newErrors.irEnvSpillQuantity = "Approximate quantity of spillage is required";
+                              if (!irEnvSystemEntered || irEnvSystemEntered.length === 0) newErrors.irEnvSystemEntered = "Please specify entry system";
+                            }
+
                             if (!irDescription?.trim()) newErrors.irDescription = "Incident description is required";
                             if (!irInitialRootCause?.trim()) newErrors.irInitialRootCause = "Initial root cause is required";
                             if (photos.length < 2) newErrors.photos = "A minimum of 2 photos are required";
 
                             if (Object.keys(newErrors).length > 0) {
                               setIrErrors(newErrors);
-                              showError("Please fill out all mandatory fields and ensure at least 2 photos are added.");
+                              if (newErrors.photos && Object.keys(newErrors).length === 1) {
+                                showError("Please ensure at least 2 photos are added.");
+                              } else if (newErrors.photos) {
+                                showError("Please fill out all mandatory fields and ensure at least 2 photos are added.");
+                              } else {
+                                showError("Please fill out all mandatory fields.");
+                              }
                               return;
                             }
 
@@ -5172,7 +5194,7 @@ export default function IMDetails() {
 
                             const isHipo = Number(irPotentialSeverity) >= 4 || Number(irActualSeverity) >= 4;
                             formData.append("isHipo", String(isHipo));
-                            formData.append("hasInjuryIllness", String(!irInjuryNotApplicable));
+                            formData.append("hasInjuryIllness", String(!isEnvIncident && !isPropDamageIncident && !irInjuryNotApplicable));
 
                             // 3. Injured Person Details
                             if (irInjuredName) formData.append("injuredPersonName", irInjuredName);

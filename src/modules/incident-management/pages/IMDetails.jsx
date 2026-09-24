@@ -1621,18 +1621,44 @@ export default function IMDetails() {
           setInvFactors(inv.contributingFactors);
         }
 
+        let invPhotoArr = [];
         if (inv.photos) {
-          let pArr = [];
-          if (Array.isArray(inv.photos)) pArr = inv.photos;
+          if (Array.isArray(inv.photos)) invPhotoArr = inv.photos;
           else if (typeof inv.photos === "string") {
             try {
               const parsed = JSON.parse(inv.photos);
-              pArr = Array.isArray(parsed) ? parsed : [parsed];
+              invPhotoArr = Array.isArray(parsed) ? parsed : [parsed];
             } catch {
-              pArr = [inv.photos];
+              invPhotoArr = [inv.photos];
             }
           }
-          setInvPhotos(pArr.filter(Boolean));
+        }
+        if (invPhotoArr.filter(Boolean).length > 0) {
+          setInvPhotos(invPhotoArr.filter(Boolean));
+        } else if (ir && ir.photos) {
+          let irP = [];
+          if (Array.isArray(ir.photos)) irP = ir.photos;
+          else if (typeof ir.photos === "string") {
+            try {
+              const parsed = JSON.parse(ir.photos);
+              irP = Array.isArray(parsed) ? parsed : [parsed];
+            } catch {
+              irP = [ir.photos];
+            }
+          }
+          if (irP.filter(Boolean).length > 0) setInvPhotos(irP.filter(Boolean));
+        } else if (rawIncident.photos) {
+          let incP = [];
+          if (Array.isArray(rawIncident.photos)) incP = rawIncident.photos;
+          else if (typeof rawIncident.photos === "string") {
+            try {
+              const parsed = JSON.parse(rawIncident.photos);
+              incP = Array.isArray(parsed) ? parsed : [parsed];
+            } catch {
+              incP = [rawIncident.photos];
+            }
+          }
+          if (incP.filter(Boolean).length > 0) setInvPhotos(incP.filter(Boolean));
         }
 
         if (inv.environmentalDetails) {
@@ -6014,27 +6040,29 @@ export default function IMDetails() {
                   {/* 13. Photos */}
                   <div className="fsec"><div className="fsec-title">13. Photos from the incident location</div>
                     <div className="fsec-note">Minimum of 2 photos. For environmental incidents, include one photo before the spill is contained/treated and one after.</div>
-                    <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-                      <button className="mod-btn-outline" style={{ fontSize: 13 }} onClick={startInvCamera}>Take Photo</button>
-                      <button className="mod-btn-outline" style={{ fontSize: 13 }} onClick={() => invFileInputRef.current?.click()}>Upload File</button>
-                      <input type="file" ref={invFileInputRef} accept="image/*" multiple style={{ display: "none" }} onChange={(e) => {
-                        const files = e.target.files;
-                        if (!files) return;
-                        Array.from(files).forEach(f => {
-                          const reader = new FileReader();
-                          reader.onload = (ev) => {
-                            if (invPhotos.length < 20) setInvPhotos(prev => [...prev, ev.target.result]);
-                          };
-                          reader.readAsDataURL(f);
-                        });
-                        e.target.value = '';
-                      }} />
-                    </div>
+                    {(!investigationSubmitted || isEditingInvestigation) && (
+                      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+                        <button type="button" className="mod-btn-outline" style={{ fontSize: 13 }} onClick={startInvCamera}>Take Photo</button>
+                        <button type="button" className="mod-btn-outline" style={{ fontSize: 13 }} onClick={() => invFileInputRef.current?.click()}>Upload File</button>
+                        <input type="file" ref={invFileInputRef} accept="image/*" multiple style={{ display: "none" }} onChange={(e) => {
+                          const files = e.target.files;
+                          if (!files) return;
+                          Array.from(files).forEach(f => {
+                            const reader = new FileReader();
+                            reader.onload = (ev) => {
+                              if (invPhotos.length < 20) setInvPhotos(prev => [...prev, ev.target.result]);
+                            };
+                            reader.readAsDataURL(f);
+                          });
+                          e.target.value = '';
+                        }} />
+                      </div>
+                    )}
                     {isInvCameraActive && (
                       <div className="cam-wrap" style={{ marginTop: 12 }}>
                         <video ref={invVideoRef} autoPlay playsInline style={{ width: "100%", maxWidth: 420, borderRadius: 8, background: "#000" }}></video>
                         <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                          <button className="mod-btn-primary im-btn-primary" style={{ padding: "4px 12px", fontSize: 13 }} onClick={() => {
+                          <button type="button" className="mod-btn-primary im-btn-primary" style={{ padding: "4px 12px", fontSize: 13 }} onClick={() => {
                             const v = invVideoRef.current;
                             const c = invCanvasRef.current;
                             if (!v || !c) return;
@@ -6044,7 +6072,7 @@ export default function IMDetails() {
                             const data = c.toDataURL('image/jpeg', 0.8);
                             if (invPhotos.length < 20) setInvPhotos([...invPhotos, data]);
                           }}>Capture</button>
-                          <button className="mod-btn-outline" style={{ padding: "4px 12px", fontSize: 13 }} onClick={() => {
+                          <button type="button" className="mod-btn-outline" style={{ padding: "4px 12px", fontSize: 13 }} onClick={() => {
                             setIsInvCameraActive(false);
                             if (invStreamRef.current) {
                               invStreamRef.current.getTracks().forEach(t => t.stop());
@@ -6056,14 +6084,31 @@ export default function IMDetails() {
                       </div>
                     )}
                     <div className="photo-count" style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 8 }}>{invPhotos.length}/20 photos</div>
-                    <div className="photo-grid" style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 12 }}>
-                      {invPhotos.map((p, i) => (
-                        <div key={i} className="photo-thumb" style={{ position: "relative", width: 96, height: 96, borderRadius: 8, overflow: "hidden", border: "1px solid var(--border-color)", background: "var(--bg-dark)" }}>
-                          <img src={getAttachmentUrl(p)} alt={`photo ${i + 1}`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                          <button style={{ position: "absolute", top: 2, right: 2, width: 20, height: 20, borderRadius: "50%", border: "none", background: "var(--color-risk)", color: "#fff", cursor: "pointer", fontSize: 12, lineHeight: 1 }} onClick={() => setInvPhotos(invPhotos.filter((_, idx) => idx !== i))}>×</button>
-                        </div>
-                      ))}
-                    </div>
+                    {invPhotos.length > 0 ? (
+                      <div className="photo-grid" style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 12 }}>
+                        {invPhotos.map((p, i) => (
+                          <div key={i} className="photo-thumb" style={{ position: "relative", width: 96, height: 96, borderRadius: 8, overflow: "hidden", border: "1px solid var(--border-color)", background: "var(--bg-dark)" }}>
+                            <img
+                              src={getAttachmentUrl(p)}
+                              alt={`photo ${i + 1}`}
+                              style={{ width: "100%", height: "100%", objectFit: "cover", cursor: "pointer" }}
+                              onClick={() => {
+                                const fullUrl = getAttachmentUrl(p);
+                                if (fullUrl) window.open(fullUrl, '_blank');
+                              }}
+                              title="Click to view full image"
+                            />
+                            {(!investigationSubmitted || isEditingInvestigation) && (
+                              <button type="button" style={{ position: "absolute", top: 2, right: 2, width: 20, height: 20, borderRadius: "50%", border: "none", background: "var(--color-risk, #ef4444)", color: "#fff", cursor: "pointer", fontSize: 12, lineHeight: 1 }} onClick={() => setInvPhotos(invPhotos.filter((_, idx) => idx !== i))}>×</button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      investigationSubmitted && !isEditingInvestigation && (
+                        <div style={{ fontSize: 13, color: "var(--text-muted)", fontStyle: "italic", marginTop: 8 }}>No photos attached for this investigation.</div>
+                      )
+                    )}
                   </div>
 
                   {/* 14. Mandatory Attachments */}
@@ -6428,6 +6473,7 @@ export default function IMDetails() {
                             const userName = invInvName || getLoggedInUser() || "Investigator";
                             const payload = {
                               investigationDetails: invDetails,
+                              photos: invPhotos,
                               problemStatement: invProblem,
                               effectDescription: invEffect,
                               effect: invEffect,

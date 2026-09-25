@@ -848,14 +848,27 @@ export default function IMDashboard() {
       <div className="panel dash-tablecard">
         <div className="panel-head">
           <span className="panel-title">Incidents ({filteredIncidents.length})</span>
-          <select value={stageFilter} onChange={e => setStageFilter(e.target.value)} style={{ padding: '7px 10px', border: '1px solid var(--border-color)', borderRadius: '8px', fontSize: '12px', background: 'var(--bg-card)', color: 'var(--text-main)' }}>
-            <option value="all">All Stages</option>
-            <option value="active">Active Only</option>
-            <option value="Heads-Up">Heads-Up Review</option>
-            <option value="Initial">Initial Report Review</option>
-            <option value="Investigation">Investigation Review</option>
-            <option value="Closed">Closed</option>
-          </select>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {stageFilter !== 'all' && (
+              <button 
+                type="button" 
+                className="btn btn-outline" 
+                style={{ borderColor: 'transparent', color: '#E32B50', padding: '6px 12px', background: 'rgba(227, 43, 80, 0.05)', height: '32px' }}
+                onClick={() => setStageFilter('all')}
+                title="Clear stage filter"
+              >
+                Clear
+              </button>
+            )}
+            <select value={stageFilter} onChange={e => setStageFilter(e.target.value)} style={{ padding: '7px 10px', border: '1px solid var(--border-color)', borderRadius: '8px', fontSize: '12px', background: 'var(--bg-card)', color: 'var(--text-main)', height: '32px' }}>
+              <option value="all">All Stages</option>
+              <option value="active">Active Only</option>
+              <option value="Heads-Up">Heads-Up Review</option>
+              <option value="Initial">Initial Report Review</option>
+              <option value="Investigation">Investigation Review</option>
+              <option value="Closed">Closed</option>
+            </select>
+          </div>
         </div>
         <div className="table-wrap">
           {loading ? (

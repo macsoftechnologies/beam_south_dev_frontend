@@ -552,6 +552,7 @@ export default function SafetyIssueModal({ open, onClose, subject, color, itemIn
       title={titleNode}
       size="lg"
       scrollable={true}
+      hideDot={true}
     >
       <div className="sim-container">
 

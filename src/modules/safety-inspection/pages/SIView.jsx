@@ -301,7 +301,7 @@ export default function SIView() {
 
           <div className="siview-card meta-card">
             <div className="meta-card-header">
-              <i className="ti ti-clock"></i> Timeline & Compliance
+              <i className="ti ti-clock"></i> Timeline
             </div>
             <div className="meta-card-body">
               <div className="meta-item">
@@ -320,12 +320,7 @@ export default function SIView() {
                 <span className="meta-label">Modified Date</span>
                 <span className="meta-value">{formatDate(inspection.updatedTime || inspection.createdTime)}</span>
               </div>
-              <div className="meta-item">
-                <span className="meta-label">Audit Score</span>
-                <span className="meta-value" style={{ fontWeight: 700, color: inspection.score >= 75 ? "#16a34a" : "#dc2626" }}>
-                  {inspection.score !== undefined ? `${inspection.score}%` : "100%"}
-                </span>
-              </div>
+
             </div>
           </div>
 

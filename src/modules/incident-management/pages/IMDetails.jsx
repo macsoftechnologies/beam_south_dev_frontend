@@ -1198,7 +1198,7 @@ export default function IMDetails() {
 
         const isIrApproved = Boolean(resData?.initialReport?.approvedBy || (hasIrData && isClosedInc));
         setInitialReportApproved(isIrApproved);
-        setInitialReportStarted(Boolean(hasIrData || isIrApproved));
+        setInitialReportStarted(Boolean(hasIrData));
 
         // Sync Investigation states (ONLY true if actual data exists)
         const hasInvData = Boolean(
@@ -1207,7 +1207,7 @@ export default function IMDetails() {
           (resData?.investigation?.investigationDetails && resData.investigation.investigationDetails.trim().length > 0) ||
           (resData?.investigation?.submittedBy && resData.investigation.submittedBy !== "User" && resData.investigation.submittedBy !== "Investigator")
         );
-        const isInvStarted = Boolean(hasInvData || (!isNoFurther && (isIrApproved || stage === "INVESTIGATION")));
+        const isInvStarted = Boolean(hasInvData);
         setInvestigationStarted(isInvStarted);
 
         const isInvSubmitted = Boolean(hasInvData);
@@ -1954,7 +1954,14 @@ export default function IMDetails() {
   };
 
   const addActionToList = async () => {
-    if (!newAction.action || !newAction.responsible) return;
+    if (!newAction.action || !newAction.responsible || !newAction.attachmentUrl) {
+      if (!newAction.attachmentUrl) {
+        showError("An attachment is required for Corrective Actions.");
+      } else {
+        showError("Action Description and Owner are required.");
+      }
+      return;
+    }
     try {
       const payload = {
         action: newAction.action,
@@ -2064,7 +2071,10 @@ export default function IMDetails() {
   };
 
   // Helper functions for Investigation arrays
-  const addInvTeamMember = () => setInvTeam([...invTeam, { name: "", role: "", company: "" }]);
+  const addInvTeamMember = () => {
+    setInvTeam([...invTeam, { name: "", role: "", company: "" }]);
+    setTimeout(() => document.getElementById(`invTeam-name-${invTeam.length}`)?.focus(), 10);
+  };
   const updateInvTeamMember = (idx, field, val) => {
     const newTeam = [...invTeam];
     newTeam[idx][field] = val;
@@ -2072,7 +2082,10 @@ export default function IMDetails() {
   };
   const removeInvTeamMember = (idx) => setInvTeam(invTeam.filter((_, i) => i !== idx));
 
-  const addInvWitness = () => setInvWitnesses([...invWitnesses, { name: "", badge: "", employer: "", occupation: "", desc: "" }]);
+  const addInvWitness = () => {
+    setInvWitnesses([...invWitnesses, { name: "", badge: "", employer: "", occupation: "", desc: "" }]);
+    setTimeout(() => document.getElementById(`invWitness-name-${invWitnesses.length}`)?.focus(), 10);
+  };
   const updateInvWitness = (idx, field, val) => {
     const newW = [...invWitnesses];
     newW[idx][field] = val;
@@ -2102,7 +2115,10 @@ export default function IMDetails() {
     setFishbone(newFb);
   };
 
-  const addInvRootCause = () => setInvRootCauses([...invRootCauses, ""]);
+  const addInvRootCause = () => {
+    setInvRootCauses([...invRootCauses, ""]);
+    setTimeout(() => document.getElementById(`invRootCause-${invRootCauses.length}`)?.focus(), 10);
+  };
   const updateInvRootCause = (idx, val) => {
     const newRC = [...invRootCauses];
     newRC[idx] = val;
@@ -2110,7 +2126,10 @@ export default function IMDetails() {
   };
   const removeInvRootCause = (idx) => setInvRootCauses(invRootCauses.filter((_, i) => i !== idx));
 
-  const addInvFactor = () => setInvFactors([...invFactors, ""]);
+  const addInvFactor = () => {
+    setInvFactors([...invFactors, ""]);
+    setTimeout(() => document.getElementById(`invFactor-${invFactors.length}`)?.focus(), 10);
+  };
   const updateInvFactor = (idx, val) => {
     const newF = [...invFactors];
     newF[idx] = val;
@@ -2118,7 +2137,10 @@ export default function IMDetails() {
   };
   const removeInvFactor = (idx) => setInvFactors(invFactors.filter((_, i) => i !== idx));
 
-  const addInvCorrective = () => setInvCorrective([...invCorrective, { desc: "", resp: "", deadline: "", priority: "" }]);
+  const addInvCorrective = () => {
+    setInvCorrective([...invCorrective, { desc: "", resp: "", deadline: "", priority: "" }]);
+    setTimeout(() => document.getElementById(`invCorrective-desc-${invCorrective.length}`)?.focus(), 10);
+  };
   const updateInvCorrective = (idx, field, val) => {
     const newC = [...invCorrective];
     newC[idx][field] = val;
@@ -2976,6 +2998,12 @@ export default function IMDetails() {
 
   return (
     <div className="mod-page">
+      <style>{`
+        .success-styled:not(:focus) {
+          border-color: #22c55e !important;
+          color: #16a34a !important;
+        }
+      `}</style>
 
       {/* ── Print-only Header ── */}
       <div className="print-only-header">
@@ -4372,7 +4400,13 @@ export default function IMDetails() {
                         noFurtherInvestigation: huNoFurtherInvestigation
                       });
                       showSuccess("Heads-Up Notification Approved!");
-                      navigate("/incident-management/list");
+                      setHeadsUpApproved(true);
+                      if (huNoFurtherInvestigation) {
+                        navigate("/incident-management/list");
+                      } else {
+                        setActiveTab("initialReport");
+                        window.scrollTo(0, 0);
+                      }
                     } catch (err) {
                       console.error("Failed to approve Heads Up", err);
                       const msg = err.response?.data?.message || err.message || "Failed to approve Heads Up";
@@ -4534,9 +4568,9 @@ export default function IMDetails() {
                     </div>
                   </div>
 
-                  {/* B. Incident Category */}
-                  <div className="fsec"><div className="fsec-title">B. Incident Category</div>
+                  <div className="fsec"><div className="fsec-title">B. Incident Category <span style={{ color: "#DC2626" }}>*</span></div>
                     <div className="fsec-note">Select all that apply. The categorisation may change following the incident investigation.</div>
+                    {irErrors.irCategories && <span style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: "4px", marginBottom: "8px", display: "block" }}>{irErrors.irCategories}</span>}
                     <div className="chk-grid-2">
                       {INCIDENT_CATEGORIES.map(cat => {
                         const normCat = cat.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -4551,6 +4585,7 @@ export default function IMDetails() {
                               type="checkbox"
                               checked={isChecked}
                               onChange={e => {
+                                if (irErrors.irCategories) setIrErrors({ ...irErrors, irCategories: null });
                                 if (e.target.checked) {
                                   if (!isChecked) {
                                     setIrCategories([...irCategories, cat]);
@@ -4767,14 +4802,13 @@ export default function IMDetails() {
                     </div>
                   </div>
 
-                  {/* G, I, J Conditional on Not Environmental / Property Damage */}
+                  {/* G, H, I, J Conditional on Injury Categories */}
                   {(() => {
                     const activeIncidentCats = (irCategories.length > 0 ? irCategories : (incident?.categories || [])).map(c => String(c).toLowerCase());
+                    const INJURY_CATS = ["first aid injury", "medical treatment injury", "lost time injury", "personal injury"];
+                    const isInjuryIncident = activeIncidentCats.some(c => INJURY_CATS.includes(c));
 
-                    const isEnvIncident = activeIncidentCats.some(c => c.includes("environment") || c.includes("environ"));
-                    const isPropDamageIncident = activeIncidentCats.some(c => c.includes("property"));
-
-                    if (isEnvIncident || isPropDamageIncident) return null;
+                    if (!isInjuryIncident) return null;
 
                     return (
                       <>
@@ -4802,8 +4836,9 @@ export default function IMDetails() {
                         </div>
 
                         {/* H. Type of Accident Categories */}
-                        <div className="fsec"><div className="fsec-title">H. Type of Accident Categories</div>
+                        <div className="fsec"><div className="fsec-title">H. Type of Accident Categories <span style={{ color: "#DC2626" }}>*</span></div>
                           <div className="fsec-note">Select all accident categories that apply.</div>
+                          {irErrors.irAccidentCategories && <span style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: "4px", marginBottom: "8px", display: "block" }}>{irErrors.irAccidentCategories}</span>}
                           <div className="chk-grid-3">
                             {ACCIDENT_TYPE_CATEGORIES.map((cat, i) => {
                               if (!cat) return <div key={`empty-${i}`} />;
@@ -4813,6 +4848,7 @@ export default function IMDetails() {
                                     type="checkbox"
                                     checked={irAccidentCategories.includes(cat)}
                                     onChange={e => {
+                                      if (irErrors.irAccidentCategories) setIrErrors({ ...irErrors, irAccidentCategories: null });
                                       if (e.target.checked) setIrAccidentCategories([...irAccidentCategories, cat]);
                                       else setIrAccidentCategories(irAccidentCategories.filter(c => c !== cat));
                                     }}
@@ -4825,8 +4861,9 @@ export default function IMDetails() {
                         </div>
 
                         {/* I. Indicate Type(s) of Injury */}
-                        <div className="fsec"><div className="fsec-title">I. Indicate Type(s) of Injury</div>
+                        <div className="fsec"><div className="fsec-title">I. Indicate Type(s) of Injury <span style={{ color: "#DC2626" }}>*</span></div>
                           <div className="fsec-note">Select all that apply.</div>
+                          {irErrors.irInjuryTypes && <span style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: "4px", marginBottom: "8px", display: "block" }}>{irErrors.irInjuryTypes}</span>}
                           <div className="chk-grid-3" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "8px 16px", marginBottom: "16px" }}>
                             {INJURY_TYPES.map((cat, i) => {
                               if (!cat) return <div key={`empty-${i}`} />;
@@ -4836,6 +4873,7 @@ export default function IMDetails() {
                                     type="checkbox"
                                     checked={irInjuryTypes.includes(cat)}
                                     onChange={e => {
+                                      if (irErrors.irInjuryTypes) setIrErrors({ ...irErrors, irInjuryTypes: null });
                                       if (e.target.checked) {
                                         setIrInjuryTypes([...irInjuryTypes, cat]);
                                       } else {
@@ -4863,8 +4901,9 @@ export default function IMDetails() {
                         </div>
 
                         {/* J. Parts of the Body Injured */}
-                        <div className="fsec"><div className="fsec-title">J. Indicate Parts of the Body Injured</div>
+                        <div className="fsec"><div className="fsec-title">J. Indicate Parts of the Body Injured <span style={{ color: "#DC2626" }}>*</span></div>
                           <div className="fsec-note">Click the body map to select injured areas, or add manually. Click a highlighted area again to remove it.</div>
+                          {irErrors.bodyParts && <span style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: "4px", marginBottom: "8px", display: "block" }}>{irErrors.bodyParts}</span>}
                           <div className="bodyj-split" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginTop: 12 }}>
                             <div className="bodyj-map" style={{ background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: 12, padding: "24px 16px" }}>
                               {(() => {
@@ -4902,6 +4941,7 @@ export default function IMDetails() {
                                 };
 
                                 const toggleBodyPart = (partName, side) => {
+                                  if (irErrors.bodyParts) setIrErrors({ ...irErrors, bodyParts: null });
                                   const targetLabel = side ? `${partName} (${side})` : partName;
                                   if (bodyParts.includes(targetLabel)) {
                                     setBodyParts(bodyParts.filter(p => p !== targetLabel));
@@ -5205,6 +5245,8 @@ export default function IMDetails() {
                         <button className="mod-btn-primary im-btn-primary" disabled={!headsUpApproved} title={!headsUpApproved ? "Stage 1 Heads-Up Notification must be approved first" : ""} onClick={async () => {
                           try {
                             const activeIncidentCats = (irCategories.length > 0 ? irCategories : (incident?.categories || [])).map(c => String(c).toLowerCase());
+                            const INJURY_CATS = ["first aid injury", "medical treatment injury", "lost time injury", "personal injury"];
+                            const isInjuryIncident = activeIncidentCats.some(c => INJURY_CATS.includes(c));
 
                             const isEnvIncident = activeIncidentCats.some(c => c.includes("environment") || c.includes("environ"));
                             const isPropDamageIncident = activeIncidentCats.some(c => c.includes("property"));
@@ -5230,6 +5272,14 @@ export default function IMDetails() {
 
                             if (!irDescription?.trim()) newErrors.irDescription = "Incident description is required";
                             if (!irInitialRootCause?.trim()) newErrors.irInitialRootCause = "Initial root cause is required";
+                            if (!irCategories || irCategories.length === 0) newErrors.irCategories = "Incident category is required";
+                            
+                            if (isInjuryIncident) {
+                              if (!irAccidentCategories || irAccidentCategories.length === 0) newErrors.irAccidentCategories = "Type of accident category is required";
+                              if (!irInjuryTypes || irInjuryTypes.length === 0) newErrors.irInjuryTypes = "Type of injury is required";
+                              if (!bodyParts || bodyParts.length === 0) newErrors.bodyParts = "Injured body part is required";
+                            }
+                            
                             if (photos.length < 2) newErrors.photos = "A minimum of 2 photos are required";
 
                             if (Object.keys(newErrors).length > 0) {
@@ -5266,10 +5316,13 @@ export default function IMDetails() {
                             }
 
                             // 2. Severities & Flags
-                            if (irActualSeverity) formData.append("actualSeverity", irActualSeverity);
-                            if (irPotentialSeverity) formData.append("potentialSeverity", irPotentialSeverity);
+                            const finalActSev = extractSevNum(irActualSeverity || huActualSeverity || incident?.actualSeverity || "1") || "1";
+                            const finalPotSev = extractSevNum(irPotentialSeverity || huPotentialSeverity || incident?.potentialSeverity || "1") || "1";
+                            
+                            formData.append("actualSeverity", finalActSev);
+                            formData.append("potentialSeverity", finalPotSev);
 
-                            const isHipo = Number(irPotentialSeverity) >= 4 || Number(irActualSeverity) >= 4;
+                            const isHipo = Number(finalPotSev) >= 4 || Number(finalActSev) >= 4;
                             formData.append("isHipo", String(isHipo));
                             formData.append("hasInjuryIllness", String(!isEnvIncident && !isPropDamageIncident && !irInjuryNotApplicable));
 
@@ -5382,7 +5435,7 @@ export default function IMDetails() {
                 {/* Review & Sign-Off Section if submitted and pending approval */}
                 {initialReportSubmitted && !initialReportApproved && !isClosed && !isContractorUser() && (
                   <div className="mod-card mb-4" id="initialReport-review-section" style={{ marginTop: 24, borderTop: "3px solid var(--accent-primary, #3b82f6)" }}>
-                    <div className="mod-card-header"><span className="mod-card-title">Review & Sign-Off: Initial Incident Report {incident.id}</span></div>
+                    <div className="mod-card-header"><span className="mod-card-title">Review & Sign-Off: Initial Incident Report</span></div>
                     <div className="mod-card-body">
                       <div className="mod-form-group">
                         <label className="mod-form-label">Review Comments / Revision Reason</label>
@@ -5447,7 +5500,13 @@ export default function IMDetails() {
                               noFurtherInvestigation: irNoFurtherInvestigation
                             });
                             showSuccess("Initial Report Approved!");
-                            navigate("/incident-management/list");
+                            setInitialReportApproved(true);
+                            if (irNoFurtherInvestigation || huNoFurtherInvestigation || incident.noFurtherInvestigation) {
+                              navigate("/incident-management/list");
+                            } else {
+                              setActiveTab("investigation");
+                              window.scrollTo(0, 0);
+                            }
                           } catch (err) {
                             const msg = err.response?.data?.message || err.message || "Failed to approve initial report";
                             showError(Array.isArray(msg) ? msg[0] : msg);
@@ -5679,17 +5738,62 @@ export default function IMDetails() {
                   </div>
                     {invTeam.length === 0 ? <div className="muted-empty" style={{ fontStyle: "italic", fontSize: 13, color: "var(--text-muted)", padding: "8px 0" }}>No team members added yet.</div> : invTeam.map((m, i) => (
                       <div key={i} className="subcard" style={{ border: "1px solid var(--border-color)", padding: 16, borderRadius: 8, marginBottom: 12 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12, alignItems: "center" }}>
                           <span style={{ fontWeight: 700, fontSize: 13 }}>Member {i + 1}</span>
                           {(!investigationSubmitted || isEditingInvestigation) && (
-                            <button className="subcard-remove" style={{ color: "var(--color-risk)", background: "transparent", border: "1px solid var(--border-color)", padding: "4px 8px", borderRadius: 4, cursor: "pointer", fontSize: 12 }} onClick={() => removeInvTeamMember(i)}>Remove</button>
+                            <div style={{ display: "flex", gap: "6px" }}>
+                              <button 
+                                type="button"
+                                style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "32px", height: "32px", borderRadius: "6px", border: "1px solid #fca5a5", background: "#fee2e2", color: "#ef4444", cursor: "pointer", transition: "all 0.2s" }} 
+                                onClick={() => removeInvTeamMember(i)}
+                                title="Remove Member"
+                              >
+                                <i className="ti ti-x" style={{ fontSize: "16px", fontWeight: "bold" }}></i>
+                              </button>
+                              {i === invTeam.length - 1 && (
+                                <button 
+                                  type="button"
+                                  style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "32px", height: "32px", borderRadius: "6px", border: "1px solid #86efac", background: "#dcfce7", color: "#16a34a", cursor: "pointer", transition: "all 0.2s" }} 
+                                  onClick={() => addInvTeamMember()}
+                                  title="Add Member"
+                                >
+                                  <i className="ti ti-check" style={{ fontSize: "16px", fontWeight: "bold" }}></i>
+                                </button>
+                              )}
+                            </div>
                           )}
                         </div>
                         <div className="grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                          <div className="mod-form-group"><label className="mod-form-label">Name</label><input className="mod-form-input" value={m.name} onChange={e => updateInvTeamMember(i, 'name', e.target.value)} /></div>
-                          <div className="mod-form-group"><label className="mod-form-label">Position / Role</label><input className="mod-form-input" value={m.role} onChange={e => updateInvTeamMember(i, 'role', e.target.value)} /></div>
+                          <div className="mod-form-group">
+                            <label className="mod-form-label">Name</label>
+                            <input id={`invTeam-name-${i}`} className={`mod-form-input ${m.name.trim() ? 'success-styled' : ''}`} value={m.name} onChange={e => updateInvTeamMember(i, 'name', e.target.value)} onKeyDown={e => e.key === 'Enter' && addInvTeamMember()} />
+                          </div>
+                          <div className="mod-form-group">
+                            <label className="mod-form-label">Position / Role</label>
+                            <input className={`mod-form-input ${m.role.trim() ? 'success-styled' : ''}`} value={m.role} onChange={e => updateInvTeamMember(i, 'role', e.target.value)} onKeyDown={e => e.key === 'Enter' && addInvTeamMember()} />
+                          </div>
+                          <div className="mod-form-group">
+                            <label className="mod-form-label">Company</label>
+                            <select 
+                              className={`mod-form-select ${m.company ? 'success-styled' : ''}`} 
+                              value={m.company} 
+                              onChange={e => updateInvTeamMember(i, 'company', e.target.value)} 
+                            >
+                              <option value="">Select Company / Contractor...</option>
+                              {contractorsList && contractorsList.length > 0 && contractorsList.map(c => {
+                                const val = c.subcontractor_name || c.subContractorName || c.company_name || c.name;
+                                return (
+                                  <option key={c.subcontractor_id || c.id || c.name} value={val}>
+                                    {val}
+                                  </option>
+                                );
+                              })}
+                              {m.company && !(contractorsList || []).some(c => (c.subcontractor_name || c.subContractorName || c.company_name || c.name) === m.company) && (
+                                <option value={m.company}>{m.company}</option>
+                              )}
+                            </select>
+                          </div>
                         </div>
-                        <div className="mod-form-group" style={{ marginTop: 12 }}><label className="mod-form-label">Company</label><input className="mod-form-input" value={m.company} onChange={e => updateInvTeamMember(i, 'company', e.target.value)} /></div>
                       </div>
                     ))}
                   </div>
@@ -5713,19 +5817,79 @@ export default function IMDetails() {
                     <div className="fsec-note">Witness statements are collected as part of the investigation. Attach the signed Witness Statement form under Mandatory Attachments.</div>
                     {invWitnesses.length === 0 ? <div className="muted-empty" style={{ fontStyle: "italic", fontSize: 13, color: "var(--text-muted)", padding: "8px 0" }}>No witnesses added yet.</div> : invWitnesses.map((w, i) => (
                       <div key={i} className="subcard" style={{ border: "1px solid var(--border-color)", padding: 16, borderRadius: 8, marginBottom: 12 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12, alignItems: "center" }}>
                           <span style={{ fontWeight: 700, fontSize: 13 }}>Witness {i + 1}</span>
                           {(!investigationSubmitted || isEditingInvestigation) && (
-                            <button className="subcard-remove" style={{ color: "var(--color-risk)", background: "transparent", border: "1px solid var(--border-color)", padding: "4px 8px", borderRadius: 4, cursor: "pointer", fontSize: 12 }} onClick={() => removeInvWitness(i)}>Remove</button>
+                            <div style={{ display: "flex", gap: "6px" }}>
+                              <button 
+                                type="button"
+                                style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "32px", height: "32px", borderRadius: "6px", border: "1px solid #fca5a5", background: "#fee2e2", color: "#ef4444", cursor: "pointer", transition: "all 0.2s" }} 
+                                onClick={() => removeInvWitness(i)}
+                                title="Remove Witness"
+                              >
+                                <i className="ti ti-x" style={{ fontSize: "16px", fontWeight: "bold" }}></i>
+                              </button>
+                              {i === invWitnesses.length - 1 && (
+                                <button 
+                                  type="button"
+                                  style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "32px", height: "32px", borderRadius: "6px", border: "1px solid #86efac", background: "#dcfce7", color: "#16a34a", cursor: "pointer", transition: "all 0.2s" }} 
+                                  onClick={() => addInvWitness()}
+                                  title="Add Witness"
+                                >
+                                  <i className="ti ti-check" style={{ fontSize: "16px", fontWeight: "bold" }}></i>
+                                </button>
+                              )}
+                            </div>
                           )}
                         </div>
                         <div className="grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                          <div className="mod-form-group"><label className="mod-form-label">Name</label><input className="mod-form-input" value={w.name} onChange={e => updateInvWitness(i, 'name', e.target.value)} /></div>
-                          <div className="mod-form-group"><label className="mod-form-label">Badge No.</label><input className="mod-form-input" value={w.badge} onChange={e => updateInvWitness(i, 'badge', e.target.value)} /></div>
-                          <div className="mod-form-group"><label className="mod-form-label">Employer</label><input className="mod-form-input" value={w.employer} onChange={e => updateInvWitness(i, 'employer', e.target.value)} /></div>
-                          <div className="mod-form-group"><label className="mod-form-label">Occupation</label><input className="mod-form-input" value={w.occupation} onChange={e => updateInvWitness(i, 'occupation', e.target.value)} /></div>
+                          <div className="mod-form-group">
+                            <label className="mod-form-label">Name</label>
+                            <input 
+                              id={`invWitness-name-${i}`}
+                              className={`mod-form-input ${w.name.trim() ? 'success-styled' : ''}`} 
+                              value={w.name} 
+                              onChange={e => updateInvWitness(i, 'name', e.target.value)} 
+                              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addInvWitness(); } }}
+                            />
+                          </div>
+                          <div className="mod-form-group">
+                            <label className="mod-form-label">Badge No.</label>
+                            <input 
+                              className={`mod-form-input ${w.badge.trim() ? 'success-styled' : ''}`} 
+                              value={w.badge} 
+                              onChange={e => updateInvWitness(i, 'badge', e.target.value)} 
+                              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addInvWitness(); } }}
+                            />
+                          </div>
+                          <div className="mod-form-group">
+                            <label className="mod-form-label">Employer</label>
+                            <input 
+                              className={`mod-form-input ${w.employer.trim() ? 'success-styled' : ''}`} 
+                              value={w.employer} 
+                              onChange={e => updateInvWitness(i, 'employer', e.target.value)} 
+                              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addInvWitness(); } }}
+                            />
+                          </div>
+                          <div className="mod-form-group">
+                            <label className="mod-form-label">Occupation</label>
+                            <input 
+                              className={`mod-form-input ${w.occupation.trim() ? 'success-styled' : ''}`} 
+                              value={w.occupation} 
+                              onChange={e => updateInvWitness(i, 'occupation', e.target.value)} 
+                              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addInvWitness(); } }}
+                            />
+                          </div>
                         </div>
-                        <div className="mod-form-group" style={{ marginTop: 12 }}><label className="mod-form-label">Brief description of the incident</label><textarea className="mod-form-textarea" value={w.desc} onChange={e => updateInvWitness(i, 'desc', e.target.value)}></textarea></div>
+                        <div className="mod-form-group" style={{ marginTop: 12 }}>
+                          <label className="mod-form-label">Brief description of the incident</label>
+                          <textarea 
+                            className={`mod-form-textarea ${w.desc.trim() ? 'success-styled' : ''}`} 
+                            value={w.desc} 
+                            onChange={e => updateInvWitness(i, 'desc', e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addInvWitness(); } }}
+                          ></textarea>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -5868,10 +6032,41 @@ export default function IMDetails() {
                     {invErrors.invRootCauses && <div style={{ fontSize: "0.75rem", color: "#DC2626", marginBottom: "8px", fontWeight: "bold" }}>{invErrors.invRootCauses}</div>}
                     {invRootCauses.length === 0 ? <div className="muted-empty" style={{ fontStyle: "italic", fontSize: 13, color: "var(--text-muted)", padding: "8px 0" }}>No root causes added yet.</div> : invRootCauses.map((rc, i) => (
                       <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center" }}>
-                        <span style={{ fontWeight: 700, color: "var(--accent-primary)", width: 24 }}>{i + 1}.</span>
-                        <input className="mod-form-input" style={{ flex: 1, borderColor: (invErrors.invRootCauses && !rc.trim()) ? "#DC2626" : undefined }} value={rc} onChange={e => { updateInvRootCause(i, e.target.value); if (invErrors.invRootCauses) setInvErrors({ ...invErrors, invRootCauses: null }); }} />
+                        <span style={{ fontWeight: 700, color: "var(--accent-primary)", width: 24 }}>{String.fromCharCode(97 + i)}.</span>
+                        <input 
+                          id={`invRootCause-${i}`}
+                          className={`mod-form-input ${rc.trim() ? 'success-styled' : ''}`} 
+                          style={{ flex: 1, borderColor: (invErrors.invRootCauses && !rc.trim()) ? "#DC2626" : undefined }} 
+                          value={rc} 
+                          onChange={e => { updateInvRootCause(i, e.target.value); if (invErrors.invRootCauses) setInvErrors({ ...invErrors, invRootCauses: null }); }} 
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              addInvRootCause();
+                            }
+                          }}
+                        />
                         {(!investigationSubmitted || isEditingInvestigation) && (
-                          <button className="subcard-remove" style={{ color: "var(--color-risk)", background: "transparent", border: "1px solid var(--border-color)", padding: "4px 8px", borderRadius: 4, cursor: "pointer", fontSize: 12 }} onClick={() => removeInvRootCause(i)}>Remove</button>
+                          <div style={{ display: "flex", gap: "6px" }}>
+                            <button 
+                              type="button"
+                              style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "32px", height: "32px", borderRadius: "6px", border: "1px solid #fca5a5", background: "#fee2e2", color: "#ef4444", cursor: "pointer", transition: "all 0.2s" }} 
+                              onClick={() => removeInvRootCause(i)}
+                              title="Remove"
+                            >
+                              <i className="ti ti-x" style={{ fontSize: "16px", fontWeight: "bold" }}></i>
+                            </button>
+                            {i === invRootCauses.length - 1 && (
+                              <button 
+                                type="button"
+                                style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "32px", height: "32px", borderRadius: "6px", border: "1px solid #86efac", background: "#dcfce7", color: "#16a34a", cursor: "pointer", transition: "all 0.2s" }} 
+                                onClick={() => addInvRootCause()}
+                                title="Add Root Cause"
+                              >
+                                <i className="ti ti-check" style={{ fontSize: "16px", fontWeight: "bold" }}></i>
+                              </button>
+                            )}
+                          </div>
                         )}
                       </div>
                     ))}
@@ -5887,10 +6082,41 @@ export default function IMDetails() {
                     <div className="fsec-note">e.g. Human Factor, Environmental Factor, Procedural Factor</div>
                     {invFactors.length === 0 ? <div className="muted-empty" style={{ fontStyle: "italic", fontSize: 13, color: "var(--text-muted)", padding: "8px 0" }}>No contributing factors added yet.</div> : invFactors.map((f, i) => (
                       <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center" }}>
-                        <span style={{ fontWeight: 700, color: "var(--accent-primary)", width: 24 }}>{i + 1}.</span>
-                        <input className="mod-form-input" style={{ flex: 1 }} value={f} onChange={e => updateInvFactor(i, e.target.value)} />
+                        <span style={{ fontWeight: 700, color: "var(--accent-primary)", width: 24 }}>{String.fromCharCode(97 + i)}.</span>
+                        <input 
+                          id={`invFactor-${i}`}
+                          className={`mod-form-input ${f.trim() ? 'success-styled' : ''}`} 
+                          style={{ flex: 1 }} 
+                          value={f} 
+                          onChange={e => updateInvFactor(i, e.target.value)} 
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              addInvFactor();
+                            }
+                          }}
+                        />
                         {(!investigationSubmitted || isEditingInvestigation) && (
-                          <button className="subcard-remove" style={{ color: "var(--color-risk)", background: "transparent", border: "1px solid var(--border-color)", padding: "4px 8px", borderRadius: 4, cursor: "pointer", fontSize: 12 }} onClick={() => removeInvFactor(i)}>Remove</button>
+                          <div style={{ display: "flex", gap: "6px" }}>
+                            <button 
+                              type="button"
+                              style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "32px", height: "32px", borderRadius: "6px", border: "1px solid #fca5a5", background: "#fee2e2", color: "#ef4444", cursor: "pointer", transition: "all 0.2s" }} 
+                              onClick={() => removeInvFactor(i)}
+                              title="Remove"
+                            >
+                              <i className="ti ti-x" style={{ fontSize: "16px", fontWeight: "bold" }}></i>
+                            </button>
+                            {i === invFactors.length - 1 && (
+                              <button 
+                                type="button"
+                                style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "32px", height: "32px", borderRadius: "6px", border: "1px solid #86efac", background: "#dcfce7", color: "#16a34a", cursor: "pointer", transition: "all 0.2s" }} 
+                                onClick={() => addInvFactor()}
+                                title="Add Factor"
+                              >
+                                <i className="ti ti-check" style={{ fontSize: "16px", fontWeight: "bold" }}></i>
+                              </button>
+                            )}
+                          </div>
                         )}
                       </div>
                     ))}
@@ -5904,30 +6130,72 @@ export default function IMDetails() {
                     {invErrors.correctiveActions && <div style={{ fontSize: "0.8rem", color: "#DC2626", marginBottom: 8, fontWeight: 600 }}>{invErrors.correctiveActions}</div>}
                     {invCorrective.length === 0 ? <div className="muted-empty" style={{ fontStyle: "italic", fontSize: 13, color: "var(--text-muted)", padding: "8px 0" }}>No actions added yet.</div> : invCorrective.map((c, i) => (
                       <div key={i} className="subcard" style={{ border: "1px solid var(--border-color)", padding: 16, borderRadius: 8, marginBottom: 12 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12, alignItems: "center" }}>
                           <span style={{ fontWeight: 700, fontSize: 13 }}>Action #{i + 1}</span>
-                          <button className="subcard-remove" style={{ color: "var(--color-risk)", background: "transparent", border: "1px solid var(--border-color)", padding: "4px 8px", borderRadius: 4, cursor: "pointer", fontSize: 12 }} onClick={() => removeInvCorrective(i)}>Remove</button>
+                          <div style={{ display: "flex", gap: "6px" }}>
+                            <button 
+                              type="button"
+                              style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "32px", height: "32px", borderRadius: "6px", border: "1px solid #fca5a5", background: "#fee2e2", color: "#ef4444", cursor: "pointer", transition: "all 0.2s" }} 
+                              onClick={() => removeInvCorrective(i)}
+                              title="Remove Action"
+                            >
+                              <i className="ti ti-x" style={{ fontSize: "16px", fontWeight: "bold" }}></i>
+                            </button>
+                            {i === invCorrective.length - 1 && (
+                              <button 
+                                type="button"
+                                style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "32px", height: "32px", borderRadius: "6px", border: "1px solid #86efac", background: "#dcfce7", color: "#16a34a", cursor: "pointer", transition: "all 0.2s" }} 
+                                onClick={() => addInvCorrective()}
+                                title="Add Action"
+                              >
+                                <i className="ti ti-check" style={{ fontSize: "16px", fontWeight: "bold" }}></i>
+                              </button>
+                            )}
+                          </div>
                         </div>
                         <div className="mod-form-group">
                           <label className="mod-form-label">Description <span style={{ color: "#DC2626" }}>*</span></label>
-                          <textarea className="mod-form-textarea" style={invErrors[`ca_${i}_desc`] ? { borderColor: "#DC2626" } : {}} value={c.desc} onChange={e => { updateInvCorrective(i, 'desc', e.target.value); if (invErrors[`ca_${i}_desc`]) setInvErrors({ ...invErrors, [`ca_${i}_desc`]: null, correctiveActions: null }); }}></textarea>
+                          <textarea 
+                            id={`invCorrective-desc-${i}`}
+                            className={`mod-form-textarea ${c.desc.trim() ? 'success-styled' : ''}`} 
+                            style={invErrors[`ca_${i}_desc`] ? { borderColor: "#DC2626" } : undefined} 
+                            value={c.desc} 
+                            onChange={e => { updateInvCorrective(i, 'desc', e.target.value); if (invErrors[`ca_${i}_desc`]) setInvErrors({ ...invErrors, [`ca_${i}_desc`]: null, correctiveActions: null }); }}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                addInvCorrective();
+                              }
+                            }}
+                          ></textarea>
                           {invErrors[`ca_${i}_desc`] && <div style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: 4 }}>{invErrors[`ca_${i}_desc`]}</div>}
                         </div>
                         <div className="grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 12 }}>
                           <div className="mod-form-group">
                             <label className="mod-form-label">Responsible Person <span style={{ color: "#DC2626" }}>*</span></label>
-                            <input className="mod-form-input" style={invErrors[`ca_${i}_resp`] ? { borderColor: "#DC2626" } : {}} value={c.resp} onChange={e => { updateInvCorrective(i, 'resp', e.target.value); if (invErrors[`ca_${i}_resp`]) setInvErrors({ ...invErrors, [`ca_${i}_resp`]: null, correctiveActions: null }); }} />
+                            <input 
+                              className={`mod-form-input ${c.resp.trim() ? 'success-styled' : ''}`} 
+                              style={invErrors[`ca_${i}_resp`] ? { borderColor: "#DC2626" } : undefined} 
+                              value={c.resp} 
+                              onChange={e => { updateInvCorrective(i, 'resp', e.target.value); if (invErrors[`ca_${i}_resp`]) setInvErrors({ ...invErrors, [`ca_${i}_resp`]: null, correctiveActions: null }); }} 
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  addInvCorrective();
+                                }
+                              }}
+                            />
                             {invErrors[`ca_${i}_resp`] && <div style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: 4 }}>{invErrors[`ca_${i}_resp`]}</div>}
                           </div>
                           <div className="mod-form-group">
                             <label className="mod-form-label">Deadline <span style={{ color: "#DC2626" }}>*</span></label>
-                            <input type="date" className="mod-form-input" style={invErrors[`ca_${i}_deadline`] ? { borderColor: "#DC2626" } : {}} value={c.deadline} onChange={e => { updateInvCorrective(i, 'deadline', e.target.value); if (invErrors[`ca_${i}_deadline`]) setInvErrors({ ...invErrors, [`ca_${i}_deadline`]: null, correctiveActions: null }); }} />
+                            <input type="date" className={`mod-form-input ${c.deadline ? 'success-styled' : ''}`} style={invErrors[`ca_${i}_deadline`] ? { borderColor: "#DC2626" } : undefined} value={c.deadline} onChange={e => { updateInvCorrective(i, 'deadline', e.target.value); if (invErrors[`ca_${i}_deadline`]) setInvErrors({ ...invErrors, [`ca_${i}_deadline`]: null, correctiveActions: null }); }} />
                             {invErrors[`ca_${i}_deadline`] && <div style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: 4 }}>{invErrors[`ca_${i}_deadline`]}</div>}
                           </div>
                         </div>
                         <div className="mod-form-group" style={{ marginTop: 12 }}>
                           <label className="mod-form-label">Priority <span style={{ color: "#DC2626" }}>*</span></label>
-                          <select className="mod-form-select" style={invErrors[`ca_${i}_priority`] ? { borderColor: "#DC2626" } : {}} value={c.priority} onChange={e => { updateInvCorrective(i, 'priority', e.target.value); if (invErrors[`ca_${i}_priority`]) setInvErrors({ ...invErrors, [`ca_${i}_priority`]: null, correctiveActions: null }); }}>
+                          <select className={`mod-form-select ${c.priority ? 'success-styled' : ''}`} style={invErrors[`ca_${i}_priority`] ? { borderColor: "#DC2626" } : undefined} value={c.priority} onChange={e => { updateInvCorrective(i, 'priority', e.target.value); if (invErrors[`ca_${i}_priority`]) setInvErrors({ ...invErrors, [`ca_${i}_priority`]: null, correctiveActions: null }); }}>
                             <option value="">Select...</option>
                             <option value="Low">Low</option><option value="Medium">Medium</option><option value="High">High</option><option value="Critical">Critical</option>
                           </select>
@@ -6565,7 +6833,7 @@ export default function IMDetails() {
                 {investigationSubmitted && !investigationApproved && !isClosed && !isContractorUser() && (
                   <div className="mod-card mb-4" id="investigation-review-section" style={{ marginTop: 24, borderTop: "3px solid var(--accent-primary, #3b82f6)" }}>
                     <div className="mod-card-header">
-                      <span className="mod-card-title">Review & Sign-Off: Investigation Report {incident.id}</span>
+                      <span className="mod-card-title">Review & Sign-Off: Investigation Report</span>
                     </div>
                     <div className="mod-card-body">
                       <div className="mod-form-group">
@@ -6891,12 +7159,12 @@ export default function IMDetails() {
                   </div>
                   <div className="mod-form-group" style={{ gridColumn: "1 / -1", marginTop: "4px" }}>
                     <label className="mod-form-label" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-                      Attachment (Document / Photo)
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>
+                      Attachment (Document / Photo) <span style={{ color: "var(--color-risk, #ef4444)" }}>*</span>
                     </label>
                     {newAction.attachmentUrl ? (
                       <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "8px 14px", borderRadius: "8px", background: "var(--bg-card, #fff)", border: "1px solid var(--border-color)", width: "fit-content", maxWidth: "100%", flexWrap: "wrap" }}>
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" /></svg>
                         <div style={{ display: "flex", flexDirection: "column" }}>
                           <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-main)", maxWidth: "260px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={newAction.attachmentName}>
                             {newAction.attachmentName || "Attached File"}
@@ -6955,7 +7223,7 @@ export default function IMDetails() {
                             opacity: actionFileUploading ? 0.7 : 1
                           }}
                         >
-                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
                           {actionFileUploading ? "Uploading..." : "Attach File / Photo"}
                           <input type="file" style={{ display: "none" }} onChange={handleActionFileUpload} disabled={actionFileUploading} />
                         </label>
@@ -7064,7 +7332,7 @@ export default function IMDetails() {
                                         }}
                                         title={actionAttachmentName}
                                       >
-                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>
                                         <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                           {actionAttachmentName}
                                         </span>
@@ -7097,7 +7365,7 @@ export default function IMDetails() {
                                         {actionAttachmentUrl && (
                                           <div style={{ marginBottom: "16px", padding: "12px 14px", borderRadius: "6px", background: "var(--bg-dark, #f1f5f9)", border: "1px solid var(--border-color)" }}>
                                             <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-main)", marginBottom: "8px", display: "flex", alignItems: "center", gap: "6px" }}>
-                                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>
                                               Attached File / Supporting Document
                                             </div>
                                             <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>

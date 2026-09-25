@@ -392,13 +392,6 @@ export const soNavigationMenu = [
         icon: "ti-list",
         state: "safety-observations/list",
     },
-    {
-        name: "Corrective Actions",
-        type: "link",
-        tooltip: "Corrective Actions",
-        icon: "ti-checkbox",
-        state: "safety-observations/corrective-actions",
-    },
 ];
 
 // ── Role resolver ────────────────────────────────────────

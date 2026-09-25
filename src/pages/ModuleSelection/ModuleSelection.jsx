@@ -59,7 +59,6 @@ const modules = [
     ),
     features: [
       "Log Observations",
-      "Assign Corrective Actions",
       "Track Progress",
       "Observation Reports"
     ],
@@ -80,9 +79,7 @@ const modules = [
     ),
     features: [
       "Scheduled Inspections",
-      "Compliance Tracking",
-      "Inspection Reports",
-      "Issue Management"
+      "Inspection Reports"
     ],
     path: "/safety-inspection/dashboard",
   },

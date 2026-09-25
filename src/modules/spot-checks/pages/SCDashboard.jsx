@@ -104,7 +104,7 @@ export default function SCDashboard() {
       {/* ── KPIs ── */}
       <div className="dash-kpis">
         <StatCard label="Total Checks" value={stats.totalChecks || 0} accent="#583C66" valColor="#583C66" icon="layers" sub="all recorded spot checks" />
-        <StatCard label="Compliance Rate" value={`${stats.complianceRate || 100}%`} accent="#7BBE97" valColor="#7BBE97" icon="activity" sub="overall pass rate" />
+        <StatCard label="Compliance Rate" value={`${stats.complianceRate !== undefined ? stats.complianceRate : 100}%`} accent="#14B8A6" valColor="#14B8A6" icon="activity" sub="overall pass rate" />
         <StatCard label="Compliant (Pass)" value={stats.compliantCount || 0} accent="#14B8A6" valColor="#14B8A6" icon="eye" sub="passed audits" />
         <StatCard label="Non-Compliant" value={stats.nonCompliantCount || 0} accent="#E32B50" valColor="#E32B50" icon="target" sub="requiring corrective action" />
         <StatCard label="Active Permitted" value={stats.totalChecks || 0} accent="#F97316" valColor="#F97316" icon="calendar" sub="verified PTWs" />

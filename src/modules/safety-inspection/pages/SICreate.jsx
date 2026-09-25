@@ -143,7 +143,7 @@ export default function SICreate() {
   }, []);
 
   const levels = building ? floorsList.filter(f => String(f.build_id) === String(building)).map(f => f.floor_name) : [];
-  
+
   const selectedPdf = React.useMemo(() => {
     if (!building || !level) return "";
     const dbBuilding = buildingsList.find(b => String(b.build_id || b.id) === String(building));
@@ -156,7 +156,7 @@ export default function SICreate() {
     if (!pdfsForBuilding) return "";
     if (pdfsForBuilding[level]) return pdfsForBuilding[level];
     const levelLower = level.toLowerCase().trim();
-    const foundKey = Object.keys(pdfsForBuilding).find(k => 
+    const foundKey = Object.keys(pdfsForBuilding).find(k =>
       k.toLowerCase().trim().includes(levelLower) || levelLower.includes(k.toLowerCase().trim())
     );
     return foundKey ? pdfsForBuilding[foundKey] : "";
@@ -213,17 +213,41 @@ export default function SICreate() {
   const handleFileChange = async (e) => {
     const files = e.target.files;
     if (!files || files.length === 0 || activeUploadIdx === null) return;
+    
+    const localFiles = Array.from(files).map(file => ({
+      file,
+      previewUrl: URL.createObjectURL(file),
+      serverUrl: null
+    }));
+
+    setItemPhotos(prev => ({
+      ...prev,
+      [activeUploadIdx]: [...(prev[activeUploadIdx] || []), ...localFiles]
+    }));
+
     try {
       const res = await safetyInspectionService.uploadPhotos(Array.from(files));
       if (res?.urls && res.urls.length > 0) {
-        setItemPhotos(prev => ({
-          ...prev,
-          [activeUploadIdx]: [...(prev[activeUploadIdx] || []), ...res.urls]
-        }));
+        setItemPhotos(prev => {
+          const current = [...(prev[activeUploadIdx] || [])];
+          // Update the last N items with their server URLs
+          const startIndex = current.length - localFiles.length;
+          res.urls.forEach((url, i) => {
+            if (current[startIndex + i]) {
+              current[startIndex + i].serverUrl = url;
+            }
+          });
+          return { ...prev, [activeUploadIdx]: current };
+        });
       }
     } catch (err) {
       console.error("Failed to upload photos", err);
       alert("Failed to upload attachment photo");
+      setItemPhotos(prev => {
+        const current = [...(prev[activeUploadIdx] || [])];
+        current.splice(-localFiles.length, localFiles.length);
+        return { ...prev, [activeUploadIdx]: current };
+      });
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
@@ -276,7 +300,7 @@ export default function SICreate() {
     if (itemIdx === undefined || itemIdx === null) return;
     const obsNum = createdObs?.observationNumber || (createdObs?.id ? `SO${createdObs.id}` : 'SO');
     const isPositive = safetyIssueModalData?.color === 'green' || createdObs?.observationType === 'POSITIVE';
-    const subcatText = createdObs?.subcategory || createdObs?.subject || (isPositive ? 'Good Practice' : 'Safety Issue');
+    const subcatText = createdObs?.subcategory || createdObs?.subject || (isPositive ? 'Good Practice' : 'Safety Observation');
     const issueTag = {
       id: obsNum,
       type: isPositive ? 'green' : (safetyIssueModalData?.color === 'red' ? 'red' : 'orange'),
@@ -324,7 +348,7 @@ export default function SICreate() {
           status: selections[idx] || 'na',
           comment: comments[idx] || '',
           commentAuthor: currentUser?.name || currentUser?.username || 'Safety Inspector',
-          photos: itemPhotos[idx] || [],
+          photos: (itemPhotos[idx] || []).map(p => p.serverUrl || p.previewUrl).filter(Boolean),
           issues: issuesForIdx,
           isGoodPractice: hasGoodPractice
         };
@@ -443,11 +467,11 @@ export default function SICreate() {
           <div className="si-form-group">
             <label className="si-form-label">Date</label>
             <div className="si-input-wrap">
-              <input 
-                type="date" 
-                className="si-form-input" 
-                value={inspectionDate} 
-                onChange={(e) => setInspectionDate(e.target.value)} 
+              <input
+                type="date"
+                className="si-form-input"
+                value={inspectionDate}
+                onChange={(e) => setInspectionDate(e.target.value)}
               />
             </div>
           </div>
@@ -456,18 +480,18 @@ export default function SICreate() {
           <div className="si-form-group">
             <label className="si-form-label">Performed by <span className="si-req">*</span></label>
             <div className="si-input-wrap">
-              <input 
-                type="text" 
-                className="si-form-input" 
-                value={loggedInUserName} 
-                readOnly 
-                disabled 
-                style={{ 
-                  backgroundColor: "rgba(0,0,0,0.04)", 
-                  cursor: "not-allowed", 
-                  color: "var(--text-main, #1e293b)", 
-                  fontWeight: 500 
-                }} 
+              <input
+                type="text"
+                className="si-form-input"
+                value={loggedInUserName}
+                readOnly
+                disabled
+                style={{
+                  backgroundColor: "rgba(0,0,0,0.04)",
+                  cursor: "not-allowed",
+                  color: "var(--text-main, #1e293b)",
+                  fontWeight: 500
+                }}
               />
             </div>
           </div>
@@ -476,7 +500,7 @@ export default function SICreate() {
           <div className="si-form-group">
             <label className="si-form-label">Participants <span className="si-req">*</span></label>
             <div className="si-multiselect-wrap" ref={participantsRef}>
-              <div 
+              <div
                 className={`si-multiselect-trigger ${isParticipantsOpen ? 'active' : ''}`}
                 onClick={() => setIsParticipantsOpen(!isParticipantsOpen)}
               >
@@ -498,9 +522,9 @@ export default function SICreate() {
               {isParticipantsOpen && (
                 <div className="si-multiselect-dropdown">
                   <div className="si-multiselect-search">
-                    <input 
-                      type="text" 
-                      placeholder="Search participant name, department..." 
+                    <input
+                      type="text"
+                      placeholder="Search participant name, department..."
                       value={participantSearch}
                       onChange={(e) => setParticipantSearch(e.target.value)}
                       onClick={(e) => e.stopPropagation()}
@@ -516,15 +540,15 @@ export default function SICreate() {
                       filteredParticipants.map((person, i) => {
                         const isSelected = participants.includes(person);
                         return (
-                          <div 
-                            key={i} 
+                          <div
+                            key={i}
                             className={`si-multiselect-option ${isSelected ? 'selected' : ''}`}
                             onClick={() => toggleParticipant(person)}
                           >
-                            <input 
-                              type="checkbox" 
-                              checked={isSelected} 
-                              onChange={() => {}} 
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => { }}
                             />
                             <span>{person}</span>
                           </div>
@@ -551,7 +575,7 @@ export default function SICreate() {
                     {item.toLowerCase().includes('other') ? (
                       <div className="si-other-wrap">
                         <p className="si-check-label" style={{ margin: 0 }}>{item}:</p>
-                        <input 
+                        <input
                           type="text"
                           className="si-form-input"
                           placeholder="Please fill / specify custom topic..."
@@ -574,14 +598,14 @@ export default function SICreate() {
                           const isGreen = iss.type === 'green';
                           const isRed = iss.type === 'red';
                           return (
-                            <span 
-                              key={issIdx} 
-                              style={{ 
-                                display: 'inline-flex', 
-                                alignItems: 'center', 
-                                gap: '6px', 
-                                backgroundColor: isGreen ? 'rgba(34, 197, 94, 0.12)' : (isRed ? 'rgba(239, 68, 68, 0.12)' : 'rgba(245, 158, 11, 0.12)'), 
-                                color: isGreen ? '#16a34a' : (isRed ? '#dc2626' : '#d97706'), 
+                            <span
+                              key={issIdx}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                backgroundColor: isGreen ? 'rgba(34, 197, 94, 0.12)' : (isRed ? 'rgba(239, 68, 68, 0.12)' : 'rgba(245, 158, 11, 0.12)'),
+                                color: isGreen ? '#16a34a' : (isRed ? '#dc2626' : '#d97706'),
                                 border: `1px solid ${isGreen ? 'rgba(34, 197, 94, 0.3)' : (isRed ? 'rgba(239, 68, 68, 0.3)' : 'rgba(245, 158, 11, 0.3)')}`,
                                 borderRadius: '4px',
                                 padding: '2px 8px',
@@ -600,7 +624,7 @@ export default function SICreate() {
 
                   <div className="si-check-right">
                     <div className="si-check-icons">
-                      <div 
+                      <div
                         className="si-info-trigger"
                         onClick={(e) => {
                           e.stopPropagation();
@@ -615,20 +639,20 @@ export default function SICreate() {
 
                       <div className={`si-hidden-icons ${openInfoIdx === idx ? 'open' : ''}`}>
                         <div className="si-tooltip-wrap">
-                          <span 
-                            className={`si-icon-btn ${comments[idx] ? 'active-icon' : ''}`} 
-                            onClick={(e) => { e.stopPropagation(); toggleComment(idx); }} 
+                          <span
+                            className={`si-icon-btn ${comments[idx] ? 'active-icon' : ''}`}
+                            onClick={(e) => { e.stopPropagation(); toggleComment(idx); }}
                             title="Comment"
                           >
                             <i className="ti ti-message-2"></i>
                           </span>
                           <div className="si-tooltip">{comments[idx] ? 'Edit comment' : 'Comment'}</div>
                         </div>
-                        
+
                         <div className="si-tooltip-wrap">
-                          <span 
-                            className={`si-icon-btn ${selections[idx] === 'green' && itemIssues[idx]?.some(iss => iss.type === 'green') ? 'active-icon' : ''}`} 
-                            title="Good Practice" 
+                          <span
+                            className={`si-icon-btn ${selections[idx] === 'green' && itemIssues[idx]?.some(iss => iss.type === 'green') ? 'active-icon' : ''}`}
+                            title="Good Practice"
                             onClick={(e) => {
                               e.stopPropagation();
                               handleGoodPracticeClick(idx);
@@ -638,20 +662,20 @@ export default function SICreate() {
                           </span>
                           <div className="si-tooltip">Good practice</div>
                         </div>
-                        
+
                         <div className="si-tooltip-wrap">
-                          <span 
-                            className={`si-icon-btn ${openWrenchIdx === idx ? 'active-icon' : ''}`} 
-                            title="Safety Issue" 
-                            onClick={(e) => { 
-                              e.stopPropagation(); 
-                              setOpenWrenchIdx(openWrenchIdx === idx ? null : idx); 
-                              setOpenPaperclipIdx(null); 
+                          <span
+                            className={`si-icon-btn ${openWrenchIdx === idx ? 'active-icon' : ''}`}
+                            title="Safety Issue"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenWrenchIdx(openWrenchIdx === idx ? null : idx);
+                              setOpenPaperclipIdx(null);
                             }}
                           >
                             <i className="ti ti-tool"></i>
                           </span>
-                          <div className="si-tooltip">Safety Issue</div>
+                          <div className="si-tooltip">Safety Observation</div>
                           {openWrenchIdx === idx && (
                             <div className="si-popover-menu" style={{ minWidth: '180px' }} onClick={(e) => e.stopPropagation()}>
                               <div className="si-dropdown-item" onClick={() => {
@@ -663,20 +687,20 @@ export default function SICreate() {
                                 setOpenWrenchIdx(null);
                                 setOpenInfoIdx(null);
                               }}>
-                                <i className="ti ti-alert-triangle"></i> Safety Issue
+                                <i className="ti ti-alert-triangle"></i> Safety Observation
                               </div>
                             </div>
                           )}
                         </div>
-                        
+
                         <div className="si-tooltip-wrap">
-                          <span 
-                            className={`si-icon-btn ${photosCount > 0 || openPaperclipIdx === idx ? 'active-icon' : ''}`} 
-                            title="Attachments" 
-                            onClick={(e) => { 
-                              e.stopPropagation(); 
-                              setOpenPaperclipIdx(openPaperclipIdx === idx ? null : idx); 
-                              setOpenWrenchIdx(null); 
+                          <span
+                            className={`si-icon-btn ${photosCount > 0 || openPaperclipIdx === idx ? 'active-icon' : ''}`}
+                            title="Attachments"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenPaperclipIdx(openPaperclipIdx === idx ? null : idx);
+                              setOpenWrenchIdx(null);
                             }}
                           >
                             <i className="ti ti-paperclip"></i>
@@ -693,7 +717,7 @@ export default function SICreate() {
                     </div>
 
                     <div className="si-radio-group">
-                      <button 
+                      <button
                         className={`si-radio-btn ${selectedColor === 'red' ? 'active red-btn' : ''}`}
                         onClick={() => handleSelect(idx, 'red')}
                         type="button"
@@ -701,7 +725,7 @@ export default function SICreate() {
                       >
                         <span className="si-dot red"></span>
                       </button>
-                      <button 
+                      <button
                         className={`si-radio-btn ${selectedColor === 'yellow' ? 'active yellow-btn' : ''}`}
                         onClick={() => handleSelect(idx, 'yellow')}
                         type="button"
@@ -709,7 +733,7 @@ export default function SICreate() {
                       >
                         <span className="si-dot yellow"></span>
                       </button>
-                      <button 
+                      <button
                         className={`si-radio-btn ${selectedColor === 'green' ? 'active green-btn' : ''}`}
                         onClick={() => handleSelect(idx, 'green')}
                         type="button"
@@ -721,13 +745,82 @@ export default function SICreate() {
                   </div>
                 </div>
                 {activeComments[idx] && (
-                  <textarea 
-                    className="si-comment-box" 
-                    placeholder="Write a comment or observation notes..." 
-                    value={comments[idx] || ""}
-                    onChange={(e) => setComments({ ...comments, [idx]: e.target.value })}
-                    autoFocus
-                  ></textarea>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: "8px", marginTop: "8px" }}>
+                    <textarea
+                      className="si-comment-box"
+                      placeholder="Write a comment or observation notes..."
+                      value={comments[idx] || ""}
+                      onChange={(e) => setComments({ ...comments, [idx]: e.target.value })}
+                      autoFocus
+                      style={{ flex: 1, margin: 0 }}
+                    ></textarea>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newComments = { ...comments };
+                          delete newComments[idx];
+                          setComments(newComments);
+                          toggleComment(idx);
+                        }}
+                        style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "28px", height: "28px", borderRadius: "4px", backgroundColor: "#fee2e2", color: "#ef4444", border: "1px solid #fca5a5", cursor: "pointer" }}
+                        title="Clear and close"
+                      >
+                        <i className="ti ti-x" style={{ fontSize: "16px" }}></i>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => toggleComment(idx)}
+                        style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "28px", height: "28px", borderRadius: "4px", backgroundColor: "#dcfce7", color: "#22c55e", border: "1px solid #86efac", cursor: "pointer" }}
+                        title="Save comment"
+                      >
+                        <i className="ti ti-check" style={{ fontSize: "16px", fontWeight: "bold" }}></i>
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {itemPhotos[idx] && itemPhotos[idx].length > 0 && (
+                  <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "12px", padding: "10px", backgroundColor: "#f8fafc", borderRadius: "6px", border: "1px dashed #cbd5e1" }}>
+                    {itemPhotos[idx].map((photoObj, pIdx) => {
+                      const urlToRender = typeof photoObj === 'string' ? photoObj : (photoObj.previewUrl || photoObj.serverUrl);
+                      const isPdf = urlToRender.toLowerCase().endsWith('.pdf') || (photoObj.file && photoObj.file.type === 'application/pdf');
+                      
+                      const getFullImageUrl = (u) => {
+                        if (!u) return '';
+                        if (u.startsWith('http://') || u.startsWith('https://') || u.startsWith('blob:') || u.startsWith('data:')) return u;
+                        const base = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || 'https://api.beam.safesiteworks.com/development/m3south';
+                        const baseUrlClean = base.replace(/\/development\/m3south\/?$/, '');
+                        return `${baseUrlClean}${u.startsWith('/') ? '' : '/'}${u}`;
+                      };
+                      
+                      const fullUrl = getFullImageUrl(urlToRender);
+                      
+                      return (
+                        <div key={pIdx} style={{ position: "relative", width: "64px", height: "64px", borderRadius: "6px", overflow: "hidden", border: "1px solid #e2e8f0", backgroundColor: "#fff" }}>
+                          {isPdf ? (
+                            <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "#f1f5f9" }}>
+                              <i className="ti ti-file-text" style={{ fontSize: "28px", color: "#64748b" }}></i>
+                            </div>
+                          ) : (
+                            <img src={fullUrl} alt="attachment" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          )}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const newPhotos = [...itemPhotos[idx]];
+                              newPhotos.splice(pIdx, 1);
+                              setItemPhotos(prev => ({ ...prev, [idx]: newPhotos }));
+                            }}
+                            style={{ position: "absolute", top: "4px", right: "4px", width: "20px", height: "20px", borderRadius: "50%", backgroundColor: "rgba(255,255,255,0.9)", border: "1px solid #ef4444", color: "#ef4444", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }}
+                            title="Remove attachment"
+                          >
+                            <i className="ti ti-x" style={{ fontSize: "12px", fontWeight: "bold" }}></i>
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
               </React.Fragment>
             );
@@ -745,18 +838,18 @@ export default function SICreate() {
           </div>
         </div>
       </div>
-      
+
       <input type="file" ref={fileInputRef} onChange={handleFileChange} multiple accept="image/*,.pdf" style={{ display: 'none' }} />
 
-      <SafetyIssueModal 
-        open={!!safetyIssueModalData} 
-        subject={safetyIssueModalData?.subject} 
+      <SafetyIssueModal
+        open={!!safetyIssueModalData}
+        subject={safetyIssueModalData?.subject}
         color={safetyIssueModalData?.color}
         itemIndex={safetyIssueModalData?.itemIndex}
         initialObservationType={safetyIssueModalData?.observationType || (safetyIssueModalData?.color === 'green' ? 'POSITIVE' : '')}
         initialLocation={{ building, level, specificLocation, selectedRooms, selectedZone }}
         onObservationCreated={handleObservationCreated}
-        onClose={() => setSafetyIssueModalData(null)} 
+        onClose={() => setSafetyIssueModalData(null)}
       />
     </div>
   );

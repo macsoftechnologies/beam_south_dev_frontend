@@ -152,14 +152,7 @@ export default function SIDashboard() {
           icon="calendar" 
           sub="month to date" 
         />
-        <StatCard 
-          label="Average Score" 
-          value={`${stats.averageScore || 0}%`} 
-          accent="#7BBE97" 
-          valColor="#7BBE97" 
-          icon="activity" 
-          sub="overall pass rate" 
-        />
+
         <StatCard 
           label="Total Inspections" 
           value={stats.totalInspections || 0} 
@@ -168,14 +161,7 @@ export default function SIDashboard() {
           icon="layers" 
           sub="all time recorded" 
         />
-        <StatCard 
-          label="Compliance Rate" 
-          value={`${stats.complianceRate || 0}%`} 
-          accent="#7BBE97" 
-          valColor="#7BBE97" 
-          icon="target" 
-          sub="Sites passing audit" 
-        />
+
         <StatCard 
           label="Last Week" 
           value={stats.lastWeek || 0} 
@@ -229,14 +215,13 @@ export default function SIDashboard() {
                 <th>Floor / Level</th>
                 <th>Inspector</th>
                 <th>Status</th>
-                <th>Score</th>
                 <th>Date</th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan="7" style={{ textAlign: 'center', padding: 24, color: 'var(--text-muted)' }}>
+                  <td colSpan="6" style={{ textAlign: 'center', padding: 24, color: 'var(--text-muted)' }}>
                     <i className="ti ti-loader ti-spin" style={{ marginRight: 8, color: '#0ea5e9' }}></i> Loading inspections...
                   </td>
                 </tr>
@@ -255,16 +240,12 @@ export default function SIDashboard() {
                         {isClosed ? 'CLOSED' : 'IN_PROGRESS'}
                       </span>
                     </td>
-                    <td>
-                      <span style={{color: scoreVal >= 80 ? '#2D7A4F' : scoreVal >= 60 ? '#C07D10' : '#E32B50', fontWeight: 'bold'}}>
-                        {scoreVal}%
-                      </span>
-                    </td>
+
                     <td>{r.inspectionDate || "-"}</td>
                   </tr>
                 );
               })}
-              {filteredDeepDive.length === 0 && <tr><td colSpan="7" style={{ textAlign: 'center', padding: 24, color: 'var(--text-muted)' }}>No recent inspections recorded yet.</td></tr>}
+              {filteredDeepDive.length === 0 && <tr><td colSpan="6" style={{ textAlign: 'center', padding: 24, color: 'var(--text-muted)' }}>No recent inspections recorded yet.</td></tr>}
             </tbody>
           </table>
         </div>

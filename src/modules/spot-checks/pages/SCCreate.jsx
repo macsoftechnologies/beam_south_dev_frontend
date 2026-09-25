@@ -196,7 +196,7 @@ export default function SCCreate() {
 
     // Communication
     chk2_1: "",
-    briefingDate: "", briefingTime: "", conductedBy: currentUserName, participants: "",
+    briefingDate: "", briefingTime: "", conductedBy: "", participants: "",
     keyTopics: [], otherTopic: "",
     chk2_1_5: "",
     explainNoBriefing: "",
@@ -213,7 +213,7 @@ export default function SCCreate() {
     foremanCompany: "",
     foremanDate: "",
     foremanSignature: "",
-    attachments: [{ desc: "", attached: "N/A" }, { desc: "", attached: "N/A" }, { desc: "", attached: "N/A" }],
+    attachments: [{ desc: "", attached: "N/A" }],
     inspectorName: currentUserName,
     inspectorCompany: "NNE",
     inspectorDate: todayDenmark,
@@ -517,7 +517,7 @@ export default function SCCreate() {
           value="No"
           onChange={(e) => {
             handleChange(e);
-            if (name === "safetyIssueCreated") {
+            if (name === "chk3_2") {
               setShowSafetyModal(true);
             }
           }}
@@ -543,9 +543,9 @@ export default function SCCreate() {
 
       <div className="mod-card" style={{ maxWidth: "1000px", margin: "0 auto" }}>
 
-        {/* 0 | GENERAL INFORMATION */}
+        {/* GENERAL INFORMATION */}
         <div className="mod-card-header" style={{ backgroundColor: "var(--bg-card)", borderBottom: "1px solid var(--border-color)", borderLeft: "4px solid var(--primary-color, #F97316)" }}>
-          <h3 className="mod-card-title" style={{ margin: 0, color: "var(--text-main)", fontSize: "1.1rem", fontWeight: "700" }}>0 | GENERAL INFORMATION</h3>
+          <h3 className="mod-card-title" style={{ margin: 0, color: "var(--text-main)", fontSize: "1.1rem", fontWeight: "700" }}>GENERAL INFORMATION</h3>
         </div>
         <div className="mod-card-body" style={{ padding: "0" }}>
           <table className="sc-table">
@@ -680,17 +680,17 @@ export default function SCCreate() {
           </div>
         </div>
 
-        {/* 1 | PERMIT TO WORK (PTW) */}
+        {/* PERMIT TO WORK (PTW) */}
         <div className="sc-section-card">
           <div className="sc-section-header">
             <h3 className="sc-section-title">
               <i className="ti ti-file-certificate" style={{ color: "var(--primary-color, #F97316)" }}></i>
-              1 | PERMIT TO WORK (PTW)
+              PERMIT TO WORK (PTW)
             </h3>
           </div>
 
           <div className="sc-section-subhead">
-            1.1 High-risk activities included
+            High-risk activities included
           </div>
           <div className="sc-chip-grid">
             {highRiskOptions.map(opt => (
@@ -731,79 +731,79 @@ export default function SCCreate() {
           <table className="sc-table">
             <thead>
               <tr style={{ backgroundColor: "var(--bg-dark)" }}>
-                <th style={{ width: "50px", textAlign: "center", color: "var(--text-main)" }}>No.</th>
-                <th style={{ color: "var(--text-main)" }}>Checkpoint</th>
+                
+                <th></th>
                 <th style={{ width: "150px", textAlign: "center", color: "var(--text-main)" }}>Yes / No / N/A</th>
               </tr>
             </thead>
             <tbody>
               <tr>
-                <td style={{ textAlign: "center", fontWeight: "bold" }}>1.2</td>
-                <td>Does the description of work, including scope, location and times, match the work performed?</td>
+                
+                <td><b>a.</b> Does the description of work, including scope, location and times, match the work performed?</td>
                 <td>{renderRadioGroup("chk1_2")}</td>
               </tr>
               <tr>
-                <td style={{ textAlign: "center", fontWeight: "bold" }}>1.3</td>
-                <td>Are the PTW and RAMS valid for the work performed?</td>
+                
+                <td><b>b.</b> Are the PTW and RAMS valid for the work performed?</td>
                 <td>{renderRadioGroup("chk1_3")}</td>
               </tr>
               <tr>
-                <td style={{ textAlign: "center", fontWeight: "bold" }}>1.4</td>
-                <td>Are key risks controlled? Consider barriers, signage and whether controls are working as planned and coordinated.</td>
+                
+                <td><b>c.</b> Are key risks controlled? Consider barriers, signage and whether controls are working as planned and coordinated.</td>
                 <td>{renderRadioGroup("chk1_4")}</td>
               </tr>
               <tr>
-                <td style={{ textAlign: "center", fontWeight: "bold" }}>1.5</td>
-                <td>Do workers know the emergency plan? Consider contact information, medical centre, alarm / muster arrangements and rescue / emergency arrangements.</td>
+                
+                <td><b>d.</b> Do workers know the emergency plan? Consider contact information, medical centre, alarm / muster arrangements and rescue / emergency arrangements.</td>
                 <td>{renderRadioGroup("chk1_5")}</td>
               </tr>
               <tr>
-                <td style={{ textAlign: "center", fontWeight: "bold" }}>1.6</td>
-                <td>Is correct task-specific PPE in use, in proper condition and worn properly?</td>
+                
+                <td><b>e.</b> Is correct task-specific PPE in use, in proper condition and worn properly?</td>
                 <td>{renderRadioGroup("chk1_6")}</td>
               </tr>
               <tr>
-                <td style={{ textAlign: "center", fontWeight: "bold" }}>1.7</td>
-                <td>Is supervision present? Is the responsible person named on the PTW overseeing the work?</td>
+                
+                <td><b>f.</b> Is supervision present? Is the responsible person named on the PTW overseeing the work?</td>
                 <td>{renderRadioGroup("chk1_7")}</td>
               </tr>
               <tr>
-                <td style={{ textAlign: "center", fontWeight: "bold" }}>1.8</td>
-                <td>Is the area orderly and safe? Consider clear access / egress, housekeeping and unblocked exits.</td>
+                
+                <td><b>g.</b> Is the area orderly and safe? Consider clear access / egress, housekeeping and unblocked exits.</td>
                 <td>{renderRadioGroup("chk1_8")}</td>
               </tr>
             </tbody>
           </table>
         </div>
 
-        {/* 2 | COMMUNICATION / TOOLBOX TALK */}
+        {/* COMMUNICATION / TOOLBOX TALK */}
         <div className="mod-card-header" style={{ backgroundColor: "var(--bg-card)", borderTop: "1px solid var(--border-color)", borderBottom: "1px solid var(--border-color)", marginTop: "32px", borderLeft: "4px solid var(--primary-color, #F97316)" }}>
-          <h3 className="mod-card-title" style={{ margin: 0, color: "var(--text-main)", fontSize: "1.1rem", fontWeight: "700" }}>2 | COMMUNICATION / TOOLBOX TALK</h3>
+          <h3 className="mod-card-title" style={{ margin: 0, color: "var(--text-main)", fontSize: "1.1rem", fontWeight: "700" }}>COMMUNICATION / TOOLBOX TALK</h3>
         </div>
         <div className="mod-card-body" style={{ padding: "0" }}>
           <table className="sc-table">
             <thead>
               <tr style={{ backgroundColor: "var(--bg-dark)" }}>
-                <th style={{ width: "50px", textAlign: "center", color: "var(--text-main)" }}>NO.</th>
-                <th style={{ color: "var(--text-main)" }}>CHECKPOINT</th>
+                
+                <th></th>
                 <th style={{ width: "150px", textAlign: "center", color: "var(--text-main)" }}>YES / NO / N/A</th>
               </tr>
             </thead>
             <tbody>
               <tr>
-                <td style={{ textAlign: "center", fontWeight: "bold" }}>2.1</td>
-                <td>Has a Toolbox Talk / pre-start briefing been held?</td>
+                
+                <td><b>a.</b> Has a Toolbox Talk / pre-start briefing been held?</td>
                 <td>{renderRadioGroup("chk2_1")}</td>
               </tr>
             </tbody>
           </table>
           <div style={{ padding: "12px 16px", fontSize: "0.85rem", color: "var(--text-muted)", backgroundColor: "var(--bg-card-hover)" }}>
-            If YES, complete items 2.1.1 to 2.1.5. If NO, complete the explanation box below.
+            If YES, complete items b to f. If NO, complete the explanation box below.
           </div>
           <table className="sc-table">
             <tbody>
               <tr>
-                <td className="sc-td-label">2.1.1 Date of briefing</td>
+                <td className="sc-td-label"><b>b.</b> Date of briefing <span style={{ color: "#DC2626" }}>*</span></td>
                 {form.chk2_1 === "Yes" ? (
                   <td colSpan="3"><input type="date" className="mod-form-input" name="briefingDate" value={form.briefingDate} onChange={handleChange} /></td>
                 ) : (
@@ -827,9 +827,9 @@ export default function SCCreate() {
               </tr>
               {form.chk2_1 === "Yes" && (
                 <tr>
-                  <td className="sc-td-label">2.1.2 Conducted by</td>
-                  <td><input className="mod-form-input" name="conductedBy" value={form.conductedBy} readOnly style={{ cursor: "not-allowed", backgroundColor: "var(--bg-card-hover)", color: "var(--text-muted)" }} placeholder="Enter Name" /></td>
-                  <td className="sc-td-label">Number of participants</td>
+                  <td className="sc-td-label"><b>c.</b> Conducted by</td>
+                  <td><input className="mod-form-input" name="conductedBy" value={form.conductedBy} onChange={handleChange} placeholder="Enter Name" /></td>
+                  <td className="sc-td-label"><b>d.</b> Number of participants</td>
                   <td><input type="number" className="mod-form-input" name="participants" value={form.participants} onChange={handleChange} placeholder="Enter Number" /></td>
                 </tr>
               )}
@@ -839,7 +839,7 @@ export default function SCCreate() {
           {form.chk2_1 === "Yes" ? (
             <>
               <div style={{ padding: "12px 16px", backgroundColor: "var(--bg-card-hover)", color: "var(--text-main)", fontWeight: "600", fontSize: "0.9rem", borderTop: "1px solid var(--border-color)", borderBottom: "1px solid var(--border-color)" }}>
-                2.1.4 Key topics covered
+                <b>e.</b> Key topics covered
               </div>
               <div style={{ padding: "16px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", borderBottom: "1px solid var(--border-color)" }}>
                 {topicOptions.map(opt => (
@@ -861,15 +861,15 @@ export default function SCCreate() {
               <table className="sc-table">
                 <thead>
                   <tr style={{ backgroundColor: "#0f172a", color: "#fff" }}>
-                    <th style={{ width: "50px", textAlign: "center" }}>NO.</th>
-                    <th>Checkpoint</th>
+                    
+                    <th></th>
                     <th style={{ width: "120px", textAlign: "center" }}>Yes / No</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr>
-                    <td style={{ textAlign: "center", fontWeight: "bold" }}>2.1.5</td>
-                    <td>Have all workers confirmed understanding of the PTW and RAMS requirements?</td>
+                    
+                    <td><b>f.</b> Have all workers confirmed understanding of the PTW and RAMS requirements?</td>
                     <td>{renderYesNo("chk2_1_5")}</td>
                   </tr>
                 </tbody>
@@ -878,7 +878,7 @@ export default function SCCreate() {
           ) : (
             <>
               <div style={{ padding: "12px 16px", backgroundColor: "var(--bg-card-hover)", color: "var(--text-main)", fontWeight: "600", fontSize: "0.9rem", borderTop: "1px solid var(--border-color)", borderBottom: "1px solid var(--border-color)" }}>
-                2.1.6 If NO, explain why the Toolbox Talk / pre-start briefing was not held
+                <b>g.</b> If NO, explain why the Toolbox Talk / pre-start briefing was not held
               </div>
               <div style={{ padding: "16px", backgroundColor: "var(--bg-card)" }}>
                 <textarea className="mod-form-textarea" rows="4" name="explainNoBriefing" value={form.explainNoBriefing} onChange={handleChange} placeholder="Provide explanation..."></textarea>
@@ -887,92 +887,75 @@ export default function SCCreate() {
           )}
         </div>
 
-        {/* 3 | SUMMARY */}
+        {/* SUMMARY */}
         <div className="sc-section-card">
           <div className="sc-section-header">
             <h3 className="sc-section-title">
               <i className="ti ti-clipboard-check" style={{ color: "var(--primary-color, #F97316)" }}></i>
-              3 | SUMMARY
+              SUMMARY
             </h3>
           </div>
 
           <div className="sc-checkpoints-list">
             <div className="sc-checkpoint-row">
               <div className="sc-checkpoint-left">
-                <span className="sc-checkpoint-num">3.2</span>
-                <p className="sc-checkpoint-text">Was the activity in compliance?</p>
+                
+                <p className="sc-checkpoint-text"><b>a.</b> Was the activity in compliance?</p>
               </div>
               {renderYesNo("chk3_2")}
             </div>
 
-            {form.chk3_2 === "No" && (
-              <div className="sc-checkpoint-row">
-                <div className="sc-checkpoint-left">
-                  <span className="sc-checkpoint-num">3.2.1</span>
-                  <p className="sc-checkpoint-text">Safety issue created? (traceability if activity is not compliant)</p>
-                </div>
-                {renderYesNo("safetyIssueCreated")}
-              </div>
-            )}
+
           </div>
 
           {form.chk3_2 === "No" && (
             <div className="sc-section-body" style={{ paddingTop: "14px", paddingBottom: "16px", borderBottom: "1px solid var(--border-color)" }}>
-              {form.safetyIssueCreated === "No" ? (
-                <div>
-                  {form.safetyIssueRef ? (
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: "rgba(16, 185, 129, 0.08)", border: "1px solid rgba(16, 185, 129, 0.3)", borderRadius: "6px" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                        <i className="ti ti-circle-check" style={{ color: "#059669", fontSize: "20px" }}></i>
-                        <div>
-                          <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-main)", display: "flex", alignItems: "center", gap: "8px" }}>
-                            <span>Attached Safety Observation:</span>
-                            <span className="sc-badge sc-badge-danger" style={{ fontWeight: 700, fontSize: "12px" }}>{form.safetyIssueRef}</span>
-                            <span style={{ fontSize: "11px", color: "#b91c1c", background: "rgba(239, 68, 68, 0.1)", padding: "2px 6px", borderRadius: "4px", fontWeight: 600 }}>Needs Attention</span>
-                          </div>
-                          <div style={{ fontSize: "11.5px", color: "var(--text-muted)", marginTop: "2px" }}>
-                            A Safety Observation has been linked to this non-compliant spot check.
-                          </div>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        className="mod-btn-outline"
-                        style={{ padding: "4px 10px", fontSize: "11px", display: "inline-flex", alignItems: "center", gap: "4px" }}
-                        onClick={() => setShowSafetyModal(true)}
-                      >
-                        <i className="ti ti-edit"></i> Edit Observation
-                      </button>
-                    </div>
-                  ) : (
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: "rgba(239, 68, 68, 0.06)", border: "1px dashed rgba(239, 68, 68, 0.4)", borderRadius: "6px" }}>
+              <div>
+                {form.safetyIssueRef ? (
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: "rgba(16, 185, 129, 0.08)", border: "1px solid rgba(16, 185, 129, 0.3)", borderRadius: "6px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                      <i className="ti ti-circle-check" style={{ color: "#059669", fontSize: "20px" }}></i>
                       <div>
-                        <div style={{ fontSize: "12.5px", fontWeight: 600, color: "#b91c1c", display: "flex", alignItems: "center", gap: "6px" }}>
-                          <i className="ti ti-alert-triangle"></i> Safety Observation Required (Needs Attention)
+                        <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-main)", display: "flex", alignItems: "center", gap: "8px" }}>
+                          <span>Attached Safety Observation:</span>
+                          <span className="sc-badge sc-badge-danger" style={{ fontWeight: 700, fontSize: "12px" }}>{form.safetyIssueRef}</span>
+                          <span style={{ fontSize: "11px", color: "#b91c1c", background: "rgba(239, 68, 68, 0.1)", padding: "2px 6px", borderRadius: "4px", fontWeight: 600 }}>Needs Attention</span>
                         </div>
                         <div style={{ fontSize: "11.5px", color: "var(--text-muted)", marginTop: "2px" }}>
-                          Activity is non-compliant. A Safety Observation with "Needs Attention" will be created and its SO number attached to this spot check.
+                          A Safety Observation has been linked to this non-compliant spot check.
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        className="mod-btn-primary"
-                        style={{ padding: "6px 14px", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "6px", whiteSpace: "nowrap" }}
-                        onClick={() => setShowSafetyModal(true)}
-                      >
-                        <i className="ti ti-plus"></i> Create & Attach SO
-                      </button>
                     </div>
-                  )}
-                </div>
-              ) : (
-                <div className="sc-form-grid">
-                  <div className="sc-form-group span-2">
-                    <label className="sc-form-label">Safety issue / SPOT ref.</label>
-                    <input className="sc-form-input" name="safetyIssueRef" value={form.safetyIssueRef} onChange={handleChange} placeholder="e.g. SI-2026-0042 or SO-2026-0001" />
+                    <button
+                      type="button"
+                      className="mod-btn-outline"
+                      style={{ padding: "4px 10px", fontSize: "11px", display: "inline-flex", alignItems: "center", gap: "4px" }}
+                      onClick={() => setShowSafetyModal(true)}
+                    >
+                      <i className="ti ti-edit"></i> Edit Observation
+                    </button>
                   </div>
-                </div>
-              )}
+                ) : (
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: "rgba(239, 68, 68, 0.06)", border: "1px dashed rgba(239, 68, 68, 0.4)", borderRadius: "6px" }}>
+                    <div>
+                      <div style={{ fontSize: "12.5px", fontWeight: 600, color: "#b91c1c", display: "flex", alignItems: "center", gap: "6px" }}>
+                        <i className="ti ti-alert-triangle"></i> Safety Observation Required (Needs Attention)
+                      </div>
+                      <div style={{ fontSize: "11.5px", color: "var(--text-muted)", marginTop: "2px" }}>
+                        Activity is non-compliant. A Safety Observation with "Needs Attention" will be created and its SO number attached to this spot check.
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="mod-btn-primary"
+                      style={{ padding: "6px 14px", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "6px", whiteSpace: "nowrap" }}
+                      onClick={() => setShowSafetyModal(true)}
+                    >
+                      <i className="ti ti-plus"></i> Create & Attach SO
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -984,13 +967,13 @@ export default function SCCreate() {
           </div>
         </div>
 
-        {/* 3 | SUMMARY - SIGNATURES AND EVIDENCE */}
+        {/* SUMMARY - SIGNATURES AND EVIDENCE */}
         <div className="mod-card-header" style={{ backgroundColor: "var(--bg-card)", borderTop: "1px solid var(--border-color)", borderBottom: "1px solid var(--border-color)", marginTop: "32px", borderLeft: "4px solid var(--primary-color, #F97316)" }}>
-          <h3 className="mod-card-title" style={{ margin: 0, color: "var(--text-main)", fontSize: "1.1rem", fontWeight: "700" }}>3 | SUMMARY - SIGNATURES AND EVIDENCE</h3>
+          <h3 className="mod-card-title" style={{ margin: 0, color: "var(--text-main)", fontSize: "1.1rem", fontWeight: "700" }}>SUMMARY - SIGNATURES AND EVIDENCE</h3>
         </div>
         <div className="mod-card-body" style={{ padding: "0" }}>
           <div style={{ padding: "12px 16px", backgroundColor: "var(--bg-card-hover)", color: "var(--text-main)", fontWeight: "600", fontSize: "0.9rem", borderBottom: "1px solid var(--border-color)" }}>
-            3.1 Foreman/Supervisor Details
+            Foreman/Supervisor Details
           </div>
           <table className="sc-table">
             <tbody>
@@ -998,7 +981,22 @@ export default function SCCreate() {
                 <td className="sc-td-label" style={{ width: "150px" }}>Name</td>
                 <td><input className="mod-form-input" name="foremanName" value={form.foremanName} onChange={handleChange} /></td>
                 <td className="sc-td-label" style={{ width: "150px" }}>Company</td>
-                <td><input className="mod-form-input" name="foremanCompany" value={form.foremanCompany} onChange={handleChange} /></td>
+                <td>
+                  <select
+                    className="mod-form-input"
+                    name="foremanCompany"
+                    value={form.foremanCompany}
+                    onChange={handleChange}
+                  >
+                    <option value="">Select Contractor</option>
+                    {contractorsList.map((c, i) => {
+                      const cName = c.subContractorName || c.company_name || c.contractor_name || c.name || `Contractor ${c.id || i}`;
+                      return (
+                        <option key={c.id || i} value={cName}>{cName}</option>
+                      );
+                    })}
+                  </select>
+                </td>
               </tr>
               <tr>
                 <td className="sc-td-label">Date</td>
@@ -1017,12 +1015,10 @@ export default function SCCreate() {
             </tbody>
           </table>
 
-          <div style={{ padding: "12px 16px", backgroundColor: "var(--bg-card-hover)", color: "var(--text-main)", fontWeight: "600", fontSize: "0.9rem", borderTop: "1px solid var(--border-color)", borderBottom: "1px solid var(--border-color)" }}>
-            3.3 Photographs and attachments <span style={{ color: "red", fontWeight: "normal", fontSize: "0.85rem" }}>(required)</span>
-          </div>
+
 
           <div className="sc-section-subhead">
-            3.3 Photographs and attachments <span style={{ color: "var(--text-muted)", fontWeight: "normal", fontSize: "0.82rem" }}>(optional)</span>
+            Photographs and attachments <span style={{ color: "var(--text-muted)", fontWeight: "normal", fontSize: "0.82rem" }}>(optional)</span>
           </div>
           <div style={{ display: "flex", flexDirection: "column" }}>
             {form.attachments.map((att, idx) => (
@@ -1030,12 +1026,13 @@ export default function SCCreate() {
                 <div className="sc-attachment-grid">
                   <div className="sc-form-group">
                     <label className="sc-form-label" style={{ fontSize: "0.78rem" }}>Description / Reference</label>
-                    <input
-                      className="sc-form-input"
+                    <textarea
+                      className="sc-form-textarea"
+                      rows="2"
                       placeholder="e.g. Scaffolding tag photo, Permit copy"
                       value={att.desc || ""}
                       onChange={(e) => handleAttachmentChange(idx, "desc", e.target.value)}
-                    />
+                    ></textarea>
                   </div>
 
                   <div className="sc-attachment-controls">

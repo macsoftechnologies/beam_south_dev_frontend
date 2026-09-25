@@ -379,7 +379,7 @@ export default function SCView() {
           <div className="sc-card-header">
             <div className="sc-card-header-left">
               <i className="ti ti-file-certificate"></i>
-              <span>1 | Permit to Work (PTW) & Risk Controls</span>
+              <span>Permit to Work (PTW) & Risk Controls</span>
             </div>
           </div>
           <div className="sc-card-body">
@@ -414,45 +414,45 @@ export default function SCView() {
               <table className="sc-table">
                 <thead>
                   <tr>
-                    <th style={{ width: "60px" }}>Item</th>
-                    <th>Checkpoint Question</th>
+                    
+                    <th></th>
                     <th style={{ width: "100px", textAlign: "center" }}>Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr>
-                    <td><b>1.2</b></td>
-                    <td>Work stopped if RAMS / PTW requirements are not valid or not followed?</td>
+                    
+                    <td><b>a.</b> Work stopped if RAMS / PTW requirements are not valid or not followed?</td>
                     <td style={{ textAlign: "center" }}>{renderBadge(spotCheck.chk1_2)}</td>
                   </tr>
                   <tr>
-                    <td><b>1.3</b></td>
-                    <td>Controls specified on the Permit to Work implemented effectively?</td>
+                    
+                    <td><b>b.</b> Controls specified on the Permit to Work implemented effectively?</td>
                     <td style={{ textAlign: "center" }}>{renderBadge(spotCheck.chk1_3)}</td>
                   </tr>
                   <tr>
-                    <td><b>1.4</b></td>
-                    <td>Work area is clean and free of combustible materials?</td>
+                    
+                    <td><b>c.</b> Work area is clean and free of combustible materials?</td>
                     <td style={{ textAlign: "center" }}>{renderBadge(spotCheck.chk1_4)}</td>
                   </tr>
                   <tr>
-                    <td><b>1.5</b></td>
-                    <td>Combustible materials properly shielded / fire blanket used?</td>
+                    
+                    <td><b>d.</b> Combustible materials properly shielded / fire blanket used?</td>
                     <td style={{ textAlign: "center" }}>{renderBadge(spotCheck.chk1_5)}</td>
                   </tr>
                   <tr>
-                    <td><b>1.6</b></td>
-                    <td>Continuous fire watch required and present at all times?</td>
+                    
+                    <td><b>e.</b> Continuous fire watch required and present at all times?</td>
                     <td style={{ textAlign: "center" }}>{renderBadge(spotCheck.chk1_6)}</td>
                   </tr>
                   <tr>
-                    <td><b>1.7</b></td>
-                    <td>Appropriate fire extinguisher available immediately at the work point?</td>
+                    
+                    <td><b>f.</b> Appropriate fire extinguisher available immediately at the work point?</td>
                     <td style={{ textAlign: "center" }}>{renderBadge(spotCheck.chk1_7)}</td>
                   </tr>
                   <tr>
-                    <td><b>1.8</b></td>
-                    <td>60-minute post-work fire check arranged and documented?</td>
+                    
+                    <td><b>g.</b> 60-minute post-work fire check arranged and documented?</td>
                     <td style={{ textAlign: "center" }}>{renderBadge(spotCheck.chk1_8)}</td>
                   </tr>
                 </tbody>
@@ -466,7 +466,7 @@ export default function SCView() {
           <div className="sc-card-header">
             <div className="sc-card-header-left">
               <i className="ti ti-messages"></i>
-              <span>2 | Communication / Toolbox Talk / Pre-Start Briefing</span>
+              <span>Communication / Toolbox Talk / Pre-Start Briefing</span>
             </div>
             <div>
               {renderBadge(spotCheck.chk2_1)}
@@ -474,7 +474,7 @@ export default function SCView() {
           </div>
           <div className="sc-card-body">
             <div className="sc-meta-item">
-              <span className="sc-meta-label">2.1 Daily pre-start briefing / toolbox talk conducted?</span>
+              <span className="sc-meta-label"><b>a.</b> Daily pre-start briefing / toolbox talk conducted?</span>
               <span className="sc-meta-value">{renderBadge(spotCheck.chk2_1)}</span>
             </div>
 
@@ -482,25 +482,25 @@ export default function SCView() {
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <div className="grid-2-col">
                   <div className="sc-meta-item">
-                    <span className="sc-meta-label">2.1.1 Briefing Date & Time:</span>
+                    <span className="sc-meta-label"><b>b.</b> Briefing Date & Time:</span>
                     <span className="sc-meta-value">{formatDate(spotCheck.briefingDate)} {spotCheck.briefingTime || ""}</span>
                   </div>
                   <div className="sc-meta-item">
-                    <span className="sc-meta-label">2.1.2 Conducted By:</span>
+                    <span className="sc-meta-label"><b>c.</b> Conducted By:</span>
                     <span className="sc-meta-value">{spotCheck.conductedBy || "-"}</span>
                   </div>
                   <div className="sc-meta-item">
-                    <span className="sc-meta-label">2.1.3 Total Participants:</span>
+                    <span className="sc-meta-label"><b>d.</b> Total Participants:</span>
                     <span className="sc-meta-value">{spotCheck.participants || "0"}</span>
                   </div>
                   <div className="sc-meta-item">
-                    <span className="sc-meta-label">2.1.5 Workers understand hazards:</span>
+                    <span className="sc-meta-label"><b>f.</b> Workers understand hazards:</span>
                     <span className="sc-meta-value">{renderBadge(spotCheck.chk2_1_5)}</span>
                   </div>
                 </div>
 
                 <div>
-                  <span className="sc-meta-label" style={{ display: "block", marginBottom: 6 }}>2.1.4 Key Topics Discussed:</span>
+                  <span className="sc-meta-label" style={{ display: "block", marginBottom: 6 }}><b>e.</b> Key Topics Discussed:</span>
                   <div>
                     {keyTopicsList && keyTopicsList.length > 0 ? (
                       keyTopicsList.map((t, i) => (
@@ -520,7 +520,7 @@ export default function SCView() {
             ) : (
               <div style={{ padding: "12px 14px", background: "rgba(245, 158, 11, 0.08)", borderRadius: "6px", border: "1px solid rgba(245, 158, 11, 0.2)" }}>
                 <span style={{ fontWeight: 600, color: "#b45309", fontSize: 12.5, display: "flex", alignItems: "center", gap: 6 }}>
-                  <i className="ti ti-info-circle"></i> 2.1.6 Reason / Explanation why no briefing conducted:
+                  <i className="ti ti-info-circle"></i> g. Reason / Explanation why no briefing conducted:
                 </span>
                 <p style={{ margin: "4px 0 0 0", fontSize: 13, color: "var(--text-main)" }}>
                   {spotCheck.explainNoBriefing || "No explanation recorded."}
@@ -535,13 +535,13 @@ export default function SCView() {
           <div className="sc-card-header">
             <div className="sc-card-header-left">
               <i className="ti ti-notes"></i>
-              <span>3 | Findings & Corrective Actions</span>
+              <span>Findings & Corrective Actions</span>
             </div>
           </div>
           <div className="sc-card-body">
             <div style={{ padding: "12px 14px", background: isCompliant ? "rgba(16, 185, 129, 0.08)" : "rgba(239, 68, 68, 0.08)", borderRadius: "6px", border: `1px solid ${isCompliant ? 'rgba(16, 185, 129, 0.25)' : 'rgba(239, 68, 68, 0.25)'}` }}>
               <span style={{ fontWeight: 600, color: isCompliant ? '#059669' : '#b91c1c', fontSize: 12.5 }}>
-                3.2 Is the activity compliant with site HSE rules & PTW controls?
+                <b>a.</b> Was the activity in compliance?
               </span>
               <div style={{ marginTop: 2, fontWeight: 700, fontSize: 14, color: isCompliant ? '#047857' : '#991b1b', display: "flex", alignItems: "center", gap: 6 }}>
                 <i className={`ti ${isCompliant ? 'ti-check' : 'ti-x'}`}></i>
@@ -552,14 +552,10 @@ export default function SCView() {
             {spotCheck.chk3_2 === 'No' && (
               <div style={{ padding: "12px 14px", background: "var(--bg-card-hover, #f8fafc)", borderRadius: "6px", border: "1px solid var(--border-color, #e2e8f0)" }}>
                 <span className="sc-meta-label" style={{ display: "block", marginBottom: 8, fontWeight: 600, color: "#b91c1c" }}>
-                  3.2.1 Safety issue traceability (Non-compliant activity):
+                  Attached Safety Observation (Non-compliant activity):
                 </span>
                 <div className="grid-2-col">
-                  <div className="sc-meta-item">
-                    <span className="sc-meta-label">Safety issue created?</span>
-                    <span className="sc-meta-value">{renderBadge(spotCheck.safetyIssueCreated)}</span>
-                  </div>
-                  <div className="sc-meta-item">
+                  <div className="sc-meta-item" style={{ gridColumn: "span 2" }}>
                     <span className="sc-meta-label">Safety issue / SPOT ref:</span>
                     <span className="sc-meta-value">
                       {spotCheck.safetyIssueRef ? (

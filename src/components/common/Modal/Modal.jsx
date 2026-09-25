@@ -15,6 +15,7 @@ function Modal({
   backdropClosable = true,
 
   type = "default",
+  hideDot = false,
 
   footer,
 
@@ -78,7 +79,7 @@ function Modal({
           {/* ── Header ── */}
           <div className="beam-modal-header">
             <div className="beam-modal-header-left">
-              <span className="beam-modal-accent-dot" />
+              {!hideDot && <span className="beam-modal-accent-dot" />}
               <h5 className="beam-modal-title">{title}</h5>
             </div>
             <button

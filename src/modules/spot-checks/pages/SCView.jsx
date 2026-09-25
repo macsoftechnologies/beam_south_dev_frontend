@@ -178,12 +178,6 @@ export default function SCView() {
       ? JSON.parse(spotCheck.keyTopics || '[]')
       : []);
 
-  const correctiveActionsList = Array.isArray(spotCheck.correctiveActions)
-    ? spotCheck.correctiveActions
-    : (typeof spotCheck.correctiveActions === 'string'
-      ? JSON.parse(spotCheck.correctiveActions || '[]')
-      : []);
-
   const attachmentsList = Array.isArray(spotCheck.attachments)
     ? spotCheck.attachments
     : (typeof spotCheck.attachments === 'string'
@@ -530,12 +524,12 @@ export default function SCView() {
           </div>
         </div>
 
-        {/* ── Section 3: Summary, Findings & Corrective Actions ── */}
+        {/* ── Section 3: Summary & Findings ── */}
         <div className="scview-card">
           <div className="sc-card-header">
             <div className="sc-card-header-left">
               <i className="ti ti-notes"></i>
-              <span>Findings & Corrective Actions</span>
+              <span>Findings</span>
             </div>
           </div>
           <div className="sc-card-body">
@@ -599,44 +593,6 @@ export default function SCView() {
               <div style={{ padding: "10px 14px", background: "var(--bg-card-hover, #f8fafc)", borderRadius: "6px", border: "1px solid var(--border-color, #e2e8f0)", fontSize: 13, minHeight: 48, whiteSpace: "pre-wrap" }}>
                 {spotCheck.findings || "No findings or comments entered."}
               </div>
-            </div>
-
-            <div>
-              <span className="sc-meta-label" style={{ display: "block", marginBottom: 6, fontWeight: 600 }}>Corrective Actions Agreed:</span>
-              {correctiveActionsList && correctiveActionsList.length > 0 ? (
-                <div className="sc-table-container">
-                  <table className="sc-table">
-                    <thead>
-                      <tr>
-                        <th style={{ width: "36px" }}>#</th>
-                        <th>Action Item</th>
-                        <th>Responsible Person</th>
-                        <th style={{ width: "120px" }}>Due Date</th>
-                        <th style={{ width: "90px", textAlign: "center" }}>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {correctiveActionsList.map((ca, idx) => (
-                        <tr key={idx}>
-                          <td>{idx + 1}</td>
-                          <td><b>{ca.action || "-"}</b></td>
-                          <td>{ca.responsible || "-"}</td>
-                          <td>{formatDate(ca.dueDate)}</td>
-                          <td style={{ textAlign: "center" }}>
-                            <span className={`sc-badge ${ca.closed ? 'sc-badge-success' : 'sc-badge-warning'}`}>
-                              {ca.closed ? 'Closed' : 'Open'}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div style={{ color: "var(--text-muted)", fontSize: 12.5, fontStyle: "italic" }}>
-                  No corrective action items logged.
-                </div>
-              )}
             </div>
           </div>
         </div>

@@ -179,6 +179,18 @@ function SOCreate() {
 
         setContractorsList(cList);
 
+        // Auto-select NNE as default contractor only for contractor-role users
+        if (!id && isContractor) {
+          const nneEntry = cList.find((c) => {
+            const cName = String(c.subContractorName || c.company_name || c.contractor_name || c.subcontractor_name || c.name || "").toUpperCase().trim();
+            return cName === "NNE" || cName.includes("NNE");
+          });
+          if (nneEntry) {
+            const nneName = nneEntry.subContractorName || nneEntry.company_name || nneEntry.contractor_name || nneEntry.subcontractor_name || nneEntry.name || "NNE";
+            setForm((prev) => ({ ...prev, assignedContractorId: String(nneEntry.id), assignedContractorName: nneName }));
+          }
+        }
+
         const rawBuildings = buildingsRes?.data?.rows || buildingsRes?.data || buildingsRes || [];
         setBuildingsList(Array.isArray(rawBuildings) ? rawBuildings : []);
 
@@ -469,6 +481,13 @@ const dataURLtoBlob = (dataurl) => {
       }
       if (form.assignedContractorName) formData.append("assignedContractorName", form.assignedContractorName);
       if (form.immediateActionTaken) formData.append("immediateActionTaken", form.immediateActionTaken);
+
+      // Append selected photo files to the multipart request
+      if (photoFiles && photoFiles.length > 0) {
+        photoFiles.forEach((file) => {
+          formData.append("photos", file);
+        });
+      }
 
       if (isEditMode) {
         formData.append("existingPhotos", JSON.stringify(existingPhotos));
@@ -819,7 +838,14 @@ const dataURLtoBlob = (dataurl) => {
           {/* Contractor Selection */}
           <div className="mod-form-group">
             <label className="mod-form-label">Assign to Contractor</label>
-            <select className="mod-form-select" name="assignedContractorId" value={form.assignedContractorId} onChange={handleChange}>
+            <select
+              className="mod-form-select"
+              name="assignedContractorId"
+              value={form.assignedContractorId}
+              onChange={handleChange}
+              disabled={isContractor}
+              style={isContractor ? { backgroundColor: "rgba(255,255,255,0.06)", cursor: "not-allowed", opacity: 0.7, fontWeight: 600 } : {}}
+            >
               <option value="">-- Select Contractor --</option>
               {contractorsList.map((c) => {
                 const contractorName = c.subContractorName || c.company_name || c.contractor_name || c.subcontractor_name || c.name || `Contractor #${c.id}`;

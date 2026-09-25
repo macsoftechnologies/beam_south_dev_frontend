@@ -411,41 +411,8 @@ export default function SCCreate() {
 
       const sanitizeDateVal = (d) => (!d || typeof d !== 'string' || d.trim() === '' ? null : d.trim());
 
-      let finalSafetyIssueRef = form.safetyIssueRef;
-      if (form.chk3_2 === "No" && form.safetyIssueCreated === "No" && !finalSafetyIssueRef) {
-        try {
-          const bName = form.buildingName || (buildingsList.find(b => String(b.build_id || b.id) === String(building))?.building_name || "");
-          const contractorObj = contractorsList.find(c => 
-            c.name === form.companyInvolved || 
-            c.company_name === form.companyInvolved || 
-            c.subContractorName === form.companyInvolved || 
-            c.contractor_name === form.companyInvolved
-          );
-          const obsRes = await observationService.createObservation({
-            observationType: "NEEDS_ATTENTION",
-            natureOfFinding: "UNSAFE_CONDITION",
-            subject: form.activityName ? `Spot Check Non-Compliance: ${form.activityName}` : (form.spotCheckRef ? `Spot Check Non-Compliance (${form.spotCheckRef})` : "Spot Check Non-Compliance"),
-            safetyCategory: "General Safety",
-            description: form.findings || `Non-compliant activity identified during Spot Check ${form.spotCheckRef ? `(${form.spotCheckRef})` : ''} - Activity: ${form.activityName || 'General inspection'}.`,
-            projectName: form.projectName || "M3SOUTH",
-            buildingId: building ? Number(building) : undefined,
-            buildingName: bName,
-            floorLevel: level || form.floorLevel,
-            specificLocation: form.location,
-            assignedContractorName: form.companyInvolved,
-            assignedContractorId: contractorObj?.id ? Number(contractorObj.id) : undefined,
-            date: sanitizeDateVal(form.date) || todayDenmark,
-            time: form.time || undefined,
-            createdByUserId: currentUser?.id,
-            createdByUserName: currentUser?.name || currentUser?.username || 'Safety Inspector',
-            createdByRole: currentUser?.role || 'Admin',
-          });
-          const createdObs = obsRes?.observation || obsRes;
-          finalSafetyIssueRef = createdObs?.observationNumber || (createdObs?.id ? `SO-${createdObs.id}` : "");
-        } catch (obsErr) {
-          console.error("Auto-creating safety observation failed:", obsErr);
-        }
-      }
+      // Safety observation is linked manually by the user — no auto-creation
+      const finalSafetyIssueRef = form.safetyIssueRef || "";
 
       const payload = {
         ...form,
@@ -465,7 +432,7 @@ export default function SCCreate() {
       };
 
       await spotCheckService.createSpotCheck(payload);
-      if (finalSafetyIssueRef && form.safetyIssueCreated === "No") {
+      if (finalSafetyIssueRef) {
         showSuccess(`Spot Check saved and linked to Safety Observation ${finalSafetyIssueRef}!`);
       } else {
         showSuccess("Spot Check record saved successfully!");
@@ -905,7 +872,6 @@ export default function SCCreate() {
               {renderYesNo("chk3_2")}
             </div>
 
-
           </div>
 
           {form.chk3_2 === "No" && (
@@ -926,33 +892,58 @@ export default function SCCreate() {
                         </div>
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      className="mod-btn-outline"
-                      style={{ padding: "4px 10px", fontSize: "11px", display: "inline-flex", alignItems: "center", gap: "4px" }}
-                      onClick={() => setShowSafetyModal(true)}
-                    >
-                      <i className="ti ti-edit"></i> Edit Observation
-                    </button>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <button
+                        type="button"
+                        className="mod-btn-outline"
+                        style={{ padding: "4px 10px", fontSize: "11px", display: "inline-flex", alignItems: "center", gap: "4px" }}
+                        onClick={() => setShowSafetyModal(true)}
+                      >
+                        <i className="ti ti-edit"></i> Edit Observation
+                      </button>
+                      <button
+                        type="button"
+                        style={{ background: "none", border: "1px solid var(--border-color)", borderRadius: "4px", cursor: "pointer", color: "#ef4444", fontSize: 11, padding: "4px 8px", display: "inline-flex", alignItems: "center", gap: 3 }}
+                        title="Clear linked SO"
+                        onClick={() => setForm(prev => ({ ...prev, safetyIssueRef: "", safetyIssueCreated: "" }))}
+                      >
+                        <i className="ti ti-x"></i> Unlink
+                      </button>
+                    </div>
                   </div>
                 ) : (
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: "rgba(239, 68, 68, 0.06)", border: "1px dashed rgba(239, 68, 68, 0.4)", borderRadius: "6px" }}>
-                    <div>
-                      <div style={{ fontSize: "12.5px", fontWeight: 600, color: "#b91c1c", display: "flex", alignItems: "center", gap: "6px" }}>
-                        <i className="ti ti-alert-triangle"></i> Safety Observation Required (Needs Attention)
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: "rgba(239, 68, 68, 0.06)", border: "1px dashed rgba(239, 68, 68, 0.4)", borderRadius: "6px", marginBottom: "12px", gap: 12, flexWrap: "wrap" }}>
+                      <div>
+                        <div style={{ fontSize: "12.5px", fontWeight: 600, color: "#b91c1c", display: "flex", alignItems: "center", gap: "6px" }}>
+                          <i className="ti ti-alert-triangle"></i> Safety Observation Required (Needs Attention)
+                        </div>
+                        <div style={{ fontSize: "11.5px", color: "var(--text-muted)", marginTop: "2px" }}>
+                          Activity is non-compliant. Create a Safety Observation with "Needs Attention" or enter an existing SO number below.
+                        </div>
                       </div>
-                      <div style={{ fontSize: "11.5px", color: "var(--text-muted)", marginTop: "2px" }}>
-                        Activity is non-compliant. A Safety Observation with "Needs Attention" will be created and its SO number attached to this spot check.
-                      </div>
+                      <button
+                        type="button"
+                        className="mod-btn-primary"
+                        style={{ padding: "6px 14px", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "6px", whiteSpace: "nowrap" }}
+                        onClick={() => setShowSafetyModal(true)}
+                      >
+                        <i className="ti ti-plus"></i> Create &amp; Attach SO
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      className="mod-btn-primary"
-                      style={{ padding: "6px 14px", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "6px", whiteSpace: "nowrap" }}
-                      onClick={() => setShowSafetyModal(true)}
-                    >
-                      <i className="ti ti-plus"></i> Create & Attach SO
-                    </button>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                      <label className="sc-form-label" style={{ marginBottom: 0, whiteSpace: "nowrap" }}>
+                        Or link existing SO:
+                      </label>
+                      <input
+                        className="sc-form-input"
+                        name="safetyIssueRef"
+                        value={form.safetyIssueRef}
+                        onChange={handleChange}
+                        placeholder="e.g. SO-2026-0042"
+                        style={{ maxWidth: "240px" }}
+                      />
+                    </div>
                   </div>
                 )}
               </div>

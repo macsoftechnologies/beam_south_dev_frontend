@@ -70,7 +70,7 @@ export const formatToDenmarkDateTime = (dateStr, locale = "en-US", options = {})
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
-    hour12: true,
+    hour12: false,
   };
   
   return date.toLocaleString(finalLocale, {
@@ -78,6 +78,59 @@ export const formatToDenmarkDateTime = (dateStr, locale = "en-US", options = {})
     ...defaultOptions,
     ...finalOptions
   });
+};
+
+/**
+ * Formats a date string (interpreting timezone-less datetime strings as UTC) into Europe/Copenhagen timezone using 24-hour time.
+ * Returns formatted string like "25 Sep 2026 14:30" (or with seconds if includeSeconds is true).
+ */
+export const formatToDenmark24Hour = (dateStr, includeSeconds = false, options = {}) => {
+  if (!dateStr) return "—";
+  const date = parseUTCToDate(dateStr) || new Date(dateStr);
+  if (!date || isNaN(date.getTime())) return String(dateStr) || "—";
+
+  return date.toLocaleString("en-GB", {
+    timeZone: "Europe/Copenhagen",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    ...(includeSeconds ? { second: "2-digit" } : {}),
+    hour12: false,
+    ...options
+  }).replace(",", "");
+};
+
+/**
+ * Formats a date string into { date, time } in Europe/Copenhagen timezone using 24-hour time.
+ * e.g., { date: "25 Sep 2026", time: "14:30" }
+ */
+export const formatToDenmark24HourObj = (dateStr, includeSeconds = false) => {
+  if (!dateStr) return { date: "—", time: "—" };
+  try {
+    const d = parseUTCToDate(dateStr) || new Date(dateStr);
+    if (isNaN(d.getTime())) {
+      const s = String(dateStr);
+      return { date: s.split("T")[0] || s, time: s.split("T")[1] || "—" };
+    }
+    const date = d.toLocaleString("en-GB", {
+      timeZone: "Europe/Copenhagen",
+      day: "2-digit",
+      month: "short",
+      year: "numeric"
+    });
+    const time = d.toLocaleString("en-GB", {
+      timeZone: "Europe/Copenhagen",
+      hour: "2-digit",
+      minute: "2-digit",
+      ...(includeSeconds ? { second: "2-digit" } : {}),
+      hour12: false
+    });
+    return { date, time };
+  } catch (e) {
+    return { date: String(dateStr), time: "—" };
+  }
 };
 
 /**

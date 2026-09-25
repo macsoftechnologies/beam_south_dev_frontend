@@ -41,6 +41,8 @@
 .chip-submitted { background:var(--color-safe-bg); color:var(--color-safe); }
 .chip-approved { background:var(--color-safe-bg); color:var(--color-safe); }
 .chip-inprogress { background:var(--color-caution-bg); color:var(--color-caution); }
+.chip-waived { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
+[data-theme="dark"] .chip-waived { background: rgba(148, 163, 184, 0.15); color: #cbd5e1; border-color: rgba(148, 163, 184, 0.3); }
 .inv-prio { font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:0.05em; }
 .prio-critical { color:var(--color-risk); }
 .prio-high { color:var(--color-caution); }

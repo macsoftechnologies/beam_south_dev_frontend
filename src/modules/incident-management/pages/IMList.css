@@ -6,9 +6,8 @@
 .rate-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; padding:16px 18px; }
 @media (max-width:520px){ .rate-grid { grid-template-columns:1fr; } }
 /* KPI cards — aligned to the Incidents dashboard style */
-.im-kpis { display:grid; grid-template-columns:repeat(6,1fr); gap:14px; margin-bottom:20px; }
-@media (max-width:1200px){ .im-kpis { grid-template-columns:repeat(3,1fr); } }
-@media (max-width:640px){ .im-kpis { grid-template-columns:repeat(2,1fr); } }
+.im-kpis { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:20px; }
+@media (max-width:768px){ .im-kpis { grid-template-columns:1fr; } }
 .im-stat { position:relative; background:var(--bg-card); border:1px solid var(--border-color); border-radius:12px; padding:14px 16px; overflow:hidden; }
 .im-stat::before { content:''; position:absolute; left:0; top:0; bottom:0; width:4px; background:var(--a); }
 .im-stat-top { display:flex; align-items:center; justify-content:space-between; }
@@ -40,6 +39,9 @@ th.ith.sorted-desc::after { content:' \25BC'; font-size:9px; }
 .st-dot.st-opened { background:#f97316; color:#fff; }
 .st-line.on-opened { background:#f97316; }
 .st-label.st-label-opened { color:#c2410c; }
+.st-dot.st-waived { background:#64748b; color:#fff; border: 1.5px solid #475569; }
+.st-line.on-waived { background: repeating-linear-gradient(to right, #94a3b8 0px, #94a3b8 3px, transparent 3px, transparent 6px); height: 3px; }
+.st-label.st-label-waived { color:#475569; background:rgba(100, 116, 139, 0.12); border: 1px solid rgba(100, 116, 139, 0.25); }
 /* Dashboard layout additions */
 .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
 .mb-6 { margin-bottom: 24px; }

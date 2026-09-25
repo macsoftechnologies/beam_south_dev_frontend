@@ -42,6 +42,8 @@ export default function SIView() {
   const [selectedObs, setSelectedObs] = useState(null);
   const [isLoadingObs, setIsLoadingObs] = useState(false);
   const [showObsModal, setShowObsModal] = useState(false);
+  // Track per-observation status (key -> 'CLOSED'|'OPEN'|...) fetched from API
+  const [obsStatusMap, setObsStatusMap] = useState({});
 
   const currentUser = React.useMemo(() => {
     try {
@@ -76,6 +78,76 @@ export default function SIView() {
     if (id) fetchDetails();
   }, [id]);
 
+  // After inspection loads, fetch the status of every attached observation in parallel
+  useEffect(() => {
+    if (!inspection) return;
+    const allIssues = (inspection.items || []).flatMap(item => {
+      if (Array.isArray(item.issues)) return item.issues;
+      if (typeof item.issues === 'string') {
+        try { return JSON.parse(item.issues) || []; } catch { return []; }
+      }
+      return [];
+    });
+    if (allIssues.length === 0) return;
+
+    const uniqueKeys = [...new Set(
+      allIssues.map(iss => iss.observationId || iss.id).filter(Boolean)
+    )];
+
+    const fetchStatuses = async () => {
+      const map = {};
+      await Promise.all(uniqueKeys.map(async (key) => {
+        try {
+          const data = await observationService.getObservationDetails(key);
+          const obs = data?.observation || data;
+          if (obs?.status) map[String(key)] = obs.status;
+        } catch {
+          // silently ignore — individual observation may not be accessible
+        }
+      }));
+      setObsStatusMap(map);
+    };
+    fetchStatuses();
+  }, [inspection]);
+
+  const isClosed = Boolean(inspection?.status === 'CLOSED' || inspection?.status === 'COMPLETED' || inspection?.isCompleted);
+
+  // Derive: all observations with a known status are CLOSED
+  const allIssues = (inspection?.items || []).flatMap(item => {
+    if (Array.isArray(item.issues)) return item.issues;
+    if (typeof item.issues === 'string') {
+      try { return JSON.parse(item.issues) || []; } catch { return []; }
+    }
+    return [];
+  });
+  const issuesWithKnownStatus = allIssues.filter(iss => {
+    const key = String(iss.observationId || iss.id || '');
+    return key && obsStatusMap[key];
+  });
+  const allObsClosed = issuesWithKnownStatus.length > 0 &&
+    issuesWithKnownStatus.every(iss =>
+      obsStatusMap[String(iss.observationId || iss.id || '')] === 'CLOSED'
+    );
+  // effectiveClosed drives all status display and toggle behavior
+  const effectiveClosed = isClosed || allObsClosed;
+
+  // Auto-sync status to backend database if all attached observations are closed but DB is still IN_PROGRESS
+  useEffect(() => {
+    if (!inspection || isClosed || !allObsClosed) return;
+    safetyInspectionService.updateInspection(inspection.id, {
+      status: 'CLOSED',
+      isCompleted: true
+    }).then(() => {
+      setInspection(prev => ({
+        ...prev,
+        status: 'CLOSED',
+        isCompleted: true
+      }));
+    }).catch(err => {
+      console.warn("Auto-sync inspection closed status note:", err?.message || err);
+    });
+  }, [allObsClosed, isClosed, inspection?.id]);
+
   const formatDate = (dateStr) => {
     if (!dateStr) return "-";
     try {
@@ -106,7 +178,7 @@ export default function SIView() {
 
   const handleStatusToggle = async () => {
     if (!inspection || isReadOnly) return;
-    const isCl = inspection.status === 'CLOSED' || inspection.status === 'COMPLETED' || inspection.isCompleted;
+    const isCl = effectiveClosed;
     const nextStatus = isCl ? 'IN_PROGRESS' : 'CLOSED';
     
     const result = await Swal.fire({
@@ -170,10 +242,25 @@ export default function SIView() {
 
   const getFullImageUrl = (url) => {
     if (!url) return '';
-    if (url.startsWith('http://') || url.startsWith('https://')) return url;
-    const base = import.meta.env.VITE_API_URL || 'https://api.beam.safesiteworks.com/development/m3south';
-    const baseUrlClean = base.replace(/\/development\/m3south\/?$/, '');
-    return `${baseUrlClean}${url.startsWith('/') ? '' : '/'}${url}`;
+    if (url.startsWith('data:') || url.startsWith('blob:')) return url;
+
+    const envBase = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
+
+    // If it's already an absolute URL (e.g. http:// or https://)
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      // If pointing to remote production while testing on localhost, map to localhost
+      if (envBase.includes('localhost') && url.includes('api.beam.safesiteworks.com')) {
+        return url.replace(/^https?:\/\/api\.beam\.safesiteworks\.com(\/development\/m3south)?/, envBase);
+      }
+      return url;
+    }
+
+    const cleanUrl = url.startsWith('/') ? url : `/${url}`;
+    if (envBase) {
+      return `${envBase}${cleanUrl}`;
+    }
+
+    return cleanUrl;
   };
 
   if (isLoading) {
@@ -198,7 +285,7 @@ export default function SIView() {
     );
   }
 
-  const isClosed = inspection.status === 'CLOSED' || inspection.status === 'COMPLETED' || inspection.isCompleted;
+
   const displayId = inspection.inspectionNumber || `SI${inspection.id}`;
   const performedByList = Array.isArray(inspection.performedBy) ? inspection.performedBy : (inspection.performedBy ? [inspection.performedBy] : []);
   const participantsList = Array.isArray(inspection.participants) ? inspection.participants : (inspection.participants ? [inspection.participants] : []);
@@ -268,11 +355,30 @@ export default function SIView() {
               <div className="meta-item">
                 <span className="meta-label">Status</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                  <span className={`meta-badge ${isClosed ? 'status-closed' : 'status-progress'}`}>
-                    {isClosed ? 'Closed' : 'In Progress'}
+                  <span
+                    className="siview-badge"
+                    style={{
+                      background: effectiveClosed ? '#dcfce7' : '#eff6ff',
+                      color: effectiveClosed ? '#166534' : '#1e40af',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    <span style={{
+                      width: 8, height: 8, borderRadius: '50%',
+                      background: effectiveClosed ? '#16a34a' : '#3b82f6',
+                      display: 'inline-block', flexShrink: 0
+                    }} />
+                    {effectiveClosed ? 'Closed' : 'In Progress'}
                   </span>
+                  {allObsClosed && !isClosed && (
+                    <span style={{ fontSize: '11px', color: '#16a34a', fontStyle: 'italic' }}>
+                      (all observations closed)
+                    </span>
+                  )}
                   {!isReadOnly && (
-                    <button 
+                    <button
                       type="button"
                       onClick={handleStatusToggle}
                       disabled={isUpdatingStatus}
@@ -285,13 +391,13 @@ export default function SIView() {
                         fontWeight: 600,
                         borderRadius: '4px',
                         border: '1px solid var(--border-color, #cbd5e1)',
-                        backgroundColor: isClosed ? 'var(--card-bg, #ffffff)' : '#22c55e',
-                        color: isClosed ? '#475569' : '#ffffff',
+                        backgroundColor: effectiveClosed ? 'var(--card-bg, #ffffff)' : '#22c55e',
+                        color: effectiveClosed ? '#475569' : '#ffffff',
                         cursor: 'pointer'
                       }}
                     >
-                      <i className={`ti ${isClosed ? 'ti-rotate-clockwise' : 'ti-circle-check'}`}></i>
-                      {isUpdatingStatus ? 'Updating...' : isClosed ? 'Reopen' : 'Close Inspection'}
+                      <i className={`ti ${effectiveClosed ? 'ti-rotate-clockwise' : 'ti-circle-check'}`}></i>
+                      {isUpdatingStatus ? 'Updating...' : effectiveClosed ? 'Reopen' : 'Close Inspection'}
                     </button>
                   )}
                 </div>
@@ -362,8 +468,29 @@ export default function SIView() {
         <div className="siview-checklist-wrapper">
           {itemsList.map(item => {
             const rawStatus = (item.status || 'na').toLowerCase();
-            const photosList = Array.isArray(item.photos) ? item.photos : [];
-            const issuesList = Array.isArray(item.issues) ? item.issues : [];
+            let photosList = [];
+            if (Array.isArray(item.photos)) {
+              photosList = item.photos;
+            } else if (typeof item.photos === 'string') {
+              try {
+                const parsed = JSON.parse(item.photos);
+                photosList = Array.isArray(parsed) ? parsed : [item.photos];
+              } catch {
+                photosList = item.photos ? [item.photos] : [];
+              }
+            }
+
+            let issuesList = [];
+            if (Array.isArray(item.issues)) {
+              issuesList = item.issues;
+            } else if (typeof item.issues === 'string') {
+              try {
+                const parsed = JSON.parse(item.issues);
+                issuesList = Array.isArray(parsed) ? parsed : [item.issues];
+              } catch {
+                issuesList = [];
+              }
+            }
 
             return (
               <div key={item.id || item.itemIndex} className="siview-cl-card">
@@ -393,17 +520,27 @@ export default function SIView() {
                       <div className="siview-cl-issues">
                         {issuesList.map((iss, i) => {
                           const isGreen = iss.type === 'green' || iss.isGoodPractice || iss.observationType === 'POSITIVE';
+                          const obsKey = String(iss.observationId || iss.id || '');
+                          const obsStatus = obsStatusMap[obsKey];
+                          const isObsClosed = obsStatus === 'CLOSED';
+                          // Dot: green when SO is closed or good-practice, otherwise type color
+                          const dotClass = (isObsClosed || isGreen) ? 'issue-green' : `issue-${iss.type || 'orange'}`;
                           return (
-                            <div 
-                              key={i} 
+                            <div
+                              key={i}
                               className="siview-issue-tag clickable"
                               onClick={() => handleViewObservation(iss)}
                               title="Click to view full Safety Observation details"
-                              style={isGreen ? { borderColor: 'rgba(34, 197, 94, 0.4)', background: 'rgba(34, 197, 94, 0.05)' } : {}}
+                              style={isObsClosed
+                                ? { borderColor: 'rgba(34,197,94,0.5)', background: 'rgba(34,197,94,0.06)' }
+                                : isGreen ? { borderColor: 'rgba(34, 197, 94, 0.4)', background: 'rgba(34, 197, 94, 0.05)' } : {}}
                             >
-                              <span className={`issue-dot issue-${isGreen ? 'green' : (iss.type || 'orange')}`}></span>
+                              <span className={`issue-dot ${dotClass}`}></span>
                               <span className="issue-id">{iss.id || iss.observationNumber || `SO-${i}`}</span>
                               <span className="issue-text">{iss.text || iss.subject || (isGreen ? 'Good Practice' : 'Safety Observation')}</span>
+                              {isObsClosed && (
+                                <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, color: '#16a34a', background: '#dcfce7', padding: '1px 5px', borderRadius: 4 }}>CLOSED</span>
+                              )}
                               <i className="ti ti-external-link" style={{ marginLeft: "6px", fontSize: "12px", opacity: 0.7 }}></i>
                             </div>
                           );
@@ -415,7 +552,16 @@ export default function SIView() {
                         {photosList.map((img, i) => (
                           <div key={i} className="siview-img-thumbnail">
                             <a href={getFullImageUrl(img)} target="_blank" rel="noopener noreferrer">
-                              <img src={getFullImageUrl(img)} alt={`attachment-${i}`} />
+                              <img
+                                src={getFullImageUrl(img)}
+                                alt={`attachment-${i}`}
+                                onError={(e) => {
+                                  const src = e.currentTarget.src;
+                                  if (src.includes('/development/m3south/uploads/')) {
+                                    e.currentTarget.src = src.replace('/development/m3south/uploads/', '/uploads/');
+                                  }
+                                }}
+                              />
                             </a>
                           </div>
                         ))}
@@ -510,7 +656,16 @@ export default function SIView() {
                         {selectedObs.photos.map((p, idx) => (
                           <div key={idx} className="obs-modal-photo-thumb">
                             <a href={getFullImageUrl(p)} target="_blank" rel="noopener noreferrer">
-                              <img src={getFullImageUrl(p)} alt={`obs-photo-${idx}`} />
+                              <img
+                                src={getFullImageUrl(p)}
+                                alt={`obs-photo-${idx}`}
+                                onError={(e) => {
+                                  const src = e.currentTarget.src;
+                                  if (src.includes('/development/m3south/uploads/')) {
+                                    e.currentTarget.src = src.replace('/development/m3south/uploads/', '/uploads/');
+                                  }
+                                }}
+                              />
                             </a>
                           </div>
                         ))}

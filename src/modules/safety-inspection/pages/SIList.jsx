@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { safetyInspectionService } from "../../../services/safetyInspectionService";
+import { observationService } from "../../../services/observationService";
 import { getBuildings, getFloors, getRooms } from "../../../services/authService";
 import "./SIDashboard.css"; // Reusing dashboard CSS
 
@@ -24,6 +25,9 @@ export default function SIList() {
   const [deleteModalId, setDeleteModalId] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [downloadingId, setDownloadingId] = useState(null);
+
+  // Track per-observation status (key -> 'CLOSED'|'OPEN'|...) fetched from API
+  const [obsStatusMap, setObsStatusMap] = useState({});
 
   // Selector data
   const [buildingsList, setBuildingsList] = useState([]);
@@ -165,6 +169,88 @@ export default function SIList() {
   useEffect(() => {
     fetchInspections();
   }, [fetchInspections]);
+
+  // After inspections load, check statuses of attached observations for non-closed inspections
+  useEffect(() => {
+    if (!inspections || inspections.length === 0) return;
+
+    const keysToFetch = [];
+    inspections.forEach((insp) => {
+      const isCl = insp.status === 'CLOSED' || insp.status === 'COMPLETED' || insp.isCompleted;
+      if (!isCl && Array.isArray(insp.items)) {
+        insp.items.forEach((item) => {
+          let issues = [];
+          if (Array.isArray(item.issues)) issues = item.issues;
+          else if (typeof item.issues === 'string') {
+            try { issues = JSON.parse(item.issues) || []; } catch {}
+          }
+          if (Array.isArray(issues)) {
+            issues.forEach((iss) => {
+              const k = iss.observationId || iss.id;
+              if (k && !obsStatusMap[String(k)]) {
+                keysToFetch.push(k);
+              }
+            });
+          }
+        });
+      }
+    });
+
+    const uniqueKeys = [...new Set(keysToFetch)];
+    if (uniqueKeys.length === 0) return;
+
+    let isMounted = true;
+    Promise.all(uniqueKeys.map(async (key) => {
+      try {
+        const data = await observationService.getObservationDetails(key);
+        const obs = data?.observation || data;
+        return { key: String(key), status: obs?.status };
+      } catch {
+        return null;
+      }
+    })).then((results) => {
+      if (!isMounted) return;
+      const newMap = {};
+      results.forEach((res) => {
+        if (res && res.status) newMap[res.key] = res.status;
+      });
+      if (Object.keys(newMap).length > 0) {
+        setObsStatusMap((prev) => ({ ...prev, ...newMap }));
+      }
+    });
+
+    return () => { isMounted = false; };
+  }, [inspections]);
+
+  // If all attached observations of an inspection are closed, auto-sync backend DB record
+  useEffect(() => {
+    if (!inspections || inspections.length === 0) return;
+    inspections.forEach((insp) => {
+      const isClDirect = insp.status === 'CLOSED' || insp.status === 'COMPLETED' || insp.isCompleted;
+      if (isClDirect) return;
+      const allIssues = (insp.items || []).flatMap((item) => {
+        if (Array.isArray(item.issues)) return item.issues;
+        if (typeof item.issues === 'string') {
+          try { return JSON.parse(item.issues) || []; } catch { return []; }
+        }
+        return [];
+      });
+      const issuesWithKnownStatus = allIssues.filter((iss) => {
+        const key = String(iss.observationId || iss.id || '');
+        return key && obsStatusMap[key];
+      });
+      const allClosed = issuesWithKnownStatus.length > 0 &&
+        issuesWithKnownStatus.every((iss) =>
+          obsStatusMap[String(iss.observationId || iss.id || '')] === 'CLOSED'
+        );
+      if (allClosed) {
+        safetyInspectionService.updateInspection(insp.id, {
+          status: 'CLOSED',
+          isCompleted: true
+        }).catch(() => {});
+      }
+    });
+  }, [obsStatusMap, inspections]);
 
   const handleDelete = async (e, id) => {
     e.stopPropagation();
@@ -350,7 +436,23 @@ export default function SIList() {
                 </tr>
               ) : (
                 inspections.map((r) => {
-                  const isClosed = r.status === 'CLOSED' || r.status === 'COMPLETED' || r.isCompleted;
+                  const isClosedDirect = r.status === 'CLOSED' || r.status === 'COMPLETED' || r.isCompleted;
+                  const allIssues = (r.items || []).flatMap((item) => {
+                    if (Array.isArray(item.issues)) return item.issues;
+                    if (typeof item.issues === 'string') {
+                      try { return JSON.parse(item.issues) || []; } catch { return []; }
+                    }
+                    return [];
+                  });
+                  const issuesWithKnownStatus = allIssues.filter((iss) => {
+                    const key = String(iss.observationId || iss.id || '');
+                    return key && obsStatusMap[key];
+                  });
+                  const allObsClosed = issuesWithKnownStatus.length > 0 &&
+                    issuesWithKnownStatus.every((iss) =>
+                      obsStatusMap[String(iss.observationId || iss.id || '')] === 'CLOSED'
+                    );
+                  const isClosed = isClosedDirect || allObsClosed;
                   const displayId = r.inspectionNumber || `SI${r.id}`;
                   const roomsText = Array.isArray(r.selectedRooms) ? r.selectedRooms.join(", ") : (r.selectedRooms || r.specificLocation || "-");
                   const inspectorName = Array.isArray(r.performedBy) && r.performedBy.length > 0 ? r.performedBy[0] : (r.modifiedByUserName || r.createdByUserName || "-");

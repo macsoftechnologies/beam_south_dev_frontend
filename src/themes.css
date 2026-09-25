@@ -418,6 +418,30 @@ html[data-theme="light"] .df-form .df-textarea:focus {
   box-shadow:   0 0 0 3px rgba(37,99,235,0.12) !important;
 }
 
+/* Phone input group light mode */
+html[data-theme="light"] .df-form .df-phone-group {
+  background:   #F3F4F6 !important;
+  border-color: var(--border-light) !important;
+}
+html[data-theme="light"] .df-form .df-phone-group:hover {
+  border-color: #9CA3AF !important;
+}
+html[data-theme="light"] .df-form .df-phone-group:focus-within {
+  background:   #FFFFFF !important;
+  border-color: var(--accent-primary) !important;
+  box-shadow:   0 0 0 3px rgba(37,99,235,0.12) !important;
+}
+html[data-theme="light"] .df-form .df-phone-prefix {
+  color: #6B7280 !important;
+}
+html[data-theme="light"] .df-form .df-phone-input {
+  color: var(--text-main) !important;
+}
+html[data-theme="light"] .df-form .df-phone-input::placeholder {
+  color: var(--text-muted) !important;
+  opacity: 0.8 !important;
+}
+
 /* Selects */
 html[data-theme="light"] .df-form .df-select {
   background-color: #F3F4F6 !important;

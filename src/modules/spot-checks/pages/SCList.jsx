@@ -6,6 +6,85 @@ import { showSuccess, showError, showDeleteConfirm, showDeleteSuccess } from "..
 import Swal from "sweetalert2";
 import "./SCDashboard.css";
 
+// ── Contractor Logo Helpers ──
+const getLogoUrl = (logoVal) => {
+  if (!logoVal) return null;
+  if (logoVal.startsWith("data:") || logoVal.startsWith("http://") || logoVal.startsWith("https://")) return logoVal;
+  const baseUrl = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/+$/, "");
+  return `${baseUrl}/subcontractors/${logoVal}`;
+};
+
+const findContractorLogo = (contractorName, contractorsList = []) => {
+  if (!contractorName || contractorName === "Unassigned" || contractorName === "—") return null;
+  const match = (contractorsList || []).find((c) => {
+    const cName = c.company_name || c.companyName || c.subContractorName || c.subcontractor_name || c.name || "";
+    return (
+      cName.toLowerCase().trim() === String(contractorName).toLowerCase().trim() ||
+      cName.toLowerCase().includes(String(contractorName).toLowerCase().trim()) ||
+      String(contractorName).toLowerCase().includes(cName.toLowerCase().trim())
+    );
+  });
+  return match?.logo || match?.logo_url || match?.company_logo || match?.logoFile || null;
+};
+
+const getInitials = (n) => {
+  if (!n) return "??";
+  let clean = String(n).replace(/[^a-zA-Z0-9\s]/g, "").trim();
+  const words = clean.split(/\s+/).filter((w) => w.length > 0);
+  if (words.length === 0) return "??";
+  if (words.length === 1) return words[0].substring(0, 2).toUpperCase();
+  return (words[0][0] + (words[1] ? words[1][0] : "")).toUpperCase();
+};
+
+const getAvatarColor = (name) => {
+  const colors = ["#0284C7", "#0D9488", "#D97706", "#7C3AED", "#DB2777", "#4F46E5"];
+  let hash = 0;
+  for (let i = 0; i < (name || "").length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return colors[Math.abs(hash) % colors.length];
+};
+
+const ContractorBadge = ({ name, contractorsList, size = 24 }) => {
+  const [imgError, setImgError] = useState(false);
+  if (!name || name === "-") return <span style={{ color: "var(--text-muted)" }}>—</span>;
+  const rawLogo = findContractorLogo(name, contractorsList);
+  const logoUrl = getLogoUrl(rawLogo);
+  const color = getAvatarColor(name);
+  const initials = getInitials(name);
+  return (
+    <div style={{ display: "inline-flex", alignItems: "center", gap: 8, maxWidth: 180 }}>
+      {logoUrl && !imgError ? (
+        <div style={{
+          width: size, height: size, borderRadius: 5, flexShrink: 0,
+          background: "#ffffff", border: "1px solid var(--border-color)",
+          display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", padding: 2
+        }}>
+          <img
+            src={logoUrl}
+            alt={name}
+            style={{ width: "100%", height: "100%", objectFit: "contain" }}
+            onError={() => setImgError(true)}
+          />
+        </div>
+      ) : (
+        <div style={{
+          width: size, height: size, borderRadius: 5, flexShrink: 0,
+          background: `${color}22`, color: color, border: `1px solid ${color}44`,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: Math.max(9, Math.floor(size * 0.42)), fontWeight: 700, letterSpacing: "0.3px"
+        }}>
+          {initials}
+        </div>
+      )}
+      <span style={{
+        fontWeight: 500, color: "var(--text-main)", whiteSpace: "nowrap",
+        overflow: "hidden", textOverflow: "ellipsis", fontSize: "0.78rem"
+      }} title={name}>{name}</span>
+    </div>
+  );
+};
+
 export default function SCList() {
   const navigate = useNavigate();
   const [spotChecks, setSpotChecks] = useState([]);
@@ -352,7 +431,9 @@ export default function SCList() {
                       <td style={{ maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={locationText}>
                         {locationText}
                       </td>
-                      <td>{r.companyInvolved || "-"}</td>
+                      <td style={{ maxWidth: 200 }}>
+                        <ContractorBadge name={r.companyInvolved || "-"} contractorsList={contractorsList} size={24} />
+                      </td>
                       <td>{r.inspectorName || r.createdByUserName || "-"}</td>
                       <td>{formatDate(r.date || r.createdTime)}</td>
                       <td style={{ textAlign: "center", whiteSpace: "nowrap" }} onClick={e => e.stopPropagation()}>

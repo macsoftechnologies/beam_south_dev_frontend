@@ -13,7 +13,7 @@ import { BUILDINGS } from "../../../data/buildings";
 import nneLogo from "../../../assets/images/nne_logo.png";
 import novoLogo from "../../../assets/images/Logo.jpeg";
 import { IncidentPdfExporter } from "../components/IncidentPdfExporter";
-import { getDenmarkDateString } from "../../../utils/dateUtils";
+import { getDenmarkDateString, parseUTCToDate, formatToDenmark24Hour, formatToDenmark24HourObj } from "../../../utils/dateUtils";
 import "../../../styles/module-shared.css";
 import "./IMDetails.css";
 import { AnalogTimePicker } from "./IMCreate";
@@ -2029,6 +2029,32 @@ export default function IMDetails() {
     }
   };
 
+  const handleDownloadFile = async (fileUrl, fileName) => {
+    if (!fileUrl) return;
+    try {
+      const fullUrl = getAttachmentUrl(fileUrl);
+      const res = await fetch(fullUrl);
+      if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+      const blob = await res.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = fileName || fileUrl.split("/").pop() || "download";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (e) {
+      const a = document.createElement("a");
+      a.href = getAttachmentUrl(fileUrl);
+      a.download = fileName || fileUrl.split("/").pop() || "download";
+      a.target = "_blank";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+  };
+
   const editAction = (action) => {
     if (action.status === 'COMPLETED' || action.status === 'CLOSED' || String(action.status || '').toUpperCase() === 'COMPLETED' || String(action.status || '').toUpperCase() === 'CLOSED') {
       return;
@@ -2269,6 +2295,76 @@ export default function IMDetails() {
     );
   }
 
+  const isStep3ApprovedOrFilled = Boolean(
+    investigationApproved ||
+    (investigationData && (
+      investigationData.reviewedBy ||
+      investigationData.approvedBy ||
+      (Array.isArray(investigationData.signatures) && investigationData.signatures.length > 0)
+    ))
+  );
+
+  const isStep3PendingClosure = !isClosed && (isStep3ApprovedOrFilled || (isNoFurtherInvestigation && hasInitialReportData));
+
+  // Single source of truth for step statuses shared between tabs and timeline
+  const getStepStatusInfo = (stepKey) => {
+    if (stepKey === "headsUp" || stepKey === 1) {
+      const hist = headsUpData?.editHistory || [];
+      const lastHist = hist.length > 0 ? hist[hist.length - 1] : null;
+      if (lastHist && (lastHist.status === "RETURNED_FOR_REVISION" || String(lastHist.action).toLowerCase().includes("return")) && !headsUpApproved) {
+        return { label: "REVISION REQUIRED", state: "revision_required", chipClass: "chip-inprogress" };
+      }
+      if (headsUpApproved) {
+        return { label: "COMPLETED", state: "done", chipClass: "chip-approved" };
+      }
+      const isSubmitted = Boolean(headsUpData?.submittedBy || headsUpData?.signature || headsUpData?.submittedTime || incident?.id || incident?.caseNumber);
+      return isSubmitted
+        ? { label: "IN REVIEW", state: "current", chipClass: "chip-inprogress" }
+        : { label: "PENDING", state: "pending", chipClass: "chip-upcoming" };
+    }
+
+    if (stepKey === "initialReport" || stepKey === 2) {
+      const hist = initialReportData?.editHistory || [];
+      const lastHist = hist.length > 0 ? hist[hist.length - 1] : null;
+      if (lastHist && (lastHist.status === "RETURNED_FOR_REVISION" || String(lastHist.action).toLowerCase().includes("return")) && !initialReportApproved) {
+        return { label: "REVISION REQUIRED", state: "revision_required", chipClass: "chip-inprogress" };
+      }
+      if (isNoFurtherInvestigation && !hasInitialReportData) {
+        return { label: "WAIVED", state: "waived", chipClass: "chip-waived" };
+      }
+      if (initialReportApproved) {
+        return { label: "COMPLETED", state: "done", chipClass: "chip-approved" };
+      }
+      if (hasInitialReportData || initialReportSubmitted) {
+        return { label: "IN REVIEW", state: "current", chipClass: "chip-inprogress" };
+      }
+      return { label: "PENDING", state: "pending", chipClass: "chip-upcoming" };
+    }
+
+    if (stepKey === "investigation" || stepKey === 3) {
+      const hist = investigationData?.editHistory || [];
+      const lastHist = hist.length > 0 ? hist[hist.length - 1] : null;
+      if (lastHist && (lastHist.status === "RETURNED_FOR_REVISION" || String(lastHist.action).toLowerCase().includes("return")) && !investigationApproved) {
+        return { label: "REVISION REQUIRED", state: "revision_required", chipClass: "chip-inprogress" };
+      }
+      if (isNoFurtherInvestigation && !hasInvestigationData) {
+        return { label: "WAIVED", state: "waived", chipClass: "chip-waived" };
+      }
+      if (investigationApproved || isClosed) {
+        return { label: "COMPLETED", state: "done", chipClass: "chip-approved" };
+      }
+      if (isStep3PendingClosure) {
+        return { label: "PENDING CLOSURE", state: "pending_closure", chipClass: "chip-inprogress" };
+      }
+      if (hasInvestigationData || investigationSubmitted) {
+        return { label: "IN REVIEW", state: "current", chipClass: "chip-inprogress" };
+      }
+      return { label: "PENDING", state: "pending", chipClass: "chip-upcoming" };
+    }
+
+    return { label: "PENDING", state: "pending", chipClass: "chip-upcoming" };
+  };
+
   const renderFishboneSvg = () => {
     const W = 1000, H = 450, spineY = 225, spineX1 = 120, spineX2 = 780;
     const topXs = [260, 480, 700];
@@ -2401,44 +2497,6 @@ export default function IMDetails() {
   };
 
   const renderTimeline = () => {
-    const isNoFurtherInvestigation = Boolean(
-      incident?.noFurtherInvestigation ||
-      huNoFurtherInvestigation ||
-      irNoFurtherInvestigation ||
-      headsUpData?.noFurtherInvestigation ||
-      initialReportData?.noFurtherInvestigation ||
-      rawIncident?.incident?.noFurtherInvestigation ||
-      rawIncident?.noFurtherInvestigation
-    );
-
-    const isClosed = Boolean(
-      incident?.closedBy ||
-      incident?.status === 2 ||
-      String(incident?.stage).toUpperCase() === "CLOSED" ||
-      rawIncident?.incident?.closedBy ||
-      rawIncident?.closedBy ||
-      rawIncident?.incident?.status === 2 ||
-      rawIncident?.status === 2 ||
-      String(rawIncident?.incident?.stage || rawIncident?.stage).toUpperCase() === "CLOSED"
-    );
-
-    const hasInitialReport = Boolean(
-      initialReportSubmitted ||
-      initialReportApproved ||
-      (initialReportData && (initialReportData.submittedBy || initialReportData.signature || initialReportData.submittedTime))
-    );
-
-    const isStep3ApprovedOrFilled = Boolean(
-      investigationApproved ||
-      (investigationData && (
-        investigationData.reviewedBy ||
-        investigationData.approvedBy ||
-        (Array.isArray(investigationData.signatures) && investigationData.signatures.length > 0)
-      ))
-    );
-
-    const isStep3PendingClosure = !isClosed && (isStep3ApprovedOrFilled || (isNoFurtherInvestigation && hasInitialReportData));
-
     const incDateStr = huDate || incident?.incidentDate || incident?.date || "";
     const incTimeStr = huTime || incident?.incidentTime || incident?.time || "00:00";
 
@@ -2451,7 +2509,7 @@ export default function IMDetails() {
     let baseDate = null;
 
     if (createdStr) {
-      baseDate = new Date(createdStr);
+      baseDate = parseUTCToDate(createdStr) || new Date(createdStr);
     } else if (incDateStr) {
       baseDate = new Date(`${incDateStr}T${incTimeStr}:00`);
     }
@@ -2462,12 +2520,16 @@ export default function IMDetails() {
       const dInv = new Date(baseDate.getTime() + 7 * 24 * 60 * 60 * 1000);
 
       const formatDt = (d) => {
-        const dd = String(d.getDate()).padStart(2, '0');
-        const mm = String(d.getMonth() + 1).padStart(2, '0');
-        const yy = d.getFullYear();
-        const hh = String(d.getHours()).padStart(2, '0');
-        const min = String(d.getMinutes()).padStart(2, '0');
-        return `${dd}/${mm}/${yy} ${hh}:${min}`;
+        if (!d || isNaN(d.getTime())) return "-";
+        return d.toLocaleString("en-GB", {
+          timeZone: "Europe/Copenhagen",
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false
+        }).replace(",", "");
       };
 
       huDeadline = formatDt(dHu);
@@ -2475,10 +2537,14 @@ export default function IMDetails() {
       invDeadline = formatDt(dInv);
     }
 
+    const huStatus = getStepStatusInfo("headsUp");
+    const irStatus = getStepStatusInfo("initialReport");
+    const invStatus = getStepStatusInfo("investigation");
+
     const s = [
-      { key: "headsUp", num: 1, st: stages.headsUp, state: headsUpApproved ? "done" : "current", dueLabel: huDeadline },
-      { key: "initialReport", num: 2, st: stages.initialReport, state: isNoFurtherInvestigation && !hasInitialReportData ? "waived" : initialReportApproved ? "done" : (hasInitialReportData || headsUpApproved) ? "current" : "pending", dueLabel: irDeadline },
-      { key: "investigation", num: 3, st: stages.investigation, state: isClosed ? "done" : isStep3PendingClosure ? "pending_closure" : hasInvestigationData ? (investigationApproved ? "pending_closure" : "current") : isNoFurtherInvestigation ? "waived" : initialReportApproved ? "current" : "pending", dueLabel: invDeadline }
+      { key: "headsUp", num: 1, st: stages.headsUp, state: huStatus.state, statusLabel: huStatus.label, dueLabel: huDeadline },
+      { key: "initialReport", num: 2, st: stages.initialReport, state: irStatus.state, statusLabel: irStatus.label, dueLabel: irDeadline },
+      { key: "investigation", num: 3, st: stages.investigation, state: invStatus.state, statusLabel: invStatus.label, dueLabel: invDeadline }
     ];
 
     return (
@@ -2489,7 +2555,7 @@ export default function IMDetails() {
             const isCompleted = stg.state === "done";
             const isPendingClosure = stg.state === "pending_closure";
             const isWaived = stg.state === "waived";
-            const isInProgress = stg.state === "current";
+            const isInProgress = stg.state === "current" || stg.state === "revision_required";
             const isPending = stg.state === "pending";
 
             return (
@@ -2516,13 +2582,22 @@ export default function IMDetails() {
                       fontSize: "14px",
                       fontWeight: 800,
                       zIndex: 2,
-                      background: isCompleted ? "#10b981" : isWaived ? "#10b981" : isPendingClosure ? "#ea580c" : isInProgress ? "#e11d48" : "#ffffff",
+                      background: isCompleted ? "#10b981" : isWaived ? "#64748b" : isPendingClosure ? "#ea580c" : isInProgress ? "#e11d48" : "#ffffff",
                       color: isCompleted || isWaived || isPendingClosure || isInProgress ? "#ffffff" : "#94a3b8",
-                      border: isPending ? "2px dashed #cbd5e1" : "none",
-                      boxShadow: isPendingClosure ? "0 0 0 5px rgba(234, 88, 12, 0.2)" : isInProgress ? "0 0 0 5px rgba(225, 29, 72, 0.2)" : isCompleted || isWaived ? "0 2px 6px rgba(16, 185, 129, 0.25)" : "none"
+                      border: isPending ? "2px dashed #cbd5e1" : isWaived ? "2px solid #475569" : "none",
+                      boxShadow: isPendingClosure ? "0 0 0 5px rgba(234, 88, 12, 0.2)" : isInProgress ? "0 0 0 5px rgba(225, 29, 72, 0.2)" : isCompleted ? "0 2px 6px rgba(16, 185, 129, 0.25)" : isWaived ? "0 2px 6px rgba(100, 116, 139, 0.25)" : "none"
                     }}
                   >
-                    {isCompleted || isWaived || isPendingClosure ? <CheckIcon /> : stg.num}
+                    {isCompleted || isPendingClosure ? (
+                      <CheckIcon />
+                    ) : isWaived ? (
+                      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" title="Waived / Exempt">
+                        <circle cx="12" cy="12" r="9" />
+                        <line x1="5.7" y1="5.7" x2="18.3" y2="18.3" />
+                      </svg>
+                    ) : (
+                      stg.num
+                    )}
                   </div>
                   {i < s.length - 1 && (
                     <div
@@ -2531,9 +2606,9 @@ export default function IMDetails() {
                         top: "36px",
                         bottom: "-20px",
                         left: "50%",
-                        width: "3px",
-                        marginLeft: "-1.5px",
-                        background: isCompleted || isWaived ? "#10b981" : isPendingClosure ? "#ea580c" : "#e2e8f0",
+                        width: isWaived ? "2px" : "3px",
+                        marginLeft: isWaived ? "-1px" : "-1.5px",
+                        background: isCompleted ? "#10b981" : isWaived ? "repeating-linear-gradient(to bottom, #94a3b8 0px, #94a3b8 5px, transparent 5px, transparent 9px)" : isPendingClosure ? "#ea580c" : "#e2e8f0",
                         zIndex: 1
                       }}
                     />
@@ -2544,36 +2619,40 @@ export default function IMDetails() {
                 <div
                   style={{
                     flex: 1,
-                    background: isCompleted ? "#eefbf4" : isWaived ? "#f0fdf4" : isPendingClosure ? "#fff7ed" : isInProgress ? "#fef2f2" : "#ffffff",
-                    border: `1px solid ${isCompleted ? "#d1fae5" : isWaived ? "#bbf7d0" : isPendingClosure ? "#fed7aa" : isInProgress ? "#fee2e2" : "#e2e8f0"}`,
-                    borderLeft: `4px solid ${isCompleted || isWaived ? "#10b981" : isPendingClosure ? "#ea580c" : isInProgress ? "#ef4444" : "#cbd5e1"}`,
+                    background: isCompleted ? "#eefbf4" : isWaived ? "#f8fafc" : isPendingClosure ? "#fff7ed" : isInProgress ? "#fef2f2" : "#ffffff",
+                    border: `1px ${isWaived ? "dashed" : "solid"} ${isCompleted ? "#d1fae5" : isWaived ? "#cbd5e1" : isPendingClosure ? "#fed7aa" : isInProgress ? "#fee2e2" : "#e2e8f0"}`,
+                    borderLeft: `4px solid ${isCompleted ? "#10b981" : isWaived ? "#64748b" : isPendingClosure ? "#ea580c" : isInProgress ? "#ef4444" : "#cbd5e1"}`,
                     borderRadius: "8px",
                     padding: "16px 20px",
-                    boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+                    boxShadow: isWaived ? "none" : "0 1px 3px rgba(0,0,0,0.03)",
                     transition: "all 0.2s ease"
                   }}
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
                     <div>
                       <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-                        <span style={{ fontSize: "14.5px", fontWeight: 700, color: "#0f172a" }}>{stg.st.label}</span>
+                        <span style={{ fontSize: "14.5px", fontWeight: 700, color: isWaived ? "#334155" : "#0f172a" }}>{stg.st.label}</span>
 
                         {/* Status Chip */}
                         {isCompleted ? (
                           <span style={{ background: "#d1fae5", color: "#065f46", padding: "2px 8px", borderRadius: "999px", fontSize: "10.5px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em" }}>
                             COMPLETED
                           </span>
+                        ) : isWaived ? (
+                          <span style={{ background: "#f1f5f9", color: "#475569", border: "1px solid #cbd5e1", padding: "2px 8px", borderRadius: "999px", fontSize: "10.5px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em" }}>
+                            WAIVED
+                          </span>
                         ) : isPendingClosure ? (
                           <span style={{ background: "#ffedd5", color: "#c2410c", border: "1px solid #fdba74", padding: "2px 8px", borderRadius: "999px", fontSize: "10.5px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em" }}>
                             PENDING CLOSURE
                           </span>
-                        ) : isWaived ? (
-                          <span style={{ background: "#dcfce7", color: "#15803d", border: "1px solid #86efac", padding: "2px 8px", borderRadius: "999px", fontSize: "10.5px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em" }}>
-                            WAIVED / NOT REQUIRED
+                        ) : stg.state === "revision_required" ? (
+                          <span style={{ background: "#fef3c7", color: "#92400e", border: "1px solid #fcd34d", padding: "2px 8px", borderRadius: "999px", fontSize: "10.5px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em" }}>
+                            REVISION REQUIRED
                           </span>
                         ) : isInProgress ? (
                           <span style={{ background: "#fee2e2", color: "#991b1b", padding: "2px 8px", borderRadius: "999px", fontSize: "10.5px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em" }}>
-                            IN PROGRESS
+                            {stg.statusLabel || "IN PROGRESS"}
                           </span>
                         ) : (
                           <span style={{ background: "#f1f5f9", color: "#64748b", padding: "2px 8px", borderRadius: "999px", fontSize: "10.5px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em" }}>
@@ -2584,6 +2663,11 @@ export default function IMDetails() {
 
                       <div style={{ fontSize: "12px", color: "#64748b", marginTop: "6px" }}>
                         Deadline: {stg.dueLabel}
+                        {isWaived && (
+                          <span style={{ marginLeft: "8px", color: "#94a3b8", fontStyle: "italic", fontWeight: 500 }}>
+                            &bull; Waived from investigation workflow
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -2729,14 +2813,7 @@ export default function IMDetails() {
   };
 
   const formatDateTimeObj = (dStr) => {
-    if (!dStr) return { date: "—", time: "—" };
-    try {
-      const d = new Date(dStr);
-      if (isNaN(d.getTime())) return { date: dStr.split("T")[0] || dStr, time: dStr.split("T")[1] || "—" };
-      const date = d.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-      const time = d.toLocaleString('en-GB', { hour: '2-digit', minute: '2-digit' });
-      return { date, time };
-    } catch (e) { return { date: dStr, time: "—" }; }
+    return formatToDenmark24HourObj(dStr);
   };
 
 
@@ -2815,6 +2892,8 @@ export default function IMDetails() {
         <div className="audit-circle" style={{ background: color }}>
           {type === "APPROVED" ? (
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
+          ) : type === "CLOSED" ? (
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
           ) : type === "EDITED" ? (
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
           ) : type === "SUBMITTED" && title.includes("Investigation") ? (
@@ -2836,15 +2915,15 @@ export default function IMDetails() {
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4, flexWrap: "wrap" }}>
                 <span className="audit-title" style={{ color: color }}>{title}</span>
                 <span className="audit-badge" style={{ background: color + "1a", color: color, border: `1px solid ${color}33` }}>
-                  {type === "APPROVED" ? "Marked OK & Signed Off" : type === "EDITED" ? "Updated & Re-submitted" : type === "RETURNED_FOR_REVISION" ? "Returned for Revision" : "Submitted"}
+                  {type === "APPROVED" ? "Marked OK & Signed Off" : type === "EDITED" ? "Updated & Re-submitted" : type === "RETURNED_FOR_REVISION" ? "Returned for Revision" : type === "CLOSED" ? "Incident Closed" : "Submitted"}
                 </span>
               </div>
               <div style={{ fontSize: 13, color: "var(--text-main)", marginBottom: 4 }}>
-                {type === "APPROVED" ? "Signed by" : type === "EDITED" ? "Updated by" : type === "RETURNED_FOR_REVISION" ? "Returned by" : "Submitted by"} <b>{user}</b> <span style={{ color: "var(--text-muted)" }}>({role})</span>
+                {type === "APPROVED" ? "Signed by" : type === "EDITED" ? "Updated by" : type === "RETURNED_FOR_REVISION" ? "Returned by" : type === "CLOSED" ? "Closed by" : "Submitted by"} <b>{user}</b> <span style={{ color: "var(--text-muted)" }}>({role})</span>
               </div>
               {step.reason && (
-                <div style={{ fontSize: 12, color: type === "RETURNED_FOR_REVISION" ? "#991b1b" : "#92400e", marginBottom: 6, background: type === "RETURNED_FOR_REVISION" ? "#fef2f2" : "#fffbeb", padding: "4px 8px", borderRadius: 4, display: "inline-block", border: type === "RETURNED_FOR_REVISION" ? "1px solid #fecaca" : "1px solid #fef3c7" }}>
-                  <strong>{type === "RETURNED_FOR_REVISION" ? "Reason for Revision:" : "Changes / Notes:"}</strong> {step.reason}
+                <div style={{ fontSize: 12, color: type === "RETURNED_FOR_REVISION" ? "#991b1b" : type === "CLOSED" ? "#065f46" : "#92400e", marginBottom: 6, background: type === "RETURNED_FOR_REVISION" ? "#fef2f2" : type === "CLOSED" ? "#ecfdf5" : "#fffbeb", padding: "4px 8px", borderRadius: 4, display: "inline-block", border: type === "RETURNED_FOR_REVISION" ? "1px solid #fecaca" : type === "CLOSED" ? "1px solid #a7f3d0" : "1px solid #fef3c7" }}>
+                  <strong>{type === "RETURNED_FOR_REVISION" ? "Reason for Revision:" : type === "CLOSED" ? "Closure Remarks:" : "Changes / Notes:"}</strong> {step.reason}
                 </div>
               )}
               <div style={{ display: "flex", alignItems: "center", gap: 16, fontSize: 12, color: "var(--text-muted)", flexWrap: "wrap" }}>
@@ -2994,7 +3073,42 @@ export default function IMDetails() {
     });
   }
 
-  const allAuditSteps = [...huAudit, ...irAudit, ...invAudit];
+  const closeAuditStep = (isClosed || incident.closedBy || incident.closedTime || incident.status === 2 || String(incident.stage).toUpperCase() === "CLOSED") ? {
+    title: "Incident Closed",
+    type: "CLOSED",
+    user: incident.closedBy || "Site HSE Lead / Admin",
+    role: "Incident Closer",
+    reason: incident.closureComments,
+    timestamp: incident.closedTime || incident.updatedTime,
+    signature: incident.closureSignature,
+    iconSvg: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+      </svg>
+    ),
+    color: "#059669"
+  } : null;
+
+  if (closeAuditStep) {
+    if ((huNoFurtherInvestigation || incident.noFurtherInvestigation) && !hasInitialReportData) {
+      huAudit.push(closeAuditStep);
+    }
+    if ((irNoFurtherInvestigation || huNoFurtherInvestigation || incident.noFurtherInvestigation) && !hasInvestigationData) {
+      irAudit.push(closeAuditStep);
+    }
+    invAudit.push(closeAuditStep);
+  }
+
+  const allAuditSteps = [...huAudit, ...irAudit, ...invAudit].filter((step, idx, arr) => {
+    if (step.type === "CLOSED") {
+      return arr.findIndex(s => s.type === "CLOSED") === idx;
+    }
+    return true;
+  });
+  if (closeAuditStep && !allAuditSteps.some(s => s.type === "CLOSED")) {
+    allAuditSteps.push(closeAuditStep);
+  }
 
   return (
     <div className="mod-page">
@@ -3007,9 +3121,9 @@ export default function IMDetails() {
 
       {/* ── Print-only Header ── */}
       <div className="print-only-header">
-        {(incident.stage === "CLOSED" || incident.status === "Closed" || incident.pipeline === "Closed" || incident.stage === "Closed") && (
+        {(incident.stage === "CLOSED" || incident.status === "Closed" || incident.pipeline === "Closed" || incident.stage === "Closed" || isClosed) && (
           <div style={{ textAlign: "right", fontSize: "14px", fontWeight: "bold", marginBottom: "16px", color: "#333" }}>
-            Completed Date: {incident.updatedTime ? new Date(incident.updatedTime).toLocaleString() : new Date().toLocaleString()}
+            Completed Date: {formatToDenmark24Hour(incident.closedTime || incident.updatedTime || new Date())}
           </div>
         )}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "2px solid #e2e8f0", paddingBottom: "24px", marginBottom: "32px" }}>
@@ -3139,78 +3253,20 @@ export default function IMDetails() {
           {
             id: "headsUp",
             label: "Step 1: Heads-Up (2hr)",
-            tabBadge: (() => {
-              const hist = headsUpData?.editHistory || [];
-              const lastHist = hist.length > 0 ? hist[hist.length - 1] : null;
-              if (lastHist && (lastHist.status === "RETURNED_FOR_REVISION" || String(lastHist.action).toLowerCase().includes("return")) && !headsUpApproved) {
-                return "REVISION REQUIRED";
-              }
-              if (headsUpApproved) return "COMPLETED";
-              const isSubmitted = Boolean(headsUpData?.submittedBy || headsUpData?.signature || headsUpData?.submittedTime || incident?.id || incident?.caseNumber);
-              return isSubmitted ? "IN REVIEW" : "PENDING";
-            })(),
-            tabBadgeClass: (() => {
-              const hist = headsUpData?.editHistory || [];
-              const lastHist = hist.length > 0 ? hist[hist.length - 1] : null;
-              if (lastHist && (lastHist.status === "RETURNED_FOR_REVISION" || String(lastHist.action).toLowerCase().includes("return")) && !headsUpApproved) {
-                return "chip-inprogress";
-              }
-              if (headsUpApproved) return "chip-approved";
-              const isSubmitted = Boolean(headsUpData?.submittedBy || headsUpData?.signature || headsUpData?.submittedTime || incident?.id || incident?.caseNumber);
-              return isSubmitted ? "chip-inprogress" : "chip-upcoming";
-            })()
+            tabBadge: getStepStatusInfo("headsUp").label,
+            tabBadgeClass: getStepStatusInfo("headsUp").chipClass
           },
           {
             id: "initialReport",
             label: "Step 2: Initial Report (24hr)",
-            tabBadge: (() => {
-              const hist = initialReportData?.editHistory || [];
-              const lastHist = hist.length > 0 ? hist[hist.length - 1] : null;
-              if (lastHist && (lastHist.status === "RETURNED_FOR_REVISION" || String(lastHist.action).toLowerCase().includes("return")) && !initialReportApproved) {
-                return "REVISION REQUIRED";
-              }
-              if (isNoFurtherInvestigation && !hasInitialReportData) return "WAIVED";
-              if (initialReportApproved) return "COMPLETED";
-              if (hasInitialReportData || initialReportSubmitted) return "IN REVIEW";
-              return "PENDING";
-            })(),
-            tabBadgeClass: (() => {
-              const hist = initialReportData?.editHistory || [];
-              const lastHist = hist.length > 0 ? hist[hist.length - 1] : null;
-              if (lastHist && (lastHist.status === "RETURNED_FOR_REVISION" || String(lastHist.action).toLowerCase().includes("return")) && !initialReportApproved) {
-                return "chip-inprogress";
-              }
-              if (isNoFurtherInvestigation && !hasInitialReportData) return "chip-approved";
-              if (initialReportApproved) return "chip-approved";
-              if (hasInitialReportData || initialReportSubmitted) return "chip-inprogress";
-              return "chip-upcoming";
-            })()
+            tabBadge: getStepStatusInfo("initialReport").label,
+            tabBadgeClass: getStepStatusInfo("initialReport").chipClass
           },
           {
             id: "investigation",
             label: "Step 3: Investigation Report (7 days)",
-            tabBadge: (() => {
-              const hist = investigationData?.editHistory || [];
-              const lastHist = hist.length > 0 ? hist[hist.length - 1] : null;
-              if (lastHist && (lastHist.status === "RETURNED_FOR_REVISION" || String(lastHist.action).toLowerCase().includes("return")) && !investigationApproved) {
-                return "REVISION REQUIRED";
-              }
-              if (isNoFurtherInvestigation && !hasInvestigationData) return "WAIVED";
-              if (investigationApproved || isClosed) return "COMPLETED";
-              if (hasInvestigationData || investigationSubmitted) return "IN REVIEW";
-              return "PENDING";
-            })(),
-            tabBadgeClass: (() => {
-              const hist = investigationData?.editHistory || [];
-              const lastHist = hist.length > 0 ? hist[hist.length - 1] : null;
-              if (lastHist && (lastHist.status === "RETURNED_FOR_REVISION" || String(lastHist.action).toLowerCase().includes("return")) && !investigationApproved) {
-                return "chip-inprogress";
-              }
-              if (isNoFurtherInvestigation && !hasInvestigationData) return "chip-approved";
-              if (investigationApproved || isClosed) return "chip-approved";
-              if (hasInvestigationData || investigationSubmitted) return "chip-inprogress";
-              return "chip-upcoming";
-            })()
+            tabBadge: getStepStatusInfo("investigation").label,
+            tabBadgeClass: getStepStatusInfo("investigation").chipClass
           },
           {
             id: "immediateActions",
@@ -3314,9 +3370,14 @@ export default function IMDetails() {
                   <div>
                     <dt style={{ color: "var(--text-muted)", fontSize: "11px", fontWeight: 700, letterSpacing: "0.5px", textTransform: "uppercase", marginBottom: "4px" }}>Status</dt>
                     <dd style={{ fontWeight: 500, fontSize: "14px", color: "var(--text-main)" }}>
-                      <span style={{ display: "inline-block", padding: "2px 8px", background: "var(--bg-card-hover)", borderRadius: "12px", fontSize: "12px" }}>
-                        {(incident.status === 2 || incident.closedBy || String(incident.stage).toUpperCase() === "CLOSED") ? "Closed" : "Open"}
+                      <span style={{ display: "inline-block", padding: "2px 8px", background: (incident.status === 2 || incident.closedBy || String(incident.stage).toUpperCase() === "CLOSED" || isClosed) ? "#ecfdf5" : "var(--bg-card-hover)", color: (incident.status === 2 || incident.closedBy || String(incident.stage).toUpperCase() === "CLOSED" || isClosed) ? "#059669" : "inherit", borderRadius: "12px", fontSize: "12px", fontWeight: 600 }}>
+                        {(incident.status === 2 || incident.closedBy || String(incident.stage).toUpperCase() === "CLOSED" || isClosed) ? "Closed" : "Open"}
                       </span>
+                      {(incident.status === 2 || incident.closedBy || String(incident.stage).toUpperCase() === "CLOSED" || isClosed) && (incident.closedTime || incident.updatedTime) && (
+                        <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "4px" }}>
+                          Closed: {formatToDenmark24Hour(incident.closedTime || incident.updatedTime)}
+                        </div>
+                      )}
                     </dd>
                   </div>
                   <div>
@@ -3406,21 +3467,17 @@ export default function IMDetails() {
             <div className="mod-card-body" style={{ padding: 0 }}>
               {(() => {
                 const formatDateTime = (dStr) => {
-                  if (!dStr) return "—";
-                  try {
-                    const d = new Date(dStr);
-                    if (isNaN(d.getTime())) return dStr.replace("T", " ");
-                    return d.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(',', '');
-                  } catch (e) { return dStr; }
+                  return formatToDenmark24Hour(dStr);
                 };
 
                 const allEvents = [];
-                if (incident?.closedBy || incident?.status === 2 || String(incident?.stage).toUpperCase() === "CLOSED") {
+                if (incident?.closedBy || incident?.closedTime || incident?.status === 2 || String(incident?.stage).toUpperCase() === "CLOSED" || isClosed) {
+                  const cTime = incident?.closedTime || incident?.updatedTime;
                   allEvents.push({
                     text: "Incident closed",
-                    user: incident?.closedBy || "System",
-                    rawDate: incident?.updatedTime,
-                    date: formatDateTime(incident?.updatedTime)
+                    user: incident?.closedBy || "System Admin / Site HSE",
+                    rawDate: cTime,
+                    date: formatDateTime(cTime)
                   });
                 }
 
@@ -4067,7 +4124,14 @@ export default function IMDetails() {
               </div>
               <div className="mod-card-body" style={{ padding: "24px" }}>
                 <div style={{ fontSize: "12px", color: "var(--text-muted)", marginBottom: "20px" }}>
-                  Submitted by <b>{huSubmitterName || incident.reportedBy || incident.gatekeeperName || "User"}</b> on <b>{huSubmittedTime ? huSubmittedTime.split("T")[0] : (incident.createdTime ? incident.createdTime.split("T")[0] : incident.incidentDate || "—")}</b>
+                  Submitted by <b>{huSubmitterName || incident.reportedBy || incident.gatekeeperName || "User"}</b> on <b>{(() => {
+                    const rawSub = huSubmittedTime || incident.createdTime;
+                    if (rawSub) {
+                      const formatted = formatToDenmark24Hour(rawSub);
+                      if (formatted && formatted !== "—") return formatted;
+                    }
+                    return incident.incidentDate || "—";
+                  })()}</b>
                 </div>
 
                 {/* 1. Location & Identification / Project Details */}
@@ -7137,9 +7201,16 @@ export default function IMDetails() {
             {isNneUser() && showAddAction && (
               <div style={{ padding: "16px", borderBottom: "1px solid var(--border-color)", background: "var(--bg-dark)" }}>
                 <div className="grid-2">
-                  <div className="mod-form-group">
+                  <div className="mod-form-group" style={{ gridColumn: "1 / -1" }}>
                     <label className="mod-form-label">Action Description</label>
-                    <input className="mod-form-input" value={newAction.action} onChange={e => setNewAction({ ...newAction, action: e.target.value })} placeholder="Describe the action..." />
+                    <textarea
+                      className="mod-form-textarea"
+                      rows={3}
+                      style={{ width: "100%", minHeight: "75px", resize: "vertical", fontFamily: "inherit" }}
+                      value={newAction.action}
+                      onChange={e => setNewAction({ ...newAction, action: e.target.value })}
+                      placeholder="Describe the corrective action in detail..."
+                    />
                   </div>
                   <div className="mod-form-group">
                     <label className="mod-form-label">Owner</label>
@@ -7149,7 +7220,7 @@ export default function IMDetails() {
                     <label className="mod-form-label">Target Date</label>
                     <input type="date" className="mod-form-input" value={newAction.targetDate} onChange={e => setNewAction({ ...newAction, targetDate: e.target.value })} />
                   </div>
-                  <div className="mod-form-group">
+                  <div className="mod-form-group" style={{ gridColumn: "1 / -1" }}>
                     <label className="mod-form-label">Status</label>
                     <select className="mod-form-select" value={newAction.status} onChange={e => setNewAction({ ...newAction, status: e.target.value })}>
                       <option value="PENDING">Pending</option>
@@ -7179,10 +7250,46 @@ export default function IMDetails() {
                           href={getAttachmentUrl(newAction.attachmentUrl)}
                           target="_blank"
                           rel="noopener noreferrer"
-                          style={{ fontSize: "12px", color: "#2563eb", fontWeight: 600, textDecoration: "underline", marginLeft: "6px" }}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "4px",
+                            padding: "4px 10px",
+                            borderRadius: "4px",
+                            background: "#2563eb",
+                            color: "#fff",
+                            fontSize: "11.5px",
+                            fontWeight: 600,
+                            textDecoration: "none",
+                            marginLeft: "6px"
+                          }}
+                          title="Open File in New Tab"
                         >
-                          View File
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                          Open
                         </a>
+                        <button
+                          type="button"
+                          onClick={() => handleDownloadFile(newAction.attachmentUrl, newAction.attachmentName)}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "4px",
+                            padding: "4px 10px",
+                            borderRadius: "4px",
+                            background: "var(--bg-card, #fff)",
+                            border: "1px solid var(--border-color)",
+                            fontSize: "11.5px",
+                            color: "var(--text-main)",
+                            fontWeight: 600,
+                            cursor: "pointer",
+                            marginLeft: "4px"
+                          }}
+                          title="Download File"
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                          Download
+                        </button>
                         <label
                           style={{
                             cursor: actionFileUploading ? "not-allowed" : "pointer",
@@ -7311,32 +7418,71 @@ export default function IMDetails() {
                                   <td>{a.targetDate ? new Date(a.targetDate).toLocaleDateString() : '—'}</td>
                                   <td>
                                     {actionAttachmentUrl ? (
-                                      <a
-                                        href={getAttachmentUrl(actionAttachmentUrl)}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        onClick={e => e.stopPropagation()}
-                                        style={{
-                                          display: "inline-flex",
-                                          alignItems: "center",
-                                          gap: "5px",
-                                          padding: "3px 8px",
-                                          borderRadius: "6px",
-                                          background: "var(--bg-dark, #f1f5f9)",
-                                          border: "1px solid var(--border-color)",
-                                          color: "#2563eb",
-                                          fontSize: "11.5px",
-                                          fontWeight: 600,
-                                          textDecoration: "none",
-                                          maxWidth: "160px"
-                                        }}
-                                        title={actionAttachmentName}
-                                      >
-                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>
-                                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                          {actionAttachmentName}
+                                      <div style={{ display: "inline-flex", alignItems: "center", gap: "6px" }} onClick={e => e.stopPropagation()}>
+                                        <span
+                                          style={{
+                                            display: "inline-flex",
+                                            alignItems: "center",
+                                            gap: "5px",
+                                            padding: "3px 8px",
+                                            borderRadius: "6px",
+                                            background: "var(--bg-dark, #f1f5f9)",
+                                            border: "1px solid var(--border-color)",
+                                            color: "var(--text-main)",
+                                            fontSize: "11.5px",
+                                            fontWeight: 600,
+                                            maxWidth: "130px"
+                                          }}
+                                          title={actionAttachmentName}
+                                        >
+                                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                                          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                            {actionAttachmentName}
+                                          </span>
                                         </span>
-                                      </a>
+                                        <a
+                                          href={getAttachmentUrl(actionAttachmentUrl)}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          style={{
+                                            display: "inline-flex",
+                                            alignItems: "center",
+                                            gap: "3px",
+                                            padding: "3px 7px",
+                                            borderRadius: "4px",
+                                            background: "#2563eb",
+                                            color: "#fff",
+                                            fontSize: "11px",
+                                            fontWeight: 600,
+                                            textDecoration: "none"
+                                          }}
+                                          title="Open File in New Tab"
+                                        >
+                                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                          Open
+                                        </a>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => { e.stopPropagation(); handleDownloadFile(actionAttachmentUrl, actionAttachmentName); }}
+                                          style={{
+                                            display: "inline-flex",
+                                            alignItems: "center",
+                                            gap: "3px",
+                                            padding: "3px 7px",
+                                            borderRadius: "4px",
+                                            background: "var(--bg-card, #fff)",
+                                            border: "1px solid var(--border-color)",
+                                            color: "var(--text-main)",
+                                            fontSize: "11px",
+                                            fontWeight: 600,
+                                            cursor: "pointer"
+                                          }}
+                                          title="Download File"
+                                        >
+                                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                          Download
+                                        </button>
+                                      </div>
                                     ) : (
                                       <span style={{ color: "var(--text-muted)", fontSize: "12px" }}>—</span>
                                     )}
@@ -7362,6 +7508,15 @@ export default function IMDetails() {
                                   <tr style={{ background: "#f8fafc" }}>
                                     <td colSpan={colCount} style={{ padding: "16px 24px", borderBottom: "1px solid var(--border-color)" }}>
                                       <div style={{ padding: "16px", background: "var(--bg-card, #fff)", borderRadius: "8px", border: "1px solid var(--border-color)", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+                                        <div style={{ marginBottom: "14px", padding: "12px 14px", borderRadius: "6px", background: "var(--bg-dark, #f1f5f9)", border: "1px solid var(--border-color)" }}>
+                                          <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-main)", marginBottom: "6px" }}>
+                                            Action Description:
+                                          </div>
+                                          <div style={{ fontSize: "13px", color: "var(--text-main)", whiteSpace: "pre-wrap", lineHeight: 1.5 }}>
+                                            {a.action || "No description provided"}
+                                          </div>
+                                        </div>
+
                                         {actionAttachmentUrl && (
                                           <div style={{ marginBottom: "16px", padding: "12px 14px", borderRadius: "6px", background: "var(--bg-dark, #f1f5f9)", border: "1px solid var(--border-color)" }}>
                                             <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-main)", marginBottom: "8px", display: "flex", alignItems: "center", gap: "6px" }}>
@@ -7377,26 +7532,52 @@ export default function IMDetails() {
                                                   ({Math.round(actionAttachmentSize / 1024)} KB)
                                                 </span>
                                               )}
-                                              <a
-                                                href={getAttachmentUrl(actionAttachmentUrl)}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                style={{
-                                                  display: "inline-flex",
-                                                  alignItems: "center",
-                                                  gap: "4px",
-                                                  padding: "4px 10px",
-                                                  borderRadius: "4px",
-                                                  background: "#2563eb",
-                                                  color: "#fff",
-                                                  fontSize: "11px",
-                                                  fontWeight: 600,
-                                                  textDecoration: "none",
-                                                  marginLeft: "auto"
-                                                }}
-                                              >
-                                                Open / Download File
-                                              </a>
+                                              <div style={{ display: "inline-flex", alignItems: "center", gap: "8px", marginLeft: "auto" }}>
+                                                <a
+                                                  href={getAttachmentUrl(actionAttachmentUrl)}
+                                                  target="_blank"
+                                                  rel="noopener noreferrer"
+                                                  style={{
+                                                    display: "inline-flex",
+                                                    alignItems: "center",
+                                                    gap: "5px",
+                                                    padding: "5px 12px",
+                                                    borderRadius: "5px",
+                                                    background: "#2563eb",
+                                                    color: "#fff",
+                                                    fontSize: "11.5px",
+                                                    fontWeight: 600,
+                                                    textDecoration: "none",
+                                                    boxShadow: "0 1px 2px rgba(37,99,235,0.2)"
+                                                  }}
+                                                  title="Open File in New Tab"
+                                                >
+                                                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                                  Open File
+                                                </a>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleDownloadFile(actionAttachmentUrl, actionAttachmentName)}
+                                                  style={{
+                                                    display: "inline-flex",
+                                                    alignItems: "center",
+                                                    gap: "5px",
+                                                    padding: "5px 12px",
+                                                    borderRadius: "5px",
+                                                    background: "var(--bg-card, #fff)",
+                                                    border: "1px solid var(--border-color)",
+                                                    color: "var(--text-main)",
+                                                    fontSize: "11.5px",
+                                                    fontWeight: 600,
+                                                    cursor: "pointer",
+                                                    boxShadow: "0 1px 2px rgba(0,0,0,0.05)"
+                                                  }}
+                                                  title="Download File to Computer"
+                                                >
+                                                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                                  Download File
+                                                </button>
+                                              </div>
                                             </div>
                                           </div>
                                         )}
@@ -7412,7 +7593,7 @@ export default function IMDetails() {
                                           <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                                             {a.statusHistory.map((hist, hIdx) => {
                                               const hStatusColor = hist.status === 'COMPLETED' ? { bg: '#dcfce7', text: '#16a34a' } : hist.status === 'IN_PROGRESS' ? { bg: '#fef08a', text: '#ca8a04' } : { bg: '#f1f5f9', text: '#64748b' };
-                                              const formattedTime = hist.timestamp ? new Date(hist.timestamp).toLocaleString() : "—";
+                                              const formattedTime = hist.timestamp ? formatToDenmark24Hour(hist.timestamp) : "—";
                                               return (
                                                 <div key={hIdx} style={{ display: "flex", alignItems: "flex-start", gap: "12px", padding: "10px 14px", borderRadius: "6px", background: "var(--bg-dark, #f1f5f9)", border: "1px solid var(--border-color)" }}>
                                                   <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: "4px", fontSize: "10px", fontWeight: 700, textTransform: "uppercase", background: hStatusColor.bg, color: hStatusColor.text, marginTop: "2px" }}>

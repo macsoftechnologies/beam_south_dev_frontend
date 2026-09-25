@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import PageHeader from "../../../components/common/PageHeader/PageHeader";
 import { observationService } from "../../../services/observationService";
 import { getContractors } from "../../../services/authService";
+import { API_BASE_URL } from "../../../services/api";
 import "../../../styles/module-shared.css";
 
 function SODetails() {
@@ -516,7 +517,8 @@ function SODetails() {
               <div className="mod-card-body" style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
                 {obs.photos.map((photo, idx) => {
                   const filename = String(photo).split("/").pop().split("\\").pop();
-                  const src = photo.startsWith("http") ? photo : `https://api.beam.safesiteworks.com/development/m3south/observations/${filename}`;
+                  const baseUrl = API_BASE_URL.endsWith("/") ? API_BASE_URL.slice(0, -1) : API_BASE_URL;
+                  const src = photo.startsWith("http") ? photo : `${baseUrl}/uploads/observations/${filename}`;
                   return (
                     <a key={idx} href={src} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
                       <img
@@ -618,7 +620,8 @@ function SODetails() {
                           <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
                             {log.photos.map((photo, pIdx) => {
                               const filename = String(photo).split("/").pop().split("\\").pop();
-                              const src = photo.startsWith("http") ? photo : `https://api.beam.safesiteworks.com/development/m3south/observations/${filename}`;
+                              const baseUrl = API_BASE_URL.endsWith("/") ? API_BASE_URL.slice(0, -1) : API_BASE_URL;
+                              const src = photo.startsWith("http") ? photo : `${baseUrl}/uploads/observations/${filename}`;
                               return (
                                 <a key={pIdx} href={src} target="_blank" rel="noopener noreferrer">
                                   <img

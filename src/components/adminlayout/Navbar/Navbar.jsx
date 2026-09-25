@@ -241,12 +241,12 @@ function LiveClock() {
 
   return (
     <span className="navbar-clock">
-      {time.toLocaleTimeString('en-US', {
+      {time.toLocaleTimeString('en-GB', {
         timeZone: 'Europe/Copenhagen',
         hour: '2-digit',
         minute: '2-digit',
         second: '2-digit',
-        hour12: true,
+        hour12: false,
       })}
     </span>
   )

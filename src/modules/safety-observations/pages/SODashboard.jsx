@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { OBSERVATIONS, SAFETY_CATEGORIES, SO_RISK_LEVELS, SO_STATUSES } from "../data/observations";
 import observationService from "../../../services/observationService";
 import { getBuildings, getContractors } from "../../../services/authService";
+import { generateObservationStatsPdf } from "../utils/observationStatsPdfGenerator";
 import "./SODashboard.css";
 
 // ── Icons ──
@@ -14,7 +15,25 @@ const Icons = {
   target: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>,
   clock: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
   up: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 7h6v6"/><path d="m22 7-8.5 8.5-5-5L2 17"/></svg>,
-  down: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 17h6v-6"/><path d="m22 17-8.5-8.5-5 5L2 7"/></svg>
+  down: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 17h6v-6"/><path d="m22 17-8.5-8.5-5 5L2 7"/></svg>,
+  download: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+};
+
+// ── Date Range Bounds Helper ──
+const getDateRangeBounds = (rangeKey) => {
+  const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
+  if (rangeKey === 'week') {
+    const diff = (today.getDay() === 0 ? -6 : 1) - today.getDay();
+    const monday = new Date(today);
+    monday.setDate(today.getDate() + diff);
+    return { startDate: monday.toISOString().split('T')[0], endDate: todayStr };
+  }
+  if (rangeKey === '30d') { const d = new Date(Date.now() - 30 * 864e5); return { startDate: d.toISOString().split('T')[0], endDate: todayStr }; }
+  if (rangeKey === '90d') { const d = new Date(Date.now() - 90 * 864e5); return { startDate: d.toISOString().split('T')[0], endDate: todayStr }; }
+  if (rangeKey === 'year') { return { startDate: `${today.getFullYear()}-01-01`, endDate: todayStr }; }
+  if (rangeKey === '13m') { const d = new Date(Date.now() - 395 * 864e5); return { startDate: d.toISOString().split('T')[0], endDate: todayStr }; }
+  return { startDate: '', endDate: '' };
 };
 
 // ── Helpers ──
@@ -170,7 +189,7 @@ const processSOData = (data) => {
   let thisWeek = 0, lastWeek = 0, thisMonth = 0, lastMonth = 0;
   const contractorMap = {};
   const catMap = {};
-  const riskMap = { "Very high": 0, "High": 0, "Moderate": 0, "Medium": 0, "Low": 0, "Very low": 0, "-": 0 };
+  const riskMap = { Critical: 0, High: 0, Medium: 0, Low: 0 };
   let safe = 0, unsafe = 0;
   const weeklyCounts = [0, 0, 0, 0, 0, 0, 0, 0];
 
@@ -203,8 +222,14 @@ const processSOData = (data) => {
     if (isPositive) catMap[catName].safe++;
     else catMap[catName].unsafe++;
     
-    const rLevel = obs.risk || obs.riskLevel || 'Low';
-    if (riskMap[rLevel] !== undefined) riskMap[rLevel]++;
+    const rawRisk = String(obs.riskLevel || obs.risk || obs.severity || obs.actualSeverity || '').toUpperCase().trim();
+    let rLevel = 'Low';
+    if (rawRisk.includes('CRIT') || rawRisk === 'VERY HIGH') rLevel = 'Critical';
+    else if (rawRisk === 'HIGH') rLevel = 'High';
+    else if (rawRisk === 'MEDIUM' || rawRisk === 'MODERATE') rLevel = 'Medium';
+    else if (rawRisk === 'LOW' || rawRisk === 'VERY LOW') rLevel = 'Low';
+    else if (obs.riskLevel) rLevel = 'Medium';
+    riskMap[rLevel] = (riskMap[rLevel] || 0) + 1;
   });
 
   const weeklyTrend = weeklyCounts.map((c, i) => ({ label: i === 7 ? 'This wk' : `Wk ${8-i}`, count: c }));
@@ -217,7 +242,12 @@ const processSOData = (data) => {
   }).sort((a, b) => b.thisWeek - a.thisWeek);
 
   const categories = Object.keys(catMap).map(k => ({ name: k, count: catMap[k].total, safe: catMap[k].safe, unsafe: catMap[k].unsafe })).sort((a, b) => b.count - a.count);
-  const severity = ["Very high", "High", "Moderate", "Medium", "Low"].map(k => ({ level: k, count: riskMap[k] || 0 }));
+  const severity = [
+    { level: 'Critical', count: riskMap['Critical'] || 0, color: '#8F1B32' },
+    { level: 'High', count: riskMap['High'] || 0, color: '#E32B50' },
+    { level: 'Medium', count: riskMap['Medium'] || 0, color: '#C07D10' },
+    { level: 'Low', count: riskMap['Low'] || 0, color: '#7BBE97' },
+  ];
   const total = (data || []).length;
   const meetingKPI = contractorKPIs.filter(c => c.thisWeek >= c.target).length;
   const kpiCompliance = contractorKPIs.length > 0 ? Math.round((meetingKPI / contractorKPIs.length) * 100) : 0;
@@ -235,18 +265,238 @@ const processSOData = (data) => {
   };
 };
 
+const MultiSelectFilter = ({
+  options = [],
+  selected = [],
+  onChange,
+  placeholder = "Select...",
+  searchPlaceholder = "Search...",
+  showLogos = false,
+  contractorsList = []
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    };
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isOpen]);
+
+  const filteredOptions = useMemo(() => {
+    if (!search.trim()) return options;
+    const q = search.toLowerCase().trim();
+    return options.filter(opt => String(opt.label || opt.value || opt).toLowerCase().includes(q));
+  }, [options, search]);
+
+  const toggleOption = (val) => {
+    if (selected.includes(val)) {
+      onChange(selected.filter(v => v !== val));
+    } else {
+      onChange([...selected, val]);
+    }
+  };
+
+  const handleSelectAll = () => {
+    if (filteredOptions.length === 0) return;
+    const allFilteredVals = filteredOptions.map(o => o.value);
+    const areAllSelected = allFilteredVals.every(v => selected.includes(v));
+    if (areAllSelected) {
+      onChange(selected.filter(v => !allFilteredVals.includes(v)));
+    } else {
+      const newSel = Array.from(new Set([...selected, ...allFilteredVals]));
+      onChange(newSel);
+    }
+  };
+
+  const handleClear = (e) => {
+    e?.stopPropagation?.();
+    onChange([]);
+  };
+
+  const triggerLabel = useMemo(() => {
+    if (selected.length === 0) return placeholder;
+    if (selected.length === 1) return selected[0];
+    return `${selected.length} Selected`;
+  }, [selected, placeholder]);
+
+  return (
+    <div ref={dropdownRef} className="so-multi-select-container">
+      <button
+        type="button"
+        className={`so-multi-select-trigger ${selected.length > 0 ? "active" : ""}`}
+        onClick={() => setIsOpen(!isOpen)}
+        title={selected.length > 0 ? selected.join(", ") : placeholder}
+      >
+        <span className="so-multi-select-text">
+          {triggerLabel}
+        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+          {selected.length > 0 && (
+            <span
+              className="so-multi-select-clear"
+              onClick={handleClear}
+              title="Clear selection"
+            >
+              &times;
+            </span>
+          )}
+          <svg
+            className={`so-multi-select-chevron ${isOpen ? "open" : ""}`}
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </div>
+      </button>
+
+      {isOpen && (
+        <div className="so-multi-select-menu">
+          <div className="so-multi-select-search-box">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <input
+              type="text"
+              className="so-multi-select-search-input"
+              placeholder={searchPlaceholder}
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              autoFocus
+            />
+            {search && (
+              <span className="so-multi-select-search-clear" onClick={() => setSearch("")}>&times;</span>
+            )}
+          </div>
+
+          <div className="so-multi-select-actions">
+            <button
+              type="button"
+              className="so-multi-select-action-btn"
+              onClick={handleSelectAll}
+            >
+              {filteredOptions.length > 0 && filteredOptions.every(o => selected.includes(o.value))
+                ? "Deselect All"
+                : "Select All"}
+            </button>
+            {selected.length > 0 && (
+              <button
+                type="button"
+                className="so-multi-select-action-btn danger"
+                onClick={handleClear}
+              >
+                Clear ({selected.length})
+              </button>
+            )}
+          </div>
+
+          <div className="so-multi-select-list">
+            {filteredOptions.length === 0 ? (
+              <div className="so-multi-select-empty">No options found</div>
+            ) : (
+              filteredOptions.map(opt => {
+                const isChecked = selected.includes(opt.value);
+                return (
+                  <div
+                    key={opt.value}
+                    className={`so-multi-select-item ${isChecked ? "selected" : ""}`}
+                    onClick={() => toggleOption(opt.value)}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={() => {}}
+                      className="so-multi-select-checkbox"
+                    />
+                    {showLogos && (
+                      <ContractorLogo
+                        logoVal={opt.logo || findContractorLogo(opt.value, contractorsList)}
+                        name={opt.label}
+                        size={20}
+                      />
+                    )}
+                    <span className="so-multi-select-item-label" title={opt.label}>
+                      {opt.label}
+                    </span>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 export default function SODashboard() {
   const navigate = useNavigate();
   const [filter, setFilter] = useState({ q: '', contractor: '', status: '', type: '' });
-  
+
   // Filter States
-  const [selectedBuilding, setSelectedBuilding] = useState('');
-  const [selectedContractor, setSelectedContractor] = useState('');
+  const [selectedBuildings, setSelectedBuildings] = useState([]);
+  const [selectedContractors, setSelectedContractors] = useState([]);
   const [selectedRange, setSelectedRange] = useState('13m');
+  const [startDate, setStartDate] = useState(() => getDateRangeBounds('13m').startDate);
+  const [endDate, setEndDate] = useState(() => getDateRangeBounds('13m').endDate);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+
+  const handleRangeChange = (range) => {
+    setSelectedRange(range);
+    if (range !== 'custom') {
+      const bounds = getDateRangeBounds(range);
+      setStartDate(bounds.startDate);
+      setEndDate(bounds.endDate);
+    }
+  };
+  const handleStartDateChange = (val) => { setStartDate(val); setSelectedRange('custom'); };
+  const handleEndDateChange = (val) => { setEndDate(val); setSelectedRange('custom'); };
 
   // Master Dropdowns Data
   const [buildingsList, setBuildingsList] = useState([]);
   const [contractorsList, setContractorsList] = useState([]);
+
+  const buildingOptions = useMemo(() => {
+    const names = new Set();
+    (buildingsList || []).forEach((b, idx) => {
+      const bName = b?.name || b?.buildingName || b?.building_name || (typeof b === 'string' ? b : `Building #${idx+1}`);
+      if (bName && String(bName).trim()) {
+        names.add(String(bName).trim());
+      }
+    });
+    return Array.from(names).sort().map(name => ({ label: name, value: name }));
+  }, [buildingsList]);
+
+  const contractorOptions = useMemo(() => {
+    const map = new Map();
+    (contractorsList || []).forEach((c, idx) => {
+      const cName = c?.company_name || c?.companyName || c?.subContractorName || c?.subcontractor_name || c?.name || (typeof c === 'string' ? c : `Contractor #${idx+1}`);
+      const trimmed = String(cName || '').trim();
+      if (trimmed && !map.has(trimmed)) {
+        map.set(trimmed, {
+          label: trimmed,
+          value: trimmed,
+          logo: c?.logo || c?.logo_url || c?.company_logo || c?.logoFile || null
+        });
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label));
+  }, [contractorsList]);
 
   // Live Data States
   const [serverStats, setServerStats] = useState(null);
@@ -307,20 +557,20 @@ export default function SODashboard() {
           params.userRole = "CONTRACTOR";
           if (contractorId) params.contractorId = contractorId;
           if (myContractorName) params.contractor = myContractorName;
-        } else if (selectedContractor) {
-          params.contractor = selectedContractor;
+        } else if (selectedContractors.length > 0) {
+          params.contractor = selectedContractors.join(',');
         }
-        if (selectedBuilding) params.building = selectedBuilding;
-        if (selectedRange) params.range = selectedRange;
+        if (selectedBuildings.length > 0) params.building = selectedBuildings.join(',');
+        if (selectedRange && selectedRange !== 'custom') params.range = selectedRange;
+        if (startDate) params.startDate = startDate;
+        if (endDate) params.endDate = endDate;
 
         const [statsRes, listRes] = await Promise.all([
           observationService.getObservationStats(params).catch(() => null),
-          observationService.getObservations({ ...params, limit: 100 }).catch(() => null)
+          observationService.getObservations({ ...params, limit: 1000 }).catch(() => null)
         ]);
 
-        if (statsRes) {
-          setServerStats(statsRes);
-        }
+        if (statsRes) setServerStats(statsRes);
 
         let rawList = Array.isArray(listRes) ? listRes : (listRes?.data || []);
         if (rawList.length === 0 && !isContractor) {
@@ -331,6 +581,14 @@ export default function SODashboard() {
             return cName.toLowerCase().includes(myContractorName.toLowerCase());
           });
         }
+        if (rawList === OBSERVATIONS) {
+          if (selectedBuildings.length > 0) {
+            rawList = rawList.filter(o => selectedBuildings.some(b => (o.building || o.buildingName || '').toLowerCase() === b.toLowerCase()));
+          }
+          if (selectedContractors.length > 0) {
+            rawList = rawList.filter(o => selectedContractors.some(c => (o.contractor || o.assignedContractorName || '').toLowerCase().includes(c.toLowerCase())));
+          }
+        }
         setObservationsList(rawList);
       } catch (err) {
         console.error("Failed to load SO Dashboard data:", err);
@@ -340,7 +598,7 @@ export default function SODashboard() {
       }
     };
     loadData();
-  }, [selectedBuilding, selectedContractor, selectedRange, isContractor, contractorId, myContractorName]);
+  }, [selectedBuildings, selectedContractors, selectedRange, startDate, endDate, isContractor, contractorId, myContractorName]);
 
   const agg = useMemo(() => {
     if (serverStats?.total !== undefined && !isContractor) {
@@ -390,6 +648,54 @@ export default function SODashboard() {
   const suRadius = 42;
   const suCircum = 2 * Math.PI * suRadius;
   const safeLen = (suCircum * safePct) / 100;
+
+  // ── Contractor-wise Stats (Type & Status breakdown) ──
+  const contractorStats = useMemo(() => {
+    const src = observationsList.length > 0 ? observationsList : OBSERVATIONS;
+    const map = {};
+    src.forEach(obs => {
+      const cName = obs.assignedContractorName || obs.contractor || 'Unassigned';
+      if (!map[cName]) map[cName] = { name: cName, total: 0, positive: 0, needsAttention: 0, open: 0, assigned: 0, accepted: 0, resolved: 0, closed: 0, rejected: 0, escalated: 0 };
+      map[cName].total++;
+      const isPos = obs.observationType === 'POSITIVE' || obs.obsType === 'Positive';
+      if (isPos) map[cName].positive++; else map[cName].needsAttention++;
+      const st = String(obs.status || 'OPEN').toUpperCase();
+      if (st === 'OPEN') map[cName].open++;
+      else if (st === 'ASSIGNED') map[cName].assigned++;
+      else if (st === 'ACCEPTED') map[cName].accepted++;
+      else if (st === 'RESOLVED') map[cName].resolved++;
+      else if (st === 'CLOSED') map[cName].closed++;
+      else if (st === 'REJECTED') map[cName].rejected++;
+      else if (st === 'ESCALATED') map[cName].escalated++;
+    });
+    return Object.values(map).sort((a, b) => b.total - a.total);
+  }, [observationsList]);
+
+  // ── PDF Download Handler ──
+  const handleDownloadPdf = async () => {
+    try {
+      setIsGeneratingPdf(true);
+      await generateObservationStatsPdf({
+        agg,
+        filters: {
+          selectedRange,
+          startDate,
+          endDate,
+          selectedContractor: selectedContractors.join(', '),
+          selectedBuilding: selectedBuildings.join(', '),
+          selectedContractors,
+          selectedBuildings,
+        },
+        contractorStats,
+        currentUser,
+      });
+    } catch (err) {
+      console.error('Failed to generate SO stats PDF:', err);
+      alert('PDF generation failed. Please try again.');
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
 
   // Export CSV Function for Deep Dive Table
   const handleExportCsv = () => {
@@ -460,10 +766,19 @@ export default function SODashboard() {
           <div className="dash-hero-icon"><Icons.eye /></div>
           <div>
             <h1>Observation Analytics</h1>
-            <p>Weekly observation KPI tracking &middot; target of 5 per week per main contractor</p>
+            <p>Safety observations analytics &middot; type, status &amp; contractor breakdown</p>
           </div>
         </div>
-        <div>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <button
+            type="button"
+            className="btn btn-outline"
+            onClick={handleDownloadPdf}
+            disabled={isGeneratingPdf}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', fontSize: 13 }}
+          >
+            <Icons.download /> {isGeneratingPdf ? 'Generating...' : 'Download PDF'}
+          </button>
           {!isReadOnly && (
             <button className="mod-btn-primary" onClick={() => navigate("/safety-observations/create")}>+ New Observation</button>
           )}
@@ -473,48 +788,85 @@ export default function SODashboard() {
       {/* ── Filters ── */}
       <div className="dash-filters">
         <span className="dfl">Buildings</span>
-        <select value={selectedBuilding} onChange={e => setSelectedBuilding(e.target.value)}>
-          <option value="">All Buildings</option>
-          {buildingsList.map((b, idx) => {
-            const bName = b.name || b.buildingName || b.building_name || (typeof b === 'string' ? b : `Building #${idx+1}`);
-            return <option key={idx} value={bName}>{bName}</option>;
-          })}
-        </select>
+        <MultiSelectFilter
+          options={buildingOptions}
+          selected={selectedBuildings}
+          onChange={setSelectedBuildings}
+          placeholder="All Buildings"
+          searchPlaceholder="Search buildings..."
+        />
 
         {!isContractor && (
           <>
             <span className="dfl">Contractors</span>
-            <select value={selectedContractor} onChange={e => setSelectedContractor(e.target.value)}>
-              <option value="">All Contractors</option>
-              {contractorsList.map((c, idx) => {
-                const cName = c.company_name || c.companyName || c.subContractorName || c.subcontractor_name || c.name || (typeof c === 'string' ? c : `Contractor #${idx+1}`);
-                return <option key={idx} value={cName}>{cName}</option>;
-              })}
-            </select>
+            <MultiSelectFilter
+              options={contractorOptions}
+              selected={selectedContractors}
+              onChange={setSelectedContractors}
+              placeholder="All Contractors"
+              searchPlaceholder="Search contractors..."
+              showLogos={true}
+              contractorsList={contractorsList}
+            />
           </>
         )}
 
         <span className="dfl">Range</span>
-        <select value={selectedRange} onChange={e => setSelectedRange(e.target.value)}>
-          <option value="13m">Last 13 Months</option>
-          <option value="90d">Last 90 Days</option>
+        <select value={selectedRange} onChange={e => handleRangeChange(e.target.value)}>
+          <option value="all">All Time</option>
+          <option value="week">This Week</option>
           <option value="30d">Last 30 Days</option>
-          <option value="month">This Month</option>
+          <option value="90d">Last 90 Days</option>
+          <option value="year">This Year</option>
+          <option value="13m">Last 13 Months</option>
+          <option value="custom">Custom Range</option>
         </select>
 
-        {(selectedBuilding || selectedContractor || (selectedRange && selectedRange !== '13m')) && (
-          <button 
-            type="button" 
-            className="btn btn-outline" 
-            style={{ borderColor: 'transparent', color: '#E32B50', padding: '6px 12px', background: 'rgba(227, 43, 80, 0.05)' }}
+        <span className="dfl">From</span>
+        <input
+          type="date"
+          className="dash-filter-date"
+          value={startDate}
+          onChange={e => handleStartDateChange(e.target.value)}
+          title="From Date"
+          style={{ padding: '4px 8px', border: '1px solid var(--border-color)', borderRadius: 6, fontSize: '0.75rem', background: 'var(--bg-main)', color: 'var(--text-main)', height: 28 }}
+        />
+
+        <span className="dfl">To</span>
+        <input
+          type="date"
+          className="dash-filter-date"
+          value={endDate}
+          onChange={e => handleEndDateChange(e.target.value)}
+          title="To Date"
+          style={{ padding: '4px 8px', border: '1px solid var(--border-color)', borderRadius: 6, fontSize: '0.75rem', background: 'var(--bg-main)', color: 'var(--text-main)', height: 28 }}
+        />
+
+        {(selectedBuildings.length > 0 || selectedContractors.length > 0 || (selectedRange && selectedRange !== '13m') || (selectedRange === 'custom' && (startDate || endDate))) && (
+          <button
+            type="button"
+            className="btn btn-outline"
+            style={{
+              borderColor: 'rgba(227, 43, 80, 0.2)',
+              color: '#E32B50',
+              padding: '2px 8px',
+              fontSize: '0.7rem',
+              height: '24px',
+              lineHeight: '20px',
+              borderRadius: '4px',
+              background: 'rgba(227, 43, 80, 0.06)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '3px'
+            }}
             onClick={() => {
-              setSelectedBuilding("");
-              setSelectedContractor("");
-              setSelectedRange("13m");
+              setSelectedBuildings([]);
+              setSelectedContractors([]);
+              handleRangeChange('13m');
             }}
             title="Clear all filters"
           >
-            Clear
+            &times; Clear
           </button>
         )}
       </div>
@@ -525,55 +877,156 @@ export default function SODashboard() {
         <StatCard label="This Month" value={agg.thisMonth || 0} accent="#131E40" icon="calendar" sub="month to date" foot={<><TrendPill pct={pctChange(agg.thisMonth || 0, agg.lastMonth || 0)} /> <span style={{marginLeft: 4, color:'var(--text-muted)'}}>vs last month</span></>} />
         <StatCard label="Weekly Average" value={Number(agg.weeklyAvg || 0).toFixed(1)} accent="#7BBE97" valColor="#7BBE97" icon="activity" sub="over last 8 weeks" />
         <StatCard label="Total Observations" value={agg.total || 0} accent="#583C66" valColor="#583C66" icon="layers" sub="all time" />
-        <StatCard label="KPI Compliance" value={`${agg.kpiCompliance || 0}%`} accent={(agg.kpiCompliance || 0) >= 80 ? '#7BBE97' : (agg.kpiCompliance || 0) >= 50 ? '#C07D10' : '#E32B50'} valColor={(agg.kpiCompliance || 0) >= 80 ? '#7BBE97' : (agg.kpiCompliance || 0) >= 50 ? '#C07D10' : '#E32B50'} icon="target" sub={`${agg.meetingKPI || 0}/${agg.totalContractors || 0} on target`} />
         <StatCard label="Last Week" value={agg.lastWeek || 0} accent="#8A8F9F" icon="clock" sub="complete week total" />
       </div>
 
-      {/* ── Mid Row 1 ── */}
-      <div className="dash-row c2-wide">
-        <div className="panel">
-          <div className="panel-head">
-            <span className="panel-title">Contractor Weekly KPI</span>
-            <span className="chip-badge">Target 5/wk</span>
-          </div>
-          <div className="panel-body">
-            {(agg.contractorKPIs || []).map(c => {
-              const over = c.thisWeek >= c.target;
-              const pct = Math.min((c.thisWeek / c.target) * 100, 100);
-              const col = over ? '#2D7A4F' : '#E32B50';
-              const surplus = c.thisWeek - c.target;
-              return (
-                <div key={c.id} className={`ckpi ${over ? 'good' : 'bad'}`}>
-                  <div className="ck-top">
-                    <div className="ck-nm" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <ContractorLogo
-                        logoVal={findContractorLogo(c.id, contractorsList)}
-                        name={c.id}
-                        size={24}
-                      />
-                      <span>{c.id}</span>
-                      {!over && <span className="atrisk-badge" style={{ marginLeft: 4 }}>AT RISK</span>}
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ fontSize: 18, fontWeight: 800, color: col }}>{c.thisWeek}</span>
-                      <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>/{c.target}</span>
-                      <TrendPill pct={pctChange(c.thisWeek, c.lastWeek)} />
-                    </div>
-                  </div>
-                  <div className="kpi-target">
-                    <div className="kpi-target-fill" style={{ width: `${pct}%`, background: col }} />
-                    <span className="kpi-target-mark" style={{ left: '100%' }} />
-                  </div>
-                  <div className="ck-foot">
-                    <span>Last wk: {c.lastWeek}</span>
-                    <span>Avg: {Number(c.weeklyAvg || 0).toFixed(1)}</span>
-                    <span style={{ color: col, fontWeight: 600 }}>{over ? `+${surplus} above` : `${Math.abs(surplus)} below`}</span>
-                  </div>
+      {/* ── Statistics Panels (Observation Status & Contractor Statistics) ── */}
+      {!isContractor && (
+        <div className="dash-row c2">
+
+          {/* Panel 1 — Overall Status Distribution */}
+          <div className="so-stat-panel">
+            <div className="panel-head-flex">
+              <div className="panel-head-left">
+                <div className="panel-head-icon" style={{ background: 'rgba(88,60,102,0.1)', color: '#583C66' }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                 </div>
-              );
-            })}
+                <div className="panel-head-title-wrap">
+                  <h3 className="panel-head-title">Observation Status</h3>
+                  <p className="panel-head-sub">Overall status distribution across all observations</p>
+                </div>
+              </div>
+              <span className="chip-badge">{agg.total || 0} Total</span>
+            </div>
+            <div className="panel-body" style={{ padding: '20px 16px' }}>
+              {loading ? (
+                <div className="so-stat-empty">Loading status data...</div>
+              ) : (() => {
+                const totalObs = agg.total || observationsList.length || 0;
+                const allStatuses = [
+                  { key: 'open',      label: 'Open',      cls: 'status-open',     count: contractorStats.reduce((s, c) => s + c.open, 0),      icon: '○' },
+                  { key: 'assigned',  label: 'Assigned',  cls: 'status-assigned', count: contractorStats.reduce((s, c) => s + c.assigned, 0),  icon: '→' },
+                  { key: 'accepted',  label: 'Accepted',  cls: 'status-resolved', count: contractorStats.reduce((s, c) => s + c.accepted, 0),  icon: '✓' },
+                  { key: 'resolved',  label: 'Resolved',  cls: 'status-resolved', count: contractorStats.reduce((s, c) => s + c.resolved, 0),  icon: '✓' },
+                  { key: 'closed',    label: 'Closed',    cls: 'status-closed',   count: contractorStats.reduce((s, c) => s + c.closed, 0),    icon: '✔' },
+                  { key: 'rejected',  label: 'Rejected',  cls: 'status-open',     count: contractorStats.reduce((s, c) => s + (c.rejected || 0), 0), icon: '✕' },
+                  { key: 'escalated', label: 'Escalated', cls: 'status-assigned', count: contractorStats.reduce((s, c) => s + (c.escalated || 0), 0), icon: '↑' },
+                ].filter(s => s.count > 0);
+                const maxCount = Math.max(...allStatuses.map(s => s.count), 1);
+                const statusColors = {
+                  'status-open': '#60A5FA',
+                  'status-assigned': '#A78BFA',
+                  'status-resolved': '#FBBF24',
+                  'status-closed': '#34D399',
+                };
+                return allStatuses.length === 0 ? (
+                  <div className="so-stat-empty">No status data recorded yet.</div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    {allStatuses.map(st => {
+                      const pct = Math.round((st.count / (totalObs || maxCount)) * 100);
+                      const barColor = statusColors[st.cls] || '#8A8F9F';
+                      return (
+                        <div key={st.key}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span className={`so-ent-badge ${st.cls}`} style={{ minWidth: 76, justifyContent: 'center' }}>{st.label}</span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                              <span style={{ fontWeight: 800, fontSize: '1.1rem', color: 'var(--text-main)' }}>{st.count}</span>
+                              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', minWidth: 36, textAlign: 'right' }}>{pct}%</span>
+                            </div>
+                          </div>
+                          <div className="so-ent-progress" style={{ height: 8 }}>
+                            <div className="so-ent-progress-bar" style={{ width: `${pct}%`, background: barColor }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
           </div>
+
+          {/* Panel 2 — Contractor Statistics */}
+          <div className="so-stat-panel">
+            <div className="panel-head-flex">
+              <div className="panel-head-left">
+                <div className="panel-head-icon" style={{ background: 'rgba(2,132,199,0.1)', color: '#0284C7' }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                </div>
+                <div className="panel-head-title-wrap">
+                  <h3 className="panel-head-title">Contractor Statistics</h3>
+                  <p className="panel-head-sub">Observation volume &amp; type by contractor</p>
+                </div>
+              </div>
+              <span className="chip-badge">{contractorStats.length} Contractors</span>
+            </div>
+            <div className="so-panel-table-wrap">
+              {loading ? (
+                <div className="so-stat-empty">Loading contractor statistics...</div>
+              ) : contractorStats.length === 0 ? (
+                <div className="so-stat-empty">No contractor data recorded yet.</div>
+              ) : (
+                <table className="so-ent-table">
+                  <thead>
+                    <tr>
+                      <th>Contractor</th>
+                      <th style={{ textAlign: 'center' }}>Total</th>
+                      <th style={{ textAlign: 'center' }}>Type Breakdown</th>
+                      <th style={{ textAlign: 'right', minWidth: 120 }}>Positive Rate</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {contractorStats.map((cs) => {
+                      const posRate = cs.total > 0 ? Math.round((cs.positive / cs.total) * 100) : 0;
+                      const rateColor = posRate >= 60 ? '#34D399' : posRate >= 40 ? '#FBBF24' : '#F87171';
+                      return (
+                        <tr key={cs.name}>
+                          <td>
+                            <div className="so-ent-entity">
+                              <ContractorLogo logoVal={findContractorLogo(cs.name, contractorsList)} name={cs.name} size={28} />
+                              <span className="so-ent-name" title={cs.name}>{cs.name}</span>
+                            </div>
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            <span className="so-ent-count">{cs.total}</span>
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            <div className="so-ent-badges">
+                              <span className="so-ent-badge pass" title={`${cs.positive} Positive`}>
+                                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>
+                                {cs.positive}
+                              </span>
+                              <span className="so-ent-badge fail" title={`${cs.needsAttention} Needs Attention`}>
+                                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                {cs.needsAttention}
+                              </span>
+                            </div>
+                          </td>
+                          <td>
+                            <div className="so-ent-rate-wrap">
+                              <div className="so-ent-progress">
+                                <div className="so-ent-progress-bar" style={{ width: `${posRate}%`, background: rateColor }} />
+                              </div>
+                              <span className="so-ent-rate-pct" style={{ color: rateColor }}>{posRate}%</span>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+
         </div>
+      )}
+
+      {/* ── Mid Row: Observations by Category & Weekly Observation Trend (2-Column Grid) ── */}
+      <div className="dash-row c2">
         <div className="panel">
           <div className="panel-head">
             <span className="panel-title">Observations by Category</span>
@@ -597,32 +1050,31 @@ export default function SODashboard() {
             })}
           </div>
         </div>
-      </div>
 
-      {/* ── Trend ── */}
-      <div className="panel">
-        <div className="panel-head">
-          <span className="panel-title">Weekly Observation Trend</span>
-          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{Number(agg.weeklyAvg || 0).toFixed(1)}/wk avg</span>
-        </div>
-        <div className="panel-body">
-          <div className="vbars">
-            {(agg.weeklyTrend || []).map((w, i) => {
-              const h = maxW > 0 ? Math.max((w.count / maxW) * 90, 6) : 6;
-              const isCur = i === (agg.weeklyTrend || []).length - 1;
-              return (
-                <div key={i} className="vb">
-                  <span className="vnum" style={{ color: isCur ? '#131E40' : 'var(--text-muted)' }}>{w.count}</span>
-                  <div className="vbar" style={{ height: h, background: isCur ? '#131E40' : '#C4B79A' }}></div>
-                  <span className="vlbl">{w.label}</span>
-                </div>
-              );
-            })}
+        <div className="panel">
+          <div className="panel-head">
+            <span className="panel-title">Weekly Observation Trend</span>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{Number(agg.weeklyAvg || 0).toFixed(1)}/wk avg</span>
+          </div>
+          <div className="panel-body">
+            <div className="vbars">
+              {(agg.weeklyTrend || []).map((w, i) => {
+                const h = maxW > 0 ? Math.max((w.count / maxW) * 90, 6) : 6;
+                const isCur = i === (agg.weeklyTrend || []).length - 1;
+                return (
+                  <div key={i} className="vb">
+                    <span className="vnum" style={{ color: isCur ? '#131E40' : 'var(--text-muted)' }}>{w.count}</span>
+                    <div className="vbar" style={{ height: h, background: isCur ? '#131E40' : '#C4B79A' }}></div>
+                    <span className="vlbl">{w.label}</span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* ── Mid Row 3 ── */}
+      {/* ── Mid Row: Positive vs Needs Attention & Observation Severity Distribution ── */}
       <div className="dash-row c2">
         <div className="panel">
           <div className="panel-head">
@@ -664,13 +1116,13 @@ export default function SODashboard() {
         <div className="panel">
           <div className="panel-head">
             <span className="panel-title">Observation Severity Distribution</span>
+            <span className="chip-badge">{(agg.severity || []).reduce((sum, s) => sum + s.count, 0)} total</span>
           </div>
           <div className="panel-body">
             <div className="vbars">
               {(agg.severity || []).map((s, i) => {
                 const h = maxS > 0 ? Math.max((s.count / maxS) * 90, 6) : 6;
-                const pal = ['#8F1B32','#E32B50','#C07D10','#C4B79A','#7BBE97'];
-                const col = pal[i % pal.length];
+                const col = s.color || ['#8F1B32','#E32B50','#C07D10','#7BBE97'][i % 4];
                 return (
                   <div key={s.level} className="vb">
                     <span className="vnum" style={{ color: col }}>{s.count}</span>

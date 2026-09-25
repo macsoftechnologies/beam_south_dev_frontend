@@ -2,8 +2,9 @@ import React, { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import PageHeader from "../../../components/common/PageHeader/PageHeader";
 import Loader from "../../../components/common/Loader/Loader";
-import { getIncidents, deleteIncident } from "../../../services/incidentService";
+import { getIncidents, getIncidentStats, deleteIncident } from "../../../services/incidentService";
 import { getBuildings, getContractors } from "../../../services/authService";
+import { formatToDenmark24Hour } from "../../../utils/dateUtils";
 import "../../../styles/module-shared.css";
 import "./IMList.css";
 
@@ -125,6 +126,36 @@ const StatusTracker = ({ inc, pipeline, isPendingClosure: initialIsPendingClosur
   const [realStage, setRealStage] = React.useState(String(pipeline).toUpperCase());
   const [realIsPendingClosure, setRealIsPendingClosure] = React.useState(initialIsPendingClosure);
 
+  const initialIsWaived = Boolean(
+    inc?.noFurtherInvestigation ||
+    inc?.incident?.noFurtherInvestigation ||
+    inc?.headsUp?.noFurtherInvestigation ||
+    inc?.initialReport?.noFurtherInvestigation
+  );
+  const [realIsWaived, setRealIsWaived] = React.useState(initialIsWaived);
+
+  const initialHasInitialReport = Boolean(
+    inc?.initialReport && (
+      (inc.initialReport.submittedBy && inc.initialReport.submittedBy !== "User") ||
+      inc.initialReport.signature ||
+      inc.initialReport.submittedTime ||
+      inc.initialReport.injuredPersonName ||
+      inc.initialReport.approvedBy
+    )
+  );
+  const [realHasInitialReport, setRealHasInitialReport] = React.useState(initialHasInitialReport);
+
+  const initialHasInvestigation = Boolean(
+    inc?.investigation && (
+      (Array.isArray(inc.investigation.signatures) && inc.investigation.signatures.length > 0) ||
+      (inc.investigation.problemStatement && inc.investigation.problemStatement.trim().length > 0) ||
+      (inc.investigation.investigationDetails && inc.investigation.investigationDetails.trim().length > 0) ||
+      inc.investigation.reviewedBy ||
+      inc.investigation.approvedBy
+    )
+  );
+  const [realHasInvestigation, setRealHasInvestigation] = React.useState(initialHasInvestigation);
+
   React.useEffect(() => {
     let isMounted = true;
     const checkRealStatus = async () => {
@@ -154,18 +185,60 @@ const StatusTracker = ({ inc, pipeline, isPendingClosure: initialIsPendingClosur
         if (latestStage !== realStage) {
           setRealStage(latestStage);
         }
+
+        const latestWaived = Boolean(
+          data.noFurtherInvestigation ||
+          data.incident?.noFurtherInvestigation ||
+          data.headsUp?.noFurtherInvestigation ||
+          data.initialReport?.noFurtherInvestigation
+        );
+        if (latestWaived !== realIsWaived) {
+          setRealIsWaived(latestWaived);
+        }
+
+        const hasIr = Boolean(
+          data.initialReport && (
+            (data.initialReport.submittedBy && data.initialReport.submittedBy !== "User") ||
+            data.initialReport.signature ||
+            data.initialReport.submittedTime ||
+            data.initialReport.injuredPersonName ||
+            data.initialReport.approvedBy
+          )
+        );
+        if (hasIr !== realHasInitialReport) {
+          setRealHasInitialReport(hasIr);
+        }
+
+        const hasInv = Boolean(
+          data.investigation && (
+            (Array.isArray(data.investigation.signatures) && data.investigation.signatures.length > 0) ||
+            (data.investigation.problemStatement && data.investigation.problemStatement.trim().length > 0) ||
+            (data.investigation.investigationDetails && data.investigation.investigationDetails.trim().length > 0) ||
+            data.investigation.reviewedBy ||
+            data.investigation.approvedBy
+          )
+        );
+        if (hasInv !== realHasInvestigation) {
+          setRealHasInvestigation(hasInv);
+        }
       } catch (err) {
         console.error("StatusTracker fetch failed", err);
       }
     };
     
-    // Only fetch if the list says it's in an early stage (to save API calls for closed/completed ones)
-    if (realStage === "HEADS_UP" || realStage === "INITIAL_REPORT" || realStage === "INITIAL" || realStage === "INVESTIGATION") {
+    // Fetch if the list says it's in an early stage or if waived to ensure accurate stage dots
+    if (
+      realStage === "HEADS_UP" || 
+      realStage === "INITIAL_REPORT" || 
+      realStage === "INITIAL" || 
+      realStage === "INVESTIGATION" ||
+      initialIsWaived
+    ) {
       checkRealStatus();
     }
     
     return () => { isMounted = false; };
-  }, [inc.id, pipeline, realIsPendingClosure, realStage]);
+  }, [inc.id, pipeline, realIsPendingClosure, realStage, initialIsWaived]);
 
   let normalizedPipeline = realStage;
   if (normalizedPipeline === "INITIAL") normalizedPipeline = "INITIAL_REPORT";
@@ -195,9 +268,14 @@ const StatusTracker = ({ inc, pipeline, isPendingClosure: initialIsPendingClosur
   const closed = normalizedPipeline === "CLOSED" || pipeline === "Closed";
   const isOpenedState = !closed && curIdx === 2 && realIsPendingClosure;
   
-  const label = closed ? "Closed" : isOpenedState ? "Pending Closure" : (steps[curIdx] ? steps[curIdx].title : pipeline);
+  const label = closed 
+    ? (realIsWaived ? "Closed (Waived)" : "Closed") 
+    : isOpenedState 
+      ? (realIsWaived ? "Pending Closure (Waived)" : "Pending Closure") 
+      : (steps[curIdx] ? steps[curIdx].title : pipeline);
 
   const getStageColor = () => {
+    if (closed && realIsWaived) return "#475569"; // Slate for waived
     if (closed) return "#059669"; // Green
     if (isOpenedState) return "#ea580c"; // Orange
     if (curIdx === 0) return "#dc2626"; // Red
@@ -213,30 +291,70 @@ const StatusTracker = ({ inc, pipeline, isPendingClosure: initialIsPendingClosur
     </svg>
   );
 
+  const waivedS = (
+    <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" />
+      <line x1="5.7" y1="5.7" x2="18.3" y2="18.3" />
+    </svg>
+  );
+
   return (
-    <div className="st-track" title={label}>
+    <div className="st-track" title={realIsWaived && closed ? "Investigation Waived - Closed after stage sign-off" : label}>
       {steps.map((step, i) => {
         let state = "pending";
-        if (closed) state = "done";
-        else if (i < curIdx) state = "done";
-        else if (i === curIdx) {
-            state = isOpenedState ? "opened" : "current";
+        if (i === 0) {
+          if (closed || curIdx > 0) state = "done";
+          else if (curIdx === 0) state = "current";
+        } else if (i === 1) {
+          if (realIsWaived && !realHasInitialReport) {
+            state = "waived";
+          } else if (closed || curIdx > 1) {
+            state = "done";
+          } else if (curIdx === 1) {
+            state = "current";
+          }
+        } else if (i === 2) {
+          if (realIsWaived && !realHasInvestigation) {
+            state = "waived";
+          } else if (closed) {
+            state = "done";
+          } else if (isOpenedState) {
+            state = "opened";
+          } else if (curIdx === 2) {
+            state = "current";
+          }
         }
 
-        const dotStyle = (state === "current" || state === "opened") ? { background: activeColor, boxShadow: `0 0 0 3px ${activeColor}33` } : {};
+        const isWaivedStep = state === "waived";
+        const dotStyle = (state === "current" || state === "opened") 
+          ? { background: activeColor, boxShadow: `0 0 0 3px ${activeColor}33` } 
+          : isWaivedStep
+            ? { background: "#64748b", color: "#fff", border: "1.5px solid #475569" }
+            : {};
+
+        const lineClass = isWaivedStep 
+          ? "st-line on-waived"
+          : (i <= curIdx || closed)
+            ? "st-line on"
+            : "st-line";
 
         return (
           <React.Fragment key={step.key}>
-            <span className={`st-line ${i <= curIdx || closed ? "on" : ""}`} style={i === 0 ? { visibility: "hidden" } : {}}></span>
-            <span className={`st-dot st-${state}`} title={step.title} style={dotStyle}>
-              {state === "done" ? checkS : (i + 1)}
+            <span className={lineClass} style={i === 0 ? { visibility: "hidden" } : {}}></span>
+            <span 
+              className={`st-dot st-${state}`} 
+              title={isWaivedStep ? `${step.title} (Waived)` : step.title} 
+              style={dotStyle}
+            >
+              {state === "done" ? checkS : isWaivedStep ? waivedS : (i + 1)}
             </span>
           </React.Fragment>
         );
       })}
       <span className="st-label" style={{ 
         color: activeColor, 
-        background: `${activeColor}1A`, 
+        background: (closed && realIsWaived) ? "rgba(100, 116, 139, 0.12)" : `${activeColor}1A`, 
+        border: (closed && realIsWaived) ? "1px solid rgba(100, 116, 139, 0.28)" : "none",
         padding: "4px 10px", 
         borderRadius: "12px", 
         fontWeight: 700, 
@@ -274,6 +392,7 @@ function IMList() {
 
   const [buildings, setBuildings] = useState([]);
   const [contractors, setContractors] = useState([]);
+  const [stats, setStats] = useState(null);
 
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
   const rawRole = (localStorage.getItem("UserType") || currentUser?.role || currentUser?.userType || currentUser?.user_type || "").toUpperCase();
@@ -368,6 +487,24 @@ function IMList() {
     }
   };
 
+  const fetchStats = async () => {
+    try {
+      const statsParams = { dateRange: "all" };
+      if (isContractor) {
+        statsParams.userRole = "CONTRACTOR";
+        if (contractorId) statsParams.contractorId = contractorId;
+        if (myContractorName) statsParams.contractor = myContractorName;
+      } else if (filters.contractor) {
+        statsParams.contractor = filters.contractor;
+      }
+      if (filters.building) statsParams.building = filters.building;
+      const res = await getIncidentStats(statsParams);
+      if (res) setStats(res);
+    } catch (err) {
+      console.error("Failed to load incident stats", err);
+    }
+  };
+
   useEffect(() => {
     const fetchDropdowns = async () => {
       try {
@@ -388,6 +525,10 @@ function IMList() {
     fetchIncidents();
   }, [currentPage, itemsPerPage, filters, isContractor, contractorId, myContractorName]);
 
+  useEffect(() => {
+    fetchStats();
+  }, [filters.building, filters.contractor, isContractor, contractorId, myContractorName]);
+
   const handleFilterChange = (key, value) => {
     setCurrentPage(1);
     setFilters(prev => ({ ...prev, [key]: value }));
@@ -401,17 +542,18 @@ function IMList() {
   const filteredIncidents = incidents;
 
   const currentIncidents = filteredIncidents;
-  const total = isContractor ? filteredIncidents.length : totalItems;
-  const openCount = filteredIncidents.filter(i => i.stage !== "CLOSED" && i.status !== "Closed").length;
-  const invCount = filteredIncidents.filter(i => i.stage === "INITIAL_REPORT" || i.stage === "INVESTIGATION" || i.pipeline === "Initial" || i.pipeline === "Investigation").length;
-  const ltiCount = filteredIncidents.filter(i => i.category === "Lost Time Injury" || i.type === "LTI" || i.classification === "Lost Time Injury").length;
+  const total = stats?.kpis?.total !== undefined ? stats.kpis.total : (isContractor ? filteredIncidents.length : totalItems);
+  const openCount = stats?.kpis?.active !== undefined ? stats.kpis.active : filteredIncidents.filter(i => i.stage !== "CLOSED" && i.status !== "Closed").length;
+  const invCount = stats?.pipeline
+    ? (stats.pipeline.find(p => p.label === "Initial")?.count || 0) + (stats.pipeline.find(p => p.label === "Investigation")?.count || 0)
+    : filteredIncidents.filter(i => i.stage === "INITIAL_REPORT" || i.stage === "INVESTIGATION" || i.pipeline === "Initial" || i.pipeline === "Investigation").length;
 
   // Pipeline Stages
   const pipelineStages = [
-    { key: "HEADS_UP", match: ["Heads-Up", "HEADS_UP"], label: "Heads-Up (2h)", color: "var(--text-main)", bg: "var(--color-gray-bg)" },
-    { key: "INITIAL_REPORT", match: ["Initial", "INITIAL_REPORT"], label: "Initial Report (24h)", color: "var(--color-caution)", bg: "var(--color-caution-bg)" },
-    { key: "INVESTIGATION", match: ["Investigation", "INVESTIGATION"], label: "Investigation (7d)", color: "var(--text-muted)", bg: "var(--color-gray-bg)" },
-    { key: "CLOSED", match: ["Closed", "CLOSED"], label: "Closed", color: "var(--color-safe)", bg: "var(--color-safe-bg)" }
+    { key: "HEADS_UP", statLabel: "Heads-Up", match: ["Heads-Up", "HEADS_UP"], label: "Heads-Up (2h)", color: "var(--text-main)", bg: "var(--color-gray-bg)" },
+    { key: "INITIAL_REPORT", statLabel: "Initial", match: ["Initial", "INITIAL_REPORT"], label: "Initial Report (24h)", color: "var(--color-caution)", bg: "var(--color-caution-bg)" },
+    { key: "INVESTIGATION", statLabel: "Investigation", match: ["Investigation", "INVESTIGATION"], label: "Investigation (7d)", color: "var(--text-muted)", bg: "var(--color-gray-bg)" },
+    { key: "CLOSED", statLabel: "Closed", match: ["Closed", "CLOSED"], label: "Closed", color: "var(--color-safe)", bg: "var(--color-safe-bg)" }
   ];
 
   // Classification 
@@ -419,7 +561,13 @@ function IMList() {
   const palClass = { "Near Miss": "var(--nne-brand-blue, #131E40)", "First Aid Injury": "#C07D10", "Medical Treatment Injury": "#E8663A", "Restricted Work Injury": "#8F1B32", "Lost Time Injury": "var(--nne-brand-red, #E32B50)", "Property Damage": "var(--nne-concrete, #c8c8c8)", "Environmental Incident": "var(--nne-copper, #c46d32)" };
   
   const classRows = orderClass.map(c => {
-    const n = filteredIncidents.filter(i => i.category === c || i.classification === c || (i.categories && i.categories.includes(c))).length;
+    let n = 0;
+    if (stats?.types) {
+      const found = stats.types.find(t => t.type === c);
+      n = found ? found.count : 0;
+    } else {
+      n = filteredIncidents.filter(i => i.category === c || i.classification === c || (i.categories && i.categories.includes(c))).length;
+    }
     return n > 0 ? { label: c, n, color: palClass[c] || "#A1A5B3" } : null;
   }).filter(Boolean);
   if (!classRows.length) classRows.push({ label: "No incidents", n: 0, color: "#A1A5B3" });
@@ -429,7 +577,12 @@ function IMList() {
   const potRows = [];
   for (let lvl = 5; lvl >= 1; lvl--) {
     const meta = severityMeta(lvl);
-    const n = filteredIncidents.filter(i => String(i.potentialSeverity) === String(lvl)).length;
+    let n = 0;
+    if (stats?.potentialSeverity && stats.potentialSeverity[lvl] !== undefined) {
+      n = stats.potentialSeverity[lvl];
+    } else {
+      n = filteredIncidents.filter(i => String(i.potentialSeverity) === String(lvl)).length;
+    }
     potRows.push({ label: `${lvl} · ${meta.label}`, n, color: meta.color });
   }
   const maxPot = Math.max(...potRows.map(r => r.n), 1);
@@ -473,17 +626,10 @@ function IMList() {
 
       {/* KPI Row */}
       <div className="im-kpis">
-        <div className="im-hero">
-          <div className="im-stat-top"><span className="im-hero-label">Days Since Last LTI</span></div>
-          <div className="im-hero-val">7</div>
-          <div className="im-hero-track"><div className="im-hero-fill" style={{ width: "2%" }}></div></div>
-          <div className="im-hero-metrics"><span><b>214</b> best</span><span><b>365</b> target</span></div>
-        </div>
         {[
           { label: "Total Incidents", value: total, sub: "this period", accent: "var(--accent-primary)" },
           { label: "Open", value: openCount, sub: "awaiting close-out", accent: "var(--color-caution)", valColor: "var(--color-caution)" },
-          { label: "Under Investigation", value: invCount, sub: "initial / investigation", accent: "var(--text-muted)", valColor: "var(--text-muted)" },
-          { label: "LTIs", value: ltiCount, sub: "lost-time injuries", accent: "var(--color-risk)", valColor: "var(--color-risk)" }
+          { label: "Under Investigation", value: invCount, sub: "initial / investigation", accent: "var(--text-muted)", valColor: "var(--text-muted)" }
         ].map(k => (
           <div key={k.label} className="im-stat" style={{ "--a": k.accent }}>
             <div className="im-stat-top"><span className="im-stat-label">{k.label}</span></div>
@@ -499,7 +645,13 @@ function IMList() {
         <div className="mod-card-body">
           <div style={{ display: "flex", gap: "12px", overflowX: "auto" }}>
             {pipelineStages.map(s => {
-              const n = filteredIncidents.filter(i => s.match.includes(i.stage) || s.match.includes(i.pipeline)).length;
+              let n = 0;
+              if (stats?.pipeline) {
+                const found = stats.pipeline.find(p => p.label === s.statLabel || s.match.includes(p.label));
+                n = found ? found.count : 0;
+              } else {
+                n = filteredIncidents.filter(i => s.match.includes(i.stage) || s.match.includes(i.pipeline)).length;
+              }
               const pct = Math.round(n / Math.max(total, 1) * 100);
               return (
                 <div key={s.key} style={{ flex: 1, minWidth: 150, textAlign: "center", padding: "16px", borderRadius: "8px", background: s.bg }}>
@@ -573,7 +725,7 @@ function IMList() {
                 <th className="ith">INV.</th>
                 <th className="ith">CONTRACTOR</th>
                 <th className="ith">ORIGIN</th>
-                <th className="ith" style={{ minWidth: 190, position: "sticky", right: isAdmin ? 60 : 0, zIndex: 3, background: "var(--bg-card, #fff)" }}>STATUS</th>
+                <th className="ith" style={{ minWidth: 205, position: "sticky", right: isAdmin ? 60 : 0, zIndex: 3, background: "var(--bg-card, #fff)" }}>STATUS</th>
                 {isAdmin && (
                   <th className="ith" style={{ minWidth: 60, width: 60, textAlign: "center", position: "sticky", right: 0, zIndex: 3, background: "var(--bg-card, #fff)" }}>ACTION</th>
                 )}
@@ -658,8 +810,8 @@ function IMList() {
                 <tr key={inc.id} onClick={() => navigate(`/incident-management/details/${inc.id}`)} style={{ cursor: "pointer" }}>
                   <td style={{ maxWidth: "180px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontWeight: 600 }}>{inc.caseNumber || inc.title || "—"}</td>
                   <td style={{ whiteSpace: "nowrap" }}>{inc.incidentDate || inc.date || "—"}</td>
-                  <td style={{ whiteSpace: "nowrap", fontSize: "12px" }}>{inc.createdTime ? inc.createdTime.split("T")[0] : inc.createdAt || "—"}</td>
-                  <td style={{ whiteSpace: "nowrap", fontSize: "12px" }}>{inc.updatedTime ? inc.updatedTime.split("T")[0] : inc.editedAt || "—"}</td>
+                  <td style={{ whiteSpace: "nowrap", fontSize: "12px" }}>{inc.createdTime || inc.createdAt ? formatToDenmark24Hour(inc.createdTime || inc.createdAt) : "—"}</td>
+                  <td style={{ whiteSpace: "nowrap", fontSize: "12px" }}>{inc.updatedTime || inc.editedAt ? formatToDenmark24Hour(inc.updatedTime || inc.editedAt) : "—"}</td>
                   <td style={{ whiteSpace: "nowrap" }}>{inc.categories?.[0] || inc.category || "—"}</td>
                   <td>{inc.buildingName || inc.building || "—"}</td>
                   <td><SevPill level={inc.actualSeverity} /></td>

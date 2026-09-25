@@ -1,7 +1,8 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { getIncidents, getIncidentStats } from "../../../services/incidentService";
 import { getBuildings, getContractors } from "../../../services/authService";
+import { generateIncidentStatsPdf } from "../utils/incidentStatsPdfGenerator";
 import "./IMDashboard.css";
 import BodyMap from "../../../components/BodyMap/BodyMap";
 
@@ -14,6 +15,7 @@ const Icons = {
   check: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>,
   filter: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>,
   export: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>,
+  download: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
 };
 
 /* ── Utils ── */
@@ -43,6 +45,36 @@ const formatDateStr = (dateVal) => {
   } catch (e) {
     return String(dateVal).split("T")[0] || "—";
   }
+};
+
+const getDateRangeBounds = (rangeKey) => {
+  const today = new Date();
+  const todayStr = today.toISOString().split("T")[0];
+
+  if (rangeKey === "week") {
+    const day = today.getDay();
+    const diff = (day === 0 ? -6 : 1) - day; // Monday
+    const monday = new Date(today);
+    monday.setDate(today.getDate() + diff);
+    return { startDate: monday.toISOString().split("T")[0], endDate: todayStr };
+  }
+  if (rangeKey === "30d") {
+    const d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    return { startDate: d.toISOString().split("T")[0], endDate: todayStr };
+  }
+  if (rangeKey === "90d") {
+    const d = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+    return { startDate: d.toISOString().split("T")[0], endDate: todayStr };
+  }
+  if (rangeKey === "year") {
+    const yearStart = `${today.getFullYear()}-01-01`;
+    return { startDate: yearStart, endDate: todayStr };
+  }
+  if (rangeKey === "13m") {
+    const d = new Date(Date.now() - 395 * 24 * 60 * 60 * 1000);
+    return { startDate: d.toISOString().split("T")[0], endDate: todayStr };
+  }
+  return { startDate: "", endDate: "" };
 };
 
 const getLogoUrl = (logoVal) => {
@@ -146,6 +178,185 @@ const StatCard = ({ label, value, sub, icon: Icon, accent, valColor, throb }) =>
 
 
 
+const MultiSelectFilter = ({
+  options = [],
+  selected = [],
+  onChange,
+  placeholder = "Select...",
+  searchPlaceholder = "Search...",
+  showLogos = false,
+  contractorsList = []
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    };
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isOpen]);
+
+  const filteredOptions = useMemo(() => {
+    if (!search.trim()) return options;
+    const q = search.toLowerCase().trim();
+    return options.filter(opt => String(opt.label || opt.value || opt).toLowerCase().includes(q));
+  }, [options, search]);
+
+  const toggleOption = (val) => {
+    if (selected.includes(val)) {
+      onChange(selected.filter(v => v !== val));
+    } else {
+      onChange([...selected, val]);
+    }
+  };
+
+  const handleSelectAll = () => {
+    if (filteredOptions.length === 0) return;
+    const allFilteredVals = filteredOptions.map(o => o.value);
+    const areAllSelected = allFilteredVals.every(v => selected.includes(v));
+    if (areAllSelected) {
+      onChange(selected.filter(v => !allFilteredVals.includes(v)));
+    } else {
+      const newSel = Array.from(new Set([...selected, ...allFilteredVals]));
+      onChange(newSel);
+    }
+  };
+
+  const handleClear = (e) => {
+    e?.stopPropagation?.();
+    onChange([]);
+  };
+
+  const triggerLabel = useMemo(() => {
+    if (selected.length === 0) return placeholder;
+    if (selected.length === 1) return selected[0];
+    return `${selected.length} Selected`;
+  }, [selected, placeholder]);
+
+  return (
+    <div ref={dropdownRef} className="im-multi-select-container">
+      <button
+        type="button"
+        className={`im-multi-select-trigger ${selected.length > 0 ? "active" : ""}`}
+        onClick={() => setIsOpen(!isOpen)}
+        title={selected.length > 0 ? selected.join(", ") : placeholder}
+      >
+        <span className="im-multi-select-text">
+          {triggerLabel}
+        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+          {selected.length > 0 && (
+            <span
+              className="im-multi-select-clear"
+              onClick={handleClear}
+              title="Clear selection"
+            >
+              &times;
+            </span>
+          )}
+          <svg
+            className={`im-multi-select-chevron ${isOpen ? "open" : ""}`}
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </div>
+      </button>
+
+      {isOpen && (
+        <div className="im-multi-select-menu">
+          <div className="im-multi-select-search-box">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <input
+              type="text"
+              className="im-multi-select-search-input"
+              placeholder={searchPlaceholder}
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              autoFocus
+            />
+            {search && (
+              <span className="im-multi-select-search-clear" onClick={() => setSearch("")}>&times;</span>
+            )}
+          </div>
+
+          <div className="im-multi-select-actions">
+            <button
+              type="button"
+              className="im-multi-select-action-btn"
+              onClick={handleSelectAll}
+            >
+              {filteredOptions.length > 0 && filteredOptions.every(o => selected.includes(o.value))
+                ? "Deselect All"
+                : "Select All"}
+            </button>
+            {selected.length > 0 && (
+              <button
+                type="button"
+                className="im-multi-select-action-btn danger"
+                onClick={handleClear}
+              >
+                Clear ({selected.length})
+              </button>
+            )}
+          </div>
+
+          <div className="im-multi-select-list">
+            {filteredOptions.length === 0 ? (
+              <div className="im-multi-select-empty">No options found</div>
+            ) : (
+              filteredOptions.map(opt => {
+                const isChecked = selected.includes(opt.value);
+                return (
+                  <div
+                    key={opt.value}
+                    className={`im-multi-select-item ${isChecked ? "selected" : ""}`}
+                    onClick={() => toggleOption(opt.value)}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={() => {}}
+                      className="im-multi-select-checkbox"
+                    />
+                    {showLogos && (
+                      <ContractorLogo
+                        logoVal={opt.logo || findContractorLogo(opt.value, contractorsList)}
+                        name={opt.label}
+                        size={20}
+                      />
+                    )}
+                    <span className="im-multi-select-item-label" title={opt.label}>
+                      {opt.label}
+                    </span>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 /* ── Main Dashboard ── */
 export default function IMDashboard() {
   const navigate = useNavigate();
@@ -154,9 +365,32 @@ export default function IMDashboard() {
   
   // Filter States
   const [stageFilter, setStageFilter] = useState('all');
-  const [selectedBuilding, setSelectedBuilding] = useState('');
-  const [selectedContractor, setSelectedContractor] = useState('');
+  const [selectedBuildings, setSelectedBuildings] = useState([]);
+  const [selectedContractors, setSelectedContractors] = useState([]);
   const [selectedDateRange, setSelectedDateRange] = useState('13m');
+  const [startDate, setStartDate] = useState(() => getDateRangeBounds('13m').startDate);
+  const [endDate, setEndDate] = useState(() => getDateRangeBounds('13m').endDate);
+
+  const handleRangeChange = (range) => {
+    setSelectedDateRange(range);
+    if (range === 'custom') {
+      // Keep existing custom dates
+    } else {
+      const bounds = getDateRangeBounds(range);
+      setStartDate(bounds.startDate);
+      setEndDate(bounds.endDate);
+    }
+  };
+
+  const handleStartDateChange = (val) => {
+    setStartDate(val);
+    setSelectedDateRange('custom');
+  };
+
+  const handleEndDateChange = (val) => {
+    setEndDate(val);
+    setSelectedDateRange('custom');
+  };
 
   // Master Data Selector Lists
   const [buildingsList, setBuildingsList] = useState([]);
@@ -164,8 +398,13 @@ export default function IMDashboard() {
 
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
   const rawRole = (localStorage.getItem("UserType") || currentUser?.role || currentUser?.userType || currentUser?.user_type || "").toUpperCase();
+  const userRolesArr = Array.isArray(currentUser?.userTypes) ? currentUser.userTypes.map((t) => String(t).toUpperCase()) : [];
+  const allRoles = [rawRole, ...userRolesArr].join(" ");
+  const isObserver = allRoles.includes("OBSERVER");
+  const isAdmin = (allRoles.includes("ADMIN") || allRoles.includes("SUPERADMIN") || Boolean(currentUser?.isSuperAdmin)) && !isObserver;
   const isContractor = rawRole.includes("CONTRACTOR") || rawRole.includes("SUBCONTRACTOR") || Boolean(currentUser?.subcontractor_id) || Boolean(currentUser?.typeId && rawRole.includes("SUBCONTRACTOR"));
   const contractorId = currentUser?.typeId || currentUser?.subcontractor_id || currentUser?.subContId || currentUser?.contractorId;
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
   const myContractor = useMemo(() => {
     if (!isContractor) return null;
@@ -201,6 +440,33 @@ export default function IMDashboard() {
 
   const [serverStats, setServerStats] = useState(null);
 
+  const buildingOptions = useMemo(() => {
+    const names = new Set();
+    (buildingsList || []).forEach((b, idx) => {
+      const bName = b?.name || b?.buildingName || b?.building_name || (typeof b === 'string' ? b : `Building #${idx+1}`);
+      if (bName && String(bName).trim()) {
+        names.add(String(bName).trim());
+      }
+    });
+    return Array.from(names).sort().map(name => ({ label: name, value: name }));
+  }, [buildingsList]);
+
+  const contractorOptions = useMemo(() => {
+    const map = new Map();
+    (contractorsList || []).forEach((c, idx) => {
+      const cName = c?.company_name || c?.companyName || c?.subContractorName || c?.subcontractor_name || c?.name || (typeof c === 'string' ? c : `Contractor #${idx+1}`);
+      const trimmed = String(cName || '').trim();
+      if (trimmed && !map.has(trimmed)) {
+        map.set(trimmed, {
+          label: trimmed,
+          value: trimmed,
+          logo: c?.logo || c?.logo_url || c?.company_logo || c?.logoFile || null
+        });
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label));
+  }, [contractorsList]);
+
   // Fetch Incidents & Aggregated Stats from API with Filters
   useEffect(() => {
     const loadIncidents = async () => {
@@ -211,11 +477,15 @@ export default function IMDashboard() {
           params.userRole = "CONTRACTOR";
           if (contractorId) params.contractorId = contractorId;
           if (myContractorName) params.contractor = myContractorName;
-        } else if (selectedContractor) {
-          params.contractor = selectedContractor;
+        } else if (selectedContractors.length > 0) {
+          params.contractor = selectedContractors.join(',');
         }
-        if (selectedBuilding) params.building = selectedBuilding;
+        if (selectedBuildings.length > 0) {
+          params.building = selectedBuildings.join(',');
+        }
         if (selectedDateRange) params.dateRange = selectedDateRange;
+        if (startDate) params.startDate = startDate;
+        if (endDate) params.endDate = endDate;
 
         // Fetch aggregated backend stats (blazing fast, optimized for lakhs of records)
         // and fetch recent paginated incidents for table display
@@ -237,9 +507,23 @@ export default function IMDashboard() {
       }
     };
     loadIncidents();
-  }, [selectedBuilding, selectedContractor, selectedDateRange, isContractor, contractorId, myContractorName]);
+  }, [selectedBuildings, selectedContractors, selectedDateRange, startDate, endDate, isContractor, contractorId, myContractorName]);
 
-  const displayedIncidents = incidents;
+  const displayedIncidents = useMemo(() => {
+    return incidents.filter(i => {
+      if (selectedBuildings.length > 0) {
+        const bName = String(i.buildingName || i.building || '').toLowerCase();
+        const match = selectedBuildings.some(sb => bName.includes(sb.toLowerCase()) || sb.toLowerCase().includes(bName));
+        if (!match) return false;
+      }
+      if (!isContractor && selectedContractors.length > 0) {
+        const cInvolved = String(i.contractorsInvolved || i.contractor || '').toLowerCase();
+        const match = selectedContractors.some(sc => cInvolved.includes(sc.toLowerCase()));
+        if (!match) return false;
+      }
+      return true;
+    });
+  }, [incidents, selectedBuildings, selectedContractors, isContractor]);
 
   /* Calculate Dynamic LTI Streak */
   const ltiStreak = useMemo(() => {
@@ -509,73 +793,33 @@ export default function IMDashboard() {
     });
   }, [incidents, stageFilter]);
 
-  /* Export CSV Function */
-  const handleExportCsv = () => {
-    const exportData = filteredIncidents.length > 0 ? filteredIncidents : incidents;
-    if (!exportData || exportData.length === 0) return;
-
-    const headers = [
-      "Code",
-      "Date",
-      "Type",
-      "Severity",
-      "Stage",
-      "Contractor",
-      "Building / Location"
-    ];
-
-    const formatCsvField = (val, isDate = false) => {
-      if (val === null || val === undefined) return '""';
-      const str = String(val).replace(/"/g, '""');
-      if (isDate && str && str !== '—') {
-        return `="${str}"`;
-      }
-      return `"${str}"`;
-    };
-
-    const rows = exportData.map(i => {
-      const code = i.caseNumber || (i.id ? `INC-2026-${String(i.id).padStart(4, '0')}` : '—');
-      const rawDate = i.incidentDate || i.date || i.createdAt;
-      const formattedDate = formatDateStr(rawDate);
-      const type = i.categories?.[0] || i.category || i.classification || i.type || '—';
-
-      const s = String(i.actualSeverity || i.potentialSeverity || i.severity || '').toLowerCase();
-      let sev = 'LOW';
-      if (s.includes('crit') || s === '4' || s === '5') sev = 'CRITICAL';
-      else if (s.includes('high') || s === '3') sev = 'HIGH';
-      else if (s.includes('med') || s === '2') sev = 'MEDIUM';
-
-      let stage = i.pipeline || i.stage || 'Heads-Up';
-      if (stage === 'INITIAL_REPORT') stage = 'Initial';
-      else if (stage === 'INVESTIGATION') stage = 'Investigation';
-      else if (stage === 'CLOSED') stage = 'Closed';
-      else if (stage === 'HEADS_UP') stage = 'Heads-Up';
-
-      const contractor = i.contractorsInvolved || i.contractor || 'Unassigned';
-      const building = i.buildingName || i.building || i.location || '—';
-
-      return [
-        formatCsvField(code),
-        formatCsvField(formattedDate, true),
-        formatCsvField(type),
-        formatCsvField(sev),
-        formatCsvField(stage),
-        formatCsvField(contractor),
-        formatCsvField(building)
-      ].join(",");
-    });
-
-    const csvString = "\uFEFF" + [headers.map(formatCsvField).join(","), ...rows].join("\r\n");
-    const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    const timestamp = new Date().toISOString().split("T")[0];
-    link.setAttribute("download", `Incident_Analytics_Report_${timestamp}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+  /* Generate and Download PDF Stats */
+  const handleDownloadPdf = async () => {
+    try {
+      setIsGeneratingPdf(true);
+      await generateIncidentStatsPdf({
+        agg,
+        filters: {
+          selectedBuildings,
+          selectedContractors,
+          selectedBuilding: selectedBuildings.join(', '),
+          selectedContractor: selectedContractors.join(', '),
+          selectedDateRange,
+          startDate,
+          endDate
+        },
+        bodyParts: {
+          frontParts,
+          backParts,
+          bodyPartsSummary
+        },
+        currentUser
+      });
+    } catch (err) {
+      console.error("Failed to generate PDF", err);
+    } finally {
+      setIsGeneratingPdf(false);
+    }
   };
 
   return (
@@ -590,9 +834,17 @@ export default function IMDashboard() {
           </div>
         </div>
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-          <button type="button" className="btn btn-outline" onClick={handleExportCsv} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Icons.export /> Export CSV
-          </button>
+          {isAdmin && (
+            <button
+              type="button"
+              className="btn btn-outline"
+              onClick={handleDownloadPdf}
+              disabled={isGeneratingPdf}
+              style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
+              <Icons.download /> {isGeneratingPdf ? "Generating PDF..." : "Download PDF"}
+            </button>
+          )}
           <button className="mod-btn-primary" onClick={() => navigate("/incident-management/create")}>+ Report Incident</button>
         </div>
       </div>
@@ -600,45 +852,70 @@ export default function IMDashboard() {
       {/* ── Filters ── */}
       <div className="dash-filters">
         <span className="dfl">Buildings</span>
-        <select value={selectedBuilding} onChange={e => setSelectedBuilding(e.target.value)}>
-          <option value="">All Buildings</option>
-          {buildingsList.map((b, idx) => {
-            const bName = b.name || b.buildingName || b.building_name || (typeof b === 'string' ? b : `Building #${idx+1}`);
-            return <option key={idx} value={bName}>{bName}</option>;
-          })}
-        </select>
+        <MultiSelectFilter
+          options={buildingOptions}
+          selected={selectedBuildings}
+          onChange={setSelectedBuildings}
+          placeholder="All Buildings"
+          searchPlaceholder="Search buildings..."
+        />
 
         {!isContractor && (
           <>
             <span className="dfl">Contractors</span>
-            <select value={selectedContractor} onChange={e => setSelectedContractor(e.target.value)}>
-              <option value="">All Contractors</option>
-              {contractorsList.map((c, idx) => {
-                const cName = c.company_name || c.companyName || c.subContractorName || c.subcontractor_name || c.name || (typeof c === 'string' ? c : `Contractor #${idx+1}`);
-                return <option key={idx} value={cName}>{cName}</option>;
-              })}
-            </select>
+            <MultiSelectFilter
+              options={contractorOptions}
+              selected={selectedContractors}
+              onChange={setSelectedContractors}
+              placeholder="All Contractors"
+              searchPlaceholder="Search contractors..."
+              showLogos={true}
+              contractorsList={contractorsList}
+            />
           </>
         )}
 
         <span className="dfl">Range</span>
-        <select value={selectedDateRange} onChange={e => setSelectedDateRange(e.target.value)}>
+        <select value={selectedDateRange} onChange={e => handleRangeChange(e.target.value)}>
           <option value="all">All Time</option>
-          <option value="13m">Last 13 Months</option>
-          <option value="90d">Last 90 Days</option>
+          <option value="week">This Week</option>
           <option value="30d">Last 30 Days</option>
+          <option value="90d">Last 90 Days</option>
           <option value="year">This Year</option>
+          <option value="13m">Last 13 Months</option>
+          <option value="custom">Custom Range</option>
         </select>
 
-        {(selectedBuilding || selectedContractor || (selectedDateRange && selectedDateRange !== '13m')) && (
+        <span className="dfl">From</span>
+        <input 
+          type="date" 
+          className="dash-filter-date" 
+          value={startDate} 
+          onChange={e => handleStartDateChange(e.target.value)} 
+          title="From Date"
+        />
+
+        <span className="dfl">To</span>
+        <input 
+          type="date" 
+          className="dash-filter-date" 
+          value={endDate} 
+          onChange={e => handleEndDateChange(e.target.value)} 
+          title="To Date"
+        />
+
+        {(selectedBuildings.length > 0 || selectedContractors.length > 0 || (selectedDateRange && selectedDateRange !== '13m') || (selectedDateRange === 'custom' && (startDate || endDate))) && (
           <button 
             type="button" 
             className="btn btn-outline" 
             style={{ borderColor: 'transparent', color: '#E32B50', padding: '6px 12px', background: 'rgba(227, 43, 80, 0.05)' }}
             onClick={() => {
-              setSelectedBuilding("");
-              setSelectedContractor("");
+              setSelectedBuildings([]);
+              setSelectedContractors([]);
               setSelectedDateRange("13m");
+              const bounds = getDateRangeBounds("13m");
+              setStartDate(bounds.startDate);
+              setEndDate(bounds.endDate);
             }}
             title="Clear all filters"
           >

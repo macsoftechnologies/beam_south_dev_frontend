@@ -174,6 +174,19 @@ function SOList() {
       });
       setObservations((prev) => prev.filter((o) => o.id !== deletingObs.id));
       setTotalCount((prev) => Math.max(0, prev - 1));
+      setOverallStats((prev) => {
+        const newTotal = Math.max(0, prev.total - 1);
+        const newPos = deletingObs.observationType === "POSITIVE" ? Math.max(0, prev.positive - 1) : prev.positive;
+        const newNeeds = deletingObs.observationType === "NEEDS_ATTENTION" ? Math.max(0, prev.needsAttention - 1) : prev.needsAttention;
+        const newActive = (deletingObs.status === "ASSIGNED" || deletingObs.status === "ACCEPTED") ? Math.max(0, prev.activeAssigned - 1) : prev.activeAssigned;
+        return {
+          total: newTotal,
+          positive: newPos,
+          needsAttention: newNeeds,
+          activeAssigned: newActive,
+          positiveRatio: (newPos + newNeeds) > 0 ? Math.round((newPos / (newPos + newNeeds)) * 100) : 0,
+        };
+      });
       setDeletingObs(null);
     } catch (err) {
       alert(err.response?.data?.message || "Failed to delete observation.");
@@ -202,6 +215,45 @@ function SOList() {
   const [pageSize, setPageSize] = useState(10);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
+
+  // Overall Statistics State (across the entire dataset, not just the paginated slice)
+  const [overallStats, setOverallStats] = useState({
+    total: 0,
+    positive: 0,
+    needsAttention: 0,
+    positiveRatio: 0,
+    activeAssigned: 0,
+  });
+
+  const fetchOverallStats = async () => {
+    try {
+      const statsParams = {};
+      if (isContractor) {
+        statsParams.userRole = "CONTRACTOR";
+        if (contractorId) statsParams.contractorId = contractorId;
+        if (myContractorName) statsParams.contractor = myContractorName;
+      }
+      if (filterContractor) statsParams.contractor = filterContractor;
+      if (filterLocation) statsParams.building = filterLocation;
+      const s = await observationService.getObservationStats(statsParams);
+      if (s) {
+        const total = s.total || 0;
+        const positive = s.safe || 0;
+        const needsAttention = s.unsafe || 0;
+        const positiveRatio = s.positiveRatio !== undefined ? s.positiveRatio : ((positive + needsAttention) > 0 ? Math.round((positive / (positive + needsAttention)) * 100) : 0);
+        const activeAssigned = s.activeAssigned !== undefined ? s.activeAssigned : 0;
+        setOverallStats({
+          total,
+          positive,
+          needsAttention,
+          positiveRatio,
+          activeAssigned,
+        });
+      }
+    } catch (e) {
+      console.warn("Could not load overall stats:", e);
+    }
+  };
 
   // Fetch Master Selector Data (Buildings & Contractors API)
   useEffect(() => {
@@ -247,14 +299,31 @@ function SOList() {
         setObservations(res.data);
         setTotalCount(res.total || res.data.length);
         setTotalPages(res.totalPages || 1);
+        if (res.stats) {
+          setOverallStats(res.stats);
+        } else {
+          fetchOverallStats();
+        }
       } else if (Array.isArray(res)) {
         setObservations(res);
         setTotalCount(res.length);
         setTotalPages(1);
+        const pos = res.filter((o) => o.observationType === "POSITIVE").length;
+        const needs = res.filter((o) => o.observationType === "NEEDS_ATTENTION").length;
+        const ratio = (pos + needs) > 0 ? Math.round((pos / (pos + needs)) * 100) : 0;
+        const active = res.filter((o) => o.status === "ASSIGNED" || o.status === "ACCEPTED").length;
+        setOverallStats({
+          total: res.length,
+          positive: pos,
+          needsAttention: needs,
+          positiveRatio: ratio,
+          activeAssigned: active,
+        });
       } else {
         setObservations([]);
         setTotalCount(0);
         setTotalPages(1);
+        setOverallStats({ total: 0, positive: 0, needsAttention: 0, positiveRatio: 0, activeAssigned: 0 });
       }
     } catch (err) {
       console.error("Failed to load observations:", err);
@@ -286,9 +355,6 @@ function SOList() {
     return Array.from(new Set([...apiNames, ...obsNames])).sort();
   }, [buildingsList, observations]);
 
-  const positive = observations.filter((o) => o.observationType === "POSITIVE").length;
-  const needsAttn = observations.filter((o) => o.observationType === "NEEDS_ATTENTION").length;
-  const posRatio = Math.round((positive / (observations.length || 1)) * 100) || 0;
 
   return (
     <div className="mod-page">
@@ -341,7 +407,9 @@ function SOList() {
             <BarChartIcon />
           </div>
           <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", color: "var(--text-muted)" }}>Total</div>
-          <div style={{ fontSize: 27, fontWeight: 700, marginTop: 6, color: "var(--accent-primary, #3B82F6)" }}>{observations.length}</div>
+          <div style={{ fontSize: 27, fontWeight: 700, marginTop: 6, color: "var(--accent-primary, #3B82F6)" }}>
+            {overallStats.total !== undefined ? overallStats.total : totalCount}
+          </div>
         </div>
 
         <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: 10, padding: "15px 16px", position: "relative" }}>
@@ -349,7 +417,7 @@ function SOList() {
             <ShieldIcon />
           </div>
           <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", color: "var(--text-muted)" }}>Positive</div>
-          <div style={{ fontSize: 27, fontWeight: 700, marginTop: 6, color: "#2D7A4F" }}>{positive}</div>
+          <div style={{ fontSize: 27, fontWeight: 700, marginTop: 6, color: "#2D7A4F" }}>{overallStats.positive}</div>
         </div>
 
         <div style={{ background: "var(--bg-card)", border: "1px solid #E32B50", boxShadow: "0 0 0 1px rgba(227,43,80,0.35)", borderRadius: 10, padding: "15px 16px", position: "relative" }}>
@@ -357,14 +425,14 @@ function SOList() {
             <AlertIcon />
           </div>
           <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", color: "var(--text-muted)" }}>Needs Attention</div>
-          <div style={{ fontSize: 27, fontWeight: 700, marginTop: 6, color: "#E32B50" }}>{needsAttn}</div>
+          <div style={{ fontSize: 27, fontWeight: 700, marginTop: 6, color: "#E32B50" }}>{overallStats.needsAttention}</div>
         </div>
 
         <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: 10, padding: "15px 16px", position: "relative" }}>
           <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", color: "var(--text-muted)" }}>Positive Ratio</div>
-          <div style={{ fontSize: 27, fontWeight: 700, marginTop: 6, color: "#C07D10" }}>{posRatio}%</div>
+          <div style={{ fontSize: 27, fontWeight: 700, marginTop: 6, color: "#C07D10" }}>{overallStats.positiveRatio}%</div>
           <div style={{ height: 7, background: "#eef0f3", borderRadius: 5, marginTop: 9 }}>
-            <div style={{ height: "100%", background: "#C07D10", borderRadius: 5, width: `${posRatio}%` }}></div>
+            <div style={{ height: "100%", background: "#C07D10", borderRadius: 5, width: `${overallStats.positiveRatio}%` }}></div>
           </div>
         </div>
 
@@ -374,7 +442,7 @@ function SOList() {
           </div>
           <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", color: "var(--text-muted)" }}>Active Assigned</div>
           <div style={{ fontSize: 27, fontWeight: 700, marginTop: 6, color: "#C07D10" }}>
-            {observations.filter((o) => o.status === "ASSIGNED" || o.status === "ACCEPTED").length}
+            {overallStats.activeAssigned}
           </div>
         </div>
       </div>

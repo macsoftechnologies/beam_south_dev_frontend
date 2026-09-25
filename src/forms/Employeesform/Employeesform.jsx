@@ -78,7 +78,7 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
       setEmployeeBadgeId(initialData.badgeId || "");
       setEmployeeName(initialData.employeeName || initialData.name || "");
       setDesignation(initialData.designation || "");
-      setPhoneNumber(initialData.phonenumber || initialData.phoneNumber || "");
+      setPhoneNumber(String(initialData.phonenumber || initialData.phoneNumber || "").replace(/^\+/, ""));
       setRoleId(initialData.roleId !== undefined && initialData.roleId !== null ? String(initialData.roleId) : "");
 
       // Parse userType (comma-separated string or array) into employeeTypes array
@@ -266,14 +266,17 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
           <label className="df-label">
             Phone Number <span className="df-required">*</span>
           </label>
-          <input
-            type="text"
-            className="df-input"
-            value={phoneNumber}
-            onChange={(e) => setPhoneNumber(e.target.value)}
-            placeholder="Phone Number"
-            required
-          />
+          <div className="df-phone-group">
+            <span className="df-phone-prefix">+</span>
+            <input
+              type="text"
+              className="df-phone-input"
+              value={phoneNumber}
+              onChange={(e) => setPhoneNumber(e.target.value.replace(/^\+/, ""))}
+              placeholder="Phone Number"
+              required
+            />
+          </div>
         </div>
 
         {/* Select Role */}

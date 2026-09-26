@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function BodyMap({ data = [], view = 'front' }) {
+export default function BodyMap({ data = [], view = 'front', selectedPart = null, onSelectPart = null }) {
   // Find count for a specific part by matching names or aliases
   const getCount = (partNames) => {
     if (!Array.isArray(partNames)) partNames = [partNames];
@@ -26,6 +26,31 @@ export default function BodyMap({ data = [], view = 'front' }) {
     if (count >= 3) return '#C07D10'; // Medium Stage (3 - 4) - Orange
     if (count >= 1) return '#7BBE97'; // Low Stage (1 - 2) - Green
     return '#b4c6e7'; // Neutral default from Initial Incident Report Form
+  };
+
+  const isPartSelected = (names) => {
+    if (!selectedPart) return false;
+    const lowerSel = selectedPart.toLowerCase().trim();
+    if (!Array.isArray(names)) names = [names];
+    return names.some(n => {
+      const lowerN = n.toLowerCase().trim();
+      return lowerN === lowerSel || lowerN.includes(lowerSel) || lowerSel.includes(lowerN);
+    });
+  };
+
+  const partProps = (names, primaryName) => {
+    const isSel = isPartSelected(names);
+    const clickable = Boolean(onSelectPart);
+    return {
+      stroke: isSel ? '#2563EB' : '#ffffff',
+      strokeWidth: isSel ? 3.5 : 2,
+      style: {
+        cursor: clickable ? 'pointer' : 'default',
+        transition: 'all 0.15s ease',
+        filter: isSel ? 'drop-shadow(0 0 4px rgba(37, 99, 235, 0.6))' : 'none',
+      },
+      onClick: clickable ? (e) => { e.stopPropagation(); onSelectPart(primaryName); } : undefined,
+    };
   };
 
   const c = (names) => getColor(getCount(names));
@@ -60,30 +85,30 @@ export default function BodyMap({ data = [], view = 'front' }) {
 
     return (
       <svg width="140" height="280" viewBox="0 0 140 280">
-        <circle cx="70" cy="24" r="16" fill={headCol} stroke="#ffffff" strokeWidth="2" />
-        <circle cx="70" cy="24" r="9" fill={facialCol} stroke="#ffffff" strokeWidth="1" />
-        <rect x="61" y="42" width="18" height="9" rx="3" fill={neckCol} stroke="#ffffff" strokeWidth="2" />
-        <circle cx="42" cy="59" r="8" fill={rShoulderCol} stroke="#ffffff" strokeWidth="2" />
-        <circle cx="98" cy="59" r="8" fill={lShoulderCol} stroke="#ffffff" strokeWidth="2" />
-        <rect x="52" y="53" width="36" height="26" rx="4" fill={chestCol} stroke="#ffffff" strokeWidth="2" />
-        <rect x="54" y="81" width="32" height="18" rx="3" fill={abdomenCol} stroke="#ffffff" strokeWidth="2" />
-        <rect x="52" y="101" width="36" height="24" rx="4" fill={abdomenCol} stroke="#ffffff" strokeWidth="2" />
-        <rect x="36" y="69" width="12" height="38" rx="5" fill={rArmCol} stroke="#ffffff" strokeWidth="2" />
-        <rect x="92" y="69" width="12" height="38" rx="5" fill={lArmCol} stroke="#ffffff" strokeWidth="2" />
-        <circle cx="36" cy="112" r="5" fill={rWristCol} stroke="#ffffff" strokeWidth="2" />
-        <circle cx="104" cy="112" r="5" fill={lWristCol} stroke="#ffffff" strokeWidth="2" />
-        <rect x="30" y="119" width="12" height="18" rx="6" fill={rHandCol} stroke="#ffffff" strokeWidth="2" />
-        <rect x="98" y="119" width="12" height="18" rx="6" fill={lHandCol} stroke="#ffffff" strokeWidth="2" />
-        <rect x="52" y="127" width="14" height="48" rx="6" fill={rLegCol} stroke="#ffffff" strokeWidth="2" />
-        <rect x="74" y="127" width="14" height="48" rx="6" fill={lLegCol} stroke="#ffffff" strokeWidth="2" />
-        <circle cx="59" cy="179" r="5" fill={rKneeCol} stroke="#ffffff" strokeWidth="2" />
-        <circle cx="81" cy="179" r="5" fill={lKneeCol} stroke="#ffffff" strokeWidth="2" />
-        <rect x="53" y="186" width="12" height="44" rx="5" fill={rCalfCol} stroke="#ffffff" strokeWidth="2" />
-        <rect x="75" y="186" width="12" height="44" rx="5" fill={lCalfCol} stroke="#ffffff" strokeWidth="2" />
-        <circle cx="59" cy="234" r="4" fill={rAnkleCol} stroke="#ffffff" strokeWidth="2" />
-        <circle cx="81" cy="234" r="4" fill={lAnkleCol} stroke="#ffffff" strokeWidth="2" />
-        <ellipse cx="53" cy="244" rx="10" ry="5" fill={rFootCol} stroke="#ffffff" strokeWidth="2" />
-        <ellipse cx="87" cy="244" rx="10" ry="5" fill={lFootCol} stroke="#ffffff" strokeWidth="2" />
+        <circle cx="70" cy="24" r="16" fill={headCol} {...partProps(['Head', 'Cranium'], 'Head')} />
+        <circle cx="70" cy="24" r="9" fill={facialCol} {...partProps(['Facial area', 'Teeth', 'Eye', 'Face'], 'Facial area')} />
+        <rect x="61" y="42" width="18" height="9" rx="3" fill={neckCol} {...partProps(['Neck'], 'Neck')} />
+        <circle cx="42" cy="59" r="8" fill={rShoulderCol} {...partProps(['R. Shoulder', 'Shoulder (R)'], 'R. Shoulder')} />
+        <circle cx="98" cy="59" r="8" fill={lShoulderCol} {...partProps(['L. Shoulder', 'Shoulder (L)'], 'L. Shoulder')} />
+        <rect x="52" y="53" width="36" height="26" rx="4" fill={chestCol} {...partProps(['Chest', 'Ribs', 'Torso'], 'Chest')} />
+        <rect x="54" y="81" width="32" height="18" rx="3" fill={abdomenCol} {...partProps(['Lower Abdomen', 'Abdomen', 'Pelvis'], 'Lower Abdomen')} />
+        <rect x="52" y="101" width="36" height="24" rx="4" fill={abdomenCol} {...partProps(['Lower Abdomen', 'Abdomen', 'Pelvis'], 'Lower Abdomen')} />
+        <rect x="36" y="69" width="12" height="38" rx="5" fill={rArmCol} {...partProps(['R. Forearm', 'R. Arm', 'Arm, Elbow (R)'], 'R. Forearm')} />
+        <rect x="92" y="69" width="12" height="38" rx="5" fill={lArmCol} {...partProps(['L. Forearm', 'L. Arm', 'Arm, Elbow (L)'], 'L. Forearm')} />
+        <circle cx="36" cy="112" r="5" fill={rWristCol} {...partProps(['R. Hand', 'Hand (R)', 'R. Wrist'], 'R. Hand')} />
+        <circle cx="104" cy="112" r="5" fill={lWristCol} {...partProps(['L. Hand', 'Hand (L)', 'L. Wrist'], 'L. Hand')} />
+        <rect x="30" y="119" width="12" height="18" rx="6" fill={rHandCol} {...partProps(['R. Hand', 'Hand (R)', 'Finger (R)'], 'R. Hand')} />
+        <rect x="98" y="119" width="12" height="18" rx="6" fill={lHandCol} {...partProps(['L. Hand', 'Hand (L)', 'Finger (L)'], 'L. Hand')} />
+        <rect x="52" y="127" width="14" height="48" rx="6" fill={rLegCol} {...partProps(['R. Leg', 'Legs, Knee (R)'], 'R. Leg')} />
+        <rect x="74" y="127" width="14" height="48" rx="6" fill={lLegCol} {...partProps(['L. Leg', 'Legs, Knee (L)'], 'L. Leg')} />
+        <circle cx="59" cy="179" r="5" fill={rKneeCol} {...partProps(['R. Leg', 'Legs, Knee (R)'], 'R. Leg')} />
+        <circle cx="81" cy="179" r="5" fill={lKneeCol} {...partProps(['L. Leg', 'Legs, Knee (L)'], 'L. Leg')} />
+        <rect x="53" y="186" width="12" height="44" rx="5" fill={rCalfCol} {...partProps(['R. Leg', 'Legs, Knee (R)'], 'R. Leg')} />
+        <rect x="75" y="186" width="12" height="44" rx="5" fill={lCalfCol} {...partProps(['L. Leg', 'Legs, Knee (L)'], 'L. Leg')} />
+        <circle cx="59" cy="234" r="4" fill={rAnkleCol} {...partProps(['R. Foot', 'Foot (R)'], 'R. Foot')} />
+        <circle cx="81" cy="234" r="4" fill={lAnkleCol} {...partProps(['L. Foot', 'Foot (L)'], 'L. Foot')} />
+        <ellipse cx="53" cy="244" rx="10" ry="5" fill={rFootCol} {...partProps(['R. Foot', 'Foot (R)'], 'R. Foot')} />
+        <ellipse cx="87" cy="244" rx="10" ry="5" fill={lFootCol} {...partProps(['L. Foot', 'Foot (L)'], 'L. Foot')} />
       </svg>
     );
   }
@@ -118,31 +143,30 @@ export default function BodyMap({ data = [], view = 'front' }) {
 
   return (
     <svg width="140" height="280" viewBox="0 0 140 280">
-      <circle cx="70" cy="24" r="16" fill={headCol} stroke="#ffffff" strokeWidth="2" />
-      <circle cx="52" cy="24" r="4" fill={lEarCol} stroke="#ffffff" strokeWidth="1.5" />
-      <circle cx="88" cy="24" r="4" fill={rEarCol} stroke="#ffffff" strokeWidth="1.5" />
-      <rect x="61" y="42" width="18" height="9" rx="3" fill={neckCol} stroke="#ffffff" strokeWidth="2" />
-      <circle cx="42" cy="59" r="8" fill={lShoulderCol} stroke="#ffffff" strokeWidth="2" />
-      <circle cx="98" cy="59" r="8" fill={rShoulderCol} stroke="#ffffff" strokeWidth="2" />
-      <rect x="52" y="53" width="36" height="46" rx="4" fill={upperBackCol} stroke="#ffffff" strokeWidth="2" />
-      <rect x="52" y="101" width="36" height="24" rx="4" fill={lowerBackCol} stroke="#ffffff" strokeWidth="2" />
-      <rect x="36" y="69" width="12" height="38" rx="5" fill={lArmCol} stroke="#ffffff" strokeWidth="2" />
-      <rect x="92" y="69" width="12" height="38" rx="5" fill={rArmCol} stroke="#ffffff" strokeWidth="2" />
-      <circle cx="36" cy="112" r="5" fill={lWristCol} stroke="#ffffff" strokeWidth="2" />
-      <circle cx="104" cy="112" r="5" fill={rWristCol} stroke="#ffffff" strokeWidth="2" />
-      <circle cx="30" cy="125" r="9" fill={lHandCol} stroke="#ffffff" strokeWidth="2" />
-      <circle cx="110" cy="125" r="9" fill={rHandCol} stroke="#ffffff" strokeWidth="2" />
-      <rect x="52" y="127" width="14" height="48" rx="6" fill={lLegCol} stroke="#ffffff" strokeWidth="2" />
-      <rect x="74" y="127" width="14" height="48" rx="6" fill={rLegCol} stroke="#ffffff" strokeWidth="2" />
-      <circle cx="59" cy="179" r="5" fill={lKneeCol} stroke="#ffffff" strokeWidth="2" />
-      <circle cx="81" cy="179" r="5" fill={rKneeCol} stroke="#ffffff" strokeWidth="2" />
-      <rect x="53" y="186" width="12" height="44" rx="5" fill={lCalfCol} stroke="#ffffff" strokeWidth="2" />
-      <rect x="75" y="186" width="12" height="44" rx="5" fill={rCalfCol} stroke="#ffffff" strokeWidth="2" />
-      <circle cx="59" cy="234" r="4" fill={lAnkleCol} stroke="#ffffff" strokeWidth="2" />
-      <circle cx="81" cy="234" r="4" fill={rAnkleCol} stroke="#ffffff" strokeWidth="2" />
-      <ellipse cx="53" cy="244" rx="10" ry="5" fill={lFootCol} stroke="#ffffff" strokeWidth="2" />
-      <ellipse cx="87" cy="244" rx="10" ry="5" fill={rFootCol} stroke="#ffffff" strokeWidth="2" />
+      <circle cx="70" cy="24" r="16" fill={headCol} {...partProps(['Head', 'Cranium'], 'Head')} />
+      <circle cx="52" cy="24" r="4" fill={lEarCol} {...partProps(['L. Ear', 'Ear (L)'], 'L. Ear')} />
+      <circle cx="88" cy="24" r="4" fill={rEarCol} {...partProps(['R. Ear', 'Ear (R)'], 'R. Ear')} />
+      <rect x="61" y="42" width="18" height="9" rx="3" fill={neckCol} {...partProps(['Neck'], 'Neck')} />
+      <circle cx="42" cy="59" r="8" fill={lShoulderCol} {...partProps(['L. Shoulder', 'Shoulder (L)'], 'L. Shoulder')} />
+      <circle cx="98" cy="59" r="8" fill={rShoulderCol} {...partProps(['R. Shoulder', 'Shoulder (R)'], 'R. Shoulder')} />
+      <rect x="52" y="53" width="36" height="46" rx="4" fill={upperBackCol} {...partProps(['Upper Back', 'Back', 'Spine'], 'Upper Back')} />
+      <rect x="52" y="101" width="36" height="24" rx="4" fill={lowerBackCol} {...partProps(['Lower Back', 'Back', 'Spine'], 'Lower Back')} />
+      <rect x="36" y="69" width="12" height="38" rx="5" fill={lArmCol} {...partProps(['L. Forearm', 'L. Arm', 'Arm, Elbow (L)'], 'L. Forearm')} />
+      <rect x="92" y="69" width="12" height="38" rx="5" fill={rArmCol} {...partProps(['R. Forearm', 'R. Arm', 'Arm, Elbow (R)'], 'R. Forearm')} />
+      <circle cx="36" cy="112" r="5" fill={lWristCol} {...partProps(['L. Hand', 'Hand (L)', 'L. Wrist'], 'L. Hand')} />
+      <circle cx="104" cy="112" r="5" fill={rWristCol} {...partProps(['R. Hand', 'Hand (R)', 'R. Wrist'], 'R. Hand')} />
+      <circle cx="30" cy="125" r="9" fill={lHandCol} {...partProps(['L. Hand', 'Hand (L)'], 'L. Hand')} />
+      <circle cx="110" cy="125" r="9" fill={rHandCol} {...partProps(['R. Hand', 'Hand (R)'], 'R. Hand')} />
+      <rect x="52" y="127" width="14" height="48" rx="6" fill={lLegCol} {...partProps(['L. Leg', 'Legs, Knee (L)'], 'L. Leg')} />
+      <rect x="74" y="127" width="14" height="48" rx="6" fill={rLegCol} {...partProps(['R. Leg', 'Legs, Knee (R)'], 'R. Leg')} />
+      <circle cx="59" cy="179" r="5" fill={lKneeCol} {...partProps(['L. Leg', 'Legs, Knee (L)'], 'L. Leg')} />
+      <circle cx="81" cy="179" r="5" fill={rKneeCol} {...partProps(['R. Leg', 'Legs, Knee (R)'], 'R. Leg')} />
+      <rect x="53" y="186" width="12" height="44" rx="5" fill={lCalfCol} {...partProps(['L. Leg', 'Legs, Knee (L)'], 'L. Leg')} />
+      <rect x="75" y="186" width="12" height="44" rx="5" fill={rCalfCol} {...partProps(['R. Leg', 'Legs, Knee (R)'], 'R. Leg')} />
+      <circle cx="59" cy="234" r="4" fill={lAnkleCol} {...partProps(['L. Foot', 'Foot (L)'], 'L. Foot')} />
+      <circle cx="81" cy="234" r="4" fill={rAnkleCol} {...partProps(['R. Foot', 'Foot (R)'], 'R. Foot')} />
+      <ellipse cx="53" cy="244" rx="10" ry="5" fill={lFootCol} {...partProps(['L. Foot', 'Foot (L)'], 'L. Foot')} />
+      <ellipse cx="87" cy="244" rx="10" ry="5" fill={rFootCol} {...partProps(['R. Foot', 'Foot (R)'], 'R. Foot')} />
     </svg>
   );
 }
-

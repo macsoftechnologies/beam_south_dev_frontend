@@ -61,6 +61,7 @@ export default function Login() {
           userType: response.userType,
           phonenumber: response.phonenumber,
           maskedPhone: response.maskedPhone || "",
+          moduleAccess: response.moduleAccess || "",
           auth_token: response.auth_token
         };
         localStorage.setItem("tempUser", JSON.stringify(tempUser));

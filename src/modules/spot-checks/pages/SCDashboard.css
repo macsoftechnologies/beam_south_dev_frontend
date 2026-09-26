@@ -31,19 +31,145 @@
 
 /* Filters */
 .sc-dashboard-container .dash-filters {
-  display: flex; gap: 12px !important; align-items: center; flex-wrap: wrap;
-  background: var(--bg-card); padding: 8px 16px !important; border-radius: 8px !important; border: 1px solid var(--border-color);
+  display: flex;
+  gap: 8px 12px !important;
+  align-items: center;
+  flex-wrap: wrap;
+  background: var(--bg-card);
+  padding: 8px 14px !important;
+  border-radius: 8px !important;
+  border: 1px solid var(--border-color);
 }
-.sc-dashboard-container .dash-filters .dfl { font-size: 0.7rem !important; font-weight: 700 !important; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+
+.sc-dashboard-container .dash-filter-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.sc-dashboard-container .dash-filter-date-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.sc-dashboard-container .dash-filters .dfl {
+  font-size: 0.68rem !important;
+  font-weight: 700 !important;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  user-select: none;
+}
+
 .sc-dashboard-container .dash-filters select {
-  padding: 4px 10px !important; border: 1px solid var(--border-color); border-radius: 6px !important;
-  font-size: 0.75rem !important; background: var(--bg-main); color: var(--text-main); outline: none; height: 28px;
+  padding: 3px 8px !important;
+  border: 1px solid var(--border-color);
+  border-radius: 6px !important;
+  font-size: 0.74rem !important;
+  background: var(--bg-main);
+  color: var(--text-main);
+  outline: none;
+  height: 28px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.15s ease;
 }
+.sc-dashboard-container .dash-filters select:hover {
+  border-color: var(--border-light, #94a3b8);
+}
+.sc-dashboard-container .dash-filters select:focus {
+  border-color: #F97316;
+  box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.15);
+}
+
+.sc-dashboard-container .dash-filters input[type="date"],
+.sc-dashboard-container .dash-filter-date {
+  width: 120px !important;
+  min-width: 120px !important;
+  height: 28px !important;
+  padding: 2px 6px !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 6px !important;
+  font-size: 0.74rem !important;
+  background: var(--bg-main) !important;
+  color: var(--text-main) !important;
+  outline: none !important;
+  font-family: inherit !important;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  color-scheme: light dark;
+}
+
+.sc-dashboard-container .dash-filters input[type="date"]:hover,
+.sc-dashboard-container .dash-filter-date:hover {
+  border-color: var(--border-light, #94a3b8) !important;
+}
+
+.sc-dashboard-container .dash-filters input[type="date"]:focus,
+.sc-dashboard-container .dash-filter-date:focus {
+  border-color: #F97316 !important;
+  box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.15);
+}
+
+.sc-dashboard-container .dash-filters input[type="date"]::-webkit-calendar-picker-indicator,
+.sc-dashboard-container .dash-filter-date::-webkit-calendar-picker-indicator {
+  position: static !important;
+  left: auto !important;
+  top: auto !important;
+  width: 14px !important;
+  height: 14px !important;
+  opacity: 0.65 !important;
+  cursor: pointer !important;
+  margin: 0 0 0 auto !important;
+  padding: 0 !important;
+  display: inline-block !important;
+  transition: opacity 0.15s ease;
+}
+
+.sc-dashboard-container .dash-filters input[type="date"]::-webkit-calendar-picker-indicator:hover,
+.sc-dashboard-container .dash-filter-date::-webkit-calendar-picker-indicator:hover {
+  opacity: 1 !important;
+}
+
+html[data-theme="dark"] .sc-dashboard-container .dash-filters input[type="date"]::-webkit-calendar-picker-indicator,
+html[data-theme="dark"] .sc-dashboard-container .dash-filter-date::-webkit-calendar-picker-indicator {
+  filter: invert(0.85);
+}
+
+.sc-dashboard-container .sc-dash-filter-clear-btn {
+  border: 1px solid rgba(227, 43, 80, 0.25);
+  color: #E32B50;
+  padding: 0 9px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  height: 28px;
+  border-radius: 6px;
+  background: rgba(227, 43, 80, 0.06);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: inherit;
+  margin-left: auto;
+}
+.sc-dashboard-container .sc-dash-filter-clear-btn:hover {
+  background: rgba(227, 43, 80, 0.12);
+  border-color: rgba(227, 43, 80, 0.4);
+}
+
+
 
 /* KPI Cards */
 .sc-dashboard-container .dash-kpis {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px !important;
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px !important;
 }
+@media (min-width: 1400px) { .sc-dashboard-container .dash-kpis { grid-template-columns: repeat(6, 1fr); } }
 @media (max-width: 1100px) { .sc-dashboard-container .dash-kpis { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 480px) { .sc-dashboard-container .dash-kpis { grid-template-columns: 1fr; } }
 
@@ -491,6 +617,227 @@ html[data-theme="light"] .sc-dashboard-container .sc-ent-progress {
   color: var(--text-muted);
   font-size: 0.78rem;
 }
+
+/* ── Multi-Select Filter Component for Spot Checks Dashboard ── */
+.sc-dashboard-container .sc-multi-select-container {
+  position: relative;
+  display: inline-block;
+}
+
+.sc-dashboard-container .sc-multi-select-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  height: 28px;
+  min-width: 120px;
+  max-width: 175px;
+  padding: 3px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 0.74rem;
+  background: var(--bg-main);
+  color: var(--text-main);
+  cursor: pointer;
+  outline: none;
+  font-family: inherit;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.sc-dashboard-container .sc-multi-select-trigger:hover {
+  border-color: var(--border-light, #94a3b8);
+  background: var(--bg-card-hover, rgba(0, 0, 0, 0.02));
+}
+
+.sc-dashboard-container .sc-multi-select-trigger.active {
+  border-color: #F97316;
+  background: rgba(249, 115, 22, 0.08);
+  font-weight: 600;
+  color: #F97316;
+}
+
+html[data-theme="light"] .sc-dashboard-container .sc-multi-select-trigger.active {
+  border-color: #F97316;
+  background: rgba(249, 115, 22, 0.1);
+  color: #EA580C;
+}
+
+.sc-dashboard-container .sc-multi-select-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  text-align: left;
+}
+
+.sc-dashboard-container .sc-multi-select-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  font-size: 11px;
+  line-height: 1;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.sc-dashboard-container .sc-multi-select-clear:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
+.sc-dashboard-container .sc-multi-select-chevron {
+  transition: transform 0.2s ease;
+  color: var(--text-muted);
+}
+
+.sc-dashboard-container .sc-multi-select-chevron.open {
+  transform: rotate(180deg);
+}
+
+.sc-dashboard-container .sc-multi-select-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  width: 250px;
+  max-width: 320px;
+  z-index: 1000;
+  background: var(--bg-card, #ffffff);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  animation: scFadeIn 0.15s ease-out;
+}
+
+@keyframes scFadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.sc-dashboard-container .sc-multi-select-search-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-main);
+  color: var(--text-muted);
+}
+
+.sc-dashboard-container .sc-multi-select-search-input {
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 0.75rem;
+  color: var(--text-main);
+  width: 100%;
+  font-family: inherit;
+}
+
+.sc-dashboard-container .sc-multi-select-search-clear {
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.sc-dashboard-container .sc-multi-select-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 4px;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 6px;
+}
+
+.sc-dashboard-container .sc-multi-select-action-btn {
+  background: transparent;
+  border: none;
+  font-size: 0.7rem;
+  color: #F97316;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-family: inherit;
+}
+
+.sc-dashboard-container .sc-multi-select-action-btn:hover {
+  background: rgba(249, 115, 22, 0.1);
+}
+
+.sc-dashboard-container .sc-multi-select-action-btn.danger {
+  color: #ef4444;
+}
+
+.sc-dashboard-container .sc-multi-select-action-btn.danger:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.sc-dashboard-container .sc-multi-select-list {
+  max-height: 200px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sc-dashboard-container .sc-multi-select-list::-webkit-scrollbar { width: 4px; }
+.sc-dashboard-container .sc-multi-select-list::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
+}
+
+.sc-dashboard-container .sc-multi-select-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.12s;
+  font-size: 0.75rem;
+  color: var(--text-main);
+}
+
+.sc-dashboard-container .sc-multi-select-item:hover {
+  background: var(--bg-card-hover, rgba(0, 0, 0, 0.04));
+}
+
+.sc-dashboard-container .sc-multi-select-item.selected {
+  background: rgba(249, 115, 22, 0.09);
+  font-weight: 600;
+}
+
+.sc-dashboard-container .sc-multi-select-checkbox {
+  cursor: pointer;
+  accent-color: #F97316;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.sc-dashboard-container .sc-multi-select-item-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.sc-dashboard-container .sc-multi-select-empty {
+  padding: 12px;
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
 
 
 

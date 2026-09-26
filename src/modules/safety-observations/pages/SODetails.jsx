@@ -4,6 +4,7 @@ import PageHeader from "../../../components/common/PageHeader/PageHeader";
 import { observationService } from "../../../services/observationService";
 import { getContractors } from "../../../services/authService";
 import { API_BASE_URL } from "../../../services/api";
+import { formatToDenmark24Hour } from "../../../utils/dateUtils";
 import "../../../styles/module-shared.css";
 
 function SODetails() {
@@ -277,15 +278,14 @@ function SODetails() {
               {obs.observationNumber}
             </span>
             <span
-              className={`badge ${
-                obs.status === "REJECTED"
+              className={`badge ${obs.status === "REJECTED"
                   ? "badge-red"
                   : obs.status === "ACCEPTED" || obs.status === "RESOLVED"
-                  ? "badge-orange"
-                  : obs.status === "CLOSED"
-                  ? "badge-green"
-                  : "badge-blue"
-              }`}
+                    ? "badge-orange"
+                    : obs.status === "CLOSED"
+                      ? "badge-green"
+                      : "badge-blue"
+                }`}
               style={{ fontSize: 12, padding: "4px 10px", fontWeight: 700 }}
             >
               {obs.status}
@@ -518,7 +518,7 @@ function SODetails() {
                 {obs.photos.map((photo, idx) => {
                   const filename = String(photo).split("/").pop().split("\\").pop();
                   const baseUrl = API_BASE_URL.endsWith("/") ? API_BASE_URL.slice(0, -1) : API_BASE_URL;
-                  const src = photo.startsWith("http") ? photo : `${baseUrl}/uploads/observations/${filename}`;
+                  const src = photo.startsWith("http") ? photo : `${baseUrl}/observations/${filename}`;
                   return (
                     <a key={idx} href={src} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
                       <img
@@ -564,18 +564,18 @@ function SODetails() {
                     log.actionType === "CONTRACTOR_REJECTED"
                       ? "#E32B50"
                       : log.actionType === "CONTRACTOR_ACCEPTED"
-                      ? "#10B981"
-                      : log.actionType === "RESOLVED"
-                      ? "#059669"
-                      : log.actionType === "CLOSED"
-                      ? "#16A34A"
-                      : log.actionType === "REASSIGNED"
-                      ? "#8B5CF6"
-                      : log.actionType === "ASSIGNED"
-                      ? "#0EA5E9"
-                      : log.actionType === "ESCALATED"
-                      ? "#F59E0B"
-                      : "#2563EB"; // CREATED or default
+                        ? "#10B981"
+                        : log.actionType === "RESOLVED"
+                          ? "#059669"
+                          : log.actionType === "CLOSED"
+                            ? "#16A34A"
+                            : log.actionType === "REASSIGNED"
+                              ? "#8B5CF6"
+                              : log.actionType === "ASSIGNED"
+                                ? "#0EA5E9"
+                                : log.actionType === "ESCALATED"
+                                  ? "#F59E0B"
+                                  : "#2563EB"; // CREATED or default
 
                   const isLast = idx === history.length - 1;
 
@@ -621,7 +621,7 @@ function SODetails() {
                             {log.photos.map((photo, pIdx) => {
                               const filename = String(photo).split("/").pop().split("\\").pop();
                               const baseUrl = API_BASE_URL.endsWith("/") ? API_BASE_URL.slice(0, -1) : API_BASE_URL;
-                              const src = photo.startsWith("http") ? photo : `${baseUrl}/uploads/observations/${filename}`;
+                              const src = photo.startsWith("http") ? photo : `${baseUrl}/observations/${filename}`;
                               return (
                                 <a key={pIdx} href={src} target="_blank" rel="noopener noreferrer">
                                   <img
@@ -639,7 +639,9 @@ function SODetails() {
                           </div>
                         )}
 
-                        <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 4 }}>{new Date(log.timestamp).toLocaleString()}</div>
+                        <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 4 }}>
+                          {formatToDenmark24Hour(log.timestamp)} (Denmark Time)
+                        </div>
                       </div>
                     </div>
                   );

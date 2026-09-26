@@ -4,6 +4,7 @@ import { safetyInspectionService } from '../../../services/safetyInspectionServi
 import { observationService } from '../../../services/observationService';
 import { showSuccess, showError } from '../../../components/common/Toast/Toast';
 import Swal from 'sweetalert2';
+import { parseUTCToDate } from '../../../utils/dateUtils';
 import "./SIView.css";
 
 const STANDARD_CATEGORIES = [
@@ -42,8 +43,11 @@ export default function SIView() {
   const [selectedObs, setSelectedObs] = useState(null);
   const [isLoadingObs, setIsLoadingObs] = useState(false);
   const [showObsModal, setShowObsModal] = useState(false);
-  // Track per-observation status (key -> 'CLOSED'|'OPEN'|...) fetched from API
+  // Track per-observation status and full details fetched from API
   const [obsStatusMap, setObsStatusMap] = useState({});
+  const [obsDetailsMap, setObsDetailsMap] = useState({});
+  // Lightbox / Image zoom state
+  const [previewImage, setPreviewImage] = useState(null);
 
   const currentUser = React.useMemo(() => {
     try {
@@ -95,17 +99,20 @@ export default function SIView() {
     )];
 
     const fetchStatuses = async () => {
-      const map = {};
+      const statusMap = {};
+      const detailsMap = {};
       await Promise.all(uniqueKeys.map(async (key) => {
         try {
           const data = await observationService.getObservationDetails(key);
           const obs = data?.observation || data;
-          if (obs?.status) map[String(key)] = obs.status;
+          if (obs?.status) statusMap[String(key)] = obs.status;
+          if (obs) detailsMap[String(key)] = obs;
         } catch {
           // silently ignore — individual observation may not be accessible
         }
       }));
-      setObsStatusMap(map);
+      setObsStatusMap(statusMap);
+      setObsDetailsMap(detailsMap);
     };
     fetchStatuses();
   }, [inspection]);
@@ -136,13 +143,15 @@ export default function SIView() {
     if (!inspection || isClosed || !allObsClosed) return;
     safetyInspectionService.updateInspection(inspection.id, {
       status: 'CLOSED',
-      isCompleted: true
-    }).then(() => {
-      setInspection(prev => ({
-        ...prev,
-        status: 'CLOSED',
-        isCompleted: true
-      }));
+      isCompleted: true,
+      actionType: 'CLOSED',
+      remarks: 'Inspection automatically closed (all attached observations resolved/closed)',
+      modifiedByUserId: currentUser?.id,
+      modifiedByUserName: currentUser?.name || currentUser?.username || 'System Auto-sync',
+      modifiedByUserRole: currentUser?.role || rawRole || 'SYSTEM'
+    }).then(async () => {
+      const refreshed = await safetyInspectionService.getInspectionDetails(inspection.id);
+      setInspection(refreshed);
     }).catch(err => {
       console.warn("Auto-sync inspection closed status note:", err?.message || err);
     });
@@ -151,8 +160,17 @@ export default function SIView() {
   const formatDate = (dateStr) => {
     if (!dateStr) return "-";
     try {
-      const d = new Date(dateStr);
-      return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+      const d = parseUTCToDate(dateStr) || new Date(dateStr);
+      if (!d || isNaN(d.getTime())) return String(dateStr);
+      return d.toLocaleString("en-GB", {
+        timeZone: "Europe/Copenhagen",
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false
+      });
     } catch {
       return dateStr;
     }
@@ -199,13 +217,15 @@ export default function SIView() {
     try {
       await safetyInspectionService.updateInspection(inspection.id, {
         status: nextStatus,
-        isCompleted: nextStatus === 'CLOSED'
+        isCompleted: nextStatus === 'CLOSED',
+        actionType: nextStatus === 'CLOSED' ? 'CLOSED' : 'REOPENED',
+        remarks: nextStatus === 'CLOSED' ? 'Safety inspection marked as closed' : 'Safety inspection reopened',
+        modifiedByUserId: currentUser?.id,
+        modifiedByUserName: currentUser?.name || currentUser?.username || 'Safety Inspector',
+        modifiedByUserRole: currentUser?.role || rawRole || 'DEPARTMENT'
       });
-      setInspection(prev => ({
-        ...prev,
-        status: nextStatus,
-        isCompleted: nextStatus === 'CLOSED'
-      }));
+      const refreshed = await safetyInspectionService.getInspectionDetails(inspection.id);
+      setInspection(refreshed);
       showSuccess(`Inspection marked as ${nextStatus === 'CLOSED' ? 'Closed' : 'In Progress'}`);
     } catch (err) {
       console.error('Failed to update inspection status:', err);
@@ -240,27 +260,79 @@ export default function SIView() {
     }
   };
 
-  const getFullImageUrl = (url) => {
-    if (!url) return '';
-    if (url.startsWith('data:') || url.startsWith('blob:')) return url;
+  const parsePhotosList = (rawPhotos) => {
+    if (!rawPhotos) return [];
+    if (Array.isArray(rawPhotos)) return rawPhotos.filter(Boolean);
+    if (typeof rawPhotos === 'string' && rawPhotos.trim()) {
+      try {
+        const parsed = JSON.parse(rawPhotos);
+        return Array.isArray(parsed) ? parsed.filter(Boolean) : [rawPhotos];
+      } catch {
+        return rawPhotos.includes(',')
+          ? rawPhotos.split(',').map(s => s.trim()).filter(Boolean)
+          : [rawPhotos];
+      }
+    }
+    return [];
+  };
 
-    const envBase = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
+  const getFullImageUrl = (rawInput, defaultFolder = 'safety-inspections') => {
+    if (!rawInput) return '';
+    const raw = typeof rawInput === 'object' && rawInput !== null
+      ? (rawInput.serverUrl || rawInput.previewUrl || rawInput.url || '')
+      : String(rawInput || '');
+
+    if (!raw) return '';
+    if (raw.startsWith('data:') || raw.startsWith('blob:')) return raw;
+
+    const envBase = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:5200').replace(/\/+$/, '');
+    const cleanRaw = raw.replace(/\\/g, '/').trim();
+    const filename = cleanRaw.split('/').pop() || cleanRaw;
 
     // If it's already an absolute URL (e.g. http:// or https://)
-    if (url.startsWith('http://') || url.startsWith('https://')) {
+    if (cleanRaw.startsWith('http://') || cleanRaw.startsWith('https://')) {
       // If pointing to remote production while testing on localhost, map to localhost
-      if (envBase.includes('localhost') && url.includes('api.beam.safesiteworks.com')) {
-        return url.replace(/^https?:\/\/api\.beam\.safesiteworks\.com(\/development\/m3south)?/, envBase);
+      if (envBase.includes('localhost') && cleanRaw.includes('api.beam.safesiteworks.com')) {
+        return cleanRaw.replace(/^https?:\/\/api\.beam\.safesiteworks\.com(\/development\/m3south)?/, envBase);
       }
-      return url;
+      return cleanRaw;
     }
 
-    const cleanUrl = url.startsWith('/') ? url : `/${url}`;
+    let path = cleanRaw.startsWith('/') ? cleanRaw : `/${cleanRaw}`;
+    // If path is just a filename like /si-123.jpg or /obs-123.jpg without folder
+    if (!path.startsWith('/uploads') && !path.startsWith('/safety-inspections') && !path.startsWith('/observations') && !path.startsWith('/incidents') && !path.startsWith('/subcontractors')) {
+      path = `/uploads/${defaultFolder}/${filename}`;
+    }
+
     if (envBase) {
-      return `${envBase}${cleanUrl}`;
+      return `${envBase}${path}`;
     }
 
-    return cleanUrl;
+    return path;
+  };
+
+  const handleImageError = (e, defaultFolder = 'safety-inspections') => {
+    const current = e.currentTarget.src || '';
+    const filename = current.split('/').pop()?.split('?')[0] || '';
+    const envBase = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:5200').replace(/\/+$/, '');
+
+    // Avoid infinite loop if placeholder fails
+    if (current.includes('placeholder') || current.includes('placehold.co')) return;
+
+    if (current.includes('/uploads/safety-inspections/')) {
+      e.currentTarget.src = `${envBase}/safety-inspections/${filename}`;
+    } else if (current.includes('/safety-inspections/')) {
+      e.currentTarget.src = `${envBase}/uploads/observations/${filename}`;
+    } else if (current.includes('/uploads/observations/')) {
+      e.currentTarget.src = `${envBase}/observations/${filename}`;
+    } else if (current.includes('/observations/')) {
+      e.currentTarget.src = `${envBase}/uploads/safety-inspections/${filename}`;
+    } else if (!current.includes('/uploads/')) {
+      e.currentTarget.src = `${envBase}/uploads/${defaultFolder}/${filename}`;
+    } else {
+      e.currentTarget.onerror = null;
+      e.currentTarget.src = 'https://placehold.co/400x300?text=Photo+Unavailable';
+    }
   };
 
   if (isLoading) {
@@ -287,6 +359,7 @@ export default function SIView() {
 
 
   const displayId = inspection.inspectionNumber || `SI${inspection.id}`;
+  const history = Array.isArray(inspection.history) ? inspection.history : [];
   const performedByList = Array.isArray(inspection.performedBy) ? inspection.performedBy : (inspection.performedBy ? [inspection.performedBy] : []);
   const participantsList = Array.isArray(inspection.participants) ? inspection.participants : (inspection.participants ? [inspection.participants] : []);
   const itemsList = inspection.items && inspection.items.length > 0 
@@ -377,11 +450,10 @@ export default function SIView() {
                       (all observations closed)
                     </span>
                   )}
-                  {!isReadOnly && (
+                  {!isReadOnly && effectiveClosed && (
                     <button
                       type="button"
-                      onClick={handleStatusToggle}
-                      disabled={isUpdatingStatus}
+                      onClick={() => navigate(`/safety-inspection/edit/${inspection?.id || id}`)}
                       style={{
                         display: 'inline-flex',
                         alignItems: 'center',
@@ -390,15 +462,63 @@ export default function SIView() {
                         fontSize: '11px',
                         fontWeight: 600,
                         borderRadius: '4px',
-                        border: '1px solid var(--border-color, #cbd5e1)',
-                        backgroundColor: effectiveClosed ? 'var(--card-bg, #ffffff)' : '#22c55e',
-                        color: effectiveClosed ? '#475569' : '#ffffff',
+                        border: '1px solid #0284c7',
+                        backgroundColor: '#0284c7',
+                        color: '#ffffff',
                         cursor: 'pointer'
                       }}
+                      title="Reopen inspection in edit form"
                     >
-                      <i className={`ti ${effectiveClosed ? 'ti-rotate-clockwise' : 'ti-circle-check'}`}></i>
-                      {isUpdatingStatus ? 'Updating...' : effectiveClosed ? 'Reopen' : 'Close Inspection'}
+                      <i className="ti ti-rotate-clockwise"></i>
+                      Reopen
                     </button>
+                  )}
+                  {!isReadOnly && !effectiveClosed && (
+                    <div style={{ display: 'inline-flex', gap: '6px' }}>
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/safety-inspection/edit/${inspection?.id || id}`)}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          padding: '3px 8px',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          borderRadius: '4px',
+                          border: '1px solid #0284c7',
+                          backgroundColor: '#0284c7',
+                          color: '#ffffff',
+                          cursor: 'pointer'
+                        }}
+                        title="Reopen inspection in edit form"
+                      >
+                        <i className="ti ti-rotate-clockwise"></i>
+                        Reopen
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleStatusToggle}
+                        disabled={isUpdatingStatus}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          padding: '3px 8px',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          borderRadius: '4px',
+                          border: '1px solid #16a34a',
+                          backgroundColor: '#16a34a',
+                          color: '#ffffff',
+                          cursor: 'pointer'
+                        }}
+                        title="Close inspection"
+                      >
+                        <i className="ti ti-circle-check"></i>
+                        {isUpdatingStatus ? 'Updating...' : 'Close'}
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -426,7 +546,24 @@ export default function SIView() {
                 <span className="meta-label">Modified Date</span>
                 <span className="meta-value">{formatDate(inspection.updatedTime || inspection.createdTime)}</span>
               </div>
-
+              {(() => {
+                const reopenLog = [...history].reverse().find(l => l.actionType === 'REOPENED');
+                if (!reopenLog) return null;
+                return (
+                  <>
+                    <div className="meta-item">
+                      <span className="meta-label">Last Reopened By</span>
+                      <span className="meta-value" style={{ color: '#0284c7', fontWeight: 600 }}>
+                        {reopenLog.performedByUserName || 'Safety Officer'}
+                      </span>
+                    </div>
+                    <div className="meta-item">
+                      <span className="meta-label">Reopened Date</span>
+                      <span className="meta-value">{formatDate(reopenLog.timestamp)}</span>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           </div>
 
@@ -468,17 +605,7 @@ export default function SIView() {
         <div className="siview-checklist-wrapper">
           {itemsList.map(item => {
             const rawStatus = (item.status || 'na').toLowerCase();
-            let photosList = [];
-            if (Array.isArray(item.photos)) {
-              photosList = item.photos;
-            } else if (typeof item.photos === 'string') {
-              try {
-                const parsed = JSON.parse(item.photos);
-                photosList = Array.isArray(parsed) ? parsed : [item.photos];
-              } catch {
-                photosList = item.photos ? [item.photos] : [];
-              }
-            }
+            const photosList = parsePhotosList(item.photos);
 
             let issuesList = [];
             if (Array.isArray(item.issues)) {
@@ -547,31 +674,168 @@ export default function SIView() {
                         })}
                       </div>
                     )}
+
+                    {/* Inspection Checklist Item Photos (Visual Evidence) */}
                     {photosList.length > 0 && (
                       <div className="siview-cl-images">
                         {photosList.map((img, i) => (
-                          <div key={i} className="siview-img-thumbnail">
-                            <a href={getFullImageUrl(img)} target="_blank" rel="noopener noreferrer">
-                              <img
-                                src={getFullImageUrl(img)}
-                                alt={`attachment-${i}`}
-                                onError={(e) => {
-                                  const src = e.currentTarget.src;
-                                  if (src.includes('/development/m3south/uploads/')) {
-                                    e.currentTarget.src = src.replace('/development/m3south/uploads/', '/uploads/');
-                                  }
-                                }}
-                              />
-                            </a>
+                          <div
+                            key={i}
+                            className="siview-img-thumbnail"
+                            onClick={() => setPreviewImage({
+                              url: getFullImageUrl(img, 'safety-inspections'),
+                              title: `${item.categoryName || 'Item'} - Photo ${i + 1}`
+                            })}
+                            title="Click to zoom / view full photo"
+                          >
+                            <img
+                              src={getFullImageUrl(img, 'safety-inspections')}
+                              alt={`attachment-${i + 1}`}
+                              onError={(e) => handleImageError(e, 'safety-inspections')}
+                            />
+                            <div className="siview-img-overlay">
+                              <i className="ti ti-zoom-in"></i>
+                            </div>
                           </div>
                         ))}
                       </div>
                     )}
+
+                    {/* Attached Observation Photos if present */}
+                    {issuesList.map((iss, i) => {
+                      const obsKey = String(iss.observationId || iss.id || '');
+                      const obsDetails = obsDetailsMap[obsKey];
+                      const obsPhotos = parsePhotosList(obsDetails?.photos);
+                      if (obsPhotos.length === 0) return null;
+
+                      return (
+                        <div key={`obs-photos-${i}`} className="siview-cl-obs-photos-wrap">
+                          <div className="siview-cl-obs-photos-label">
+                            <i className="ti ti-photo" style={{ marginRight: 5, color: '#0284c7' }}></i>
+                            Observation Evidence ({iss.observationNumber || iss.id || `SO-${i + 1}`}):
+                          </div>
+                          <div className="siview-cl-images">
+                            {obsPhotos.map((p, pIdx) => (
+                              <div
+                                key={pIdx}
+                                className="siview-img-thumbnail"
+                                onClick={() => setPreviewImage({
+                                  url: getFullImageUrl(p, 'observations'),
+                                  title: `${iss.observationNumber || iss.id || 'Observation'} - Photo ${pIdx + 1}`
+                                })}
+                                title="Click to zoom observation photo"
+                              >
+                                <img
+                                  src={getFullImageUrl(p, 'observations')}
+                                  alt={`obs-${iss.id || i}-photo-${pIdx + 1}`}
+                                  onError={(e) => handleImageError(e, 'observations')}
+                                />
+                                <div className="siview-img-overlay">
+                                  <i className="ti ti-zoom-in"></i>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
             );
           })}
+        </div>
+
+        {/* Audit Trail & Workflow History Section */}
+        <div className="siview-section-title" style={{ marginTop: '36px', marginBottom: '14px' }}>
+          <h2>Audit Trail & Workflow History</h2>
+        </div>
+
+        <div className="siview-card" style={{ padding: '24px 28px', marginBottom: '28px', background: 'var(--bg-card, #ffffff)' }}>
+          <div style={{ fontSize: 13 }}>
+            {history.length === 0 ? (
+              <div style={{ color: "var(--text-muted, #64748b)", fontStyle: "italic", padding: "12px 0" }}>
+                No history records logged.
+              </div>
+            ) : (
+              history.map((log, idx) => {
+                const dotColor =
+                  log.actionType === "CLOSED"
+                    ? "#16a34a"
+                    : log.actionType === "REOPENED"
+                      ? "#0284c7"
+                      : log.actionType === "UPDATED"
+                        ? "#f59e0b"
+                        : "#2563eb"; // CREATED or default
+
+                const isLast = idx === history.length - 1;
+
+                return (
+                  <div
+                    key={log.id || idx}
+                    style={{
+                      position: "relative",
+                      paddingLeft: 24,
+                      borderLeft: isLast ? "2px solid transparent" : "2px solid var(--border-color, #e2e8f0)",
+                      paddingBottom: isLast ? 0 : 22,
+                    }}
+                  >
+                    {/* Colored Dot centered directly on the vertical line */}
+                    <div
+                      style={{
+                        position: "absolute",
+                        left: -6,
+                        top: 4,
+                        width: 10,
+                        height: 10,
+                        borderRadius: "50%",
+                        background: dotColor,
+                        border: "2px solid var(--bg-card, #ffffff)",
+                        boxShadow: `0 0 0 1px ${dotColor}`,
+                      }}
+                    />
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        <span style={{ fontWeight: 700, color: "var(--text-main, #1e293b)", fontSize: 13 }}>
+                          {log.actionType}
+                        </span>
+                        <span
+                          style={{
+                            fontSize: 11,
+                            padding: '2px 8px',
+                            borderRadius: '12px',
+                            fontWeight: 600,
+                            background: `${dotColor}18`,
+                            color: dotColor,
+                          }}
+                        >
+                          {log.actionType === 'REOPENED'
+                            ? 'Reopened'
+                            : log.actionType === 'CLOSED'
+                              ? 'Closed'
+                              : log.actionType === 'CREATED'
+                                ? 'Created'
+                                : 'Updated'}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 12, color: "var(--text-muted, #64748b)", marginTop: 4 }}>
+                        By <strong style={{ color: "var(--text-main, #334155)" }}>{log.performedByUserName || 'Safety Officer'}</strong> ({log.performedByUserRole || 'DEPARTMENT'})
+                      </div>
+                      {log.remarks && (
+                        <div style={{ fontSize: 12, marginTop: 4, fontStyle: "italic", color: "var(--text-muted, #475569)" }}>
+                          "{log.remarks}"
+                        </div>
+                      )}
+                      <div style={{ fontSize: 11, color: "var(--text-muted, #94a3b8)", marginTop: 4 }}>
+                        <i className="ti ti-clock" style={{ marginRight: 4 }}></i>
+                        {formatDate(log.timestamp)} (Denmark Time)
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
         </div>
       </div>
 
@@ -649,29 +913,67 @@ export default function SIView() {
                     </div>
                   )}
 
-                  {selectedObs.photos && Array.isArray(selectedObs.photos) && selectedObs.photos.length > 0 && (
-                    <div className="obs-modal-item">
-                      <span className="obs-modal-label">Observation Photos ({selectedObs.photos.length})</span>
-                      <div className="obs-modal-photos-grid">
-                        {selectedObs.photos.map((p, idx) => (
-                          <div key={idx} className="obs-modal-photo-thumb">
-                            <a href={getFullImageUrl(p)} target="_blank" rel="noopener noreferrer">
+                  {(() => {
+                    const obsPhotos = parsePhotosList(selectedObs?.photos);
+                    if (obsPhotos.length === 0) return null;
+
+                    return (
+                      <div className="obs-modal-item">
+                        <span className="obs-modal-label">Observation Photos ({obsPhotos.length})</span>
+                        <div className="obs-modal-photos-grid">
+                          {obsPhotos.map((p, idx) => (
+                            <div
+                              key={idx}
+                              className="obs-modal-photo-thumb"
+                              onClick={() => setPreviewImage({
+                                url: getFullImageUrl(p, 'observations'),
+                                title: `${selectedObs.observationNumber || 'Observation'} - Photo ${idx + 1}`
+                              })}
+                              title="Click to zoom photo"
+                              style={{ cursor: 'pointer' }}
+                            >
                               <img
-                                src={getFullImageUrl(p)}
-                                alt={`obs-photo-${idx}`}
-                                onError={(e) => {
-                                  const src = e.currentTarget.src;
-                                  if (src.includes('/development/m3south/uploads/')) {
-                                    e.currentTarget.src = src.replace('/development/m3south/uploads/', '/uploads/');
-                                  }
-                                }}
+                                src={getFullImageUrl(p, 'observations')}
+                                alt={`obs-photo-${idx + 1}`}
+                                onError={(e) => handleImageError(e, 'observations')}
                               />
-                            </a>
-                          </div>
-                        ))}
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
+
+                  {(() => {
+                    const resPhotos = parsePhotosList(selectedObs?.resolutionPhotos || selectedObs?.resolution_photos);
+                    if (resPhotos.length === 0) return null;
+
+                    return (
+                      <div className="obs-modal-item">
+                        <span className="obs-modal-label">Resolution Proof Photos ({resPhotos.length})</span>
+                        <div className="obs-modal-photos-grid">
+                          {resPhotos.map((p, idx) => (
+                            <div
+                              key={idx}
+                              className="obs-modal-photo-thumb"
+                              onClick={() => setPreviewImage({
+                                url: getFullImageUrl(p, 'observations'),
+                                title: `${selectedObs.observationNumber || 'Observation'} - Resolution Photo ${idx + 1}`
+                              })}
+                              title="Click to zoom resolution photo"
+                              style={{ cursor: 'pointer' }}
+                            >
+                              <img
+                                src={getFullImageUrl(p, 'observations')}
+                                alt={`res-photo-${idx + 1}`}
+                                onError={(e) => handleImageError(e, 'observations')}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </>
               ) : (
                 <div style={{ padding: "30px", textAlign: "center", color: "var(--text-muted, #64748b)" }}>
@@ -703,6 +1005,42 @@ export default function SIView() {
                 Close
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lightbox / Full-size photo viewer */}
+      {previewImage && (
+        <div className="siview-lightbox-overlay" onClick={() => setPreviewImage(null)}>
+          <div className="siview-lightbox-container" onClick={(e) => e.stopPropagation()}>
+            <div className="siview-lightbox-header">
+              <span>{previewImage.title || 'Photo Evidence'}</span>
+              <div className="siview-lightbox-actions">
+                <a
+                  href={previewImage.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="siview-lightbox-btn"
+                  title="Open photo in a separate tab"
+                >
+                  <i className="ti ti-external-link"></i> Open Tab
+                </a>
+                <button
+                  type="button"
+                  className="siview-lightbox-close"
+                  onClick={() => setPreviewImage(null)}
+                  title="Close (or click outside)"
+                >
+                  <i className="ti ti-x"></i>
+                </button>
+              </div>
+            </div>
+            <img
+              src={previewImage.url}
+              alt="Enlarged view"
+              className="siview-lightbox-img"
+              onError={(e) => handleImageError(e)}
+            />
           </div>
         </div>
       )}

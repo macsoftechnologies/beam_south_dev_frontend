@@ -307,6 +307,14 @@ function AppRoutes() {
             }
           />
           <Route
+            path="/safety-inspection/edit/:id"
+            element={
+              <ProtectedRoute allowedRoles={["Admin", "admin", "SuperAdmin", "superadmin", "Department", "department", "Department1", "department1", "Operator", "operator", "Site_HSE", "site_hse", "HSE", "hse", "Safety", "safety"]}>
+                <SICreate />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/safety-inspection/:id"
             element={
               <ProtectedRoute allowedRoles={["Admin", "admin", "SuperAdmin", "superadmin", "Department", "department", "Department1", "department1", "Operator", "operator", "Site_HSE", "site_hse", "HSE", "hse", "Safety", "safety", "Contractor", "contractor", "Subcontractor", "subcontractor", "Observer", "observer"]}>

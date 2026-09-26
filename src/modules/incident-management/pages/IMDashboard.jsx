@@ -357,6 +357,136 @@ const MultiSelectFilter = ({
   );
 };
 
+/* ── Body Parts Helpers ── */
+export const extractBodyPartStrings = (inc) => {
+  if (!inc) return [];
+  const result = [];
+  const process = (val) => {
+    if (!val) return;
+    if (typeof val === 'string') {
+      try {
+        const parsed = JSON.parse(val);
+        process(parsed);
+      } catch (e) {
+        val.split(',').forEach(s => {
+          if (s.trim()) result.push(s.trim());
+        });
+      }
+    } else if (Array.isArray(val)) {
+      val.forEach(item => process(item));
+    } else if (typeof val === 'object') {
+      if (Array.isArray(val.selections)) {
+        process(val.selections);
+      } else {
+        const pName = val.part || val.name || val.bodyPart || val.label;
+        const pSide = val.side ? ` (${val.side})` : (val.hand ? ` (${val.hand})` : '');
+        if (pName) {
+          result.push(`${pName}${pSide}`.trim());
+        }
+      }
+    }
+  };
+
+  process(inc.bodyPartsInjured);
+  process(inc.initialReport?.bodyPartsInjured);
+  process(inc.initialReportData?.bodyPartsInjured);
+  process(inc.bodyParts);
+  process(inc.injuredBodyParts);
+  process(inc.bodyPart);
+
+  return Array.from(new Set(result));
+};
+
+export const mapBodyPartStrToStandard = (pStr) => {
+  const str = String(pStr || '').toLowerCase();
+  const matched = new Set();
+
+  if (str.includes('head') || str.includes('cranium')) matched.add('Head');
+  if (str.includes('facial') || str.includes('face') || str.includes('eye') || str.includes('teeth')) matched.add('Facial area');
+  if (str.includes('neck')) matched.add('Neck');
+  if (str.includes('chest') || str.includes('ribs') || str.includes('torso')) matched.add('Chest');
+  if (str.includes('pelvis') || str.includes('abdomen')) matched.add('Lower Abdomen');
+
+  if (str.includes('shoulder')) {
+    if (str.includes('(r)') || str.includes('right')) matched.add('R. Shoulder');
+    else matched.add('L. Shoulder');
+  }
+  if (str.includes('arm') || str.includes('elbow') || str.includes('forearm')) {
+    if (str.includes('(r)') || str.includes('right')) matched.add('R. Forearm');
+    else matched.add('L. Forearm');
+  }
+  if (str.includes('hand') || str.includes('finger') || str.includes('wrist')) {
+    if (str.includes('(r)') || str.includes('right')) matched.add('R. Hand');
+    else matched.add('L. Hand');
+  }
+  if (str.includes('leg') || str.includes('knee') || str.includes('thigh') || str.includes('calf')) {
+    if (str.includes('(r)') || str.includes('right')) matched.add('R. Leg');
+    else matched.add('L. Leg');
+  }
+  if (str.includes('foot') || str.includes('toe') || str.includes('ankle')) {
+    if (str.includes('(r)') || str.includes('right')) matched.add('R. Foot');
+    else matched.add('L. Foot');
+  }
+
+  if (str.includes('back') || str.includes('spine')) {
+    if (str.includes('lower')) {
+      matched.add('Lower Back');
+    } else if (str.includes('upper')) {
+      matched.add('Upper Back');
+    } else {
+      matched.add('Upper Back');
+      matched.add('Lower Back');
+    }
+  }
+  if (str.includes('ear')) {
+    if (str.includes('(r)') || str.includes('right')) matched.add('R. Ear');
+    else matched.add('L. Ear');
+  }
+
+  return Array.from(matched);
+};
+
+export const matchesBodyPart = (inc, targetPart) => {
+  if (!targetPart) return true;
+  const partsList = extractBodyPartStrings(inc);
+  if (partsList.length === 0) return false;
+
+  for (const pStr of partsList) {
+    const stdParts = mapBodyPartStrToStandard(pStr);
+    if (stdParts.includes(targetPart)) return true;
+
+    const rawLower = pStr.toLowerCase();
+    const isLeft = targetPart.startsWith('L.');
+    const isRight = targetPart.startsWith('R.');
+    const baseTarget = targetPart.replace(/^[LR]\.\s*/i, '').toLowerCase();
+
+    if (rawLower.includes(baseTarget)) {
+      if (isLeft && (rawLower.includes('(r)') || rawLower.includes('right'))) {
+        continue;
+      }
+      if (isRight && (rawLower.includes('(l)') || rawLower.includes('left'))) {
+        continue;
+      }
+      return true;
+    }
+  }
+  return false;
+};
+
+export const getIncidentStandardParts = (inc) => {
+  const partsList = extractBodyPartStrings(inc);
+  const stdSet = new Set();
+  partsList.forEach(p => {
+    const mapped = mapBodyPartStrToStandard(p);
+    if (mapped.length > 0) {
+      mapped.forEach(m => stdSet.add(m));
+    } else {
+      stdSet.add(p);
+    }
+  });
+  return Array.from(stdSet);
+};
+
 /* ── Main Dashboard ── */
 export default function IMDashboard() {
   const navigate = useNavigate();
@@ -365,11 +495,26 @@ export default function IMDashboard() {
   
   // Filter States
   const [stageFilter, setStageFilter] = useState('all');
+  const [selectedBodyPart, setSelectedBodyPart] = useState(null);
   const [selectedBuildings, setSelectedBuildings] = useState([]);
   const [selectedContractors, setSelectedContractors] = useState([]);
   const [selectedDateRange, setSelectedDateRange] = useState('13m');
   const [startDate, setStartDate] = useState(() => getDateRangeBounds('13m').startDate);
   const [endDate, setEndDate] = useState(() => getDateRangeBounds('13m').endDate);
+  const tableRef = useRef(null);
+
+  const handleBodyPartClick = (partName) => {
+    if (selectedBodyPart === partName) {
+      setSelectedBodyPart(null);
+    } else {
+      setSelectedBodyPart(partName);
+      setTimeout(() => {
+        if (tableRef.current) {
+          tableRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 100);
+    }
+  };
 
   const handleRangeChange = (range) => {
     setSelectedDateRange(range);
@@ -646,83 +791,19 @@ export default function IMDashboard() {
     const frontMap = {};
     const backMap = {};
 
-    const extractBodyPartStrings = (inc) => {
-      const result = [];
-      const process = (val) => {
-        if (!val) return;
-        if (typeof val === 'string') {
-          try {
-            const parsed = JSON.parse(val);
-            process(parsed);
-          } catch (e) {
-            val.split(',').forEach(s => {
-              if (s.trim()) result.push(s.trim());
-            });
-          }
-        } else if (Array.isArray(val)) {
-          val.forEach(item => process(item));
-        } else if (typeof val === 'object') {
-          if (Array.isArray(val.selections)) {
-            process(val.selections);
-          } else {
-            const pName = val.part || val.name || val.bodyPart || val.label;
-            const pSide = val.side ? ` (${val.side})` : (val.hand ? ` (${val.hand})` : '');
-            if (pName) {
-              result.push(`${pName}${pSide}`);
-            }
-          }
-        }
-      };
-
-      process(inc.bodyPartsInjured);
-      process(inc.initialReport?.bodyPartsInjured);
-      process(inc.initialReportData?.bodyPartsInjured);
-      process(inc.bodyParts);
-      process(inc.injuredBodyParts);
-      process(inc.bodyPart);
-
-      return result;
-    };
-
-    let hasLoggedParts = false;
-
-    incidents.forEach(inc => {
+    displayedIncidents.forEach(inc => {
       const partsList = extractBodyPartStrings(inc);
-      if (partsList.length > 0) {
-        hasLoggedParts = true;
-        partsList.forEach(pStr => {
-          const str = pStr.toLowerCase();
-
-          if (str.includes('head') || str.includes('eye') || str.includes('face') || str.includes('teeth')) {
-            frontMap['Head'] = (frontMap['Head'] || 0) + 1;
+      partsList.forEach(pStr => {
+        const stdParts = mapBodyPartStrToStandard(pStr);
+        stdParts.forEach(part => {
+          if (['Head', 'Facial area', 'Neck', 'Chest', 'Lower Abdomen', 'R. Shoulder', 'L. Shoulder', 'R. Forearm', 'L. Forearm', 'R. Hand', 'L. Hand', 'R. Leg', 'L. Leg', 'R. Foot', 'L. Foot'].includes(part)) {
+            frontMap[part] = (frontMap[part] || 0) + 1;
           }
-          if (str.includes('neck')) {
-            backMap['Neck'] = (backMap['Neck'] || 0) + 1;
-          }
-          if (str.includes('chest') || str.includes('ribs') || str.includes('torso')) {
-            frontMap['Chest'] = (frontMap['Chest'] || 0) + 1;
-          }
-          if (str.includes('back') || str.includes('spine')) {
-            if (str.includes('lower')) backMap['Lower Back'] = (backMap['Lower Back'] || 0) + 1;
-            else backMap['Upper Back'] = (backMap['Upper Back'] || 0) + 1;
-          }
-          if (str.includes('pelvis') || str.includes('abdomen')) {
-            frontMap['Lower Abdomen'] = (frontMap['Lower Abdomen'] || 0) + 1;
-          }
-          if (str.includes('hand') || str.includes('finger') || str.includes('wrist')) {
-            if (str.includes('(l)') || str.includes('left')) frontMap['L. Hand'] = (frontMap['L. Hand'] || 0) + 1;
-            else frontMap['R. Hand'] = (frontMap['R. Hand'] || 0) + 1;
-          }
-          if (str.includes('arm') || str.includes('elbow') || str.includes('shoulder')) {
-            if (str.includes('(l)') || str.includes('left')) frontMap['L. Forearm'] = (frontMap['L. Forearm'] || 0) + 1;
-            else frontMap['R. Forearm'] = (frontMap['R. Forearm'] || 0) + 1;
-          }
-          if (str.includes('foot') || str.includes('toe') || str.includes('ankle') || str.includes('leg') || str.includes('knee') || str.includes('thigh')) {
-            if (str.includes('(l)') || str.includes('left')) frontMap['L. Foot'] = (frontMap['L. Foot'] || 0) + 1;
-            else frontMap['R. Foot'] = (frontMap['R. Foot'] || 0) + 1;
+          if (['Head', 'Neck', 'R. Ear', 'L. Ear', 'Upper Back', 'Lower Back', 'R. Shoulder', 'L. Shoulder', 'R. Forearm', 'L. Forearm', 'R. Hand', 'L. Hand', 'R. Leg', 'L. Leg', 'R. Foot', 'L. Foot'].includes(part)) {
+            backMap[part] = (backMap[part] || 0) + 1;
           }
         });
-      }
+      });
     });
 
     const defaultFrontZero = [
@@ -741,7 +822,9 @@ export default function IMDashboard() {
       { part: 'L. Forearm', count: 0 }
     ];
 
-    if (serverStats?.bodyParts && !isContractor) {
+    // If server provides non-zero bodyParts stats and no active local filters, use server stats
+    const hasLocalFilters = selectedBuildings.length > 0 || selectedContractors.length > 0 || Boolean(selectedDateRange);
+    if (serverStats?.bodyParts && !isContractor && !hasLocalFilters && (serverStats.bodyParts.summary?.total > 0 || serverStats.bodyParts.front?.length > 0)) {
       const frontRes = serverStats.bodyParts.front || [];
       const backRes = serverStats.bodyParts.back || [];
       const summary = serverStats.bodyParts.summary || {};
@@ -774,7 +857,7 @@ export default function IMDashboard() {
       backParts: finalBack,
       bodyPartsSummary: { totalPartsCount, highCount, medCount, lowCount }
     };
-  }, [displayedIncidents, serverStats, isContractor]);
+  }, [displayedIncidents, serverStats, isContractor, selectedBuildings, selectedContractors, selectedDateRange]);
 
   const maxT = Math.max(...agg.types.map(x => x.count)) || 1;
   const maxB = Math.max(...frontParts.map(x => x.count), ...backParts.map(x => x.count), 6);
@@ -782,16 +865,25 @@ export default function IMDashboard() {
   /* Filter Incidents for Table */
   const filteredIncidents = useMemo(() => {
     return displayedIncidents.filter(r => {
-      if (stageFilter === 'all') return true;
-      let s = r.pipeline || r.stage || 'Heads-Up';
-      if (s === 'INITIAL_REPORT') s = 'Initial';
-      if (s === 'INVESTIGATION') s = 'Investigation';
-      if (s === 'CLOSED') s = 'Closed';
-      if (s === 'HEADS_UP') s = 'Heads-Up';
-      if (stageFilter === 'active') return s !== 'Closed';
-      return s === stageFilter || s === stageFilter.split(' ')[0]; 
+      // Stage filter
+      if (stageFilter !== 'all') {
+        let s = r.pipeline || r.stage || 'Heads-Up';
+        if (s === 'INITIAL_REPORT') s = 'Initial';
+        if (s === 'INVESTIGATION') s = 'Investigation';
+        if (s === 'CLOSED') s = 'Closed';
+        if (s === 'HEADS_UP') s = 'Heads-Up';
+        if (stageFilter === 'active' && s === 'Closed') return false;
+        if (stageFilter !== 'active' && s !== stageFilter && s !== stageFilter.split(' ')[0]) return false;
+      }
+
+      // Body Part filter
+      if (selectedBodyPart) {
+        if (!matchesBodyPart(r, selectedBodyPart)) return false;
+      }
+
+      return true;
     });
-  }, [incidents, stageFilter]);
+  }, [displayedIncidents, stageFilter, selectedBodyPart]);
 
   /* Generate and Download PDF Stats */
   const handleDownloadPdf = async () => {
@@ -904,7 +996,7 @@ export default function IMDashboard() {
           title="To Date"
         />
 
-        {(selectedBuildings.length > 0 || selectedContractors.length > 0 || (selectedDateRange && selectedDateRange !== '13m') || (selectedDateRange === 'custom' && (startDate || endDate))) && (
+        {(selectedBuildings.length > 0 || selectedContractors.length > 0 || selectedBodyPart || (selectedDateRange && selectedDateRange !== '13m') || (selectedDateRange === 'custom' && (startDate || endDate))) && (
           <button 
             type="button" 
             className="btn btn-outline" 
@@ -912,6 +1004,7 @@ export default function IMDashboard() {
             onClick={() => {
               setSelectedBuildings([]);
               setSelectedContractors([]);
+              setSelectedBodyPart(null);
               setSelectedDateRange("13m");
               const bounds = getDateRangeBounds("13m");
               setStartDate(bounds.startDate);
@@ -1002,13 +1095,36 @@ export default function IMDashboard() {
             </span>
             <div>
               <h2 className="bp-title">Body Parts – Incident Summary</h2>
-              <p className="bp-subtitle">Overview of affected body parts (Front & Back)</p>
+              <p className="bp-subtitle">Overview of affected body parts &middot; Click any tracking bar to view matching incidents</p>
             </div>
           </div>
-          <div className="bp-legend-gradient">
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Fewer</span>
-            <div className="bp-grad-bar"></div>
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>More</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            {selectedBodyPart && (
+              <div className="bp-active-filter-alert">
+                <span>Selected: <strong>{selectedBodyPart}</strong></span>
+                <button
+                  type="button"
+                  className="bp-scroll-btn"
+                  onClick={() => tableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                  title="Scroll to incident records"
+                >
+                  View Incidents ↓
+                </button>
+                <button
+                  type="button"
+                  className="bp-clear-sm-btn"
+                  onClick={() => setSelectedBodyPart(null)}
+                  title="Clear selection"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+            <div className="bp-legend-gradient">
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Fewer</span>
+              <div className="bp-grad-bar"></div>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>More</span>
+            </div>
           </div>
         </div>
 
@@ -1023,16 +1139,32 @@ export default function IMDashboard() {
             </div>
             <div className="bp-card-body">
               <div className="bp-figure">
-                <BodyMap data={frontParts} view="front" />
+                <BodyMap
+                  data={frontParts}
+                  view="front"
+                  selectedPart={selectedBodyPart}
+                  onSelectPart={handleBodyPartClick}
+                />
               </div>
               <div className="bp-list">
                 {frontParts.map((b, i) => {
                   const col = b.count >= 5 ? '#E32B50' : b.count >= 3 ? '#C07D10' : '#7BBE97';
+                  const isSelected = selectedBodyPart === b.part;
                   return (
-                    <div className="rank-row" key={b.part}>
+                    <div
+                      className={`rank-row ${isSelected ? 'selected-part' : ''}`}
+                      key={b.part}
+                      onClick={() => handleBodyPartClick(b.part)}
+                      title={`Click to filter incidents by ${b.part}`}
+                      role="button"
+                      tabIndex={0}
+                    >
                       <span className="rank-num">{i + 1}</span>
                       <div className="rank-main">
-                        <div className="rank-name">{b.part}</div>
+                        <div className="rank-name" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span>{b.part}</span>
+                          {isSelected && <span className="rank-selected-tag">Active Filter</span>}
+                        </div>
                         <div className="nbar-track" style={{ marginTop: '5px' }}>
                           <div className="nbar-fill" style={{ width: `${(b.count / maxB) * 100}%`, background: col }} />
                         </div>
@@ -1060,16 +1192,32 @@ export default function IMDashboard() {
             </div>
             <div className="bp-card-body">
               <div className="bp-figure">
-                <BodyMap data={backParts} view="back" />
+                <BodyMap
+                  data={backParts}
+                  view="back"
+                  selectedPart={selectedBodyPart}
+                  onSelectPart={handleBodyPartClick}
+                />
               </div>
               <div className="bp-list">
                 {backParts.map((b, i) => {
                   const col = b.count >= 5 ? '#E32B50' : b.count >= 3 ? '#C07D10' : '#7BBE97';
+                  const isSelected = selectedBodyPart === b.part;
                   return (
-                    <div className="rank-row" key={b.part}>
+                    <div
+                      className={`rank-row ${isSelected ? 'selected-part' : ''}`}
+                      key={b.part}
+                      onClick={() => handleBodyPartClick(b.part)}
+                      title={`Click to filter incidents by ${b.part}`}
+                      role="button"
+                      tabIndex={0}
+                    >
                       <span className="rank-num">{i + 1}</span>
                       <div className="rank-main">
-                        <div className="rank-name">{b.part}</div>
+                        <div className="rank-name" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span>{b.part}</span>
+                          {isSelected && <span className="rank-selected-tag">Active Filter</span>}
+                        </div>
                         <div className="nbar-track" style={{ marginTop: '5px' }}>
                           <div className="nbar-fill" style={{ width: `${(b.count / maxB) * 100}%`, background: col }} />
                         </div>
@@ -1122,10 +1270,36 @@ export default function IMDashboard() {
       </div>
 
       {/* ── Incidents Table ── */}
-      <div className="panel dash-tablecard">
-        <div className="panel-head">
-          <span className="panel-title">Incidents ({filteredIncidents.length})</span>
+      <div ref={tableRef} className="panel dash-tablecard">
+        <div className="panel-head" style={{ flexWrap: 'wrap', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <span className="panel-title">Incidents ({filteredIncidents.length})</span>
+            {selectedBodyPart && (
+              <span className="bp-filter-pill">
+                <span>Body Part: <strong>{selectedBodyPart}</strong></span>
+                <button
+                  type="button"
+                  className="bp-clear-btn"
+                  onClick={() => setSelectedBodyPart(null)}
+                  title="Clear body part filter"
+                >
+                  ✕
+                </button>
+              </span>
+            )}
+          </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {selectedBodyPart && (
+              <button 
+                type="button" 
+                className="btn btn-outline" 
+                style={{ borderColor: 'transparent', color: '#3B82F6', padding: '6px 12px', background: 'rgba(59, 130, 246, 0.08)', height: '32px', fontSize: '12px' }}
+                onClick={() => setSelectedBodyPart(null)}
+                title="Clear body part filter"
+              >
+                Clear Body Part
+              </button>
+            )}
             {stageFilter !== 'all' && (
               <button 
                 type="button" 
@@ -1134,7 +1308,7 @@ export default function IMDashboard() {
                 onClick={() => setStageFilter('all')}
                 title="Clear stage filter"
               >
-                Clear
+                Clear Stage
               </button>
             )}
             <select value={stageFilter} onChange={e => setStageFilter(e.target.value)} style={{ padding: '7px 10px', border: '1px solid var(--border-color)', borderRadius: '8px', fontSize: '12px', background: 'var(--bg-card)', color: 'var(--text-main)', height: '32px' }}>
@@ -1157,6 +1331,7 @@ export default function IMDashboard() {
                   <th>Code</th>
                   <th>Date</th>
                   <th>Type</th>
+                  <th>Injured Body Parts</th>
                   <th>Severity</th>
                   <th>Stage</th>
                   <th>Contractor</th>
@@ -1172,12 +1347,41 @@ export default function IMDashboard() {
 
                   const stage = r.pipeline || r.stage || 'Heads-Up';
                   const stageColor = stage.includes('Head') ? '#C07D10' : stage.includes('Init') ? '#E32B50' : stage.includes('Invest') ? '#131E40' : '#A1A5B3';
+                  const incidentParts = getIncidentStandardParts(r);
 
                   return (
                     <tr key={r.id || Math.random()} style={{ cursor: 'pointer' }} onClick={() => navigate(`/incident-management/details/${r.id}`)}>
                       <td className="code">{r.caseNumber || (r.id ? `INC-2026-${String(r.id).padStart(4, '0')}` : '—')}</td>
                       <td style={{ whiteSpace: 'nowrap' }}>{formatDateStr(r.incidentDate || r.date || r.createdAt)}</td>
                       <td>{r.categories?.[0] || r.category || r.classification || r.type || "—"}</td>
+                      <td>
+                        {incidentParts && incidentParts.length > 0 ? (
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', maxWidth: '240px' }}>
+                            {incidentParts.map((pt, pIdx) => {
+                              const isMatch = selectedBodyPart === pt;
+                              return (
+                                <span
+                                  key={pIdx}
+                                  style={{
+                                    display: 'inline-block',
+                                    fontSize: '11px',
+                                    padding: '2px 7px',
+                                    borderRadius: '6px',
+                                    fontWeight: isMatch ? '700' : '500',
+                                    background: isMatch ? 'rgba(59, 130, 246, 0.18)' : 'var(--bg-dark, #F3F4F6)',
+                                    color: isMatch ? '#2563EB' : 'var(--text-muted, #4B5563)',
+                                    border: isMatch ? '1px solid #3B82F6' : '1px solid transparent'
+                                  }}
+                                >
+                                  {pt}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>—</span>
+                        )}
+                      </td>
                       <td><span className="sev-badge" style={{ background: hexA(sevHex(sev), 0.14), color: sevHex(sev) }}>{sev}</span></td>
                       <td>
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}>
@@ -1198,7 +1402,7 @@ export default function IMDashboard() {
                     </tr>
                   );
                 }) : (
-                  <tr><td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '24px' }}>No incidents match the criteria.</td></tr>
+                  <tr><td colSpan="7" style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '24px' }}>No incidents match the criteria.</td></tr>
                 )}
               </tbody>
             </table>

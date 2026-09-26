@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react'
 import { useNavigate, useLocation } from "react-router-dom";
 import "./Navbar.css";
 import { logout, sendChangePasswordOtp, verifyAndChangePassword } from "../../../services/authService";
+import { showError } from "../../../components/common/Toast/Toast";
 import { navigateTo } from "../../../config/basePath";
 import {
   getNotifications,
@@ -405,6 +406,22 @@ function ModuleSwitcher() {
               type="button"
               className={`module-switcher-item ${currentModule.id === m.id ? 'active' : ''}`}
               onClick={() => {
+                if (m.id !== 'ptw' && !isAdmin) {
+                  const MOD_MAP = {
+                    im: 'incident-management',
+                    so: 'safety-observations',
+                    si: 'safety-inspection',
+                    sc: 'spot-checks',
+                  };
+                  const requiredKey = MOD_MAP[m.id];
+                  const rawMod = user?.moduleAccess;
+                  const allowed = (rawMod ? (typeof rawMod === 'string' ? rawMod.split(',') : rawMod) : ['permit-to-work']).map(x => String(x).trim().toLowerCase());
+                  if (!allowed.includes(requiredKey.toLowerCase())) {
+                    showError(`You do not have access to the ${m.label} module`);
+                    setOpen(false);
+                    return;
+                  }
+                }
                 navigate(m.path);
                 setOpen(false);
               }}

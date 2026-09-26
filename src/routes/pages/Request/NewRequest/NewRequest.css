@@ -3547,8 +3547,6 @@ input[type="time"],
   position: relative;
 }
 
-input[type="date"]::-webkit-calendar-picker-indicator,
-input[type="time"]::-webkit-calendar-picker-indicator,
 .df-input[type="date"]::-webkit-calendar-picker-indicator,
 .df-input[type="time"]::-webkit-calendar-picker-indicator {
   position: absolute;

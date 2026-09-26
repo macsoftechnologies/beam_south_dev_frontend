@@ -400,6 +400,82 @@ export default function SCCreate() {
       return;
     }
 
+    // PTW section checkpoints a to g are mandatory
+    const ptwCheckpoints = [
+      { key: "chk1_2", label: "PTW checkpoint a (Scope, location and times)" },
+      { key: "chk1_3", label: "PTW checkpoint b (PTW and RAMS validity)" },
+      { key: "chk1_4", label: "PTW checkpoint c (Key risks controlled)" },
+      { key: "chk1_5", label: "PTW checkpoint d (Emergency plan)" },
+      { key: "chk1_6", label: "PTW checkpoint e (PPE in use)" },
+      { key: "chk1_7", label: "PTW checkpoint f (Supervision present)" },
+      { key: "chk1_8", label: "PTW checkpoint g (Orderly and safe)" }
+    ];
+    for (const cp of ptwCheckpoints) {
+      if (!form[cp.key]) {
+        showError(`Please answer ${cp.label}.`);
+        return;
+      }
+    }
+
+    // Communication / Toolbox Talk point a is mandatory
+    if (!form.chk2_1) {
+      showError("Please answer Communication / Toolbox Talk point a (Has a Toolbox Talk / pre-start briefing been held?).");
+      return;
+    }
+
+    // If point a is Yes -> b, c, d, e, f are mandatory
+    if (form.chk2_1 === "Yes") {
+      if (!form.briefingDate || !form.briefingDate.trim()) {
+        showError("Please enter the Date of briefing (Communication point b).");
+        return;
+      }
+      if (!form.conductedBy || !form.conductedBy.trim()) {
+        showError("Please enter who conducted the briefing (Communication point c).");
+        return;
+      }
+      if (form.participants === "" || form.participants === null || form.participants === undefined || Number(form.participants) < 1) {
+        showError("Please enter the number of participants (Communication point d).");
+        return;
+      }
+      if (!form.keyTopics || form.keyTopics.length === 0) {
+        showError("Please select at least one key topic covered (Communication point e).");
+        return;
+      }
+      if (form.keyTopics.includes("Other") && (!form.otherTopic || !form.otherTopic.trim())) {
+        showError("Please specify the other topic (Communication point e).");
+        return;
+      }
+      if (!form.chk2_1_5) {
+        showError("Please answer Communication point f (Have all workers confirmed understanding of PTW and RAMS requirements?).");
+        return;
+      }
+    }
+
+    // If point a is No -> g is mandatory
+    if (form.chk2_1 === "No") {
+      if (!form.explainNoBriefing || !form.explainNoBriefing.trim()) {
+        showError("Please explain why the Toolbox Talk / pre-start briefing was not held (Communication point g).");
+        return;
+      }
+    }
+
+    // Summary section point a is mandatory
+    if (!form.chk3_2) {
+      showError("Please answer Summary point a (Was the activity in compliance?).");
+      return;
+    }
+
+    // Signatures are mandatory
+    if (!form.foremanSignature) {
+      showError("Please provide the Foreman / Supervisor signature.");
+      return;
+    }
+
+    if (!form.inspectorSignature) {
+      showError("Please provide the Inspector signature.");
+      return;
+    }
+
     try {
       setIsSubmitting(true);
       let currentUser = {};
@@ -416,9 +492,17 @@ export default function SCCreate() {
 
       const payload = {
         ...form,
+        projectName: "M3SOUTH",
         safetyIssueRef: finalSafetyIssueRef || form.safetyIssueRef,
         date: sanitizeDateVal(form.date) || todayDenmark,
-        briefingDate: sanitizeDateVal(form.briefingDate),
+        briefingDate: form.chk2_1 === "Yes" ? sanitizeDateVal(form.briefingDate) : null,
+        briefingTime: form.chk2_1 === "Yes" ? (form.briefingTime || "") : "",
+        conductedBy: form.chk2_1 === "Yes" ? (form.conductedBy || "") : "",
+        participants: form.chk2_1 === "Yes" ? (form.participants || "") : "",
+        keyTopics: form.chk2_1 === "Yes" ? (form.keyTopics || []) : [],
+        otherTopic: form.chk2_1 === "Yes" ? (form.otherTopic || "") : "",
+        chk2_1_5: form.chk2_1 === "Yes" ? (form.chk2_1_5 || "") : "",
+        explainNoBriefing: form.chk2_1 === "No" ? (form.explainNoBriefing || "") : "",
         foremanDate: sanitizeDateVal(form.foremanDate),
         inspectorDate: sanitizeDateVal(form.inspectorDate) || todayDenmark,
         buildingId: building ? Number(building) : undefined,
@@ -497,7 +581,7 @@ export default function SCCreate() {
   return (
     <div className="mod-page">
       <PageHeader
-        title="Site HSE Spot Check"
+        title="Spot Check"
         subtitle="Permit, controls and toolbox talk verification"
         icon={<CreateIcon />}
         breadcrumbs={[{ label: "Home" }, { label: "Spot Checks" }, { label: "New Spot Check" }]}
@@ -519,7 +603,16 @@ export default function SCCreate() {
             <tbody>
               <tr>
                 <td className="sc-td-label">Project Name</td>
-                <td colSpan="3"><input className="mod-form-input" name="projectName" value={form.projectName} onChange={handleChange} placeholder="Enter Project Name" /></td>
+                <td colSpan="3">
+                  <input
+                    className="mod-form-input"
+                    name="projectName"
+                    value={form.projectName || "M3SOUTH"}
+                    disabled
+                    readOnly
+                    style={{ cursor: "not-allowed", backgroundColor: "var(--bg-card-hover, #f1f5f9)", color: "var(--text-main)" }}
+                  />
+                </td>
               </tr>
               <tr>
                 <td className="sc-td-label">Date</td>
@@ -705,38 +798,31 @@ export default function SCCreate() {
             </thead>
             <tbody>
               <tr>
-                
-                <td><b>a.</b> Does the description of work, including scope, location and times, match the work performed?</td>
+                <td><b>a.</b> Does the description of work, including scope, location and times, match the work performed? <span style={{ color: "#DC2626" }}>*</span></td>
                 <td>{renderRadioGroup("chk1_2")}</td>
               </tr>
               <tr>
-                
-                <td><b>b.</b> Are the PTW and RAMS valid for the work performed?</td>
+                <td><b>b.</b> Are the PTW and RAMS valid for the work performed? <span style={{ color: "#DC2626" }}>*</span></td>
                 <td>{renderRadioGroup("chk1_3")}</td>
               </tr>
               <tr>
-                
-                <td><b>c.</b> Are key risks controlled? Consider barriers, signage and whether controls are working as planned and coordinated.</td>
+                <td><b>c.</b> Are key risks controlled? Consider barriers, signage and whether controls are working as planned and coordinated. <span style={{ color: "#DC2626" }}>*</span></td>
                 <td>{renderRadioGroup("chk1_4")}</td>
               </tr>
               <tr>
-                
-                <td><b>d.</b> Do workers know the emergency plan? Consider contact information, medical centre, alarm / muster arrangements and rescue / emergency arrangements.</td>
+                <td><b>d.</b> Do workers know the emergency plan? Consider contact information, medical centre, alarm / muster arrangements and rescue / emergency arrangements. <span style={{ color: "#DC2626" }}>*</span></td>
                 <td>{renderRadioGroup("chk1_5")}</td>
               </tr>
               <tr>
-                
-                <td><b>e.</b> Is correct task-specific PPE in use, in proper condition and worn properly?</td>
+                <td><b>e.</b> Is correct task-specific PPE in use, in proper condition and worn properly? <span style={{ color: "#DC2626" }}>*</span></td>
                 <td>{renderRadioGroup("chk1_6")}</td>
               </tr>
               <tr>
-                
-                <td><b>f.</b> Is supervision present? Is the responsible person named on the PTW overseeing the work?</td>
+                <td><b>f.</b> Is supervision present? Is the responsible person named on the PTW overseeing the work? <span style={{ color: "#DC2626" }}>*</span></td>
                 <td>{renderRadioGroup("chk1_7")}</td>
               </tr>
               <tr>
-                
-                <td><b>g.</b> Is the area orderly and safe? Consider clear access / egress, housekeeping and unblocked exits.</td>
+                <td><b>g.</b> Is the area orderly and safe? Consider clear access / egress, housekeeping and unblocked exits. <span style={{ color: "#DC2626" }}>*</span></td>
                 <td>{renderRadioGroup("chk1_8")}</td>
               </tr>
             </tbody>
@@ -751,15 +837,13 @@ export default function SCCreate() {
           <table className="sc-table">
             <thead>
               <tr style={{ backgroundColor: "var(--bg-dark)" }}>
-                
                 <th></th>
                 <th style={{ width: "150px", textAlign: "center", color: "var(--text-main)" }}>YES / NO / N/A</th>
               </tr>
             </thead>
             <tbody>
               <tr>
-                
-                <td><b>a.</b> Has a Toolbox Talk / pre-start briefing been held?</td>
+                <td><b>a.</b> Has a Toolbox Talk / pre-start briefing been held? <span style={{ color: "#DC2626" }}>*</span></td>
                 <td>{renderRadioGroup("chk2_1")}</td>
               </tr>
             </tbody>
@@ -767,16 +851,15 @@ export default function SCCreate() {
           <div style={{ padding: "12px 16px", fontSize: "0.85rem", color: "var(--text-muted)", backgroundColor: "var(--bg-card-hover)" }}>
             If YES, complete items b to f. If NO, complete the explanation box below.
           </div>
-          <table className="sc-table">
-            <tbody>
-              <tr>
-                <td className="sc-td-label"><b>b.</b> Date of briefing <span style={{ color: "#DC2626" }}>*</span></td>
-                {form.chk2_1 === "Yes" ? (
-                  <td colSpan="3"><input type="date" className="mod-form-input" name="briefingDate" value={form.briefingDate} onChange={handleChange} /></td>
-                ) : (
-                  <>
+
+          {form.chk2_1 === "Yes" && (
+            <>
+              <table className="sc-table">
+                <tbody>
+                  <tr>
+                    <td className="sc-td-label" style={{ width: "160px" }}><b>b.</b> Date of briefing <span style={{ color: "#DC2626" }}>*</span></td>
                     <td><input type="date" className="mod-form-input" name="briefingDate" value={form.briefingDate} onChange={handleChange} /></td>
-                    <td className="sc-td-label">Time</td>
+                    <td className="sc-td-label" style={{ width: "80px" }}>Time</td>
                     <td>
                       <input
                         type="text"
@@ -789,24 +872,18 @@ export default function SCCreate() {
                         style={{ cursor: "pointer" }}
                       />
                     </td>
-                  </>
-                )}
-              </tr>
-              {form.chk2_1 === "Yes" && (
-                <tr>
-                  <td className="sc-td-label"><b>c.</b> Conducted by</td>
-                  <td><input className="mod-form-input" name="conductedBy" value={form.conductedBy} onChange={handleChange} placeholder="Enter Name" /></td>
-                  <td className="sc-td-label"><b>d.</b> Number of participants</td>
-                  <td><input type="number" className="mod-form-input" name="participants" value={form.participants} onChange={handleChange} placeholder="Enter Number" /></td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                  </tr>
+                  <tr>
+                    <td className="sc-td-label"><b>c.</b> Conducted by <span style={{ color: "#DC2626" }}>*</span></td>
+                    <td><input className="mod-form-input" name="conductedBy" value={form.conductedBy} onChange={handleChange} placeholder="Enter Name" /></td>
+                    <td className="sc-td-label"><b>d.</b> Number of participants <span style={{ color: "#DC2626" }}>*</span></td>
+                    <td><input type="number" min="1" className="mod-form-input" name="participants" value={form.participants} onChange={handleChange} placeholder="Enter Number" /></td>
+                  </tr>
+                </tbody>
+              </table>
 
-          {form.chk2_1 === "Yes" ? (
-            <>
               <div style={{ padding: "12px 16px", backgroundColor: "var(--bg-card-hover)", color: "var(--text-main)", fontWeight: "600", fontSize: "0.9rem", borderTop: "1px solid var(--border-color)", borderBottom: "1px solid var(--border-color)" }}>
-                <b>e.</b> Key topics covered
+                <b>e.</b> Key topics covered <span style={{ color: "#DC2626" }}>*</span>
               </div>
               <div style={{ padding: "16px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", borderBottom: "1px solid var(--border-color)" }}>
                 {topicOptions.map(opt => (
@@ -828,24 +905,24 @@ export default function SCCreate() {
               <table className="sc-table">
                 <thead>
                   <tr style={{ backgroundColor: "#0f172a", color: "#fff" }}>
-                    
                     <th></th>
                     <th style={{ width: "120px", textAlign: "center" }}>Yes / No</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr>
-                    
-                    <td><b>f.</b> Have all workers confirmed understanding of the PTW and RAMS requirements?</td>
+                    <td><b>f.</b> Have all workers confirmed understanding of the PTW and RAMS requirements? <span style={{ color: "#DC2626" }}>*</span></td>
                     <td>{renderYesNo("chk2_1_5")}</td>
                   </tr>
                 </tbody>
               </table>
             </>
-          ) : (
+          )}
+
+          {form.chk2_1 === "No" && (
             <>
               <div style={{ padding: "12px 16px", backgroundColor: "var(--bg-card-hover)", color: "var(--text-main)", fontWeight: "600", fontSize: "0.9rem", borderTop: "1px solid var(--border-color)", borderBottom: "1px solid var(--border-color)" }}>
-                <b>g.</b> If NO, explain why the Toolbox Talk / pre-start briefing was not held
+                <b>g.</b> If NO, explain why the Toolbox Talk / pre-start briefing was not held <span style={{ color: "#DC2626" }}>*</span>
               </div>
               <div style={{ padding: "16px", backgroundColor: "var(--bg-card)" }}>
                 <textarea className="mod-form-textarea" rows="4" name="explainNoBriefing" value={form.explainNoBriefing} onChange={handleChange} placeholder="Provide explanation..."></textarea>
@@ -866,12 +943,10 @@ export default function SCCreate() {
           <div className="sc-checkpoints-list">
             <div className="sc-checkpoint-row">
               <div className="sc-checkpoint-left">
-                
-                <p className="sc-checkpoint-text"><b>a.</b> Was the activity in compliance?</p>
+                <p className="sc-checkpoint-text"><b>a.</b> Was the activity in compliance? <span style={{ color: "#DC2626" }}>*</span></p>
               </div>
               {renderYesNo("chk3_2")}
             </div>
-
           </div>
 
           {form.chk3_2 === "No" && (

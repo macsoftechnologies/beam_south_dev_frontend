@@ -246,7 +246,12 @@ export default function SIList() {
       if (allClosed) {
         safetyInspectionService.updateInspection(insp.id, {
           status: 'CLOSED',
-          isCompleted: true
+          isCompleted: true,
+          actionType: 'CLOSED',
+          remarks: 'Inspection automatically closed (all attached observations resolved & closed)',
+          modifiedByUserId: currentUser?.id,
+          modifiedByUserName: currentUser?.name || currentUser?.username || 'System Auto-sync',
+          modifiedByUserRole: currentUser?.role || 'SYSTEM'
         }).catch(() => {});
       }
     });
@@ -532,6 +537,43 @@ export default function SIList() {
                           >
                             <i className="ti ti-eye"></i>
                           </button>
+
+                          {/* Edit / Reopen Button */}
+                          {!isReadOnly && (
+                            <button
+                              type="button"
+                              style={{
+                                border: "1px solid rgba(2, 132, 199, 0.3)",
+                                color: "#0284c7",
+                                background: "rgba(2, 132, 199, 0.06)",
+                                width: "32px",
+                                height: "32px",
+                                borderRadius: "6px",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                cursor: "pointer",
+                                padding: 0,
+                                fontSize: "15px",
+                                transition: "all 0.15s ease-in-out"
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.background = "#0284c7";
+                                e.currentTarget.style.color = "#ffffff";
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.background = "rgba(2, 132, 199, 0.06)";
+                                e.currentTarget.style.color = "#0284c7";
+                              }}
+                              title={r.status === 'CLOSED' || r.isCompleted ? "Reopen / Edit Inspection" : "Edit Inspection"}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/safety-inspection/edit/${r.id}`);
+                              }}
+                            >
+                              <i className={r.status === 'CLOSED' || r.isCompleted ? "ti ti-rotate-clockwise" : "ti ti-pencil"}></i>
+                            </button>
+                          )}
 
                           {/* Download Button */}
                           <button

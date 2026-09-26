@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import SafetyIssueModal from "../../../components/common/SafetyIssueModal/SafetyIssueModal";
 import FloorDrawing from "../../../pages/Request/FloorDrawing/FloorDrawing";
 import { FLOOR_PDFS } from "../../../data/pdfMapping";
@@ -7,6 +7,7 @@ import { ZONE_MAPPING } from "../../../data/zones";
 import { BUILDINGS } from "../../../data/buildings";
 import { getBuildings, getRooms, getFloors, getEmployees } from "../../../services/authService";
 import { safetyInspectionService } from "../../../services/safetyInspectionService";
+import { showSuccess, showError } from "../../../components/common/Toast/Toast";
 import "./SICreate.css";
 
 // The 20 standard safety inspection items
@@ -35,6 +36,10 @@ const CHECKLIST_ITEMS = [
 
 export default function SICreate() {
   const navigate = useNavigate();
+  const { id } = useParams();
+  const isEditMode = Boolean(id);
+  const [isLoadingInspection, setIsLoadingInspection] = useState(isEditMode);
+
   const [selections, setSelections] = useState({});
   const [completed, setCompleted] = useState(false);
   const [openInfoIdx, setOpenInfoIdx] = useState(null);
@@ -141,6 +146,96 @@ export default function SICreate() {
     };
     loadSelectors();
   }, []);
+
+  useEffect(() => {
+    if (!id) {
+      setIsLoadingInspection(false);
+      return;
+    }
+    let isMounted = true;
+    const fetchInspection = async () => {
+      setIsLoadingInspection(true);
+      try {
+        const data = await safetyInspectionService.getInspectionDetails(id);
+        if (!isMounted || !data) return;
+
+        if (data.buildingId) {
+          setBuilding(String(data.buildingId));
+        } else if (data.buildingName && buildingsList.length > 0) {
+          const matchedB = buildingsList.find(b => b.building_name?.toLowerCase() === data.buildingName?.toLowerCase());
+          if (matchedB) setBuilding(String(matchedB.build_id || matchedB.id));
+        }
+
+        if (data.floorLevel) setLevel(data.floorLevel);
+        if (data.specificLocation) setSpecificLocation(data.specificLocation);
+        if (data.inspectionDate) setInspectionDate(data.inspectionDate.split('T')[0]);
+
+        const parseArr = (f) => {
+          if (Array.isArray(f)) return f;
+          if (typeof f === 'string') {
+            try { return JSON.parse(f) || []; } catch { return []; }
+          }
+          return [];
+        };
+
+        const rooms = parseArr(data.selectedRooms);
+        setSelectedRooms(rooms);
+
+        const parts = parseArr(data.participants);
+        setParticipants(parts);
+
+        if (data.performedBy) {
+          const pb = parseArr(data.performedBy);
+          if (pb.length > 0) setPerformedBy(pb);
+        }
+
+        if (Array.isArray(data.items) && data.items.length > 0) {
+          const newSelections = {};
+          const newComments = {};
+          const newPhotos = {};
+          const newIssues = {};
+          const newOtherTexts = {};
+
+          data.items.forEach(itm => {
+            const idx = (itm.itemIndex || 1) - 1;
+            if (itm.status && itm.status !== 'na') {
+              newSelections[idx] = itm.status;
+            }
+            if (itm.comment) {
+              newComments[idx] = itm.comment;
+            }
+            const itmPhotos = parseArr(itm.photos);
+            if (itmPhotos.length > 0) {
+              newPhotos[idx] = itmPhotos.map(p => typeof p === 'string' ? { serverUrl: p } : p);
+            }
+            const itmIssues = parseArr(itm.issues);
+            if (itmIssues.length > 0) {
+              newIssues[idx] = itmIssues;
+            }
+            if (itm.itemIndex === 20 && itm.categoryName) {
+              const custom = itm.categoryName.replace(/^20\.\s*Other(\s*-\s*)?/i, '').trim();
+              if (custom) newOtherTexts[idx] = custom;
+            }
+          });
+
+          setSelections(newSelections);
+          setComments(newComments);
+          setItemPhotos(newPhotos);
+          setItemIssues(newIssues);
+          setOtherCustomTexts(newOtherTexts);
+        }
+      } catch (err) {
+        console.error("Failed to load safety inspection for edit:", err);
+        showError("Failed to load inspection data.");
+        navigate("/safety-inspection/list");
+      } finally {
+        if (isMounted) setIsLoadingInspection(false);
+      }
+    };
+
+    fetchInspection();
+    return () => { isMounted = false; };
+  }, [id, buildingsList]);
 
   const levels = building ? floorsList.filter(f => String(f.build_id) === String(building)).map(f => f.floor_name) : [];
 
@@ -335,6 +430,8 @@ export default function SICreate() {
       const selectedBuildingObj = buildingsList.find(b => String(b.build_id || b.id) === String(building));
       const bName = selectedBuildingObj?.building_name || "";
 
+      let totalAttachedSOs = 0;
+
       const checklistItems = CHECKLIST_ITEMS.map((item, idx) => {
         const isOther = item.toLowerCase().includes('other');
         const effectiveName = isOther && otherCustomTexts[idx]?.trim()
@@ -342,6 +439,10 @@ export default function SICreate() {
           : item;
         const issuesForIdx = itemIssues[idx] || [];
         const hasGoodPractice = issuesForIdx.some(iss => iss.isGoodPractice || iss.type === 'green' || iss.observationType === 'POSITIVE');
+
+        const validSOs = issuesForIdx.filter(iss => iss && (iss.observationId || iss.observationNumber || iss.id));
+        totalAttachedSOs += validSOs.length;
+
         return {
           itemIndex: idx + 1,
           categoryName: effectiveName,
@@ -354,6 +455,13 @@ export default function SICreate() {
         };
       });
 
+      // Requirement:
+      // If there is no SO attached to the inspection then status needs to be CLOSED.
+      // If there is SO attached then keep status as IN_PROGRESS.
+      const hasSO = totalAttachedSOs > 0;
+      const targetStatus = hasSO ? 'IN_PROGRESS' : 'CLOSED';
+      const targetIsCompleted = !hasSO;
+
       const payload = {
         projectName: 'M3SOUTH',
         projectNo: '063205-010',
@@ -364,31 +472,56 @@ export default function SICreate() {
         selectedRooms,
         selectedZones,
         inspectionDate,
-        performedBy: [loggedInUserName],
+        performedBy: performedBy.length > 0 ? performedBy : [loggedInUserName],
         participants,
-        status: completed ? 'CLOSED' : 'IN_PROGRESS',
-        isCompleted: completed,
+        status: targetStatus,
+        isCompleted: targetIsCompleted,
         createdByUserId: currentUser?.id,
         createdByUserName: currentUser?.name || currentUser?.username || 'Safety Inspector',
         createdByRole: currentUser?.role || 'DEPARTMENT',
         checklistItems
       };
 
-      const result = await safetyInspectionService.createInspection(payload);
-      navigate("/safety-inspection/list");
+      if (isEditMode) {
+        payload.actionType = targetStatus === 'CLOSED' ? 'CLOSED' : 'REOPENED';
+        payload.remarks = targetStatus === 'CLOSED'
+          ? 'Inspection marked as closed'
+          : 'Inspection reopened and updated via edit form';
+        payload.modifiedByUserId = currentUser?.id;
+        payload.modifiedByUserName = currentUser?.name || currentUser?.username || 'Safety Inspector';
+        payload.modifiedByUserRole = currentUser?.role || 'DEPARTMENT';
+        await safetyInspectionService.updateInspection(id, payload);
+        showSuccess("Safety inspection updated successfully.");
+        navigate(`/safety-inspection/${id}`);
+      } else {
+        await safetyInspectionService.createInspection(payload);
+        showSuccess("Safety inspection created successfully.");
+        navigate("/safety-inspection/list");
+      }
     } catch (err) {
-      console.error("Failed to create safety inspection:", err);
-      alert(err?.response?.data?.message || "Failed to save safety inspection.");
+      console.error("Failed to save safety inspection:", err);
+      showError(err?.response?.data?.message || "Failed to save safety inspection.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  if (isLoadingInspection) {
+    return (
+      <div className="si-create-container" style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "50vh" }}>
+        <div style={{ textAlign: "center", color: "#64748b" }}>
+          <i className="ti ti-loader ti-spin" style={{ fontSize: "32px", color: "#0284c7" }}></i>
+          <p style={{ marginTop: "12px", fontSize: "14px", fontWeight: 500 }}>Loading inspection details...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="si-create-container">
       <div className="si-create-header">
-        <h1>Safety inspection</h1>
-        <button className="si-btn-back" onClick={() => navigate("/safety-inspection/list")}>
+        <h1>{isEditMode ? "Edit Safety Inspection" : "Safety inspection"}</h1>
+        <button className="si-btn-back" onClick={() => navigate(isEditMode ? `/safety-inspection/${id}` : "/safety-inspection/list")}>
           <i className="ti ti-arrow-left"></i> Back
         </button>
       </div>
@@ -615,6 +748,29 @@ export default function SICreate() {
                             >
                               <i className={isGreen ? 'ti ti-shield-check' : 'ti ti-alert-triangle'} style={{ fontSize: '13px' }}></i>
                               {iss.text || iss.id}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const updated = [...(itemIssues[idx] || [])];
+                                  updated.splice(issIdx, 1);
+                                  setItemIssues(prev => ({ ...prev, [idx]: updated }));
+                                }}
+                                style={{
+                                  background: "none",
+                                  border: "none",
+                                  padding: "0 2px",
+                                  marginLeft: "2px",
+                                  cursor: "pointer",
+                                  color: "inherit",
+                                  fontSize: "14px",
+                                  lineHeight: 1,
+                                  opacity: 0.7
+                                }}
+                                title="Remove attached observation"
+                              >
+                                &times;
+                              </button>
                             </span>
                           );
                         })}
@@ -751,6 +907,17 @@ export default function SICreate() {
                       placeholder="Write a comment or observation notes..."
                       value={comments[idx] || ""}
                       onChange={(e) => setComments({ ...comments, [idx]: e.target.value })}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                          e.preventDefault();
+                          if (!comments[idx]?.trim()) {
+                            const newComments = { ...comments };
+                            delete newComments[idx];
+                            setComments(newComments);
+                          }
+                          toggleComment(idx);
+                        }
+                      }}
                       autoFocus
                       style={{ flex: 1, margin: 0 }}
                     ></textarea>
@@ -758,23 +925,69 @@ export default function SICreate() {
                       <button
                         type="button"
                         onClick={() => {
-                          const newComments = { ...comments };
-                          delete newComments[idx];
-                          setComments(newComments);
+                          if (!comments[idx]?.trim()) {
+                            const newComments = { ...comments };
+                            delete newComments[idx];
+                            setComments(newComments);
+                          }
                           toggleComment(idx);
                         }}
                         style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "28px", height: "28px", borderRadius: "4px", backgroundColor: "#fee2e2", color: "#ef4444", border: "1px solid #fca5a5", cursor: "pointer" }}
-                        title="Clear and close"
+                        title="Close editor"
                       >
                         <i className="ti ti-x" style={{ fontSize: "16px" }}></i>
                       </button>
                       <button
                         type="button"
-                        onClick={() => toggleComment(idx)}
+                        onClick={() => {
+                          if (!comments[idx]?.trim()) {
+                            const newComments = { ...comments };
+                            delete newComments[idx];
+                            setComments(newComments);
+                          }
+                          toggleComment(idx);
+                        }}
                         style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "28px", height: "28px", borderRadius: "4px", backgroundColor: "#dcfce7", color: "#22c55e", border: "1px solid #86efac", cursor: "pointer" }}
                         title="Save comment"
                       >
                         <i className="ti ti-check" style={{ fontSize: "16px", fontWeight: "bold" }}></i>
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {comments[idx] && comments[idx].trim() && !activeComments[idx] && (
+                  <div className="si-added-comment-card">
+                    <div className="si-added-comment-main">
+                      <i className="ti ti-message-2 si-added-comment-icon"></i>
+                      <div className="si-added-comment-body">
+                        <div className="si-added-comment-label">Comment</div>
+                        <div className="si-added-comment-content">{comments[idx]}</div>
+                      </div>
+                    </div>
+                    <div className="si-added-comment-actions">
+                      <button
+                        type="button"
+                        className="si-comment-btn-edit"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleComment(idx);
+                        }}
+                        title="Edit comment"
+                      >
+                        <i className="ti ti-pencil"></i>
+                      </button>
+                      <button
+                        type="button"
+                        className="si-comment-btn-delete"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const newComments = { ...comments };
+                          delete newComments[idx];
+                          setComments(newComments);
+                        }}
+                        title="Delete comment"
+                      >
+                        <i className="ti ti-trash"></i>
                       </button>
                     </div>
                   </div>
@@ -831,9 +1044,9 @@ export default function SICreate() {
         <div className="si-footer">
 
           <div className="si-footer-right">
-            <button className="si-btn-cancel" disabled={isSubmitting} onClick={() => navigate("/safety-inspection/list")}>Cancel</button>
+            <button className="si-btn-cancel" disabled={isSubmitting} onClick={() => navigate(isEditMode ? `/safety-inspection/${id}` : "/safety-inspection/list")}>Cancel</button>
             <button className="si-btn-save" disabled={isSubmitting} onClick={handleSave}>
-              {isSubmitting ? "Saving..." : "Save"}
+              {isSubmitting ? "Saving..." : isEditMode ? "Update Inspection" : "Save"}
             </button>
           </div>
         </div>

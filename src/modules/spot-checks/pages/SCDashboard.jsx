@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { spotCheckService } from "../../../services/spotCheckService";
 import { getBuildings, getContractors } from "../../../services/authService";
@@ -20,6 +20,41 @@ const Icons = {
   up: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 7h6v6"/><path d="m22 7-8.5 8.5-5-5L2 17"/></svg>,
   down: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 17h6v-6"/><path d="m22 17-8.5-8.5-5 5L2 7"/></svg>,
   download: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
+};
+
+// ── Date Range Bounds Helper ──
+const getDateRangeBounds = (rangeKey) => {
+  const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
+  if (rangeKey === 'week') {
+    const diff = (today.getDay() === 0 ? -6 : 1) - today.getDay();
+    const monday = new Date(today);
+    monday.setDate(today.getDate() + diff);
+    return { startDate: monday.toISOString().split('T')[0], endDate: todayStr };
+  }
+  if (rangeKey === '30d') { const d = new Date(Date.now() - 30 * 864e5); return { startDate: d.toISOString().split('T')[0], endDate: todayStr }; }
+  if (rangeKey === '90d') { const d = new Date(Date.now() - 90 * 864e5); return { startDate: d.toISOString().split('T')[0], endDate: todayStr }; }
+  if (rangeKey === 'year') { return { startDate: `${today.getFullYear()}-01-01`, endDate: todayStr }; }
+  if (rangeKey === '13m') { const d = new Date(Date.now() - 395 * 864e5); return { startDate: d.toISOString().split('T')[0], endDate: todayStr }; }
+  return { startDate: '', endDate: '' };
+};
+
+const extractDateYMD = (dateVal) => {
+  if (!dateVal) return null;
+  const str = String(dateVal).trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(str)) {
+    return str.slice(0, 10);
+  }
+  try {
+    const d = new Date(str);
+    if (!isNaN(d.getTime())) {
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      return `${yyyy}-${mm}-${dd}`;
+    }
+  } catch {}
+  return null;
 };
 
 const getLogoUrl = (logoVal) => {
@@ -67,7 +102,7 @@ const getRateColor = (rate) => {
   return "#F87171";
 };
 
-const ContractorAvatar = ({ name, contractorsList }) => {
+const ContractorAvatar = ({ name, contractorsList, size = 28 }) => {
   const [imgError, setImgError] = useState(false);
   const rawLogo = findContractorLogo(name, contractorsList);
   const logoUrl = getLogoUrl(rawLogo);
@@ -76,7 +111,7 @@ const ContractorAvatar = ({ name, contractorsList }) => {
 
   if (logoUrl && !imgError) {
     return (
-      <div className="sc-ent-logo sc-ent-logo-img">
+      <div className="sc-ent-logo sc-ent-logo-img" style={size ? { width: size, height: size } : {}}>
         <img
           src={logoUrl}
           alt={name}
@@ -93,6 +128,7 @@ const ContractorAvatar = ({ name, contractorsList }) => {
         background: `${color}25`,
         color: color,
         border: `1px solid ${color}55`,
+        ...(size ? { width: size, height: size, fontSize: Math.max(9, Math.floor(size * 0.42)) } : {})
       }}
     >
       {initials}
@@ -115,86 +151,245 @@ const StatCard = ({ label, value, sub, foot, accent = "#131E40", valColor, icon 
   );
 };
 
+// ── Multi-Select Filter Component ──
+const MultiSelectFilter = ({
+  options = [],
+  selected = [],
+  onChange,
+  placeholder = "Select...",
+  searchPlaceholder = "Search...",
+  showLogos = false,
+  contractorsList = []
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    };
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isOpen]);
+
+  const filteredOptions = useMemo(() => {
+    if (!search.trim()) return options;
+    const q = search.toLowerCase().trim();
+    return options.filter(opt => String(opt.label || opt.value || opt).toLowerCase().includes(q));
+  }, [options, search]);
+
+  const toggleOption = (val) => {
+    if (selected.includes(val)) {
+      onChange(selected.filter(v => v !== val));
+    } else {
+      onChange([...selected, val]);
+    }
+  };
+
+  const handleSelectAll = () => {
+    if (filteredOptions.length === 0) return;
+    const allFilteredVals = filteredOptions.map(o => o.value);
+    const areAllSelected = allFilteredVals.every(v => selected.includes(v));
+    if (areAllSelected) {
+      onChange(selected.filter(v => !allFilteredVals.includes(v)));
+    } else {
+      const newSel = Array.from(new Set([...selected, ...allFilteredVals]));
+      onChange(newSel);
+    }
+  };
+
+  const handleClear = (e) => {
+    e?.stopPropagation?.();
+    onChange([]);
+  };
+
+  const triggerLabel = useMemo(() => {
+    if (selected.length === 0) return placeholder;
+    if (selected.length === 1) return selected[0];
+    return `${selected.length} Selected`;
+  }, [selected, placeholder]);
+
+  return (
+    <div ref={dropdownRef} className="sc-multi-select-container">
+      <button
+        type="button"
+        className={`sc-multi-select-trigger ${selected.length > 0 ? "active" : ""}`}
+        onClick={() => setIsOpen(!isOpen)}
+        title={selected.length > 0 ? selected.join(", ") : placeholder}
+      >
+        <span className="sc-multi-select-text">
+          {triggerLabel}
+        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+          {selected.length > 0 && (
+            <span
+              className="sc-multi-select-clear"
+              onClick={handleClear}
+              title="Clear selection"
+            >
+              &times;
+            </span>
+          )}
+          <svg
+            className={`sc-multi-select-chevron ${isOpen ? "open" : ""}`}
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </div>
+      </button>
+
+      {isOpen && (
+        <div className="sc-multi-select-menu">
+          <div className="sc-multi-select-search-box">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <input
+              type="text"
+              className="sc-multi-select-search-input"
+              placeholder={searchPlaceholder}
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              autoFocus
+            />
+            {search && (
+              <span className="sc-multi-select-search-clear" onClick={() => setSearch("")}>&times;</span>
+            )}
+          </div>
+
+          <div className="sc-multi-select-actions">
+            <button
+              type="button"
+              className="sc-multi-select-action-btn"
+              onClick={handleSelectAll}
+            >
+              {filteredOptions.length > 0 && filteredOptions.every(o => selected.includes(o.value))
+                ? "Deselect All"
+                : "Select All"}
+            </button>
+            {selected.length > 0 && (
+              <button
+                type="button"
+                className="sc-multi-select-action-btn danger"
+                onClick={handleClear}
+              >
+                Clear ({selected.length})
+              </button>
+            )}
+          </div>
+
+          <div className="sc-multi-select-list">
+            {filteredOptions.length === 0 ? (
+              <div className="sc-multi-select-empty">No options found</div>
+            ) : (
+              filteredOptions.map(opt => {
+                const isChecked = selected.includes(opt.value);
+                return (
+                  <div
+                    key={opt.value}
+                    className={`sc-multi-select-item ${isChecked ? "selected" : ""}`}
+                    onClick={() => toggleOption(opt.value)}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={() => {}}
+                      className="sc-multi-select-checkbox"
+                    />
+                    {showLogos && (
+                      <ContractorAvatar
+                        name={opt.label}
+                        contractorsList={contractorsList}
+                        size={20}
+                      />
+                    )}
+                    <span className="sc-multi-select-item-label" title={opt.label}>
+                      {opt.label}
+                    </span>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 export default function SCDashboard() {
   const navigate = useNavigate();
-  const [stats, setStats] = useState({
-    totalChecks: 0,
-    compliantCount: 0,
-    nonCompliantCount: 0,
-  });
-  const [contractorStats, setContractorStats] = useState([]);
-  const [buildingStats, setBuildingStats] = useState([]);
+  const [allSpotChecks, setAllSpotChecks] = useState([]);
+  const [buildingsList, setBuildingsList] = useState([]);
   const [contractorsList, setContractorsList] = useState([]);
-  const [recentChecks, setRecentChecks] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+
+  // Filter States
+  const [selectedBuildings, setSelectedBuildings] = useState([]);
+  const [selectedContractors, setSelectedContractors] = useState([]);
+  const [selectedRange, setSelectedRange] = useState('13m');
+  const [startDate, setStartDate] = useState(() => getDateRangeBounds('13m').startDate);
+  const [endDate, setEndDate] = useState(() => getDateRangeBounds('13m').endDate);
   const [filter, setFilter] = useState({ q: '', compliance: '' });
+
+  const handleRangeChange = (range) => {
+    setSelectedRange(range);
+    if (range !== 'custom') {
+      const bounds = getDateRangeBounds(range);
+      setStartDate(bounds.startDate);
+      setEndDate(bounds.endDate);
+    }
+  };
+
+  const handleStartDateChange = (val) => {
+    setStartDate(val);
+    setSelectedRange('custom');
+  };
+
+  const handleEndDateChange = (val) => {
+    setEndDate(val);
+    setSelectedRange('custom');
+  };
+
+  const handleClearFilters = () => {
+    setSelectedBuildings([]);
+    setSelectedContractors([]);
+    handleRangeChange('13m');
+  };
 
   useEffect(() => {
     const loadDashboard = async () => {
       try {
         setIsLoading(true);
-        const [statsRes, checksRes, allChecksRes, cListRes] = await Promise.all([
-          spotCheckService.getSpotCheckStats().catch(() => ({})),
-          spotCheckService.getSpotChecks({ page: 1, limit: 10 }).catch(() => ({ spotChecks: [] })),
+        const [allChecksRes, cListRes, bListRes] = await Promise.all([
           spotCheckService.getSpotChecks({ page: 1, limit: 1000 }).catch(() => ({ spotChecks: [] })),
           getContractors(1, 1000).catch(() => ({ data: [] })),
+          getBuildings(1, 1000).catch(() => ({ data: [] })),
         ]);
 
         const rawC = cListRes?.data?.rows || cListRes?.data || cListRes?.subContractors || cListRes || [];
         setContractorsList(Array.isArray(rawC) ? rawC : []);
 
-        const totalChecks = statsRes?.totalChecks !== undefined 
-          ? statsRes.totalChecks 
-          : (allChecksRes?.total || allChecksRes?.spotChecks?.length || 0);
-        const compliantCount = statsRes?.compliantCount !== undefined
-          ? statsRes.compliantCount
-          : (allChecksRes?.spotChecks || []).filter(c => c.chk3_2 === 'Yes').length;
-        const nonCompliantCount = statsRes?.nonCompliantCount !== undefined
-          ? statsRes.nonCompliantCount
-          : (allChecksRes?.spotChecks || []).filter(c => c.chk3_2 === 'No').length;
+        const rawB = bListRes?.data?.rows || bListRes?.data || bListRes?.buildings || bListRes || [];
+        setBuildingsList(Array.isArray(rawB) ? rawB : []);
 
-        // Contractor statistics
-        let cStats = Array.isArray(statsRes?.contractorStats) && statsRes.contractorStats.length > 0
-          ? statsRes.contractorStats
-          : [];
-        if (cStats.length === 0 && (allChecksRes?.spotChecks || []).length > 0) {
-          const cMap = {};
-          (allChecksRes?.spotChecks || []).forEach(c => {
-            const name = c.companyInvolved || 'Unspecified Contractor';
-            if (!cMap[name]) cMap[name] = { name, count: 0, compliant: 0, nonCompliant: 0 };
-            cMap[name].count += 1;
-            if (c.chk3_2 === 'Yes') cMap[name].compliant += 1;
-            else if (c.chk3_2 === 'No') cMap[name].nonCompliant += 1;
-          });
-          cStats = Object.values(cMap).sort((a, b) => b.count - a.count);
-        }
-
-        // Building statistics
-        let bStats = Array.isArray(statsRes?.buildingStats) && statsRes.buildingStats.length > 0
-          ? statsRes.buildingStats
-          : [];
-        if (bStats.length === 0 && (allChecksRes?.spotChecks || []).length > 0) {
-          const bMap = {};
-          (allChecksRes?.spotChecks || []).forEach(c => {
-            const name = c.buildingName || c.location || 'Unspecified Building';
-            if (!bMap[name]) bMap[name] = { name, count: 0, compliant: 0, nonCompliant: 0 };
-            bMap[name].count += 1;
-            if (c.chk3_2 === 'Yes') bMap[name].compliant += 1;
-            else if (c.chk3_2 === 'No') bMap[name].nonCompliant += 1;
-          });
-          bStats = Object.values(bMap).sort((a, b) => b.count - a.count);
-        }
-
-        setStats({
-          ...statsRes,
-          totalChecks,
-          compliantCount,
-          nonCompliantCount,
-        });
-        setContractorStats(cStats);
-        setBuildingStats(bStats);
-        setRecentChecks(checksRes?.spotChecks || allChecksRes?.spotChecks?.slice(0, 10) || []);
+        const checks = allChecksRes?.spotChecks || [];
+        setAllSpotChecks(Array.isArray(checks) ? checks : []);
       } catch (err) {
         console.error("Failed to load spot checks dashboard", err);
       } finally {
@@ -204,13 +399,7 @@ export default function SCDashboard() {
     loadDashboard();
   }, []);
 
-  const filteredDeepDive = recentChecks.filter(r => {
-    if (filter.q && !(r.spotCheckRef + ' ' + (r.activityName || '') + ' ' + (r.location || '')).toLowerCase().includes(filter.q.toLowerCase())) return false;
-    if (filter.compliance && r.chk3_2 !== filter.compliance) return false;
-    return true;
-  });
-
-  const currentUser = React.useMemo(() => {
+  const currentUser = useMemo(() => {
     try {
       return JSON.parse(localStorage.getItem('user')) || {};
     } catch {
@@ -229,6 +418,172 @@ export default function SCDashboard() {
   const isContractor = allRoles.includes("CONTRACTOR") || allRoles.includes("SUBCONTRACTOR") || Boolean(currentUser?.subcontractor_id) || Boolean(currentUser?.contractorId) || Boolean(currentUser?.typeId && allRoles.includes("SUBCONTRACTOR"));
   const isObserver = allRoles.includes("OBSERVER");
   const isReadOnly = isContractor || isObserver;
+  const contractorId = currentUser?.typeId || currentUser?.subcontractor_id || currentUser?.subContId || currentUser?.contractorId;
+
+  const myContractor = useMemo(() => {
+    if (!isContractor) return null;
+    return (
+      contractorsList.find(c => 
+        String(c.id) === String(contractorId) || 
+        String(c.subcontractor_id) === String(contractorId) ||
+        (currentUser?.username && c.username === currentUser.username) ||
+        (currentUser?.company_name && (c.subContractorName === currentUser.company_name || c.company_name === currentUser.company_name)) ||
+        (currentUser?.companyName && (c.subContractorName === currentUser.companyName || c.company_name === currentUser.companyName))
+      ) || (contractorsList.length === 1 ? contractorsList[0] : null)
+    );
+  }, [isContractor, contractorsList, contractorId, currentUser?.company_name, currentUser?.companyName, currentUser?.username]);
+
+  const myContractorName = currentUser?.company_name || currentUser?.companyName || currentUser?.subContractorName || currentUser?.contractorName || myContractor?.subContractorName || myContractor?.company_name || myContractor?.companyName || myContractor?.subcontractor_name || myContractor?.name || "";
+
+  // ── Dropdown Options ──
+  const buildingOptions = useMemo(() => {
+    const names = new Set();
+    (buildingsList || []).forEach((b, idx) => {
+      const bName = b?.name || b?.buildingName || b?.building_name || (typeof b === 'string' ? b : `Building #${idx+1}`);
+      if (bName && String(bName).trim()) {
+        names.add(String(bName).trim());
+      }
+    });
+    (allSpotChecks || []).forEach(c => {
+      if (c.buildingName && String(c.buildingName).trim()) {
+        names.add(String(c.buildingName).trim());
+      }
+      if (c.location && String(c.location).trim()) {
+        names.add(String(c.location).trim());
+      }
+    });
+    return Array.from(names).sort().map(name => ({ label: name, value: name }));
+  }, [buildingsList, allSpotChecks]);
+
+  const contractorOptions = useMemo(() => {
+    const map = new Map();
+    (contractorsList || []).forEach((c, idx) => {
+      const cName = c?.company_name || c?.companyName || c?.subContractorName || c?.subcontractor_name || c?.name || (typeof c === 'string' ? c : `Contractor #${idx+1}`);
+      const trimmed = String(cName || '').trim();
+      if (trimmed && !map.has(trimmed)) {
+        map.set(trimmed, {
+          label: trimmed,
+          value: trimmed,
+          logo: c?.logo || c?.logo_url || c?.company_logo || c?.logoFile || null
+        });
+      }
+    });
+    (allSpotChecks || []).forEach(c => {
+      if (c.companyInvolved && String(c.companyInvolved).trim()) {
+        const trimmed = String(c.companyInvolved).trim();
+        if (!map.has(trimmed)) {
+          map.set(trimmed, {
+            label: trimmed,
+            value: trimmed,
+            logo: findContractorLogo(trimmed, contractorsList)
+          });
+        }
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label));
+  }, [contractorsList, allSpotChecks]);
+
+  // ── Filtered Spot Checks Data ──
+  const filteredSpotChecks = useMemo(() => {
+    return allSpotChecks.filter(item => {
+      // 1. Contractor
+      if (isContractor) {
+        if (myContractorName) {
+          const comp = (item.companyInvolved || '').toLowerCase();
+          if (!comp.includes(myContractorName.toLowerCase()) && myContractorName.toLowerCase() !== comp) {
+            return false;
+          }
+        }
+      } else if (selectedContractors.length > 0) {
+        const comp = (item.companyInvolved || '').toLowerCase().trim();
+        const matches = selectedContractors.some(c => {
+          const sel = c.toLowerCase().trim();
+          return comp === sel || comp.includes(sel) || sel.includes(comp);
+        });
+        if (!matches) return false;
+      }
+
+      // 2. Building
+      if (selectedBuildings.length > 0) {
+        const bName = (item.buildingName || '').toLowerCase().trim();
+        const loc = (item.location || '').toLowerCase().trim();
+        const matches = selectedBuildings.some(b => {
+          const sel = b.toLowerCase().trim();
+          return bName === sel || bName.includes(sel) || loc === sel || loc.includes(sel);
+        });
+        if (!matches) return false;
+      }
+
+      // 3. Date Range
+      if (startDate || endDate) {
+        const itemYMD = extractDateYMD(item.date || item.createdTime || item.createdAt);
+        if (itemYMD) {
+          if (startDate && itemYMD < startDate) return false;
+          if (endDate && itemYMD > endDate) return false;
+        }
+      }
+
+      return true;
+    });
+  }, [allSpotChecks, isContractor, myContractorName, selectedContractors, selectedBuildings, startDate, endDate]);
+
+  // ── Derived Dashboard Metrics ──
+  const stats = useMemo(() => {
+    const totalChecks = filteredSpotChecks.length;
+    const compliantCount = filteredSpotChecks.filter(c => c.chk3_2 === 'Yes').length;
+    const nonCompliantCount = filteredSpotChecks.filter(c => c.chk3_2 === 'No').length;
+    const activePermitted = filteredSpotChecks.filter(c => c.chk1_1 === 'Yes' || c.ptwNumber || c.permitNumber).length || totalChecks;
+
+    const now = new Date();
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 864e5).toISOString().split('T')[0];
+    const recentPeriodCount = filteredSpotChecks.filter(c => {
+      const ymd = extractDateYMD(c.date || c.createdTime || c.createdAt);
+      return ymd && ymd >= sevenDaysAgo;
+    }).length;
+
+    return {
+      totalChecks,
+      compliantCount,
+      nonCompliantCount,
+      activePermitted,
+      recentPeriodCount,
+    };
+  }, [filteredSpotChecks]);
+
+  // ── Contractor Statistics ──
+  const contractorStats = useMemo(() => {
+    const cMap = {};
+    filteredSpotChecks.forEach(c => {
+      const name = c.companyInvolved || 'Unspecified Contractor';
+      if (!cMap[name]) cMap[name] = { name, count: 0, compliant: 0, nonCompliant: 0 };
+      cMap[name].count += 1;
+      if (c.chk3_2 === 'Yes') cMap[name].compliant += 1;
+      else if (c.chk3_2 === 'No') cMap[name].nonCompliant += 1;
+    });
+    return Object.values(cMap).sort((a, b) => b.count - a.count);
+  }, [filteredSpotChecks]);
+
+  // ── Building Statistics ──
+  const buildingStats = useMemo(() => {
+    const bMap = {};
+    filteredSpotChecks.forEach(c => {
+      const name = c.buildingName || c.location || 'Unspecified Building';
+      if (!bMap[name]) bMap[name] = { name, count: 0, compliant: 0, nonCompliant: 0 };
+      bMap[name].count += 1;
+      if (c.chk3_2 === 'Yes') bMap[name].compliant += 1;
+      else if (c.chk3_2 === 'No') bMap[name].nonCompliant += 1;
+    });
+    return Object.values(bMap).sort((a, b) => b.count - a.count);
+  }, [filteredSpotChecks]);
+
+  // ── Recent Inspections Table List ──
+  const filteredDeepDive = useMemo(() => {
+    return filteredSpotChecks.filter(r => {
+      if (filter.q && !(r.spotCheckRef + ' ' + (r.activityName || '') + ' ' + (r.location || '') + ' ' + (r.buildingName || '') + ' ' + (r.companyInvolved || '')).toLowerCase().includes(filter.q.toLowerCase())) return false;
+      if (filter.compliance && r.chk3_2 !== filter.compliance) return false;
+      return true;
+    });
+  }, [filteredSpotChecks, filter]);
 
   const handleDownloadPdf = async () => {
     try {
@@ -245,6 +600,9 @@ export default function SCDashboard() {
       setIsGeneratingPdf(false);
     }
   };
+
+  const hasActiveFilters = selectedBuildings.length > 0 || selectedContractors.length > 0 || (selectedRange && selectedRange !== '13m') || (selectedRange === 'custom' && (startDate || endDate));
+
 
   return (
     <div className="sc-dashboard-container">
@@ -277,15 +635,86 @@ export default function SCDashboard() {
         </div>
       </div>
 
+      {/* ── Filters ── */}
+      <div className="dash-filters">
+        <div className="dash-filter-item">
+          <span className="dfl">Buildings</span>
+          <MultiSelectFilter
+            options={buildingOptions}
+            selected={selectedBuildings}
+            onChange={setSelectedBuildings}
+            placeholder="All Buildings"
+            searchPlaceholder="Search buildings..."
+          />
+        </div>
+
+        {!isContractor && (
+          <div className="dash-filter-item">
+            <span className="dfl">Contractors</span>
+            <MultiSelectFilter
+              options={contractorOptions}
+              selected={selectedContractors}
+              onChange={setSelectedContractors}
+              placeholder="All Contractors"
+              searchPlaceholder="Search contractors..."
+              showLogos={true}
+              contractorsList={contractorsList}
+            />
+          </div>
+        )}
+
+        <div className="dash-filter-item">
+          <span className="dfl">Range</span>
+          <select value={selectedRange} onChange={e => handleRangeChange(e.target.value)}>
+            <option value="all">All Time</option>
+            <option value="week">This Week</option>
+            <option value="30d">Last 30 Days</option>
+            <option value="90d">Last 90 Days</option>
+            <option value="year">This Year</option>
+            <option value="13m">Last 13 Months</option>
+            <option value="custom">Custom Range</option>
+          </select>
+        </div>
+
+        <div className="dash-filter-date-group">
+          <span className="dfl">From</span>
+          <input
+            type="date"
+            className="dash-filter-date"
+            value={startDate}
+            onChange={e => handleStartDateChange(e.target.value)}
+            title="From Date"
+          />
+          <span className="dfl">To</span>
+          <input
+            type="date"
+            className="dash-filter-date"
+            value={endDate}
+            onChange={e => handleEndDateChange(e.target.value)}
+            title="To Date"
+          />
+        </div>
+
+        {hasActiveFilters && (
+          <button
+            type="button"
+            className="sc-dash-filter-clear-btn"
+            onClick={handleClearFilters}
+            title="Clear all filters"
+          >
+            &times; Clear
+          </button>
+        )}
+      </div>
+
       {/* ── KPIs ── */}
       <div className="dash-kpis">
         <StatCard label="Total Checks" value={stats.totalChecks || 0} accent="#583C66" valColor="#583C66" icon="layers" sub="all recorded spot checks" />
         <StatCard label="Compliant (Pass)" value={stats.compliantCount || 0} accent="#14B8A6" valColor="#14B8A6" icon="eye" sub="passed audits" />
         <StatCard label="Non-Compliant" value={stats.nonCompliantCount || 0} accent="#E32B50" valColor="#E32B50" icon="target" sub="requiring corrective action" />
         <StatCard label="Contractors" value={contractorStats.length} accent="#0284C7" valColor="#0284C7" icon="users" sub="audited contractors" />
-        <StatCard label="Buildings" value={buildingStats.length} accent="#8B5CF6" valColor="#8B5CF6" icon="building" sub="monitored facilities" />
         <StatCard label="Active Permitted" value={stats.activePermitted ?? stats.totalChecks ?? 0} accent="#F97316" valColor="#F97316" icon="calendar" sub="verified PTWs" />
-        <StatCard label="Recent Period" value={stats.recentPeriodCount ?? recentChecks.length ?? 0} accent="#64748B" valColor="#64748B" icon="clock" sub="latest inspections" />
+        <StatCard label="Recent Period" value={stats.recentPeriodCount ?? 0} accent="#64748B" valColor="#64748B" icon="clock" sub="latest inspections" />
       </div>
 
       {/* ── Contractors & Buildings Statistics (Enterprise Layout) ── */}

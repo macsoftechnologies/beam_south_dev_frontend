@@ -11,6 +11,14 @@ const EMPLOYEE_TYPE_OPTIONS = [
   { value: "Observer", label: "Observer" },
 ];
 
+const MODULE_OPTIONS = [
+  { id: "permit-to-work",      label: "Permit to Work" },
+  { id: "incident-management", label: "Incident Management" },
+  { id: "safety-observations", label: "Safety Observations" },
+  { id: "safety-inspection",   label: "Safety Inspection" },
+  { id: "spot-checks",         label: "Spot Checks" },
+];
+
 function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
   const [employeeBadgeId, setEmployeeBadgeId] = useState("");
   const [employeeName, setEmployeeName] = useState("");
@@ -23,6 +31,9 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
   const [departId, setDepartId] = useState("");
   const [obserId, setObserId] = useState("");
   const [access, setAccess] = useState(true);
+  const [selectedModules, setSelectedModules] = useState([
+    "permit-to-work",
+  ]);
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -93,6 +104,17 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
       setDepartId(initialData.departId !== undefined && initialData.departId !== null ? String(initialData.departId) : "");
       setObserId(initialData.obserId !== undefined && initialData.obserId !== null ? String(initialData.obserId) : "");
       setAccess(initialData.access !== undefined ? (initialData.access === 1 || initialData.access === "1" || initialData.access === true) : true);
+      
+      const rawModules = initialData.moduleAccess || initialData.module_access;
+      if (rawModules !== undefined && rawModules !== null && rawModules !== "") {
+        const parsed = typeof rawModules === "string"
+          ? (rawModules.trim() ? rawModules.split(",").map(m => m.trim()) : [])
+          : Array.isArray(rawModules) ? rawModules : [];
+        setSelectedModules(parsed);
+      } else {
+        setSelectedModules(["permit-to-work"]);
+      }
+
       setEmail(initialData.email || "");
       setUsername(initialData.username || "");
       setPassword(""); // Leave blank in edit mode to avoid corrupting existing password
@@ -203,6 +225,7 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
       departId: ((employeeTypes.includes("Department") || employeeTypes.includes("Department1")) && departId) ? Number(departId) : null,
       obserId: (employeeTypes.includes("Observer") && obserId) ? Number(obserId) : null,
       access: access ? "1" : "0",
+      moduleAccess: access ? selectedModules.join(",") : "",
       email,
       username: access ? username : "",
       password: access ? password : "",
@@ -504,6 +527,64 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
             />
           </div>
         </div>
+
+        {/* Module Access Checkboxes */}
+        {access && (
+          <div className="df-field" style={{ gridColumn: "1 / -1", marginTop: "4px", marginBottom: "8px" }}>
+            <label className="df-label" style={{ marginBottom: "8px", fontWeight: "600", color: "#e5e7eb" }}>
+              Module Access Permissions
+            </label>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+                gap: "12px",
+                padding: "14px 16px",
+                backgroundColor: "#1f2937",
+                border: "1.5px solid #374151",
+                borderRadius: "12px",
+              }}
+            >
+              {MODULE_OPTIONS.map((mod) => {
+                const isChecked = selectedModules.includes(mod.id);
+                return (
+                  <label
+                    key={mod.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
+                      cursor: "pointer",
+                      color: isChecked ? "#f9fafb" : "#9ca3af",
+                      fontSize: "14px",
+                      fontWeight: 500,
+                      userSelect: "none",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedModules((prev) => [...prev, mod.id]);
+                        } else {
+                          setSelectedModules((prev) => prev.filter((id) => id !== mod.id));
+                        }
+                      }}
+                      style={{
+                        width: "18px",
+                        height: "18px",
+                        accentColor: "#00e5a0",
+                        cursor: "pointer",
+                      }}
+                    />
+                    <span>{mod.label}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Email */}
         <div className="df-field">

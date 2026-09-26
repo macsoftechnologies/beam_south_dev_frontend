@@ -11,7 +11,6 @@ export default function SCView() {
   const [spotCheck, setSpotCheck] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const [selectedPreviewImage, setSelectedPreviewImage] = useState(null);
 
@@ -99,44 +98,7 @@ export default function SCView() {
   const isObserver = allRoles.includes("OBSERVER");
   const isReadOnly = isContractor || isObserver;
 
-  const handleStatusToggle = async () => {
-    if (!spotCheck || isReadOnly) return;
-    const isClosed = spotCheck.status === 'CLOSED' || spotCheck.status === 'COMPLETED';
-    const nextStatus = isClosed ? 'IN_PROGRESS' : 'CLOSED';
 
-    const result = await Swal.fire({
-      title: isClosed ? 'Reopen Spot Check?' : 'Close Spot Check?',
-      text: isClosed
-        ? 'Are you sure you want to reopen this spot check as In Progress?'
-        : 'Are you sure you want to mark this spot check as Closed?',
-      icon: 'question',
-      showCancelButton: true,
-      confirmButtonText: isClosed ? 'Yes, Reopen' : 'Yes, Mark Closed',
-      cancelButtonText: 'Cancel',
-      confirmButtonColor: isClosed ? '#0284c7' : '#16a34a',
-      cancelButtonColor: '#6c757d',
-      reverseButtons: true
-    });
-
-    if (!result.isConfirmed) return;
-
-    setIsUpdatingStatus(true);
-    try {
-      await spotCheckService.updateSpotCheck(spotCheck.id, {
-        status: nextStatus
-      });
-      setSpotCheck(prev => ({
-        ...prev,
-        status: nextStatus
-      }));
-      showSuccess(isClosed ? "Spot check reopened successfully" : "Spot check marked as closed");
-    } catch (err) {
-      console.error('Failed to update spot check status:', err);
-      showError(err?.response?.data?.message || 'Failed to update spot check status.');
-    } finally {
-      setIsUpdatingStatus(false);
-    }
-  };
 
   if (isLoading) {
     return (
@@ -245,21 +207,6 @@ export default function SCView() {
         </div>
 
         <div className="scview-hero-actions">
-          {!isReadOnly && (
-            <button
-              className="scview-btn-status"
-              onClick={handleStatusToggle}
-              disabled={isUpdatingStatus}
-              style={{
-                borderColor: isClosed ? '#10b981' : '#0284c7',
-                color: isClosed ? '#059669' : '#0284c7'
-              }}
-            >
-              <i className={`ti ${isClosed ? 'ti-refresh' : 'ti-circle-check'}`}></i>
-              {isUpdatingStatus ? 'Updating...' : (isClosed ? 'Reopen' : 'Mark Closed')}
-            </button>
-          )}
-
           <button
             className="scview-btn-download"
             onClick={handleDownloadPdf}

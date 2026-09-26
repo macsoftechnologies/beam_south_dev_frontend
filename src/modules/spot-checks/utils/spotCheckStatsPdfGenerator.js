@@ -213,12 +213,11 @@ export async function generateSpotCheckStatsPdf({
     <div style="padding:32px 36px;background:#fff;width:794px;box-sizing:border-box;">
       ${renderHeader("Overview &amp; Statistics")}
       ${sectionTitle("Overview")}
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:28px;">
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:28px;">
         ${kpiCard("Total Checks",     totalChecks,      "#583C66", "all recorded spot checks")}
         ${kpiCard("Compliant (Pass)", compliant,        "#14B8A6", "passed audits")}
         ${kpiCard("Non-Compliant",    nonCompliant,     "#E32B50", "requiring corrective action")}
         ${kpiCard("Contractors",      totalContractors, "#0284C7", "audited contractors")}
-        ${kpiCard("Buildings",        totalBuildings,   "#8B5CF6", "monitored facilities")}
         ${kpiCard("Active Permitted", activePermit,     "#F97316", "verified PTWs")}
         ${kpiCard("Recent Period",    recentPeriod,     "#64748B", "latest inspections")}
       </div>

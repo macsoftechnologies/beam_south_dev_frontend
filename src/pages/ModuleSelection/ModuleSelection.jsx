@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { showError } from "../../components/common/Toast/Toast";
 import "./ModuleSelection.css";
 
 const modules = [
@@ -99,7 +100,6 @@ const modules = [
     features: [
       "Quick Checks",
       "Immediate Action",
-      "Mobile Friendly",
       "Daily Reports"
     ],
     path: "/spot-checks/dashboard",
@@ -135,7 +135,29 @@ function ModuleSelection() {
   const isDepartment = allRoles.includes("DEPARTMENT") || allRoles.includes("OPERATOR") || allRoles.includes("SITE_HSE") || allRoles.includes("SAFETY") || allRoles.includes("HSE");
   const isDeptOrAdmin = (isAdmin || isDepartment) && !isContractor && !isObserver;
 
+  // Always show all module cards
   const visibleModules = modules;
+
+  const hasAccessToModule = (modId) => {
+    if (modId === "permit-to-work") return true;
+    if (isAdmin) return true;
+    const rawMod = user?.moduleAccess;
+    const allowed = (rawMod ? (typeof rawMod === "string" ? rawMod.split(",") : rawMod) : ["permit-to-work"]).map((m) =>
+      String(m).trim().toLowerCase()
+    );
+    return allowed.includes(modId.toLowerCase());
+  };
+
+  const handleModuleClick = (mod) => {
+    if (!hasAccessToModule(mod.id)) {
+      showError(`You do not have access to the ${mod.title} module`);
+      navigate("/modules");
+      return;
+    }
+    localStorage.setItem("activeModule", mod.id);
+    navigate(mod.path);
+    window.scrollTo(0, 0);
+  };
 
   useEffect(() => {
     const handleScroll = () => {
@@ -202,11 +224,7 @@ function ModuleSelection() {
               className="ms-card"
               role="button"
               tabIndex={0}
-              onClick={() => {
-                localStorage.setItem("activeModule", mod.id);
-                navigate(mod.path);
-                window.scrollTo(0, 0);
-              }}
+              onClick={() => handleModuleClick(mod)}
               style={{
                 "--theme-color": mod.color,
                 "--theme-bg": mod.bgGradient,
@@ -251,6 +269,10 @@ function ModuleSelection() {
               <button
                 className="ms-card-btn"
                 style={{ background: mod.color }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleModuleClick(mod);
+                }}
               >
                 Access {mod.title}
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

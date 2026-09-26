@@ -177,7 +177,8 @@ export default function OTP() {
           username: response.username,
           role: response.userType, // UserType is the role
           name: response.username,
-          typeId: response.typeId
+          typeId: response.typeId,
+          moduleAccess: response.moduleAccess || tempUser?.moduleAccess || "incident-management,safety-observations,safety-inspection,spot-checks",
         };
         localStorage.setItem("user", JSON.stringify(activeUser));
         localStorage.setItem("UserType", response.userType);

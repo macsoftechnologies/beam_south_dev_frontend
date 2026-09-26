@@ -468,6 +468,41 @@ const Employees = () => {
               <span className="dept-view-label">Access</span>
               <StatusBadge status={selectedEmployee.access === "1" || selectedEmployee.access === true} />
             </div>
+            <div className="dept-view-item" style={{ gridColumn: "1 / -1" }}>
+              <span className="dept-view-label">Assigned Modules</span>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "4px" }}>
+                {(() => {
+                  const MODULE_MAP = {
+                    "permit-to-work": "Permit to Work",
+                    "incident-management": "Incident Management",
+                    "safety-observations": "Safety Observations",
+                    "safety-inspection": "Safety Inspection",
+                    "spot-checks": "Spot Checks",
+                  };
+                  const raw = selectedEmployee.moduleAccess || selectedEmployee.module_access;
+                  const mods = raw ? (typeof raw === "string" ? raw.split(",").map(m => m.trim()) : raw) : [];
+                  if (!mods.length) {
+                    return <span className="dept-view-value" style={{ color: "#9ca3af" }}>No modules assigned</span>;
+                  }
+                  return mods.map((m) => (
+                    <span
+                      key={m}
+                      style={{
+                        padding: "3px 8px",
+                        borderRadius: "6px",
+                        fontSize: "12px",
+                        fontWeight: "500",
+                        backgroundColor: "#065f46",
+                        color: "#6ee7b7",
+                        border: "1px solid #047857",
+                      }}
+                    >
+                      {MODULE_MAP[m] || m}
+                    </span>
+                  ));
+                })()}
+              </div>
+            </div>
             <div className="dept-view-item">
               <span className="dept-view-label">Email</span>
               <span className="dept-view-value">{selectedEmployee.email || "—"}</span>

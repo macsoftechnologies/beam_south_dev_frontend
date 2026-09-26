@@ -285,50 +285,40 @@ export default function SIView() {
     if (!raw) return '';
     if (raw.startsWith('data:') || raw.startsWith('blob:')) return raw;
 
-    const envBase = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:5200').replace(/\/+$/, '');
+    const envBase = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'https://api.beam.safesiteworks.com/development/m3south').replace(/\/+$/, '');
     const cleanRaw = raw.replace(/\\/g, '/').trim();
-    const filename = cleanRaw.split('/').pop() || cleanRaw;
+    const filename = cleanRaw.split('/').pop()?.split('\\').pop()?.split('?')[0] || cleanRaw;
 
-    // If it's already an absolute URL (e.g. http:// or https://)
-    if (cleanRaw.startsWith('http://') || cleanRaw.startsWith('https://')) {
-      // If pointing to remote production while testing on localhost, map to localhost
-      if (envBase.includes('localhost') && cleanRaw.includes('api.beam.safesiteworks.com')) {
-        return cleanRaw.replace(/^https?:\/\/api\.beam\.safesiteworks\.com(\/development\/m3south)?/, envBase);
-      }
-      return cleanRaw;
+    // If observation photo, target observation route which is served directly by Nginx
+    if (defaultFolder === 'observations' || cleanRaw.includes('/observations/')) {
+      return `${envBase}/observations/${filename}`;
     }
 
-    let path = cleanRaw.startsWith('/') ? cleanRaw : `/${cleanRaw}`;
-    // If path is just a filename like /si-123.jpg or /obs-123.jpg without folder
-    if (!path.startsWith('/uploads') && !path.startsWith('/safety-inspections') && !path.startsWith('/observations') && !path.startsWith('/incidents') && !path.startsWith('/subcontractors')) {
-      path = `/uploads/${defaultFolder}/${filename}`;
-    }
-
-    if (envBase) {
-      return `${envBase}${path}`;
-    }
-
-    return path;
+    // For safety inspection photos, route to the backend controller endpoint `photo-preview?file=...`
+    // This query-based route completely bypasses aaPanel Nginx's static image intercept rule
+    return `${envBase}/safety-inspections/photo-preview?file=${encodeURIComponent(filename)}`;
   };
 
   const handleImageError = (e, defaultFolder = 'safety-inspections') => {
     const current = e.currentTarget.src || '';
-    const filename = current.split('/').pop()?.split('?')[0] || '';
-    const envBase = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:5200').replace(/\/+$/, '');
+    const filename = current.split('/').pop()?.split('\\').pop()?.split('?')[0] || '';
+    const envBase = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'https://api.beam.safesiteworks.com/development/m3south').replace(/\/+$/, '');
 
     // Avoid infinite loop if placeholder fails
     if (current.includes('placeholder') || current.includes('placehold.co')) return;
 
-    if (current.includes('/uploads/safety-inspections/')) {
-      e.currentTarget.src = `${envBase}/safety-inspections/${filename}`;
-    } else if (current.includes('/safety-inspections/')) {
-      e.currentTarget.src = `${envBase}/uploads/observations/${filename}`;
-    } else if (current.includes('/uploads/observations/')) {
+    if (current.includes('/photo-preview')) {
+      // 1. If photo-preview endpoint is still deploying or failed, try the observations directory
       e.currentTarget.src = `${envBase}/observations/${filename}`;
     } else if (current.includes('/observations/')) {
+      // 2. Try the direct photo/:filename route
+      e.currentTarget.src = `${envBase}/safety-inspections/photo/${filename}`;
+    } else if (current.includes('/safety-inspections/photo/')) {
+      // 3. Try standard uploads
       e.currentTarget.src = `${envBase}/uploads/safety-inspections/${filename}`;
-    } else if (!current.includes('/uploads/')) {
-      e.currentTarget.src = `${envBase}/uploads/${defaultFolder}/${filename}`;
+    } else if (current.includes('/uploads/safety-inspections/')) {
+      // 4. Try safety-inspections folder
+      e.currentTarget.src = `${envBase}/safety-inspections/${filename}`;
     } else {
       e.currentTarget.onerror = null;
       e.currentTarget.src = 'https://placehold.co/400x300?text=Photo+Unavailable';
@@ -389,6 +379,30 @@ export default function SIView() {
           <button className="siview-btn-back" onClick={() => navigate('/safety-inspection/list')}>
             <i className="ti ti-arrow-left"></i> Back to List
           </button>
+          {!isReadOnly && !effectiveClosed && (
+            <button
+              type="button"
+              className="siview-btn-edit"
+              onClick={() => navigate(`/safety-inspection/edit/${inspection?.id || id}`)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '0 16px',
+                height: '38px',
+                borderRadius: '8px',
+                border: '1px solid #0284c7',
+                backgroundColor: '#0284c7',
+                color: '#ffffff',
+                fontWeight: 600,
+                fontSize: '13px',
+                cursor: 'pointer'
+              }}
+              title="Edit inspection"
+            >
+              <i className="ti ti-pencil"></i> Edit
+            </button>
+          )}
           <button className="siview-btn-download" onClick={handleDownloadPdf} disabled={isDownloadingPdf}>
             <i className={`ti ${isDownloadingPdf ? 'ti-loader ti-spin' : 'ti-download'}`}></i>
             {isDownloadingPdf ? 'Downloading...' : 'Download'}
@@ -474,51 +488,28 @@ export default function SIView() {
                     </button>
                   )}
                   {!isReadOnly && !effectiveClosed && (
-                    <div style={{ display: 'inline-flex', gap: '6px' }}>
-                      <button
-                        type="button"
-                        onClick={() => navigate(`/safety-inspection/edit/${inspection?.id || id}`)}
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          padding: '3px 8px',
-                          fontSize: '11px',
-                          fontWeight: 600,
-                          borderRadius: '4px',
-                          border: '1px solid #0284c7',
-                          backgroundColor: '#0284c7',
-                          color: '#ffffff',
-                          cursor: 'pointer'
-                        }}
-                        title="Reopen inspection in edit form"
-                      >
-                        <i className="ti ti-rotate-clockwise"></i>
-                        Reopen
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleStatusToggle}
-                        disabled={isUpdatingStatus}
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          padding: '3px 8px',
-                          fontSize: '11px',
-                          fontWeight: 600,
-                          borderRadius: '4px',
-                          border: '1px solid #16a34a',
-                          backgroundColor: '#16a34a',
-                          color: '#ffffff',
-                          cursor: 'pointer'
-                        }}
-                        title="Close inspection"
-                      >
-                        <i className="ti ti-circle-check"></i>
-                        {isUpdatingStatus ? 'Updating...' : 'Close'}
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={handleStatusToggle}
+                      disabled={isUpdatingStatus}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        padding: '3px 8px',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        borderRadius: '4px',
+                        border: '1px solid #16a34a',
+                        backgroundColor: '#16a34a',
+                        color: '#ffffff',
+                        cursor: 'pointer'
+                      }}
+                      title="Close inspection"
+                    >
+                      <i className="ti ti-circle-check"></i>
+                      {isUpdatingStatus ? 'Updating...' : 'Close'}
+                    </button>
                   )}
                 </div>
               </div>

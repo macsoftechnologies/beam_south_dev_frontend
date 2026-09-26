@@ -39,6 +39,7 @@ export default function SICreate() {
   const { id } = useParams();
   const isEditMode = Boolean(id);
   const [isLoadingInspection, setIsLoadingInspection] = useState(isEditMode);
+  const [originalStatus, setOriginalStatus] = useState(null);
 
   const [selections, setSelections] = useState({});
   const [completed, setCompleted] = useState(false);
@@ -158,6 +159,7 @@ export default function SICreate() {
       try {
         const data = await safetyInspectionService.getInspectionDetails(id);
         if (!isMounted || !data) return;
+        setOriginalStatus(data.status);
 
         if (data.buildingId) {
           setBuilding(String(data.buildingId));
@@ -483,10 +485,13 @@ export default function SICreate() {
       };
 
       if (isEditMode) {
-        payload.actionType = targetStatus === 'CLOSED' ? 'CLOSED' : 'REOPENED';
+        const wasClosed = originalStatus === 'CLOSED';
+        payload.actionType = targetStatus === 'CLOSED'
+          ? 'CLOSED'
+          : (wasClosed ? 'REOPENED' : 'UPDATED');
         payload.remarks = targetStatus === 'CLOSED'
           ? 'Inspection marked as closed'
-          : 'Inspection reopened and updated via edit form';
+          : (wasClosed ? 'Inspection reopened and updated via edit form' : 'Inspection updated via edit form');
         payload.modifiedByUserId = currentUser?.id;
         payload.modifiedByUserName = currentUser?.name || currentUser?.username || 'Safety Inspector';
         payload.modifiedByUserRole = currentUser?.role || 'DEPARTMENT';
@@ -1001,9 +1006,9 @@ export default function SICreate() {
                       const getFullImageUrl = (u) => {
                         if (!u) return '';
                         if (u.startsWith('http://') || u.startsWith('https://') || u.startsWith('blob:') || u.startsWith('data:')) return u;
-                        const base = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || 'https://api.beam.safesiteworks.com/development/m3south';
-                        const baseUrlClean = base.replace(/\/development\/m3south\/?$/, '');
-                        return `${baseUrlClean}${u.startsWith('/') ? '' : '/'}${u}`;
+                        const base = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'https://api.beam.safesiteworks.com/development/m3south').replace(/\/+$/, '');
+                        const filename = u.split('/').pop()?.split('\\').pop()?.split('?')[0] || u;
+                        return `${base}/safety-inspections/photo-preview?file=${encodeURIComponent(filename)}`;
                       };
                       
                       const fullUrl = getFullImageUrl(urlToRender);
@@ -1015,7 +1020,22 @@ export default function SICreate() {
                               <i className="ti ti-file-text" style={{ fontSize: "28px", color: "#64748b" }}></i>
                             </div>
                           ) : (
-                            <img src={fullUrl} alt="attachment" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                            <img
+                              src={fullUrl}
+                              alt="attachment"
+                              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                              onError={(e) => {
+                                const current = e.currentTarget.src || '';
+                                const base = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'https://api.beam.safesiteworks.com/development/m3south').replace(/\/+$/, '');
+                                const fname = current.split('/').pop()?.split('\\').pop()?.split('?')[0] || '';
+                                if (current.includes('/photo-preview')) {
+                                  e.currentTarget.src = `${base}/observations/${fname}`;
+                                } else if (!current.includes('placeholder')) {
+                                  e.currentTarget.onerror = null;
+                                  e.currentTarget.src = 'https://placehold.co/100x100?text=NA';
+                                }
+                              }}
+                            />
                           )}
                           <button
                             type="button"

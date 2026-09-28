@@ -59,10 +59,12 @@ export default function Login() {
           user_id: response.id,
           username: response.username,
           userType: response.userType,
+          typeId: response.typeId,
           phonenumber: response.phonenumber,
           maskedPhone: response.maskedPhone || "",
           moduleAccess: response.moduleAccess || "",
-          auth_token: response.auth_token
+          auth_token: response.auth_token,
+          access_token: response.access_token || response.auth_token,
         };
         localStorage.setItem("tempUser", JSON.stringify(tempUser));
 

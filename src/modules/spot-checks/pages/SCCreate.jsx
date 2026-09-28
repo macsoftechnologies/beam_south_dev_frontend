@@ -177,8 +177,14 @@ export default function SCCreate() {
   const [employeesList, setEmployeesList] = useState([]);
   const [roomStatusMap, setRoomStatusMap] = useState({});
 
+  const defaultProj = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '').toLowerCase().includes('north')
+    ? 'M3NORTH'
+    : (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '').toLowerCase().includes('infra')
+      ? 'M3INFRASTRUCTURE'
+      : 'M3SOUTH';
+
   const [form, setForm] = useState({
-    projectName: "M3SOUTH",
+    projectName: defaultProj,
     date: todayDenmark,
     time: "",
     buildingName: "",
@@ -492,7 +498,7 @@ export default function SCCreate() {
 
       const payload = {
         ...form,
-        projectName: "M3SOUTH",
+        projectName: defaultProj,
         safetyIssueRef: finalSafetyIssueRef || form.safetyIssueRef,
         date: sanitizeDateVal(form.date) || todayDenmark,
         briefingDate: form.chk2_1 === "Yes" ? sanitizeDateVal(form.briefingDate) : null,
@@ -607,7 +613,7 @@ export default function SCCreate() {
                   <input
                     className="mod-form-input"
                     name="projectName"
-                    value={form.projectName || "M3SOUTH"}
+                    value={form.projectName || defaultProj}
                     disabled
                     readOnly
                     style={{ cursor: "not-allowed", backgroundColor: "var(--bg-card-hover, #f1f5f9)", color: "var(--text-main)" }}

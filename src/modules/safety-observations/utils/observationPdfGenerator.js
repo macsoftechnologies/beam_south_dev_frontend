@@ -32,9 +32,10 @@ export async function generateObservationClientPdf(data, fileName = "Safety_Obse
     if (typeof p !== "string") return "";
     if (p.startsWith("data:") || p.startsWith("blob:")) return p;
     const filename = p.split("/").pop().split("\\").pop();
+    const baseUrl = (import.meta.env?.VITE_API_BASE_URL || 'https://api.beam.safesiteworks.com/development/m3south').replace(/\/+$/, '');
     return p.startsWith("http")
       ? p
-      : `https://api.beam.safesiteworks.com/development/m3south/observations/${filename}`;
+      : `${baseUrl}/observations/${filename}`;
   };
 
   const toBase64 = async (url) => {
@@ -133,7 +134,7 @@ export async function generateObservationClientPdf(data, fileName = "Safety_Obse
         <td style="width: 50%; padding-right: 6px;">
           <div style="border: 1px solid #cbd5e1; background: #f8fafc; padding: 7px 10px; border-radius: 4px;">
             <b>Observation Ref:</b> <span style="font-family: monospace; font-size: 12px; font-weight: 700; color: #0284c7;">${obsRef}</span><br />
-            <b>Project Name:</b> ${obs.projectName || "M3SOUTH"}<br />
+            <b>Project Name:</b> ${obs.projectName || ((import.meta.env?.VITE_API_BASE_URL || '').toLowerCase().includes('north') ? 'M3NORTH' : (import.meta.env?.VITE_API_BASE_URL || '').toLowerCase().includes('infra') ? 'M3INFRASTRUCTURE' : 'M3SOUTH')}<br />
             <b>Date of Observation:</b> ${formatDate(obs.observationDate || obs.createdTime)} ${obs.observationTime ? `(${obs.observationTime})` : ""}
           </div>
         </td>

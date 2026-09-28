@@ -232,7 +232,7 @@ export default function SCView() {
             <div className="sc-card-body">
               <div className="sc-meta-item">
                 <span className="sc-meta-label">Project Name:</span>
-                <span className="sc-meta-value">{spotCheck.projectName || spotCheck.workPackage || "M3SOUTH"}</span>
+                <span className="sc-meta-value">{spotCheck.projectName || spotCheck.workPackage || ((import.meta.env.VITE_API_BASE_URL || '').toLowerCase().includes('north') ? 'M3NORTH' : (import.meta.env.VITE_API_BASE_URL || '').toLowerCase().includes('infra') ? 'M3INFRASTRUCTURE' : 'M3SOUTH')}</span>
               </div>
               <div className="sc-meta-item">
                 <span className="sc-meta-label">Building & Level:</span>

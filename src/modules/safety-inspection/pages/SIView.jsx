@@ -421,7 +421,7 @@ export default function SIView() {
             <div className="meta-card-body">
               <div className="meta-item">
                 <span className="meta-label">Project</span>
-                <span className="meta-value">{inspection.projectName || "M3SOUTH"}</span>
+                <span className="meta-value">{inspection.projectName || ((import.meta.env.VITE_API_BASE_URL || '').toLowerCase().includes('north') ? 'M3NORTH' : (import.meta.env.VITE_API_BASE_URL || '').toLowerCase().includes('infra') ? 'M3INFRASTRUCTURE' : 'M3SOUTH')}</span>
               </div>
               <div className="meta-item">
                 <span className="meta-label">Project No.</span>

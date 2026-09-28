@@ -2830,7 +2830,8 @@ export default function IMDetails() {
     }
     filename = filename.replace(/^\/+/, "");
 
-    return `https://api.beam.safesiteworks.com/development/m3south/signatures/${filename}`;
+    const baseUrl = (import.meta.env?.VITE_API_BASE_URL || 'https://api.beam.safesiteworks.com/development/m3south').replace(/\/+$/, '');
+    return `${baseUrl}/signatures/${filename}`;
   };
 
   const renderSignatureCard = (step, index) => {

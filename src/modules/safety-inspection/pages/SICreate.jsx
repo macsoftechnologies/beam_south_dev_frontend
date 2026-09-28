@@ -465,7 +465,7 @@ export default function SICreate() {
       const targetIsCompleted = !hasSO;
 
       const payload = {
-        projectName: 'M3SOUTH',
+        projectName: (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '').toLowerCase().includes('north') ? 'M3NORTH' : (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '').toLowerCase().includes('infra') ? 'M3INFRASTRUCTURE' : 'M3SOUTH',
         projectNo: '063205-010',
         buildingId: building ? Number(building) : undefined,
         buildingName: bName,

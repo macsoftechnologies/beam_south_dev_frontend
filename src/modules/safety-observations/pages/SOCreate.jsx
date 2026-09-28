@@ -11,6 +11,12 @@ import { BUILDINGS } from "../../../data/buildings";
 import { AnalogTimePicker } from "../../incident-management/pages/IMCreate";
 import "../../../styles/module-shared.css";
 
+const defaultProjectName = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '').toLowerCase().includes('north')
+  ? 'M3NORTH'
+  : (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '').toLowerCase().includes('infra')
+    ? 'M3INFRASTRUCTURE'
+    : 'M3SOUTH';
+
 const initialForm = {
   observationNumber: "",
   observationType: "", // POSITIVE | NEEDS_ATTENTION
@@ -22,7 +28,7 @@ const initialForm = {
   subcategory: "",
   customSubcategory: "",
   riskLevel: "MEDIUM",
-  projectName: "M3SOUTH", // Default fixed to M3SOUTH
+  projectName: defaultProjectName,
   assignedContractorId: "",
   assignedContractorName: "",
   description: "",
@@ -471,7 +477,7 @@ const dataURLtoBlob = (dataurl) => {
       }
       formData.append("riskLevel", form.riskLevel);
       formData.append("description", form.description);
-      formData.append("projectName", "M3SOUTH"); // Fixed default M3SOUTH
+      formData.append("projectName", defaultProjectName);
       if (building) formData.append("buildingId", building);
       if (bName) formData.append("buildingName", bName);
       if (level) formData.append("floorLevel", level);
@@ -827,7 +833,7 @@ const dataURLtoBlob = (dataurl) => {
               <input
                 className="mod-form-input"
                 name="projectName"
-                value="M3SOUTH"
+                value={defaultProjectName}
                 readOnly
                 disabled
                 style={{ backgroundColor: "rgba(255,255,255,0.06)", cursor: "not-allowed", opacity: 0.7, fontWeight: 600 }}

@@ -1,6 +1,11 @@
 import React, { useState, useEffect, useRef } from "react";
 import { getContractors, getDepartments, getRoles } from "../../services/authService";
 import { showError } from "../../components/common/Toast/Toast";
+import {
+  MODULE_DEFINITIONS,
+  MODULE_USER_TYPE_OPTIONS,
+  parseModuleAccess,
+} from "../../utils/modulePermissions";
 import "../../forms/styles/forms.css";
 
 // ─── Employee Type options ───────────────────────────────────────────────────
@@ -11,13 +16,7 @@ const EMPLOYEE_TYPE_OPTIONS = [
   { value: "Observer", label: "Observer" },
 ];
 
-const MODULE_OPTIONS = [
-  { id: "permit-to-work",      label: "Permit to Work" },
-  { id: "incident-management", label: "Incident Management" },
-  { id: "safety-observations", label: "Safety Observations" },
-  { id: "safety-inspection",   label: "Safety Inspection" },
-  { id: "spot-checks",         label: "Spot Checks" },
-];
+const MODULE_OPTIONS = MODULE_DEFINITIONS;
 
 function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
   const [employeeBadgeId, setEmployeeBadgeId] = useState("");
@@ -34,6 +33,9 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
   const [selectedModules, setSelectedModules] = useState([
     "permit-to-work",
   ]);
+  const [moduleUserTypes, setModuleUserTypes] = useState({
+    "permit-to-work": "Department",
+  });
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -107,12 +109,20 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
       
       const rawModules = initialData.moduleAccess || initialData.module_access;
       if (rawModules !== undefined && rawModules !== null && rawModules !== "") {
-        const parsed = typeof rawModules === "string"
-          ? (rawModules.trim() ? rawModules.split(",").map(m => m.trim()) : [])
-          : Array.isArray(rawModules) ? rawModules : [];
-        setSelectedModules(parsed);
+        const parsedMap = parseModuleAccess(rawModules);
+        const mods = Object.keys(parsedMap);
+        setSelectedModules(mods.length > 0 ? mods : ["permit-to-work"]);
+        const typeMap = {};
+        mods.forEach((m) => {
+          typeMap[m] = parsedMap[m] || initialTypes[0] || "Department";
+        });
+        if (!typeMap["permit-to-work"] && initialTypes[0]) {
+          typeMap["permit-to-work"] = initialTypes[0];
+        }
+        setModuleUserTypes(typeMap);
       } else {
         setSelectedModules(["permit-to-work"]);
+        setModuleUserTypes({ "permit-to-work": initialTypes[0] || "Department" });
       }
 
       setEmail(initialData.email || "");
@@ -137,6 +147,14 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
         }
       }
 
+      // If permit-to-work is selected, align its default role with primary employee type
+      if (next.length > 0) {
+        setModuleUserTypes((prevRoles) => ({
+          ...prevRoles,
+          "permit-to-work": prevRoles["permit-to-work"] || next[0],
+        }));
+      }
+
       // Reset fields if option group is completely deselected
       if (!next.includes("Subcontractor")) {
         setSubContId("");
@@ -149,6 +167,35 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
       }
       return next;
     });
+  };
+
+  const handleToggleModule = (modId) => {
+    setSelectedModules((prev) => {
+      const isAlreadySelected = prev.includes(modId);
+      if (isAlreadySelected) {
+        const next = prev.filter((id) => id !== modId);
+        setModuleUserTypes((prevTypes) => {
+          const updated = { ...prevTypes };
+          delete updated[modId];
+          return updated;
+        });
+        return next;
+      } else {
+        const defaultRole = employeeTypes[0] || "Department";
+        setModuleUserTypes((prevTypes) => ({
+          ...prevTypes,
+          [modId]: prevTypes[modId] || defaultRole,
+        }));
+        return [...prev, modId];
+      }
+    });
+  };
+
+  const handleModuleUserTypeChange = (modId, roleValue) => {
+    setModuleUserTypes((prev) => ({
+      ...prev,
+      [modId]: roleValue,
+    }));
   };
 
   const handleContractorChange = (e) => {
@@ -213,6 +260,15 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
       }
     }
 
+    const hasObserverRole = employeeTypes.includes("Observer") || selectedModules.some((m) => moduleUserTypes[m] === "Observer");
+    const resolvedObserId = obserId || (hasObserverRole ? departId : null);
+
+    const activeModuleRoles = selectedModules.map((m) => {
+      const roleVal = moduleUserTypes[m] || employeeTypes[0] || "Department";
+      return `${m}:${roleVal}`;
+    });
+    const moduleAccessPayload = access ? activeModuleRoles.join(",") : "";
+
     const payload = {
       badgeId: employeeBadgeId,
       employeeName: employeeName,
@@ -223,9 +279,9 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
       companyName,
       subContId: (employeeTypes.includes("Subcontractor") && subContId) ? Number(subContId) : null,
       departId: ((employeeTypes.includes("Department") || employeeTypes.includes("Department1")) && departId) ? Number(departId) : null,
-      obserId: (employeeTypes.includes("Observer") && obserId) ? Number(obserId) : null,
+      obserId: (hasObserverRole && resolvedObserId) ? Number(resolvedObserId) : null,
       access: access ? "1" : "0",
-      moduleAccess: access ? selectedModules.join(",") : "",
+      moduleAccess: moduleAccessPayload,
       email,
       username: access ? username : "",
       password: access ? password : "",
@@ -528,58 +584,140 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
           </div>
         </div>
 
-        {/* Module Access Checkboxes */}
+        {/* Module Access Checkboxes with Individual User Types */}
         {access && (
           <div className="df-field" style={{ gridColumn: "1 / -1", marginTop: "4px", marginBottom: "8px" }}>
-            <label className="df-label" style={{ marginBottom: "8px", fontWeight: "600", color: "#e5e7eb" }}>
-              Module Access Permissions
-            </label>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px", flexWrap: "wrap", gap: "6px" }}>
+              <label className="df-label" style={{ margin: 0, fontWeight: "600", color: "#e5e7eb" }}>
+                Module Access Permissions &amp; Assigned User Types
+              </label>
+              <span style={{ fontSize: "12px", color: "#9ca3af" }}>
+                Select access and assign specific user type per module
+              </span>
+            </div>
+            
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+                gridTemplateColumns: "repeat(auto-fit, minmax(290px, 1fr))",
                 gap: "12px",
                 padding: "14px 16px",
-                backgroundColor: "#1f2937",
+                backgroundColor: "#111827",
                 border: "1.5px solid #374151",
                 borderRadius: "12px",
               }}
             >
               {MODULE_OPTIONS.map((mod) => {
                 const isChecked = selectedModules.includes(mod.id);
+                const currentRole = moduleUserTypes[mod.id] || employeeTypes[0] || "Department";
+
                 return (
-                  <label
+                  <div
                     key={mod.id}
                     style={{
                       display: "flex",
-                      alignItems: "center",
+                      flexDirection: "column",
                       gap: "10px",
-                      cursor: "pointer",
-                      color: isChecked ? "#f9fafb" : "#9ca3af",
-                      fontSize: "14px",
-                      fontWeight: 500,
-                      userSelect: "none",
+                      padding: "12px 14px",
+                      borderRadius: "10px",
+                      backgroundColor: isChecked ? "#1f2937" : "rgba(31, 41, 55, 0.4)",
+                      border: isChecked ? "1.5px solid #00e5a0" : "1.5px solid #374151",
+                      transition: "all 0.2s ease",
                     }}
                   >
-                    <input
-                      type="checkbox"
-                      checked={isChecked}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedModules((prev) => [...prev, mod.id]);
-                        } else {
-                          setSelectedModules((prev) => prev.filter((id) => id !== mod.id));
-                        }
-                      }}
-                      style={{
-                        width: "18px",
-                        height: "18px",
-                        accentColor: "#00e5a0",
-                        cursor: "pointer",
-                      }}
-                    />
-                    <span>{mod.label}</span>
-                  </label>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <label
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "10px",
+                          cursor: "pointer",
+                          color: isChecked ? "#f9fafb" : "#9ca3af",
+                          fontSize: "14px",
+                          fontWeight: 600,
+                          userSelect: "none",
+                          margin: 0,
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => handleToggleModule(mod.id)}
+                          style={{
+                            width: "18px",
+                            height: "18px",
+                            accentColor: "#00e5a0",
+                            cursor: "pointer",
+                          }}
+                        />
+                        <span>{mod.label}</span>
+                      </label>
+
+                      {isChecked && (
+                        <span
+                          style={{
+                            fontSize: "11px",
+                            fontWeight: 700,
+                            padding: "2px 8px",
+                            borderRadius: "6px",
+                            textTransform: "uppercase",
+                            backgroundColor:
+                              currentRole === "Observer"
+                                ? "rgba(99, 102, 241, 0.2)"
+                                : currentRole === "Subcontractor"
+                                ? "rgba(245, 158, 11, 0.2)"
+                                : "rgba(16, 185, 129, 0.2)",
+                            color:
+                              currentRole === "Observer"
+                                ? "#818cf8"
+                                : currentRole === "Subcontractor"
+                                ? "#fbbf24"
+                                : "#34d399",
+                            border: `1px solid ${
+                              currentRole === "Observer"
+                                ? "rgba(99, 102, 241, 0.4)"
+                                : currentRole === "Subcontractor"
+                                ? "rgba(245, 158, 11, 0.4)"
+                                : "rgba(16, 185, 129, 0.4)"
+                            }`,
+                          }}
+                        >
+                          {EMPLOYEE_TYPE_OPTIONS.find((o) => o.value === currentRole)?.label || currentRole}
+                        </span>
+                      )}
+                    </div>
+
+                    {isChecked && (
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "2px" }}>
+                        <span style={{ fontSize: "12px", color: "#9ca3af", whiteSpace: "nowrap" }}>
+                          User Type:
+                        </span>
+                        <select
+                          value={currentRole}
+                          onChange={(e) => handleModuleUserTypeChange(mod.id, e.target.value)}
+                          style={{
+                            flex: 1,
+                            height: "34px",
+                            backgroundColor: "#111827",
+                            color: "#f9fafb",
+                            border: "1px solid #4b5563",
+                            borderRadius: "8px",
+                            padding: "0 10px",
+                            fontSize: "13px",
+                            fontWeight: 500,
+                            cursor: "pointer",
+                            outline: "none",
+                          }}
+                        >
+                          {EMPLOYEE_TYPE_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
                 );
               })}
             </div>

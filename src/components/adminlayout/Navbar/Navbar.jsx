@@ -14,6 +14,11 @@ import {
 } from "../../../services/notificationService";
 import Swal from "sweetalert2";
 import { formatToDenmarkDateTime, getDenmarkTimeISOString } from "../../../utils/dateUtils";
+import {
+  hasUserModuleAccess,
+  getEffectiveRoleForModule,
+  USER_TYPE_LABELS,
+} from "../../../utils/modulePermissions";
 
 const STATUS_OPTIONS = [
   { value: 'Draft', label: 'Draft' },
@@ -406,21 +411,26 @@ function ModuleSwitcher() {
               type="button"
               className={`module-switcher-item ${currentModule.id === m.id ? 'active' : ''}`}
               onClick={() => {
+                const MOD_MAP = {
+                  im: 'incident-management',
+                  so: 'safety-observations',
+                  si: 'safety-inspection',
+                  sc: 'spot-checks',
+                  ptw: 'permit-to-work',
+                };
+                const requiredKey = MOD_MAP[m.id] || m.id;
                 if (m.id !== 'ptw' && !isAdmin) {
-                  const MOD_MAP = {
-                    im: 'incident-management',
-                    so: 'safety-observations',
-                    si: 'safety-inspection',
-                    sc: 'spot-checks',
-                  };
-                  const requiredKey = MOD_MAP[m.id];
-                  const rawMod = user?.moduleAccess;
-                  const allowed = (rawMod ? (typeof rawMod === 'string' ? rawMod.split(',') : rawMod) : ['permit-to-work']).map(x => String(x).trim().toLowerCase());
-                  if (!allowed.includes(requiredKey.toLowerCase())) {
+                  if (!hasUserModuleAccess(requiredKey, user)) {
                     showError(`You do not have access to the ${m.label} module`);
                     setOpen(false);
                     return;
                   }
+                }
+                const effRole = getEffectiveRoleForModule(requiredKey, user);
+                if (effRole) {
+                  localStorage.setItem("UserType", effRole);
+                  localStorage.setItem("activeModuleRole", effRole);
+                  localStorage.setItem("activeModule", requiredKey);
                 }
                 navigate(m.path);
                 setOpen(false);

@@ -1,14 +1,20 @@
 import React, { useState, useEffect } from 'react'
-import { Outlet } from 'react-router-dom'
+import { Outlet, useLocation } from 'react-router-dom'
 
 import Sidebar from './Sidebar/Sidebar'
 import Navbar from './Navbar/Navbar'
 import Footer from './Footer/Footer'
+import { syncActiveModuleRole } from '../../utils/modulePermissions'
 
 import './Layout.css'
 
 function Layout() {
+  const location = useLocation()
   const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth > 768)
+
+  useEffect(() => {
+    syncActiveModuleRole(location.pathname)
+  }, [location.pathname])
 
   const [theme, setTheme] = useState(() => {
   const saved = localStorage.getItem('app-theme') || 'default-dark'
@@ -38,7 +44,7 @@ useEffect(() => {
   return (
     <div className="layout-root">
 
-      <Sidebar sidebarOpen={sidebarOpen} />
+      <Sidebar sidebarOpen={sidebarOpen} toggleSidebar={() => setSidebarOpen(p => !p)} />
 
       <div
           className={`sidebar-backdrop ${sidebarOpen ? 'visible' : ''}`}

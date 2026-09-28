@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react'
 import { useNavigate, useLocation } from "react-router-dom";
 import "./Navbar.css";
 import { logout, sendChangePasswordOtp, verifyAndChangePassword } from "../../../services/authService";
+import { showError } from "../../../components/common/Toast/Toast";
 import { navigateTo } from "../../../config/basePath";
 import {
   getNotifications,
@@ -13,6 +14,11 @@ import {
 } from "../../../services/notificationService";
 import Swal from "sweetalert2";
 import { formatToDenmarkDateTime, getDenmarkTimeISOString } from "../../../utils/dateUtils";
+import {
+  hasUserModuleAccess,
+  getEffectiveRoleForModule,
+  USER_TYPE_LABELS,
+} from "../../../utils/modulePermissions";
 
 const STATUS_OPTIONS = [
   { value: 'Draft', label: 'Draft' },
@@ -331,7 +337,9 @@ function ThemeSwitcher({ theme, onThemeChange }) {
 const MODULES = [
   { id: 'ptw', label: 'Permit to Work', path: '/dashboard', icon: 'ti-file-certificate' },
   { id: 'im', label: 'Incident Management', path: '/incident-management/dashboard', icon: 'ti-alert-triangle' },
-  { id: 'so', label: 'Safety Observations', path: '/safety-observations/dashboard', icon: 'ti-eye' }
+  { id: 'so', label: 'Safety Observations', path: '/safety-observations/dashboard', icon: 'ti-eye' },
+  { id: 'si', label: 'Safety Inspection', path: '/safety-inspection/dashboard', icon: 'ti-clipboard-check' },
+  { id: 'sc', label: 'Spot Checks', path: '/spot-checks/dashboard', icon: 'ti-target' }
 ];
 
 function ModuleSwitcher() {
@@ -340,7 +348,29 @@ function ModuleSwitcher() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const user = React.useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem("user") || "{}");
+    } catch {
+      return {};
+    }
+  }, []);
+
+  const rawRole = (localStorage.getItem("UserType") || user?.role || user?.userType || user?.user_type || "").toUpperCase();
+  const userRolesArr = Array.isArray(user?.userTypes) ? user.userTypes.map((t) => String(t).toUpperCase()) : [];
+  const allRoles = [rawRole, ...userRolesArr].join(" ");
+
+  const isContractor = allRoles.includes("CONTRACTOR") || allRoles.includes("SUBCONTRACTOR") || Boolean(user?.subcontractor_id) || Boolean(user?.contractorId) || Boolean(user?.typeId && allRoles.includes("SUBCONTRACTOR"));
+  const isObserver = allRoles.includes("OBSERVER");
+  const isAdmin = allRoles.includes("ADMIN") || allRoles.includes("SUPERADMIN") || Boolean(user?.isSuperAdmin);
+  const isDepartment = allRoles.includes("DEPARTMENT") || allRoles.includes("OPERATOR") || allRoles.includes("SITE_HSE") || allRoles.includes("SAFETY") || allRoles.includes("HSE");
+  const isDeptOrAdmin = (isAdmin || isDepartment) && !isContractor && !isObserver;
+
+  const allowedModules = MODULES;
+
   const getActiveModule = () => {
+    if (location.pathname.includes('/spot-checks')) return MODULES[4];
+    if (location.pathname.includes('/safety-inspection')) return MODULES[3];
     if (location.pathname.includes('/safety-observations')) return MODULES[2];
     if (location.pathname.includes('/incident-management')) return MODULES[1];
     return MODULES[0];
@@ -375,12 +405,33 @@ function ModuleSwitcher() {
       {open && (
         <div className="module-switcher-dropdown" role="menu">
           <div className="module-switcher-menu-header">Select Module</div>
-          {MODULES.map(m => (
+          {allowedModules.map(m => (
             <button
               key={m.id}
               type="button"
               className={`module-switcher-item ${currentModule.id === m.id ? 'active' : ''}`}
               onClick={() => {
+                const MOD_MAP = {
+                  im: 'incident-management',
+                  so: 'safety-observations',
+                  si: 'safety-inspection',
+                  sc: 'spot-checks',
+                  ptw: 'permit-to-work',
+                };
+                const requiredKey = MOD_MAP[m.id] || m.id;
+                if (m.id !== 'ptw' && !isAdmin) {
+                  if (!hasUserModuleAccess(requiredKey, user)) {
+                    showError(`You do not have access to the ${m.label} module`);
+                    setOpen(false);
+                    return;
+                  }
+                }
+                const effRole = getEffectiveRoleForModule(requiredKey, user);
+                if (effRole) {
+                  localStorage.setItem("UserType", effRole);
+                  localStorage.setItem("activeModuleRole", effRole);
+                  localStorage.setItem("activeModule", requiredKey);
+                }
                 navigate(m.path);
                 setOpen(false);
               }}
@@ -476,10 +527,17 @@ function Navbar({ toggleSidebar, theme, onThemeChange }) {
   };
 
   useEffect(() => {
+    if (
+      location.pathname.includes('/spot-check') ||
+      location.pathname.includes('/safety-inspection') ||
+      location.pathname.includes('/inspection')
+    ) {
+      return;
+    }
     fetchUnreadCount();
     const interval = setInterval(fetchUnreadCount, 4000);
     return () => clearInterval(interval);
-  }, [activeModuleKey]);
+  }, [activeModuleKey, location.pathname]);
 
   useEffect(() => {
     try {
@@ -777,7 +835,7 @@ function Navbar({ toggleSidebar, theme, onThemeChange }) {
         {/* Bell with badge (Hidden for Spot Checks and Safety Inspection) */}
         {!location.pathname.includes('/spot-check') && !location.pathname.includes('/safety-inspection') && !location.pathname.includes('/inspection') && (
           <div className="bell-wrap" ref={bellRef}>
-          <button
+            <button
             className="navbar-bell"
             title="Notifications"
             aria-label="Notifications"
@@ -871,7 +929,8 @@ function Navbar({ toggleSidebar, theme, onThemeChange }) {
                 </div>
               )}
             </div>
-          </div>
+          )}
+        </div>
         )}
 
         {/* Avatar + name + dropdown */}

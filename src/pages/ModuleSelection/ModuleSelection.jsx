@@ -1,6 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { showError } from "../../components/common/Toast/Toast";
+import {
+  hasUserModuleAccess,
+  getEffectiveRoleForModule,
+  USER_TYPE_LABELS,
+} from "../../utils/modulePermissions";
 import "./ModuleSelection.css";
 
 const modules = [
@@ -139,13 +144,7 @@ function ModuleSelection() {
   const visibleModules = modules;
 
   const hasAccessToModule = (modId) => {
-    if (modId === "permit-to-work") return true;
-    if (isAdmin) return true;
-    const rawMod = user?.moduleAccess;
-    const allowed = (rawMod ? (typeof rawMod === "string" ? rawMod.split(",") : rawMod) : ["permit-to-work"]).map((m) =>
-      String(m).trim().toLowerCase()
-    );
-    return allowed.includes(modId.toLowerCase());
+    return hasUserModuleAccess(modId, user);
   };
 
   const handleModuleClick = (mod) => {
@@ -155,6 +154,11 @@ function ModuleSelection() {
       return;
     }
     localStorage.setItem("activeModule", mod.id);
+    const effRole = getEffectiveRoleForModule(mod.id, user);
+    if (effRole) {
+      localStorage.setItem("UserType", effRole);
+      localStorage.setItem("activeModuleRole", effRole);
+    }
     navigate(mod.path);
     window.scrollTo(0, 0);
   };
@@ -245,7 +249,26 @@ function ModuleSelection() {
                 </div>
 
                 {/* Title & Description */}
-                <h3 className="ms-card-title" style={{ color: mod.color }}>{mod.title}</h3>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", flexWrap: "wrap" }}>
+                  <h3 className="ms-card-title" style={{ color: mod.color, margin: 0 }}>{mod.title}</h3>
+                  {hasAccessToModule(mod.id) && (
+                    <span
+                      style={{
+                        fontSize: "10.5px",
+                        fontWeight: 700,
+                        padding: "2px 8px",
+                        borderRadius: "6px",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
+                        backgroundColor: "rgba(255, 255, 255, 0.08)",
+                        color: "#f3f4f6",
+                        border: "1px solid rgba(255, 255, 255, 0.15)",
+                      }}
+                    >
+                      {USER_TYPE_LABELS[getEffectiveRoleForModule(mod.id, user)] || getEffectiveRoleForModule(mod.id, user)}
+                    </span>
+                  )}
+                </div>
                 <div className="ms-card-line" style={{ background: mod.color }} />
                 <p className="ms-card-desc">{mod.description}</p>
 

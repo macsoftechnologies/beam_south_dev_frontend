@@ -32,7 +32,7 @@ const OTP_LENGTH = 6;
 
 export default function OTP() {
   if (isTokenValid()) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/modules" replace />;
   }
 
   const tempUserStr = localStorage.getItem("tempUser");
@@ -43,14 +43,14 @@ export default function OTP() {
   useEffect(() => {
     const handleCheck = () => {
       if (isTokenValid()) {
-        navigateTo("/dashboard", true);
+        navigateTo("/modules", true);
       } else if (!localStorage.getItem("tempUser")) {
         navigateTo("/login", true);
       }
     };
 
     if (isTokenValid()) {
-      navigateTo("/dashboard", true);
+      navigateTo("/modules", true);
       return;
     }
     if (!localStorage.getItem("tempUser")) {
@@ -177,10 +177,12 @@ export default function OTP() {
           username: response.username,
           role: response.userType, // UserType is the role
           name: response.username,
-          typeId: response.typeId
+          typeId: response.typeId,
+          moduleAccess: response.moduleAccess || tempUser?.moduleAccess || "incident-management,safety-observations,safety-inspection,spot-checks",
         };
         localStorage.setItem("user", JSON.stringify(activeUser));
         localStorage.setItem("UserType", response.userType);
+        localStorage.setItem("primaryUserType", response.userType);
 
         // Clean up tempUser
         localStorage.removeItem("tempUser");
@@ -189,7 +191,7 @@ export default function OTP() {
 
         setTimeout(() => {
           setLoading(false);
-          navigateTo("/dashboard", true);
+          navigateTo("/modules", true);
         }, 1500);
       } else {
         setLoading(false);

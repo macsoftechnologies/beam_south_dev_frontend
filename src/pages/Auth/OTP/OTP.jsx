@@ -182,6 +182,7 @@ export default function OTP() {
         };
         localStorage.setItem("user", JSON.stringify(activeUser));
         localStorage.setItem("UserType", response.userType);
+        localStorage.setItem("primaryUserType", response.userType);
 
         // Clean up tempUser
         localStorage.removeItem("tempUser");

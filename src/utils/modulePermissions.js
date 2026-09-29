@@ -8,12 +8,27 @@ export const MODULE_DEFINITIONS = [
   { id: "spot-checks",         label: "Spot Checks",          shortLabel: "SC",  defaultRole: "Department" },
 ];
 
-export const MODULE_USER_TYPE_OPTIONS = [
+export const PTW_USER_TYPE_OPTIONS = [
   { value: "Department",    label: "ConM/HSE" },
   { value: "Department1",   label: "C&Q" },
   { value: "Subcontractor", label: "Contractor" },
   { value: "Observer",      label: "Observer" },
 ];
+
+export const NEW_MODULE_USER_TYPE_OPTIONS = [
+  { value: "Department",    label: "Department/HSE" },
+  { value: "Subcontractor", label: "Contractor" },
+  { value: "Observer",      label: "Observer" },
+];
+
+export const MODULE_USER_TYPE_OPTIONS = NEW_MODULE_USER_TYPE_OPTIONS;
+
+export function getModuleUserTypeOptions(moduleId) {
+  if (moduleId === "permit-to-work") {
+    return PTW_USER_TYPE_OPTIONS;
+  }
+  return NEW_MODULE_USER_TYPE_OPTIONS;
+}
 
 export const USER_TYPE_LABELS = {
   Department: "ConM/HSE",
@@ -23,6 +38,26 @@ export const USER_TYPE_LABELS = {
   Admin: "Admin",
   SuperAdmin: "SuperAdmin",
 };
+
+export function getUserTypeLabel(roleValue, moduleId = null) {
+  if (!roleValue) return "";
+  const roleLower = String(roleValue).toLowerCase();
+
+  // For new modules (non-PTW), ConM and C&Q are the same: Department/HSE
+  if (moduleId && moduleId !== "permit-to-work") {
+    if (roleLower === "department" || roleLower === "department1") {
+      return "Department/HSE";
+    }
+  }
+
+  if (roleLower === "department") return "ConM/HSE";
+  if (roleLower === "department1") return "C&Q";
+  if (roleLower === "subcontractor") return "Contractor";
+  if (roleLower === "observer") return "Observer";
+  if (roleLower === "admin") return "Admin";
+  if (roleLower === "superadmin") return "SuperAdmin";
+  return USER_TYPE_LABELS[roleValue] || roleValue;
+}
 
 /**
  * Detect module ID from a path/pathname
@@ -177,7 +212,11 @@ export function getEffectiveRoleForModule(moduleId, user = null) {
 
   // If specific role assigned for this module
   if (matchedKey && parsedMap[matchedKey]) {
-    return parsedMap[matchedKey];
+    const assignedRole = parsedMap[matchedKey];
+    if (moduleId !== "permit-to-work" && assignedRole === "Department1") {
+      return "Department";
+    }
+    return assignedRole;
   }
 
   // Fallback to user's primary user type
@@ -189,11 +228,16 @@ export function getEffectiveRoleForModule(moduleId, user = null) {
     "Department";
 
   // If primary is comma-separated (e.g. "Department,Department1"), extract first or matching
+  let resolvedPrimary = primary;
   if (typeof primary === "string" && primary.includes(",")) {
-    return primary.split(",")[0].trim();
+    resolvedPrimary = primary.split(",")[0].trim();
   }
 
-  return primary || "Department";
+  if (moduleId !== "permit-to-work" && resolvedPrimary === "Department1") {
+    return "Department";
+  }
+
+  return resolvedPrimary || "Department";
 }
 
 /**

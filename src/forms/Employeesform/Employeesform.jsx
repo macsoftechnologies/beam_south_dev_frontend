@@ -4,6 +4,10 @@ import { showError } from "../../components/common/Toast/Toast";
 import {
   MODULE_DEFINITIONS,
   MODULE_USER_TYPE_OPTIONS,
+  PTW_USER_TYPE_OPTIONS,
+  NEW_MODULE_USER_TYPE_OPTIONS,
+  getModuleUserTypeOptions,
+  getUserTypeLabel,
   parseModuleAccess,
 } from "../../utils/modulePermissions";
 import "../../forms/styles/forms.css";
@@ -114,7 +118,11 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
         setSelectedModules(mods.length > 0 ? mods : ["permit-to-work"]);
         const typeMap = {};
         mods.forEach((m) => {
-          typeMap[m] = parsedMap[m] || initialTypes[0] || "Department";
+          let role = parsedMap[m] || initialTypes[0] || "Department";
+          if (m !== "permit-to-work" && role === "Department1") {
+            role = "Department";
+          }
+          typeMap[m] = role;
         });
         if (!typeMap["permit-to-work"] && initialTypes[0]) {
           typeMap["permit-to-work"] = initialTypes[0];
@@ -181,7 +189,10 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
         });
         return next;
       } else {
-        const defaultRole = employeeTypes[0] || "Department";
+        let defaultRole = employeeTypes[0] || "Department";
+        if (modId !== "permit-to-work" && defaultRole === "Department1") {
+          defaultRole = "Department";
+        }
         setModuleUserTypes((prevTypes) => ({
           ...prevTypes,
           [modId]: prevTypes[modId] || defaultRole,
@@ -682,7 +693,7 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
                             }`,
                           }}
                         >
-                          {EMPLOYEE_TYPE_OPTIONS.find((o) => o.value === currentRole)?.label || currentRole}
+                          {getUserTypeLabel(currentRole, mod.id)}
                         </span>
                       )}
                     </div>
@@ -693,7 +704,7 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
                           User Type:
                         </span>
                         <select
-                          value={currentRole}
+                          value={mod.id === "permit-to-work" ? currentRole : (currentRole === "Department1" ? "Department" : currentRole)}
                           onChange={(e) => handleModuleUserTypeChange(mod.id, e.target.value)}
                           style={{
                             flex: 1,
@@ -709,7 +720,7 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
                             outline: "none",
                           }}
                         >
-                          {EMPLOYEE_TYPE_OPTIONS.map((opt) => (
+                          {getModuleUserTypeOptions(mod.id).map((opt) => (
                             <option key={opt.value} value={opt.value}>
                               {opt.label}
                             </option>

@@ -9,6 +9,7 @@ import { getEmployees, addEmployee, updateEmployee, deleteEmployee, getRoles, se
 import {
   MODULE_DEFINITIONS,
   USER_TYPE_LABELS,
+  getUserTypeLabel,
   parseModuleAccess,
 } from "../../utils/modulePermissions";
 import "../styles/pages.css";
@@ -487,7 +488,7 @@ const Employees = () => {
                     const modDef = MODULE_DEFINITIONS.find((m) => m.id === modId);
                     const modLabel = modDef ? modDef.label : modId;
                     const roleVal = parsedMap[modId] || selectedEmployee.userType || "Department";
-                    const roleLabel = USER_TYPE_LABELS[roleVal] || roleVal;
+                    const roleLabel = getUserTypeLabel(roleVal, modId);
                     const isObs = String(roleVal).toLowerCase().includes("observer");
                     const isSub = String(roleVal).toLowerCase().includes("subcontractor");
 

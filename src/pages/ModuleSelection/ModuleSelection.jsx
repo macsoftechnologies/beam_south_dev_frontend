@@ -4,6 +4,7 @@ import { showError } from "../../components/common/Toast/Toast";
 import {
   hasUserModuleAccess,
   getEffectiveRoleForModule,
+  getUserTypeLabel,
   USER_TYPE_LABELS,
 } from "../../utils/modulePermissions";
 import "./ModuleSelection.css";
@@ -265,7 +266,7 @@ function ModuleSelection() {
                         border: "1px solid rgba(255, 255, 255, 0.15)",
                       }}
                     >
-                      {USER_TYPE_LABELS[getEffectiveRoleForModule(mod.id, user)] || getEffectiveRoleForModule(mod.id, user)}
+                      {getUserTypeLabel(getEffectiveRoleForModule(mod.id, user), mod.id)}
                     </span>
                   )}
                 </div>

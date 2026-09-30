@@ -311,6 +311,7 @@ function IMCreate() {
   const [contractorsList, setContractorsList] = useState([]);
   const [isLoadingSelectors, setIsLoadingSelectors] = useState(true);
   const [roomStatusMap, setRoomStatusMap] = useState({});
+  const [locationMapImage, setLocationMapImage] = useState(null);
 
   const currentUser = React.useMemo(() => {
     try {
@@ -577,7 +578,8 @@ function IMCreate() {
         gatekeeperName: form.gatekeeperName,
         noFurtherInvestigation: form.noFurtherInvestigation || false,
         submittedBy: form.submitterName || getLoggedInUser() || "User",
-        signature: form.signature
+        signature: form.signature,
+        locationMapImage: locationMapImage || undefined
       };
 
       await createHeadsUp(payload);
@@ -713,6 +715,7 @@ function IMCreate() {
                           selectedRooms={selectedRooms}
                           onRoomsSelected={handleRoomsSelected}
                           roomStatusMap={roomStatusMap}
+                          onMapSnapshot={setLocationMapImage}
                         />
                       </div>
                     )}

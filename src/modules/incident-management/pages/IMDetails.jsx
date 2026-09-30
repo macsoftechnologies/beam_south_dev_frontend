@@ -712,6 +712,7 @@ export default function IMDetails() {
   const [huEditorRole, setHuEditorRole] = useState("HSE Editor");
   const [huEditReason, setHuEditReason] = useState("");
   const [huEditorSignature, setHuEditorSignature] = useState(false);
+  const [huLocationMapImage, setHuLocationMapImage] = useState(null);
 
   const [showHuTimePicker, setShowHuTimePicker] = useState(false);
   const [tempHuTime, setTempHuTime] = useState("");
@@ -1063,7 +1064,8 @@ export default function IMDetails() {
         editedBy: huEditorName || getLoggedInUser(),
         editorRole: huEditorRole || "HSE Editor",
         editReason: huEditReason || "Updated Heads-Up Notification",
-        editorSignature: huEditorSignature
+        editorSignature: huEditorSignature,
+        locationMapImage: huLocationMapImage || undefined
       };
 
       await updateHeadsUp(id, payload);
@@ -3779,6 +3781,7 @@ export default function IMDetails() {
                           selectedRooms={selectedRooms}
                           onRoomsSelected={handleRoomsSelected}
                           roomStatusMap={roomStatusMap}
+                          onMapSnapshot={setHuLocationMapImage}
                         />
                       </div>
                     )}

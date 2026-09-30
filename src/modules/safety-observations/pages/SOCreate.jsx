@@ -62,6 +62,7 @@ function SOCreate() {
   const [level, setLevel] = useState("");
   const [selectedRooms, setSelectedRooms] = useState([]);
   const [selectedZone, setSelectedZone] = useState(null);
+  const [locationMapImage, setLocationMapImage] = useState(null);
 
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
@@ -482,6 +483,7 @@ const dataURLtoBlob = (dataurl) => {
       if (bName) formData.append("buildingName", bName);
       if (level) formData.append("floorLevel", level);
       formData.append("specificLocation", form.specificLocation);
+      if (locationMapImage) formData.append("locationMapImage", locationMapImage);
       if (form.assignedContractorId && !isNaN(Number(form.assignedContractorId))) {
         formData.append("assignedContractorId", form.assignedContractorId);
       }
@@ -950,6 +952,7 @@ const dataURLtoBlob = (dataurl) => {
                   selectedRooms={selectedRooms}
                   onRoomsSelected={handleRoomsSelected}
                   roomStatusMap={{}}
+                  onMapSnapshot={setLocationMapImage}
                 />
               </div>
             )}

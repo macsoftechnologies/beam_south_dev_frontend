@@ -1,24 +1,13 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { getContractors, getDepartments, getRoles } from "../../services/authService";
 import { showError } from "../../components/common/Toast/Toast";
 import {
   MODULE_DEFINITIONS,
-  MODULE_USER_TYPE_OPTIONS,
-  PTW_USER_TYPE_OPTIONS,
-  NEW_MODULE_USER_TYPE_OPTIONS,
   getModuleUserTypeOptions,
   getUserTypeLabel,
   parseModuleAccess,
 } from "../../utils/modulePermissions";
 import "../../forms/styles/forms.css";
-
-// ─── Employee Type options ───────────────────────────────────────────────────
-const EMPLOYEE_TYPE_OPTIONS = [
-  { value: "Department", label: "ConM/HSE" },
-  { value: "Department1", label: "C&Q" },
-  { value: "Subcontractor", label: "Contractor" },
-  { value: "Observer", label: "Observer" },
-];
 
 const MODULE_OPTIONS = MODULE_DEFINITIONS;
 
@@ -28,7 +17,6 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
   const [designation, setDesignation] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [roleId, setRoleId] = useState("");
-  const [employeeTypes, setEmployeeTypes] = useState([]); // Array of strings (userType in backend)
   const [companyName, setCompanyName] = useState("");
   const [subContId, setSubContId] = useState("");
   const [departId, setDepartId] = useState("");
@@ -48,20 +36,6 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
   const [departmentList, setDepartmentList] = useState([]);
   const [subcontractorList, setSubcontractorList] = useState([]);
 
-  const [dropdownOpen, setDropdownOpen] = useState(false);
-  const dropdownRef = useRef(null);
-
-  // Close dropdown on click outside
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setDropdownOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
   // Fetch roles, departments, and subcontractors dynamically
   useEffect(() => {
     const fetchData = async () => {
@@ -76,7 +50,7 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
         const deps = depsRes?.data?.rows ?? depsRes?.data ?? depsRes ?? [];
         const subs = subsRes?.data?.rows ?? subsRes?.data ?? subsRes ?? [];
         const sortedSubs = [...subs].sort((a, b) =>
-          (a.subContractorName || "").localeCompare(b.subContractorName || "", undefined, { sensitivity: 'base' })
+          (a.subContractorName || "").localeCompare(b.subContractorName || "", undefined, { sensitivity: "base" })
         );
 
         setRolesList(roles);
@@ -98,19 +72,17 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
       setPhoneNumber(String(initialData.phonenumber || initialData.phoneNumber || "").replace(/^\+/, ""));
       setRoleId(initialData.roleId !== undefined && initialData.roleId !== null ? String(initialData.roleId) : "");
 
-      // Parse userType (comma-separated string or array) into employeeTypes array
       const rawUserType = initialData.userType || "";
       const initialTypes = rawUserType
         ? (typeof rawUserType === "string" ? rawUserType.split(",") : Array.isArray(rawUserType) ? rawUserType : [rawUserType])
         : [];
-      setEmployeeTypes(initialTypes);
 
       setCompanyName(initialData.companyName || "");
       setSubContId(initialData.subContId !== undefined && initialData.subContId !== null ? String(initialData.subContId) : "");
       setDepartId(initialData.departId !== undefined && initialData.departId !== null ? String(initialData.departId) : "");
       setObserId(initialData.obserId !== undefined && initialData.obserId !== null ? String(initialData.obserId) : "");
       setAccess(initialData.access !== undefined ? (initialData.access === 1 || initialData.access === "1" || initialData.access === true) : true);
-      
+
       const rawModules = initialData.moduleAccess || initialData.module_access;
       if (rawModules !== undefined && rawModules !== null && rawModules !== "") {
         const parsedMap = parseModuleAccess(rawModules);
@@ -119,7 +91,9 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
         const typeMap = {};
         mods.forEach((m) => {
           let role = parsedMap[m] || initialTypes[0] || "Department";
-          if (m !== "permit-to-work" && role === "Department1") {
+          if (m === "safety-inspection" && role === "Subcontractor") {
+            role = "Department";
+          } else if (m !== "permit-to-work" && role === "Department1") {
             role = "Department";
           }
           typeMap[m] = role;
@@ -139,43 +113,51 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
     }
   }, [initialData, isEdit]);
 
-  const handleToggleOption = (value) => {
-    setEmployeeTypes((prev) => {
-      let next;
-      if (prev.includes(value)) {
-        next = prev.filter((v) => v !== value);
-      } else {
-        next = [...prev, value];
-      }
-
-      // Automatically set company name if "Department" is selected but no Subcontractor is selected
-      if (next.includes("Department") || next.includes("Department1")) {
-        if (!companyName) {
-          setCompanyName("M3 South");
+  // Derived user types from individual module configurations
+  const activeEmployeeTypes = useMemo(() => {
+    const types = selectedModules
+      .map((m) => {
+        let role = moduleUserTypes[m];
+        if (m === "safety-inspection" && role === "Subcontractor") {
+          role = "Department";
         }
-      }
+        return role;
+      })
+      .filter(Boolean);
+    if (types.length > 0) {
+      return Array.from(new Set(types));
+    }
+    return ["Department"];
+  }, [selectedModules, moduleUserTypes]);
 
-      // If permit-to-work is selected, align its default role with primary employee type
-      if (next.length > 0) {
-        setModuleUserTypes((prevRoles) => ({
-          ...prevRoles,
-          "permit-to-work": prevRoles["permit-to-work"] || next[0],
-        }));
-      }
+  const hasDepartment = activeEmployeeTypes.includes("Department") || activeEmployeeTypes.includes("Department1");
+  const hasContractor = activeEmployeeTypes.includes("Subcontractor");
+  const hasObserver = activeEmployeeTypes.includes("Observer");
 
-      // Reset fields if option group is completely deselected
-      if (!next.includes("Subcontractor")) {
-        setSubContId("");
-      }
-      if (!next.includes("Department") && !next.includes("Department1")) {
-        setDepartId("");
-      }
-      if (!next.includes("Observer")) {
-        setObserId("");
-      }
-      return next;
-    });
-  };
+  // Show "Select Department" ONLY when Department is selected in any module dropdown
+  const shouldShowDepartment = hasDepartment;
+  // Show "Select Contractor" when Contractor is selected in any module dropdown
+  const shouldShowContractor = hasContractor;
+
+  // Automatically default companyName if Department selected and no Contractor selected
+  useEffect(() => {
+    if (hasDepartment && !hasContractor && !companyName) {
+      setCompanyName("M3 South");
+    }
+  }, [hasDepartment, hasContractor, companyName]);
+
+  // Cleanup selection IDs if types are no longer in selected modules
+  useEffect(() => {
+    if (!shouldShowContractor && subContId) {
+      setSubContId("");
+    }
+    if (!shouldShowDepartment && departId) {
+      setDepartId("");
+    }
+    if (!hasObserver && obserId) {
+      setObserId("");
+    }
+  }, [shouldShowContractor, shouldShowDepartment, hasObserver, subContId, departId, obserId]);
 
   const handleToggleModule = (modId) => {
     setSelectedModules((prev) => {
@@ -189,10 +171,8 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
         });
         return next;
       } else {
-        let defaultRole = employeeTypes[0] || "Department";
-        if (modId !== "permit-to-work" && defaultRole === "Department1") {
-          defaultRole = "Department";
-        }
+        const validOptions = getModuleUserTypeOptions(modId);
+        const defaultRole = validOptions[0]?.value || "Department";
         setModuleUserTypes((prevTypes) => ({
           ...prevTypes,
           [modId]: prevTypes[modId] || defaultRole,
@@ -203,9 +183,13 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
   };
 
   const handleModuleUserTypeChange = (modId, roleValue) => {
+    let effectiveRole = roleValue;
+    if (modId === "safety-inspection" && roleValue === "Subcontractor") {
+      effectiveRole = "Department";
+    }
     setModuleUserTypes((prev) => ({
       ...prev,
-      [modId]: roleValue,
+      [modId]: effectiveRole,
     }));
   };
 
@@ -216,10 +200,13 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
     const matched = subcontractorList.find((s) => String(s.id) === String(selectedId));
     if (matched) {
       setCompanyName(matched.subContractorName);
-      setDepartId(matched.departId || "");
+      if (hasDepartment && matched.departId) {
+        setDepartId(matched.departId);
+      }
     } else {
-      setCompanyName("");
-      setDepartId("");
+      if (!hasDepartment) {
+        setCompanyName("");
+      }
     }
   };
 
@@ -227,36 +214,22 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
     setDepartId(e.target.value);
   };
 
-  // Get dynamic display text for the select button
-  const getDropdownLabel = () => {
-    if (employeeTypes.length === 0) return "Select Employee Type(s)";
-    return employeeTypes
-      .map((val) => EMPLOYEE_TYPE_OPTIONS.find((opt) => opt.value === val)?.label)
-      .filter(Boolean)
-      .join(", ");
-  };
-
   // ── Submit ────────────────────────────────────────────────────────────────
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    if (!employeeTypes || employeeTypes.length === 0 || !employeeTypes.join(",").trim()) {
-      showError("Please select at least one Employee Type");
+    if (selectedModules.length === 0) {
+      showError("Please select at least one Module Access permission");
       return;
     }
 
-    if ((employeeTypes.includes("Department") || employeeTypes.includes("Department1")) && !departId) {
+    if (shouldShowDepartment && !departId) {
       showError("Please select a Department");
       return;
     }
 
-    if (employeeTypes.includes("Subcontractor") && !subContId) {
+    if (shouldShowContractor && !subContId) {
       showError("Please select a Contractor");
-      return;
-    }
-
-    if (employeeTypes.includes("Observer") && !obserId) {
-      showError("Please select a Department for Observer");
       return;
     }
 
@@ -271,14 +244,16 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
       }
     }
 
-    const hasObserverRole = employeeTypes.includes("Observer") || selectedModules.some((m) => moduleUserTypes[m] === "Observer");
-    const resolvedObserId = obserId || (hasObserverRole ? departId : null);
-
     const activeModuleRoles = selectedModules.map((m) => {
-      const roleVal = moduleUserTypes[m] || employeeTypes[0] || "Department";
+      let roleVal = moduleUserTypes[m] || "Department";
+      if (m === "safety-inspection" && roleVal === "Subcontractor") {
+        roleVal = "Department";
+      }
       return `${m}:${roleVal}`;
     });
     const moduleAccessPayload = access ? activeModuleRoles.join(",") : "";
+
+    const resolvedObserId = obserId || (hasObserver ? departId : null);
 
     const payload = {
       badgeId: employeeBadgeId,
@@ -286,11 +261,11 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
       designation,
       phonenumber: phoneNumber,
       roleId: roleId ? Number(roleId) : 4,
-      userType: employeeTypes.join(","),
-      companyName,
-      subContId: (employeeTypes.includes("Subcontractor") && subContId) ? Number(subContId) : null,
-      departId: ((employeeTypes.includes("Department") || employeeTypes.includes("Department1")) && departId) ? Number(departId) : null,
-      obserId: (hasObserverRole && resolvedObserId) ? Number(resolvedObserId) : null,
+      userType: activeEmployeeTypes.join(","),
+      companyName: companyName || (hasDepartment && !hasContractor ? "M3 South" : ""),
+      subContId: shouldShowContractor && subContId ? Number(subContId) : null,
+      departId: shouldShowDepartment && departId ? Number(departId) : null,
+      obserId: hasObserver && resolvedObserId ? Number(resolvedObserId) : null,
       access: access ? "1" : "0",
       moduleAccess: moduleAccessPayload,
       email,
@@ -387,109 +362,6 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
           </select>
         </div>
 
-        {/* Custom Multi-select Dropdown for Employee Types */}
-        <div className="df-field" ref={dropdownRef} style={{ position: "relative" }}>
-          <label className="df-label">
-            Select Employee Type(s) <span className="df-required">*</span>
-          </label>
-          <div
-            onClick={() => setDropdownOpen((prev) => !prev)}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              width: "100%",
-              height: "46px",
-              padding: "0 14px",
-              fontSize: "14px",
-              fontWeight: 500,
-              color: "#f9fafb",
-              backgroundColor: "#1f2937",
-              border: "1.5px solid #374151",
-              borderRadius: "12px",
-              cursor: "pointer",
-              userSelect: "none",
-            }}
-          >
-            <span style={{
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-              maxWidth: "calc(100% - 24px)"
-            }}>
-              {getDropdownLabel()}
-            </span>
-            <span style={{
-              display: "inline-block",
-              width: "0",
-              height: "0",
-              marginLeft: "8px",
-              verticalAlign: "middle",
-              borderTop: "6px solid #9ca3af",
-              borderRight: "6px solid transparent",
-              borderLeft: "6px solid transparent",
-              transition: "transform 0.2s",
-              transform: dropdownOpen ? "rotate(180deg)" : "rotate(0)",
-            }} />
-          </div>
-
-          {dropdownOpen && (
-            <div
-              style={{
-                position: "absolute",
-                top: "76px",
-                left: 0,
-                width: "100%",
-                backgroundColor: "#111827",
-                border: "1.5px solid #374151",
-                borderRadius: "12px",
-                boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.5)",
-                zIndex: 100000,
-                overflow: "hidden",
-                padding: "6px 0",
-              }}
-            >
-              {EMPLOYEE_TYPE_OPTIONS.map((opt) => {
-                const isChecked = employeeTypes.includes(opt.value);
-                return (
-                  <div
-                    key={opt.value}
-                    onClick={() => handleToggleOption(opt.value)}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "10px",
-                      padding: "10px 14px",
-                      cursor: "pointer",
-                      transition: "background-color 0.2s",
-                      userSelect: "none",
-                      color: "#f9fafb",
-                      backgroundColor: isChecked ? "#1f2937" : "transparent",
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "#1f2937"; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = isChecked ? "#1f2937" : "transparent"; }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={isChecked}
-                      readOnly
-                      style={{
-                        width: "16px",
-                        height: "16px",
-                        accentColor: "#00e5a0",
-                        cursor: "pointer",
-                      }}
-                    />
-                    <span style={{ fontSize: "14px", fontWeight: 500 }}>
-                      {opt.label}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
         {/* Company Name */}
         <div className="df-field">
           <label className="df-label">Company Name</label>
@@ -502,8 +374,8 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
           />
         </div>
 
-        {/* Conditional Select Department */}
-        {(employeeTypes.includes("Department") || employeeTypes.includes("Department1")) && (
+        {/* Select Department Dropdown (shown whenever Department OR Contractor is selected in any module) */}
+        {shouldShowDepartment && (
           <div className="df-field">
             <label className="df-label">
               Select Department <span className="df-required">*</span>
@@ -522,28 +394,8 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
           </div>
         )}
 
-        {/* Conditional Select Department for Observer */}
-        {employeeTypes.includes("Observer") && (
-          <div className="df-field">
-            <label className="df-label">
-              Select Department <span className="df-required">*</span>
-            </label>
-            <select
-              className="df-select"
-              value={obserId}
-              onChange={(e) => setObserId(e.target.value)}
-              required
-            >
-              <option value="">Select Department</option>
-              {departmentList.map((dep) => (
-                <option key={dep.id} value={dep.id}>{dep.departmentName}</option>
-              ))}
-            </select>
-          </div>
-        )}
-
-        {/* Conditional Select Contractor */}
-        {employeeTypes.includes("Subcontractor") && (
+        {/* Select Contractor Dropdown (shown when Contractor is selected in any module) */}
+        {shouldShowContractor && (
           <div className="df-field">
             <label className="df-label">
               Select Contractor <span className="df-required">*</span>
@@ -597,59 +449,31 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
 
         {/* Module Access Checkboxes with Individual User Types */}
         {access && (
-          <div className="df-field" style={{ gridColumn: "1 / -1", marginTop: "4px", marginBottom: "8px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px", flexWrap: "wrap", gap: "6px" }}>
-              <label className="df-label" style={{ margin: 0, fontWeight: "600", color: "#e5e7eb" }}>
+          <div className="df-modules-wrapper">
+            <div className="df-modules-header">
+              <label className="df-modules-title">
                 Module Access Permissions &amp; Assigned User Types
               </label>
-              <span style={{ fontSize: "12px", color: "#9ca3af" }}>
+              <span className="df-modules-subtitle">
                 Select access and assign specific user type per module
               </span>
             </div>
             
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(290px, 1fr))",
-                gap: "12px",
-                padding: "14px 16px",
-                backgroundColor: "#111827",
-                border: "1.5px solid #374151",
-                borderRadius: "12px",
-              }}
-            >
+            <div className="df-modules-grid">
               {MODULE_OPTIONS.map((mod) => {
                 const isChecked = selectedModules.includes(mod.id);
-                const currentRole = moduleUserTypes[mod.id] || employeeTypes[0] || "Department";
+                let currentRole = moduleUserTypes[mod.id] || "Department";
+                if (mod.id === "safety-inspection" && currentRole === "Subcontractor") {
+                  currentRole = "Department";
+                }
 
                 return (
                   <div
                     key={mod.id}
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "10px",
-                      padding: "12px 14px",
-                      borderRadius: "10px",
-                      backgroundColor: isChecked ? "#1f2937" : "rgba(31, 41, 55, 0.4)",
-                      border: isChecked ? "1.5px solid #00e5a0" : "1.5px solid #374151",
-                      transition: "all 0.2s ease",
-                    }}
+                    className={`df-module-card ${isChecked ? "checked" : ""}`}
                   >
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                      <label
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "10px",
-                          cursor: "pointer",
-                          color: isChecked ? "#f9fafb" : "#9ca3af",
-                          fontSize: "14px",
-                          fontWeight: 600,
-                          userSelect: "none",
-                          margin: 0,
-                        }}
-                      >
+                      <label className="df-module-label">
                         <input
                           type="checkbox"
                           checked={isChecked}
@@ -674,22 +498,22 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
                             textTransform: "uppercase",
                             backgroundColor:
                               currentRole === "Observer"
-                                ? "rgba(99, 102, 241, 0.2)"
+                                ? "rgba(99, 102, 241, 0.15)"
                                 : currentRole === "Subcontractor"
-                                ? "rgba(245, 158, 11, 0.2)"
-                                : "rgba(16, 185, 129, 0.2)",
+                                ? "rgba(245, 158, 11, 0.15)"
+                                : "rgba(16, 185, 129, 0.15)",
                             color:
                               currentRole === "Observer"
-                                ? "#818cf8"
+                                ? "#4f46e5"
                                 : currentRole === "Subcontractor"
-                                ? "#fbbf24"
-                                : "#34d399",
+                                ? "#d97706"
+                                : "#059669",
                             border: `1px solid ${
                               currentRole === "Observer"
-                                ? "rgba(99, 102, 241, 0.4)"
+                                ? "rgba(99, 102, 241, 0.35)"
                                 : currentRole === "Subcontractor"
-                                ? "rgba(245, 158, 11, 0.4)"
-                                : "rgba(16, 185, 129, 0.4)"
+                                ? "rgba(245, 158, 11, 0.35)"
+                                : "rgba(16, 185, 129, 0.35)"
                             }`,
                           }}
                         >
@@ -699,26 +523,14 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
                     </div>
 
                     {isChecked && (
-                      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "2px" }}>
-                        <span style={{ fontSize: "12px", color: "#9ca3af", whiteSpace: "nowrap" }}>
+                      <div className="df-module-select-row">
+                        <span className="df-module-select-label">
                           User Type:
                         </span>
                         <select
+                          className="df-module-select"
                           value={mod.id === "permit-to-work" ? currentRole : (currentRole === "Department1" ? "Department" : currentRole)}
                           onChange={(e) => handleModuleUserTypeChange(mod.id, e.target.value)}
-                          style={{
-                            flex: 1,
-                            height: "34px",
-                            backgroundColor: "#111827",
-                            color: "#f9fafb",
-                            border: "1px solid #4b5563",
-                            borderRadius: "8px",
-                            padding: "0 10px",
-                            fontSize: "13px",
-                            fontWeight: 500,
-                            cursor: "pointer",
-                            outline: "none",
-                          }}
                         >
                           {getModuleUserTypeOptions(mod.id).map((opt) => (
                             <option key={opt.value} value={opt.value}>

@@ -166,7 +166,19 @@ export function getSubcategoriesForCategory(categoryName) {
   return ["20.1 Please Fill"];
 }
 
-export default function SafetyIssueModal({ open, onClose, subject, color, itemIndex, initialLocation, initialContractor, initialObservationType, onObservationCreated }) {
+export default function SafetyIssueModal({
+  open,
+  onClose,
+  subject,
+  color,
+  itemIndex,
+  initialLocation,
+  initialContractor,
+  initialObservationType,
+  disablePositive,
+  disableNeedsAttention,
+  onObservationCreated
+}) {
   const fileInputRef = useRef(null);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -185,6 +197,7 @@ export default function SafetyIssueModal({ open, onClose, subject, color, itemIn
   const [selectedRooms, setSelectedRooms] = useState([]);
   const [selectedZone, setSelectedZone] = useState(null);
   const [specificLocation, setSpecificLocation] = useState("");
+  const [locationMapImage, setLocationMapImage] = useState(null);
   const [safetySubcategory, setSafetySubcategory] = useState("");
   const [customOtherText, setCustomOtherText] = useState("");
   const [contractorInvolved, setContractorInvolved] = useState(initialContractor || "");
@@ -218,14 +231,34 @@ export default function SafetyIssueModal({ open, onClose, subject, color, itemIn
     return cleanSubject.includes("other") || (availableSubcategories.length === 1 && availableSubcategories[0]?.includes("Please Fill"));
   }, [subject, availableSubcategories]);
 
+  const isPositiveDisabled = Boolean(
+    disablePositive ||
+    color === "red" ||
+    color === "yellow" ||
+    color === "orange"
+  );
+
+  const isNeedsAttentionDisabled = Boolean(
+    disableNeedsAttention ||
+    color === "green"
+  );
+
   useEffect(() => {
     if (open) {
       setSubjectInput(subject || "");
       setSafetySubcategory(isOtherCategory ? "" : (availableSubcategories[0] || ""));
       setCustomOtherText("");
-      setObservationType(initialObservationType || "");
-      setNatureOfFinding(initialObservationType === "POSITIVE" ? "GOOD_PRACTICE" : "UNSAFE_CONDITION");
-      setRiskLevel("MEDIUM");
+      let resolvedType = initialObservationType;
+      if (isPositiveDisabled) {
+        resolvedType = "NEEDS_ATTENTION";
+      } else if (isNeedsAttentionDisabled) {
+        resolvedType = "POSITIVE";
+      } else if (!resolvedType) {
+        resolvedType = color === "green" ? "POSITIVE" : "NEEDS_ATTENTION";
+      }
+      setObservationType(resolvedType);
+      setNatureOfFinding(resolvedType === "POSITIVE" ? "GOOD_PRACTICE" : "UNSAFE_CONDITION");
+      setRiskLevel(color === "red" ? "HIGH" : (color === "green" ? "LOW" : "MEDIUM"));
       setDescription("");
       setDeadline("");
       setContractorInvolved(initialContractor || "");
@@ -243,7 +276,7 @@ export default function SafetyIssueModal({ open, onClose, subject, color, itemIn
         setSpecificLocation("");
       }
     }
-  }, [open, subject, initialLocation, initialContractor, initialObservationType, availableSubcategories, isOtherCategory]);
+  }, [open, subject, initialLocation, initialContractor, initialObservationType, availableSubcategories, isOtherCategory, isPositiveDisabled, isNeedsAttentionDisabled, color]);
 
   useEffect(() => {
     const loadSelectors = async () => {
@@ -459,6 +492,18 @@ export default function SafetyIssueModal({ open, onClose, subject, color, itemIn
       return;
     }
 
+    if (isPositiveDisabled && observationType === "POSITIVE") {
+      alert("Positive observations cannot be created for red or orange issues.");
+      setObservationType("NEEDS_ATTENTION");
+      return;
+    }
+
+    if (isNeedsAttentionDisabled && observationType === "NEEDS_ATTENTION") {
+      alert("Needs Attention observations cannot be created for Good Practice or green actions.");
+      setObservationType("POSITIVE");
+      return;
+    }
+
     if (observationType === "NEEDS_ATTENTION" && !description && !safetySubcategory) {
       alert("Please provide a description or select a subcategory for this safety observation.");
       return;
@@ -503,6 +548,7 @@ export default function SafetyIssueModal({ open, onClose, subject, color, itemIn
       if (bName) formData.append("buildingName", bName);
       if (level) formData.append("floorLevel", level);
       if (specificLocation) formData.append("specificLocation", specificLocation);
+      if (locationMapImage) formData.append("locationMapImage", locationMapImage);
       if (contractorId) formData.append("assignedContractorId", contractorId);
       if (contractorName) formData.append("assignedContractorName", contractorName);
       if (occurrenceDate) formData.append("observationDate", occurrenceDate);
@@ -541,7 +587,7 @@ export default function SafetyIssueModal({ open, onClose, subject, color, itemIn
   const titleNode = (
     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
       <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: dotColor }}></span>
-      Safety Observation
+      {isNeedsAttentionDisabled || color === 'green' || observationType === 'POSITIVE' ? 'Positive Observation / Good Practice' : 'Safety Observation'}
     </div>
   );
 
@@ -563,35 +609,123 @@ export default function SafetyIssueModal({ open, onClose, subject, color, itemIn
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               <button
                 type="button"
-                onClick={() => { setObservationType("POSITIVE"); setNatureOfFinding("GOOD_PRACTICE"); }}
+                disabled={isPositiveDisabled}
+                onClick={() => {
+                  if (isPositiveDisabled) return;
+                  setObservationType("POSITIVE");
+                  setNatureOfFinding("GOOD_PRACTICE");
+                }}
+                title={
+                  isPositiveDisabled
+                    ? "Positive observation creation is disabled for red and orange issues"
+                    : "Create Positive Observation"
+                }
                 style={{
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
                   padding: "10px 16px",
-                  border: `2px solid ${observationType === "POSITIVE" ? "#7BBE97" : "var(--border-light, #cbd5e1)"}`,
+                  border: isPositiveDisabled
+                    ? "1px dashed var(--border-light, #cbd5e1)"
+                    : `2px solid ${observationType === "POSITIVE" ? "#7BBE97" : "var(--border-light, #cbd5e1)"}`,
                   borderRadius: 8,
-                  background: observationType === "POSITIVE" ? "rgba(123,190,151,0.12)" : "transparent",
-                  color: observationType === "POSITIVE" ? "#2D7A4F" : "var(--text-muted, #64748b)",
-                  cursor: "pointer", fontSize: 13, fontWeight: 600,
+                  background: isPositiveDisabled
+                    ? "#f8fafc"
+                    : observationType === "POSITIVE"
+                    ? "rgba(123,190,151,0.12)"
+                    : "transparent",
+                  color: isPositiveDisabled
+                    ? "#94a3b8"
+                    : observationType === "POSITIVE"
+                    ? "#2D7A4F"
+                    : "var(--text-muted, #64748b)",
+                  cursor: isPositiveDisabled ? "not-allowed" : "pointer",
+                  opacity: isPositiveDisabled ? 0.6 : 1,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  transition: "all 0.2s ease",
                 }}
               >
                 <i className="ti ti-shield-check" style={{ fontSize: 16 }}></i>
-                Positive Observation
+                <span>Positive Observation</span>
+                {isPositiveDisabled && (
+                  <span
+                    style={{
+                      fontSize: "10px",
+                      fontWeight: 700,
+                      background: "#e2e8f0",
+                      color: "#64748b",
+                      padding: "2px 6px",
+                      borderRadius: "4px",
+                      marginLeft: "4px",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.4px",
+                    }}
+                  >
+                    Disabled
+                  </span>
+                )}
               </button>
               <button
                 type="button"
-                onClick={() => { setObservationType("NEEDS_ATTENTION"); setNatureOfFinding("UNSAFE_CONDITION"); }}
+                disabled={isNeedsAttentionDisabled}
+                onClick={() => {
+                  if (isNeedsAttentionDisabled) return;
+                  setObservationType("NEEDS_ATTENTION");
+                  setNatureOfFinding("UNSAFE_CONDITION");
+                }}
+                title={
+                  isNeedsAttentionDisabled
+                    ? "Needs Attention is disabled for Good Practice and green actions"
+                    : "Create Needs Attention Observation"
+                }
                 style={{
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
                   padding: "10px 16px",
-                  border: `2px solid ${observationType === "NEEDS_ATTENTION" ? "#E32B50" : "var(--border-light, #cbd5e1)"}`,
+                  border: isNeedsAttentionDisabled
+                    ? "1px dashed var(--border-light, #cbd5e1)"
+                    : `2px solid ${observationType === "NEEDS_ATTENTION" ? "#E32B50" : "var(--border-light, #cbd5e1)"}`,
                   borderRadius: 8,
-                  background: observationType === "NEEDS_ATTENTION" ? "rgba(227,43,80,0.10)" : "transparent",
-                  color: observationType === "NEEDS_ATTENTION" ? "#E32B50" : "var(--text-muted, #64748b)",
-                  cursor: "pointer", fontSize: 13, fontWeight: 600,
+                  background: isNeedsAttentionDisabled
+                    ? "#f8fafc"
+                    : observationType === "NEEDS_ATTENTION"
+                    ? "rgba(227,43,80,0.10)"
+                    : "transparent",
+                  color: isNeedsAttentionDisabled
+                    ? "#94a3b8"
+                    : observationType === "NEEDS_ATTENTION"
+                    ? "#E32B50"
+                    : "var(--text-muted, #64748b)",
+                  cursor: isNeedsAttentionDisabled ? "not-allowed" : "pointer",
+                  opacity: isNeedsAttentionDisabled ? 0.6 : 1,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  transition: "all 0.2s ease",
                 }}
               >
                 <i className="ti ti-alert-triangle" style={{ fontSize: 16 }}></i>
-                Needs Attention
+                <span>Needs Attention</span>
+                {isNeedsAttentionDisabled && (
+                  <span
+                    style={{
+                      fontSize: "10px",
+                      fontWeight: 700,
+                      background: "#e2e8f0",
+                      color: "#64748b",
+                      padding: "2px 6px",
+                      borderRadius: "4px",
+                      marginLeft: "4px",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.4px",
+                    }}
+                  >
+                    Disabled
+                  </span>
+                )}
               </button>
             </div>
           </div>
@@ -803,6 +937,7 @@ export default function SafetyIssueModal({ open, onClose, subject, color, itemIn
                 selectedRooms={selectedRooms}
                 onRoomsSelected={handleRoomsSelected}
                 roomStatusMap={roomStatusMap}
+                onMapSnapshot={setLocationMapImage}
               />
             </div>
           )}

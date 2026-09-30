@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import PageHeader from "../../../components/common/PageHeader/PageHeader";
 import { observationService } from "../../../services/observationService";
@@ -49,6 +49,23 @@ function SODetails() {
   const isDepartment = allRoles.includes("DEPARTMENT") || allRoles.includes("OPERATOR") || allRoles.includes("SITE_HSE") || allRoles.includes("SAFETY") || allRoles.includes("HSE");
   const isDeptOrAdmin = (isAdmin || isDepartment) && !isContractor && !isObserver;
   const isReadOnly = isObserver;
+
+  // Contractor Resolution & Master lookup (Must be called unconditionally at top of component)
+  const contractorId = currentUser?.typeId || currentUser?.subcontractor_id || currentUser?.subContId || currentUser?.contractorId;
+  const myContractor = useMemo(() => {
+    if (!isContractor) return null;
+    return (
+      contractorsList.find(c => 
+        String(c.id) === String(contractorId) || 
+        String(c.subcontractor_id) === String(contractorId) ||
+        (currentUser?.username && c.username === currentUser.username) ||
+        (currentUser?.company_name && (c.subContractorName === currentUser.company_name || c.company_name === currentUser.company_name)) ||
+        (currentUser?.companyName && (c.subContractorName === currentUser.companyName || c.company_name === currentUser.companyName))
+      ) || (contractorsList.length === 1 ? contractorsList[0] : null)
+    );
+  }, [isContractor, contractorsList, contractorId, currentUser?.company_name, currentUser?.companyName, currentUser?.username]);
+
+  const myContractorName = currentUser?.company_name || currentUser?.companyName || currentUser?.subContractorName || currentUser?.contractorName || myContractor?.subContractorName || myContractor?.company_name || myContractor?.companyName || myContractor?.subcontractor_name || myContractor?.name || "";
 
   const handleDeleteObservation = async () => {
     try {
@@ -109,6 +126,22 @@ function SODetails() {
   const obs = data.observation;
   const history = data.history || [];
   const isPositive = obs.observationType === "POSITIVE";
+
+  // Check if current user is the actively assigned contractor on this observation
+  const isCurrentAssignedContractor = Boolean(
+    isContractor && (
+      (obs?.assignedContractorId && (
+        String(obs.assignedContractorId) === String(contractorId) ||
+        (myContractor?.id && String(obs.assignedContractorId) === String(myContractor.id)) ||
+        (myContractor?.subcontractor_id && String(obs.assignedContractorId) === String(myContractor.subcontractor_id))
+      )) ||
+      (obs?.assignedContractorName && myContractorName && (
+        String(obs.assignedContractorName).trim().toLowerCase() === String(myContractorName).trim().toLowerCase() ||
+        String(obs.assignedContractorName).trim().toLowerCase().includes(String(myContractorName).trim().toLowerCase()) ||
+        String(myContractorName).trim().toLowerCase().includes(String(obs.assignedContractorName).trim().toLowerCase())
+      ))
+    )
+  );
 
   // Action Handlers
   const handleContractorReview = async () => {
@@ -296,34 +329,37 @@ function SODetails() {
 
         {/* Action Buttons Toolbar */}
         <div className="mod-action-toolbar">
-          {/* Download Observation Report (When status is CLOSED) */}
-          {obs.status === "CLOSED" && (
-            <button
-              type="button"
-              className="mod-btn-primary"
-              style={{
-                background: "#0284c7",
-                borderColor: "#0284c7",
-                color: "#fff",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "6px",
-              }}
-              onClick={handleDownloadPdf}
-              disabled={isDownloadingPdf}
-              title="Download Closed Observation PDF"
-            >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="7 10 12 15 17 10" />
-                <line x1="12" y1="15" x2="12" y2="3" />
-              </svg>
-              {isDownloadingPdf ? "Downloading..." : "Download PDF"}
-            </button>
-          )}
+          {/* Download Observation Official PDF Report (Available for all statuses and users) */}
+          <button
+            type="button"
+            className="mod-btn-outline"
+            style={{
+              background: "rgba(2, 132, 199, 0.08)",
+              borderColor: "#0284c7",
+              color: "#0284c7",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              fontWeight: 600,
+            }}
+            onClick={handleDownloadPdf}
+            disabled={isDownloadingPdf}
+            title="Download Safety Observation Official PDF Report"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            {isDownloadingPdf ? "Downloading..." : "Download PDF"}
+          </button>
 
-          {/* Department & Admin Edit Observation Option (Disabled when CLOSED or ESCALATED) */}
-          {String(obs.status || "").toUpperCase() !== "CLOSED" && String(obs.status || "").toUpperCase() !== "ESCALATED" && isDeptOrAdmin && !isReadOnly && (
+          {/* Department & Admin Edit Observation Option (or creator contractor if currently assigned, disabled when CLOSED or ESCALATED) */}
+          {String(obs.status || "").toUpperCase() !== "CLOSED" && String(obs.status || "").toUpperCase() !== "ESCALATED" && !isReadOnly && (
+            isDeptOrAdmin ||
+            (!isContractor && obs.createdByUserId && String(obs.createdByUserId) === String(currentUser?.id)) ||
+            (isContractor && isCurrentAssignedContractor && obs.createdByUserId && String(obs.createdByUserId) === String(currentUser?.id))
+          ) && (
             <button
               type="button"
               className="mod-btn-outline"
@@ -351,8 +387,8 @@ function SODetails() {
             </button>
           )}
 
-          {/* Contractor Accept / Reject (or Admin) */}
-          {(obs.status === "ASSIGNED" || obs.status === "OPEN" || obs.status === "REJECTED") && !isReadOnly && (isContractor || isAdmin) && (
+          {/* Contractor Accept / Reject (ONLY for currently assigned contractor, or Admin) */}
+          {(obs.status === "ASSIGNED" || obs.status === "OPEN" || obs.status === "REJECTED") && !isReadOnly && ((isContractor && isCurrentAssignedContractor) || isAdmin) && (
             <>
               <button
                 className="mod-btn-primary"
@@ -377,8 +413,8 @@ function SODetails() {
             </>
           )}
 
-          {/* Contractor Submit Resolution (or Admin) */}
-          {(obs.status === "ACCEPTED" || obs.status === "IN_PROGRESS") && !isReadOnly && (isContractor || isAdmin) && (
+          {/* Contractor Submit Resolution (ONLY for currently assigned contractor, or Admin) */}
+          {(obs.status === "ACCEPTED" || obs.status === "IN_PROGRESS") && !isReadOnly && ((isContractor && isCurrentAssignedContractor) || isAdmin) && (
             <button className="mod-btn-primary" style={{ background: "#2D7A4F", borderColor: "#2D7A4F", color: "#fff" }} onClick={() => setShowResolveModal(true)}>
               Submit Resolution
             </button>
@@ -423,6 +459,78 @@ function SODetails() {
           )}
         </div>
       </div>
+
+      {/* Informative Status Banner for Previously Involved / Reassigned Contractors */}
+      {isContractor && !isCurrentAssignedContractor && (
+        <div
+          style={{
+            background: "linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(217, 119, 6, 0.12) 100%)",
+            border: "1px solid rgba(245, 158, 11, 0.35)",
+            borderRadius: "10px",
+            padding: "16px 20px",
+            marginTop: "16px",
+            marginBottom: "10px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "14px",
+            flexWrap: "wrap",
+            boxShadow: "0 2px 4px rgba(245, 158, 11, 0.06)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", flex: "1 1 320px" }}>
+            <div
+              style={{
+                width: "36px",
+                height: "36px",
+                borderRadius: "50%",
+                background: "rgba(217, 119, 6, 0.15)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+            </div>
+            <div style={{ fontSize: "13.5px", color: "#92400E", lineHeight: 1.5 }}>
+              <div style={{ fontWeight: 700, fontSize: "14px", marginBottom: "2px" }}>
+                View-Only Observation Access
+              </div>
+              Currently assigned to <strong>{obs.assignedContractorName || "another contractor"}</strong>. As you were previously involved in creating, rejecting, or action logs of this observation, you have full view-only access to track its current status, review timeline history, and download PDF reports. Action buttons are disabled.
+            </div>
+          </div>
+          <button
+            type="button"
+            className="mod-btn-outline"
+            style={{
+              borderColor: "#D97706",
+              color: "#92400E",
+              background: "#ffffff",
+              padding: "8px 16px",
+              fontSize: "13px",
+              fontWeight: 600,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+            }}
+            onClick={handleDownloadPdf}
+            disabled={isDownloadingPdf}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            {isDownloadingPdf ? "Downloading..." : "Download PDF"}
+          </button>
+        </div>
+      )}
 
       <div className="mod-two-col-layout">
         <div>

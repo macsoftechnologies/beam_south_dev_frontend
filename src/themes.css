@@ -469,6 +469,48 @@ html[data-theme="light"] .df-form .df-label {
   color: var(--text-muted) !important;
 }
 
+/* Light mode module access permissions */
+html[data-theme="light"] .df-modules-title {
+  color: var(--text-muted, #6B7280) !important;
+}
+html[data-theme="light"] .df-modules-subtitle {
+  color: #6B7280 !important;
+}
+html[data-theme="light"] .df-modules-grid {
+  background-color: #F8FAFC !important;
+  border-color: #E2E8F0 !important;
+}
+html[data-theme="light"] .df-module-card {
+  background-color: #FFFFFF !important;
+  border-color: #E2E8F0 !important;
+}
+html[data-theme="light"] .df-module-card.checked {
+  background-color: #F0FDF4 !important;
+  border-color: #10B981 !important;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.08) !important;
+}
+html[data-theme="light"] .df-module-label {
+  color: #111827 !important;
+}
+html[data-theme="light"] .df-module-card:not(.checked) .df-module-label {
+  color: #64748B !important;
+}
+html[data-theme="light"] .df-module-select-label {
+  color: #64748B !important;
+}
+html[data-theme="light"] .df-module-select {
+  background-color: #FFFFFF !important;
+  border-color: #CBD5E1 !important;
+  color: #111827 !important;
+}
+html[data-theme="light"] .df-module-select:focus {
+  border-color: #10B981 !important;
+}
+html[data-theme="light"] .df-module-select option {
+  background-color: #FFFFFF !important;
+  color: #111827 !important;
+}
+
 /* Footer divider */
 html[data-theme="light"] .df-form .df-footer {
   border-top-color: var(--border-color) !important;

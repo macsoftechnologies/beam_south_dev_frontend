@@ -420,3 +420,110 @@
   color: var(--text-muted, #9ca3af) !important;
   opacity: 0.7 !important;
 }
+
+/* ─────────────────────────────────────────────
+   18. MODULE ACCESS PERMISSIONS (Theme-Aware)
+───────────────────────────────────────────── */
+.df-modules-wrapper {
+  grid-column: 1 / -1 !important;
+  margin-top: 4px !important;
+  margin-bottom: 8px !important;
+}
+
+.df-modules-header {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  margin-bottom: 8px !important;
+  flex-wrap: wrap !important;
+  gap: 6px !important;
+}
+
+.df-modules-title {
+  margin: 0 !important;
+  font-weight: 700 !important;
+  font-size: 11px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.6px !important;
+  color: var(--text-muted, #9ca3af) !important;
+}
+
+.df-modules-subtitle {
+  font-size: 12px !important;
+  color: var(--text-muted, #9ca3af) !important;
+}
+
+.df-modules-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)) !important;
+  gap: 12px !important;
+  padding: 14px 16px !important;
+  background-color: var(--bg-card-hover, #1f2937) !important;
+  border: 1.5px solid var(--border-color, #374151) !important;
+  border-radius: 12px !important;
+}
+
+.df-module-card {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 10px !important;
+  padding: 12px 14px !important;
+  border-radius: 10px !important;
+  background-color: var(--bg-card, #111827) !important;
+  border: 1.5px solid var(--border-color, #374151) !important;
+  transition: all 0.2s ease !important;
+}
+
+.df-module-card.checked {
+  border-color: var(--accent, #00e5a0) !important;
+  background-color: var(--bg-card, #1f2937) !important;
+  box-shadow: 0 2px 8px rgba(0, 229, 160, 0.08) !important;
+}
+
+.df-module-label {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  cursor: pointer !important;
+  color: var(--text-main, #f9fafb) !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  user-select: none !important;
+  margin: 0 !important;
+}
+
+.df-module-card:not(.checked) .df-module-label {
+  color: var(--text-muted, #9ca3af) !important;
+}
+
+.df-module-select-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  margin-top: 2px !important;
+}
+
+.df-module-select-label {
+  font-size: 12px !important;
+  color: var(--text-muted, #9ca3af) !important;
+  white-space: nowrap !important;
+}
+
+.df-module-select {
+  flex: 1 !important;
+  height: 36px !important;
+  background-color: var(--bg-card, #111827) !important;
+  color: var(--text-main, #f9fafb) !important;
+  border: 1.5px solid var(--border-color, #374151) !important;
+  border-radius: 8px !important;
+  padding: 0 10px !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  cursor: pointer !important;
+  outline: none !important;
+  transition: all 0.2s ease !important;
+}
+
+.df-module-select:focus {
+  border-color: var(--accent, #00e5a0) !important;
+}

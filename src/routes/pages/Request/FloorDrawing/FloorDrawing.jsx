@@ -3,6 +3,7 @@ import ZoneModal from "../ZoneModal";
 
 import "./FloorDrawing.css";
 import ZonePolygonViewer from "../../../components/Zonepolygonviewer";
+import { generateLocationMapSnapshot } from "../../../utils/locationMapSnapshot";
 
 import { showError } from "../../../components/common/Toast/Toast";
 
@@ -13,12 +14,40 @@ function FloorDrawing({
   selectedRooms = [],
   onRoomsSelected,
   roomStatusMap,
+  onMapSnapshot,
 }) {
   const [selectedZone, setSelectedZone] = useState(null);
   const [hoveredZoneId, setHoveredZoneId] = useState(null);
 
   const containerRef = useRef(null);
   const [viewerWidth, setViewerWidth] = useState(800);
+
+  // Automatically generate high-resolution, clear location map snapshot with exact room highlighting
+  useEffect(() => {
+    if (!pdf || !onMapSnapshot) return;
+    let isCancelled = false;
+
+    const timer = setTimeout(async () => {
+      try {
+        const snapshot = await generateLocationMapSnapshot({
+          levelPdf: pdf,
+          zones,
+          selectedRooms,
+          level,
+        });
+        if (!isCancelled && snapshot) {
+          onMapSnapshot(snapshot);
+        }
+      } catch (err) {
+        console.warn("Error generating high-res location map snapshot:", err);
+      }
+    }, 350);
+
+    return () => {
+      isCancelled = true;
+      clearTimeout(timer);
+    };
+  }, [pdf, zones, selectedRooms, level, onMapSnapshot]);
 
   const handleZoneClick = (zone) => {
     if (selectedRooms && selectedRooms.length > 0 && zone && zone.status) {
@@ -104,6 +133,7 @@ function FloorDrawing({
               zones={zones}
               width={viewerWidth}
               selectedZoneId={selectedZone?.id}
+              selectedRooms={selectedRooms}
               onZoneClick={(zone) => setSelectedZone(zone)}
             />
           </div>

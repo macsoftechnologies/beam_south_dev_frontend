@@ -74,6 +74,7 @@ export default function SICreate() {
   const [isLoadingSelectors, setIsLoadingSelectors] = useState(true);
   const [roomStatusMap, setRoomStatusMap] = useState({});
   const [specificLocation, setSpecificLocation] = useState("");
+  const [locationMapImage, setLocationMapImage] = useState(null);
 
   const currentUser = React.useMemo(() => {
     try {
@@ -372,7 +373,13 @@ export default function SICreate() {
       const effectiveSubject = isOther && otherCustomTexts[idx]?.trim()
         ? `20. Other - ${otherCustomTexts[idx].trim()}`
         : CHECKLIST_ITEMS[idx];
-      setSafetyIssueModalData({ subject: effectiveSubject, color, itemIndex: idx });
+      setSafetyIssueModalData({
+        subject: effectiveSubject,
+        color,
+        observationType: 'NEEDS_ATTENTION',
+        disablePositive: true,
+        itemIndex: idx,
+      });
     }
   };
 
@@ -386,6 +393,7 @@ export default function SICreate() {
       subject: effectiveSubject,
       color: 'green',
       observationType: 'POSITIVE',
+      disableNeedsAttention: true,
       itemIndex: idx
     });
     setOpenInfoIdx(null);
@@ -481,7 +489,8 @@ export default function SICreate() {
         createdByUserId: currentUser?.id,
         createdByUserName: currentUser?.name || currentUser?.username || 'Safety Inspector',
         createdByRole: currentUser?.role || 'DEPARTMENT',
-        checklistItems
+        checklistItems,
+        locationMapImage: locationMapImage || undefined
       };
 
       if (isEditMode) {
@@ -592,6 +601,7 @@ export default function SICreate() {
                   selectedRooms={selectedRooms}
                   onRoomsSelected={handleRoomsSelected}
                   roomStatusMap={roomStatusMap}
+                  onMapSnapshot={setLocationMapImage}
                 />
               </div>
             )}
@@ -844,7 +854,13 @@ export default function SICreate() {
                                 const effectiveSubject = isOther && otherCustomTexts[idx]?.trim()
                                   ? `20. Other - ${otherCustomTexts[idx].trim()}`
                                   : CHECKLIST_ITEMS[idx];
-                                setSafetyIssueModalData({ subject: effectiveSubject, color: 'red', itemIndex: idx });
+                                setSafetyIssueModalData({
+                                  subject: effectiveSubject,
+                                  color: 'red',
+                                  observationType: 'NEEDS_ATTENTION',
+                                  disablePositive: true,
+                                  itemIndex: idx,
+                                });
                                 setOpenWrenchIdx(null);
                                 setOpenInfoIdx(null);
                               }}>
@@ -1079,7 +1095,9 @@ export default function SICreate() {
         subject={safetyIssueModalData?.subject}
         color={safetyIssueModalData?.color}
         itemIndex={safetyIssueModalData?.itemIndex}
-        initialObservationType={safetyIssueModalData?.observationType || (safetyIssueModalData?.color === 'green' ? 'POSITIVE' : '')}
+        initialObservationType={safetyIssueModalData?.observationType || (safetyIssueModalData?.color === 'green' ? 'POSITIVE' : 'NEEDS_ATTENTION')}
+        disablePositive={Boolean(safetyIssueModalData?.disablePositive || safetyIssueModalData?.color === 'red' || safetyIssueModalData?.color === 'yellow' || safetyIssueModalData?.color === 'orange')}
+        disableNeedsAttention={Boolean(safetyIssueModalData?.disableNeedsAttention || safetyIssueModalData?.color === 'green')}
         initialLocation={{ building, level, specificLocation, selectedRooms, selectedZone }}
         onObservationCreated={handleObservationCreated}
         onClose={() => setSafetyIssueModalData(null)}

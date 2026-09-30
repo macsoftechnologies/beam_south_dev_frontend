@@ -232,6 +232,7 @@ function SOList() {
         statsParams.userRole = "CONTRACTOR";
         if (contractorId) statsParams.contractorId = contractorId;
         if (myContractorName) statsParams.contractor = myContractorName;
+        if (user?.id) statsParams.userId = user.id;
       }
       if (filterContractor) statsParams.contractor = filterContractor;
       if (filterLocation) statsParams.building = filterLocation;
@@ -286,6 +287,7 @@ function SOList() {
         params.userRole = "CONTRACTOR";
         if (contractorId) params.contractorId = contractorId;
         if (myContractorName) params.contractor = myContractorName;
+        if (user?.id) params.userId = user.id;
       }
       if (filterStatus) params.status = filterStatus;
       if (filterType) params.type = filterType;
@@ -568,13 +570,43 @@ function SOList() {
                       </span>
                     </td>
                     <td>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                         <ContractorLogo
                           logoVal={findContractorLogo(o.assignedContractorName || o.contractor, contractorsList)}
                           name={o.assignedContractorName || o.contractor || "Unassigned"}
                           size={24}
                         />
                         <span>{o.assignedContractorName || o.contractor || "-"}</span>
+                        {isContractor && (
+                          Boolean(
+                            (o.assignedContractorId && (
+                              String(o.assignedContractorId) === String(contractorId) ||
+                              (myContractor?.id && String(o.assignedContractorId) === String(myContractor.id)) ||
+                              (myContractor?.subcontractor_id && String(o.assignedContractorId) === String(myContractor.subcontractor_id))
+                            )) ||
+                            (o.assignedContractorName && myContractorName && (
+                              String(o.assignedContractorName).trim().toLowerCase() === String(myContractorName).trim().toLowerCase() ||
+                              String(o.assignedContractorName).trim().toLowerCase().includes(String(myContractorName).trim().toLowerCase()) ||
+                              String(myContractorName).trim().toLowerCase().includes(String(o.assignedContractorName).trim().toLowerCase())
+                            ))
+                          ) ? null : (
+                            <span
+                              style={{
+                                fontSize: "10.5px",
+                                fontWeight: 700,
+                                padding: "2px 6px",
+                                borderRadius: "4px",
+                                background: "rgba(245, 158, 11, 0.12)",
+                                color: "#D97706",
+                                border: "1px solid rgba(245, 158, 11, 0.3)",
+                                whiteSpace: "nowrap",
+                              }}
+                              title="Reassigned to another contractor. You have view-only access to track this observation."
+                            >
+                              View Only
+                            </span>
+                          )
+                        )}
                       </div>
                     </td>
                     <td>

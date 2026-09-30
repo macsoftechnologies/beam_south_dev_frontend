@@ -21,11 +21,19 @@ export const NEW_MODULE_USER_TYPE_OPTIONS = [
   { value: "Observer",      label: "Observer" },
 ];
 
+export const INSPECTION_USER_TYPE_OPTIONS = [
+  { value: "Department",    label: "Department/HSE" },
+  { value: "Observer",      label: "Observer" },
+];
+
 export const MODULE_USER_TYPE_OPTIONS = NEW_MODULE_USER_TYPE_OPTIONS;
 
 export function getModuleUserTypeOptions(moduleId) {
   if (moduleId === "permit-to-work") {
     return PTW_USER_TYPE_OPTIONS;
+  }
+  if (moduleId === "safety-inspection") {
+    return INSPECTION_USER_TYPE_OPTIONS;
   }
   return NEW_MODULE_USER_TYPE_OPTIONS;
 }

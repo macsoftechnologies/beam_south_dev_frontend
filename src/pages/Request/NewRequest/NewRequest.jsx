@@ -1380,12 +1380,12 @@ function NewRequest() {
         });
         if (levelMatch) return ZONE_MAPPING[levelMatch];
 
-        const lNum = lLower.replace(/[^0-9r]/g, "");
-        if (lNum) {
+        const lDigits = lLower.replace(/\D/g, "");
+        if (lDigits) {
           const numMatch = buildingKeys.find(k => {
             const rest = k.toLowerCase().replace(bLower, "").trim();
-            const kNum = rest.replace(/[^0-9r]/g, "");
-            return kNum === lNum;
+            const kDigits = rest.replace(/\D/g, "");
+            return kDigits && kDigits === lDigits;
           });
           if (numMatch) return ZONE_MAPPING[numMatch];
         }
@@ -2039,20 +2039,40 @@ function NewRequest() {
     // Resolve Floor IDs across selected levels
     const matchedFloorIds = selectedLevelNames.map(lName => {
       const lClean = lName.toLowerCase().trim();
-      const lNum = lClean.replace(/[^0-9r]/g, "");
-      const f = floorsList.find(floor => {
+      // 1. Exact match within building
+      let f = floorsList.find(floor => {
         const isBuildingMatch = String(floor.build_id) === String(building) || String(floor.building_id) === String(building);
         if (!isBuildingMatch) return false;
         const fName = String(floor.floor_name || floor.name || floor.floor || "").toLowerCase().trim();
-        if (fName === lClean) return true;
-        if (lNum && fName.replace(/[^0-9r]/g, "") === lNum) return true;
-        return fName.includes(lClean) || lClean.includes(fName);
+        return fName === lClean;
       });
+      // 2. Exact match across all floors
+      if (!f) {
+        f = floorsList.find(floor => {
+          const fName = String(floor.floor_name || floor.name || floor.floor || "").toLowerCase().trim();
+          return fName === lClean;
+        });
+      }
+      // 3. Substring match within building
+      if (!f) {
+        f = floorsList.find(floor => {
+          const isBuildingMatch = String(floor.build_id) === String(building) || String(floor.building_id) === String(building);
+          if (!isBuildingMatch) return false;
+          const fName = String(floor.floor_name || floor.name || floor.floor || "").toLowerCase().trim();
+          return fName.includes(lClean) || lClean.includes(fName);
+        });
+      }
+      // 4. Substring match across all floors
+      if (!f) {
+        f = floorsList.find(floor => {
+          const fName = String(floor.floor_name || floor.name || floor.floor || "").toLowerCase().trim();
+          return fName.includes(lClean) || lClean.includes(fName);
+        });
+      }
       return f ? String(f.fl_id ?? f.id ?? f.floor_id) : null;
     }).filter(Boolean);
 
     const uniqueFloorIds = Array.from(new Set(matchedFloorIds));
-    const Floor_Id = uniqueFloorIds.join(",");
 
     // Resolve Zone names & Zone IDs across selected levels
     const allSelectedZoneNames = new Set();
@@ -2071,19 +2091,88 @@ function NewRequest() {
     const selectedZoneIds = new Set();
     const resolvedZoneNames = new Set();
 
-    // 1. Resolve directly from selected rooms (using room.zone_id and floor matching)
+    // 1. Resolve directly from selected rooms
     selectedRooms.forEach(token => {
       const parsed = parseRoomToken(token, level);
       const rName = (parsed.roomName || "").toLowerCase().trim();
       const zName = (parsed.zone || "").toLowerCase().trim();
 
-      const foundRoom = roomsList.find(r => 
-        ((r.room_name || r.name || "").toLowerCase().trim() === rName || String(r.room_id ?? r.id) === rName) &&
-        (!building || String(r.building_id) === String(building)) &&
-        (uniqueFloorIds.length === 0 || uniqueFloorIds.includes(String(r.fl_id || r.floor_id || "")))
-      );
+      // 1. Zone match by name (from explicit token zone, e.g. "MU90.1C2")
+      let foundZone = null;
+      if (zName) {
+        foundZone = zonesList.find(z =>
+          (z.zone || z.zone_name || z.name || "").toLowerCase().trim() === zName &&
+          (!building || String(z.building_id || z.build_id || "") === String(building)) &&
+          (uniqueFloorIds.length === 0 || uniqueFloorIds.includes(String(z.floor_id || z.fl_id || "")))
+        );
 
-      if (foundRoom && foundRoom.zone_id) {
+        if (!foundZone) {
+          foundZone = zonesList.find(z =>
+            (z.zone || z.zone_name || z.name || "").toLowerCase().trim() === zName &&
+            (!building || String(z.building_id || z.build_id || "") === String(building))
+          );
+        }
+
+        if (!foundZone) {
+          foundZone = zonesList.find(z =>
+            (z.zone || z.zone_name || z.name || "").toLowerCase().trim() === zName
+          );
+        }
+
+        // Loose zone name match (ignoring separators like '.', '_', ' ', '-')
+        if (!foundZone) {
+          const zNameNorm = zName.replace(/[\s._-]+/g, "");
+          foundZone = zonesList.find(z => {
+            const zn = (z.zone || z.zone_name || z.name || "").toLowerCase().trim().replace(/[\s._-]+/g, "");
+            return zn === zNameNorm;
+          });
+        }
+
+        const zId = foundZone?.id || foundZone?.zone_id || foundZone?.zoneStatusId;
+        if (zId) {
+          selectedZoneIds.add(String(zId));
+          resolvedZoneNames.add(foundZone.zone || foundZone.zone_name || parsed.zone);
+          if (foundZone.floor_id && !uniqueFloorIds.includes(String(foundZone.floor_id))) {
+            uniqueFloorIds.push(String(foundZone.floor_id));
+          }
+        }
+      }
+
+      // 2. Room lookup
+      const targetZoneId = foundZone ? String(foundZone.id ?? foundZone.zone_id ?? foundZone.zoneStatusId) : null;
+      let foundRoom = null;
+      if (targetZoneId) {
+        foundRoom = roomsList.find(r =>
+          ((r.room_name || r.name || "").toLowerCase().trim() === rName || String(r.room_id ?? r.id) === rName) &&
+          String(r.zone_id) === targetZoneId &&
+          (!building || String(r.building_id) === String(building)) &&
+          (uniqueFloorIds.length === 0 || uniqueFloorIds.includes(String(r.fl_id || r.floor_id || "")))
+        );
+      }
+
+      if (!foundRoom) {
+        foundRoom = roomsList.find(r =>
+          ((r.room_name || r.name || "").toLowerCase().trim() === rName || String(r.room_id ?? r.id) === rName) &&
+          (!building || String(r.building_id) === String(building)) &&
+          (uniqueFloorIds.length === 0 || uniqueFloorIds.includes(String(r.fl_id || r.floor_id || "")))
+        );
+      }
+
+      if (!foundRoom) {
+        foundRoom = roomsList.find(r =>
+          ((r.room_name || r.name || "").toLowerCase().trim() === rName || String(r.room_id ?? r.id) === rName) &&
+          (!building || String(r.building_id) === String(building))
+        );
+      }
+
+      if (!foundRoom) {
+        foundRoom = roomsList.find(r =>
+          (r.room_name || r.name || "").toLowerCase().trim() === rName || String(r.room_id ?? r.id) === rName
+        );
+      }
+
+      // 3. Fallback: If NO zone was found from zName, fallback to room's zone_id
+      if (!foundZone && foundRoom && foundRoom.zone_id) {
         selectedZoneIds.add(String(foundRoom.zone_id));
         const foundZ = zonesList.find(z => String(z.id ?? z.zoneStatusId) === String(foundRoom.zone_id));
         if (foundZ && (foundZ.zone || foundZ.zone_name)) {
@@ -2091,17 +2180,8 @@ function NewRequest() {
         }
       }
 
-      if (zName) {
-        const foundZone = zonesList.find(z => 
-          (z.zone || z.zone_name || z.name || "").toLowerCase().trim() === zName &&
-          (!building || String(z.building_id || z.build_id || "") === String(building)) &&
-          (uniqueFloorIds.length === 0 || uniqueFloorIds.includes(String(z.floor_id || z.fl_id || "")))
-        );
-        const zId = foundZone?.id || foundZone?.zone_id || foundZone?.zoneStatusId;
-        if (zId) {
-          selectedZoneIds.add(String(zId));
-          resolvedZoneNames.add(foundZone.zone || foundZone.zone_name || parsed.zone);
-        }
+      if (foundRoom && foundRoom.fl_id && !uniqueFloorIds.includes(String(foundRoom.fl_id))) {
+        uniqueFloorIds.push(String(foundRoom.fl_id));
       }
     });
 
@@ -2112,7 +2192,9 @@ function NewRequest() {
         const isBuildingMatch = !building || String(z.building_id || z.build_id || "") === String(building);
         const isFloorMatch = uniqueFloorIds.length > 0 ? uniqueFloorIds.includes(String(z.floor_id || z.fl_id || "")) : true;
         const zName = (z.zone || z.zone_name || "").toLowerCase().trim();
-        if (isBuildingMatch && isFloorMatch && (selectedZoneNamesLower.length === 0 || selectedZoneNamesLower.includes(zName))) {
+        const zNameNorm = zName.replace(/[\s._-]+/g, "");
+        const isMatch = selectedZoneNamesLower.length === 0 || selectedZoneNamesLower.some(sz => sz === zName || sz.replace(/[\s._-]+/g, "") === zNameNorm);
+        if (isBuildingMatch && isFloorMatch && isMatch) {
           const idVal = z.id ?? z.zoneStatusId ?? z.zone_id;
           if (idVal) {
             selectedZoneIds.add(String(idVal));
@@ -2122,12 +2204,48 @@ function NewRequest() {
       });
     }
 
+    // 3. Fallback: selectedZone from state
+    if (selectedZoneIds.size === 0 && selectedZone) {
+      const zName = selectedZone.name || selectedZone.zone || selectedZone.zone_name;
+      let matchedZ = null;
+      if (zName) {
+        matchedZ = zonesList.find(z =>
+          (z.zone || z.zone_name || "").toLowerCase().trim() === String(zName).toLowerCase().trim() &&
+          (!building || String(z.building_id || z.build_id || "") === String(building))
+        ) || zonesList.find(z => (z.zone || z.zone_name || "").toLowerCase().trim() === String(zName).toLowerCase().trim());
+      }
+      if (matchedZ) {
+        selectedZoneIds.add(String(matchedZ.id ?? matchedZ.zone_id));
+        resolvedZoneNames.add(matchedZ.zone || matchedZ.zone_name || zName);
+      } else if (selectedZone.id && zonesList.some(z => String(z.id) === String(selectedZone.id))) {
+        selectedZoneIds.add(String(selectedZone.id));
+        if (zName) resolvedZoneNames.add(zName);
+      }
+    }
+
+    // 4. Safety fallback: if user selected rooms, grab zone of that floor
+    if (selectedZoneIds.size === 0 && selectedRooms.length > 0) {
+      const floorZones = zonesList.filter(z =>
+        (!building || String(z.building_id || z.build_id || "") === String(building)) &&
+        (uniqueFloorIds.length === 0 || uniqueFloorIds.includes(String(z.floor_id || z.fl_id || "")))
+      );
+      if (floorZones.length > 0) {
+        const firstZ = floorZones[0];
+        const idVal = firstZ.id ?? firstZ.zoneStatusId ?? firstZ.zone_id;
+        if (idVal) {
+          selectedZoneIds.add(String(idVal));
+          resolvedZoneNames.add(firstZ.zone || firstZ.zone_name);
+        }
+      }
+    }
+
     if (selectedZoneIds.size === 0 && isEditMode && editRequest?.Zone_Id) {
       String(editRequest.Zone_Id).split(",").forEach(s => {
         if (s.trim()) selectedZoneIds.add(s.trim());
       });
     }
 
+    const Floor_Id = uniqueFloorIds.join(",");
     const Zone_Id = Array.from(selectedZoneIds).join(",");
     const zoneVal = (resolvedZoneNames.size > 0 ? Array.from(resolvedZoneNames) : uniqueZoneNames).join(",");
 
@@ -2146,7 +2264,12 @@ function NewRequest() {
           const isBuildingMatch = String(f.build_id) === String(building) || String(f.building_id) === String(building);
           if (!isBuildingMatch) return false;
           const fName = String(f.floor_name || f.name || f.floor || "").toLowerCase().trim();
-          return fName === targetLevel.toLowerCase().trim() || fName.includes(targetLevel.toLowerCase().trim());
+          return fName === targetLevel.toLowerCase().trim();
+        }) || floorsList.find(f => {
+          const isBuildingMatch = String(f.build_id) === String(building) || String(f.building_id) === String(building);
+          if (!isBuildingMatch) return false;
+          const fName = String(f.floor_name || f.name || f.floor || "").toLowerCase().trim();
+          return fName.includes(targetLevel.toLowerCase().trim());
         });
         const targetFloorId = matchedFloor ? String(matchedFloor.fl_id ?? matchedFloor.id ?? matchedFloor.floor_id) : null;
 

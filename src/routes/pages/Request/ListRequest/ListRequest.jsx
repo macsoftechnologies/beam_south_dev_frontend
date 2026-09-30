@@ -201,6 +201,7 @@ import {
   getRequestById,
   updateRequest
 } from "../../../services/requestService";
+import { API_BASE_URL } from "../../../services/api";
 import { showSuccess, showError, showDeleteConfirm, showDeleteSuccess } from "../../../components/common/Toast/Toast";
 import Table from "../../../components/common/Table/Table";
 import Modal from "../../../components/common/Modal/Modal";
@@ -297,6 +298,7 @@ const resolveZoneObjectsFromRequest = (row, zonesList = [], roomsList = []) => {
   if (!row) return [];
 
   const matchedZoneMap = new Map();
+  const targetBuildingId = row.Building_Id ? Number(row.Building_Id) : (row.building_id ? Number(row.building_id) : null);
 
   // 1. PRIORITISE database Zone_Id / zone object / zone_name already on row
   const rowZoneIds = [];
@@ -316,7 +318,10 @@ const resolveZoneObjectsFromRequest = (row, zonesList = [], roomsList = []) => {
   }
 
   rowZoneIds.forEach(zId => {
-    const dbZone = zonesList.find(z => String(z.id ?? z.zoneStatusId) === String(zId));
+    const dbZone = zonesList.find(z => 
+      String(z.id ?? z.zoneStatusId) === String(zId) &&
+      (!targetBuildingId || Number(z.building_id || z.build_id) === targetBuildingId)
+    );
     const zName = dbZone ? (dbZone.zone || dbZone.zone_name) : null;
     if (zName) {
       matchedZoneMap.set(zName.toLowerCase().trim(), { Zone_Id: zId, zone: String(zName) });
@@ -331,7 +336,10 @@ const resolveZoneObjectsFromRequest = (row, zonesList = [], roomsList = []) => {
     explicitZoneName.split(',').forEach(zStr => {
       const nameClean = zStr.trim();
       if (nameClean && !matchedZoneMap.has(nameClean.toLowerCase())) {
-        const dbZone = zonesList.find(z => (z.zone || z.zone_name || "").toLowerCase().trim() === nameClean.toLowerCase());
+        const dbZone = zonesList.find(z => 
+          (z.zone || z.zone_name || "").toLowerCase().trim() === nameClean.toLowerCase() &&
+          (!targetBuildingId || Number(z.building_id || z.build_id) === targetBuildingId)
+        );
         const zId = dbZone ? Number(dbZone.id ?? dbZone.zoneStatusId) : null;
         if (zId) {
           matchedZoneMap.set(nameClean.toLowerCase(), { Zone_Id: zId, zone: nameClean });
@@ -405,17 +413,28 @@ const resolveZoneObjectsFromRequest = (row, zonesList = [], roomsList = []) => {
     let zonesToSearch = [];
 
     if (levelKey) {
-      const levelLower = String(levelKey).toLowerCase().trim();
-      const foundKey = Object.keys(ZONE_MAPPING).find(k =>
-        k.toLowerCase().trim().includes(levelLower) || levelLower.includes(k.toLowerCase().trim())
-      );
+      const levelLower = String(levelKey).toLowerCase().trim().replace(/\s+/g, '');
+      const foundKey = Object.keys(ZONE_MAPPING).find(k => {
+        const kClean = k.toLowerCase().trim().replace(/\s+/g, '');
+        return kClean.includes(levelLower) || levelLower.includes(kClean);
+      });
       if (foundKey) {
         zonesToSearch = ZONE_MAPPING[foundKey] || [];
       }
     }
 
     if (zonesToSearch.length === 0) {
-      zonesToSearch = Object.values(ZONE_MAPPING).flat();
+      const bName = (row.building_name || "").toLowerCase().trim();
+      const bPrefix = bName ? bName.split(/\s+/)[0] : "";
+      const relevantKeys = Object.keys(ZONE_MAPPING).filter(k => {
+        const kLower = k.toLowerCase().trim();
+        if (bPrefix && kLower.startsWith(bPrefix)) return true;
+        if (bName && kLower.includes(bName)) return true;
+        return false;
+      });
+      if (relevantKeys.length > 0) {
+        zonesToSearch = relevantKeys.flatMap(k => ZONE_MAPPING[k] || []);
+      }
     }
 
     const mappingZoneNames = [];
@@ -441,7 +460,10 @@ const resolveZoneObjectsFromRequest = (row, zonesList = [], roomsList = []) => {
     mappingZoneNames.forEach(mappingName => {
       const key = mappingName.toLowerCase().trim();
       if (!matchedZoneMap.has(key)) {
-        const dbZone = zonesList.find(z => (z.zone || z.zone_name || "").toLowerCase().trim() === key);
+        const dbZone = zonesList.find(z => 
+          (z.zone || z.zone_name || "").toLowerCase().trim() === key &&
+          (!targetBuildingId || Number(z.building_id || z.build_id) === targetBuildingId)
+        );
         if (dbZone) {
           const zId = Number(dbZone.id ?? dbZone.zoneStatusId);
           matchedZoneMap.set(key, { Zone_Id: zId, zone: dbZone.zone || dbZone.zone_name || mappingName });
@@ -1109,7 +1131,10 @@ const getInitialPage = () => {
   const isAdmin = userRoles.some(r => ["admin", "superadmin"].includes(r));
   const isDept = userRoles.includes("department");
   const isDept1 = userRoles.includes("department1");
-  const isSubcontractor = userRoles.includes("subcontractor");
+  const isSubcontractor = userRoles.includes("subcontractor") ||
+    userRoles.includes("contractor") ||
+    userRoles.includes("sub_contractor") ||
+    userRoles.includes("sub-contractor");;
   const isObserver = userRoles.includes("observer");
   const canBulkAction = isAdmin || isDept || isDept1;
   const isMultiDept = isDept && isDept1;
@@ -2405,8 +2430,7 @@ const getInitialPage = () => {
           row.Request_status !== "Rejected" &&
           row.Request_status !== "Auto-Cancelled" &&
           row.Request_status !== "Auto Cancelled" &&
-          currentUser?.role !== "Observer" &&
-          !isSubcontractor;
+          currentUser?.role !== "Observer";
 
         if (!isStatusAllowed) return false;
         if (isSubcontractor) {

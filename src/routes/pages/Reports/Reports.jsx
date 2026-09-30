@@ -681,17 +681,28 @@ const resolveZoneNameFromRooms = (row) => {
   let zonesToSearch = [];
 
   if (levelKey) {
-    const levelLower = levelKey.toLowerCase().trim();
-    const foundKey = Object.keys(ZONE_MAPPING).find(k =>
-      k.toLowerCase().trim().includes(levelLower) || levelLower.includes(k.toLowerCase().trim())
-    );
+    const levelLower = levelKey.toLowerCase().trim().replace(/\s+/g, '');
+    const foundKey = Object.keys(ZONE_MAPPING).find(k => {
+      const kClean = k.toLowerCase().trim().replace(/\s+/g, '');
+      return kClean.includes(levelLower) || levelLower.includes(kClean);
+    });
     if (foundKey) {
       zonesToSearch = ZONE_MAPPING[foundKey] || [];
     }
   }
 
   if (zonesToSearch.length === 0) {
-    zonesToSearch = Object.values(ZONE_MAPPING).flat();
+    const bName = (row.building_name || "").toLowerCase().trim();
+    const bPrefix = bName ? bName.split(/\s+/)[0] : "";
+    const relevantKeys = Object.keys(ZONE_MAPPING).filter(k => {
+      const kLower = k.toLowerCase().trim();
+      if (bPrefix && kLower.startsWith(bPrefix)) return true;
+      if (bName && kLower.includes(bName)) return true;
+      return false;
+    });
+    if (relevantKeys.length > 0) {
+      zonesToSearch = relevantKeys.flatMap(k => ZONE_MAPPING[k] || []);
+    }
   }
 
   // Find a zoneGroup that contains a room with matching name or ID
@@ -1920,38 +1931,7 @@ const Reports = () => {
               </select>
             </div>
 
-            {/* Row 2: Year | Week */}
-            <div className="df-field">
-              <label className="df-label">Year</label>
-              <select
-                className={`df-select ${filters.reportType === "1" ? "df-readonly" : ""}`}
-                disabled={filters.reportType === "1"}
-                value={filters.year}
-                onChange={(e) => handleYearChange(e.target.value)}
-              >
-                <option value="">Select Year</option>
-                {YEARS.map(y => (
-                  <option key={y} value={y}>{y}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="df-field">
-              <label className="df-label">Week</label>
-              <select
-                className={`df-select ${filters.reportType === "1" || !filters.year ? "df-readonly" : ""}`}
-                disabled={filters.reportType === "1" || !filters.year}
-                value={filters.weekno}
-                onChange={(e) => handleChange("weekno", e.target.value)}
-              >
-                <option value="">Select Week</option>
-                {weeksList.map((wk, idx) => (
-                  <option key={idx} value={wk}>{wk}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Row 3: Working Date range (From) | Working Date range (To) */}
+            {/* Row 1: Working Date range (From) | Working Date range (To) */}
             <div className="df-field">
               <label className="df-label">Working Date range (From)</label>
               <input
@@ -1974,7 +1954,7 @@ const Reports = () => {
               />
             </div>
 
-            {/* Row 4: Building | Level / Floor */}
+            {/* Row 2: Building | Level / Floor */}
             <div className="df-field">
               <label className="df-label">Building</label>
               <MultiSelectDropdown
@@ -1999,7 +1979,7 @@ const Reports = () => {
               />
             </div>
 
-            {/* Row 5: Zones | Rooms */}
+            {/* Row 3: Zones | Rooms */}
             <div className="df-field">
               <label className="df-label">Zones</label>
               <MultiSelectDropdown
@@ -2020,7 +2000,7 @@ const Reports = () => {
               />
             </div>
 
-            {/* Row 6: Contractor | Permit Status */}
+            {/* Row 4: Contractor | Permit Status */}
             <div className="df-field">
               <label className="df-label">Contractor</label>
               {isSubcontractor ? (
@@ -2053,7 +2033,7 @@ const Reports = () => {
               />
             </div>
 
-            {/* Row 7: Start Time | End Time | Night Shift */}
+            {/* Row 5: Start Time | End Time | Night Shift */}
             <div className="df-field--full time-nightshift-grid">
               <div className="df-field">
                 <label className="df-label">Start Time</label>
@@ -2243,7 +2223,7 @@ const Reports = () => {
               </>
             )}
 
-            {/* Row 8: Permit Under | Permit Type */}
+            {/* Row 6: Permit Under | Permit Type */}
             <div className="df-field">
               <label className="df-label">Permit Under</label>
               <select

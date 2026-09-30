@@ -1602,13 +1602,14 @@ function NewRequest() {
   const roomStatusMap = useMemo(() => {
     const mapping = {};
     roomsList.forEach(r => {
+      if (building && String(r.building_id) !== String(building)) return;
       const zoneObj = zonesList.find(z => String(z.id) === String(r.zone_id));
       if (zoneObj && r.room_name) {
         mapping[r.room_name.toLowerCase().trim()] = zoneObj.status;
       }
     });
     return mapping;
-  }, [roomsList, zonesList]);
+  }, [roomsList, zonesList, building]);
 
   const getActiveStatus = (roomsArray) => {
     if (!roomsArray || roomsArray.length === 0) return null;
@@ -1985,11 +1986,20 @@ function NewRequest() {
         const zName = (parts.length === 2 ? parts[0] : "").toLowerCase().trim();
         const rName = (parts.length === 2 ? parts[1] : str).toLowerCase().trim();
 
-        let foundZone = zonesList.find(z => (z.zone || z.zone_name || z.name || "").toLowerCase().trim() === zName);
+        let foundZone = zonesList.find(z => 
+          (z.zone || z.zone_name || z.name || "").toLowerCase().trim() === zName &&
+          (!building || String(z.building_id || z.build_id || "") === String(building))
+        );
         if (!foundZone && rName) {
-          const foundRoomObj = roomsList.find(r => (r.room_name || r.name || "").toLowerCase().trim() === rName);
+          const foundRoomObj = roomsList.find(r => 
+            (r.room_name || r.name || "").toLowerCase().trim() === rName &&
+            (!building || String(r.building_id) === String(building))
+          );
           if (foundRoomObj && foundRoomObj.zone_id) {
-            foundZone = zonesList.find(z => String(z.id || z.zone_id) === String(foundRoomObj.zone_id));
+            foundZone = zonesList.find(z => 
+              String(z.id || z.zone_id) === String(foundRoomObj.zone_id) &&
+              (!building || String(z.building_id || z.build_id || "") === String(building))
+            );
           }
         }
 
@@ -2058,22 +2068,68 @@ function NewRequest() {
     }
 
     const uniqueZoneNames = Array.from(allSelectedZoneNames);
-    const zoneVal = uniqueZoneNames.join(",");
+    const selectedZoneIds = new Set();
+    const resolvedZoneNames = new Set();
 
-    const selectedZoneNamesLower = uniqueZoneNames.map(z => z.toLowerCase().trim());
-    let matchedZoneIds = zonesList
-      .filter(z => {
-        const isBuildingMatch = String(z.building_id || z.build_id || "") === String(building);
+    // 1. Resolve directly from selected rooms (using room.zone_id and floor matching)
+    selectedRooms.forEach(token => {
+      const parsed = parseRoomToken(token, level);
+      const rName = (parsed.roomName || "").toLowerCase().trim();
+      const zName = (parsed.zone || "").toLowerCase().trim();
+
+      const foundRoom = roomsList.find(r => 
+        ((r.room_name || r.name || "").toLowerCase().trim() === rName || String(r.room_id ?? r.id) === rName) &&
+        (!building || String(r.building_id) === String(building)) &&
+        (uniqueFloorIds.length === 0 || uniqueFloorIds.includes(String(r.fl_id || r.floor_id || "")))
+      );
+
+      if (foundRoom && foundRoom.zone_id) {
+        selectedZoneIds.add(String(foundRoom.zone_id));
+        const foundZ = zonesList.find(z => String(z.id ?? z.zoneStatusId) === String(foundRoom.zone_id));
+        if (foundZ && (foundZ.zone || foundZ.zone_name)) {
+          resolvedZoneNames.add(foundZ.zone || foundZ.zone_name);
+        }
+      }
+
+      if (zName) {
+        const foundZone = zonesList.find(z => 
+          (z.zone || z.zone_name || z.name || "").toLowerCase().trim() === zName &&
+          (!building || String(z.building_id || z.build_id || "") === String(building)) &&
+          (uniqueFloorIds.length === 0 || uniqueFloorIds.includes(String(z.floor_id || z.fl_id || "")))
+        );
+        const zId = foundZone?.id || foundZone?.zone_id || foundZone?.zoneStatusId;
+        if (zId) {
+          selectedZoneIds.add(String(zId));
+          resolvedZoneNames.add(foundZone.zone || foundZone.zone_name || parsed.zone);
+        }
+      }
+    });
+
+    // 2. Fallback: If no zone IDs resolved from rooms, match zone name strictly filtered by building AND floor
+    if (selectedZoneIds.size === 0) {
+      const selectedZoneNamesLower = uniqueZoneNames.map(z => z.toLowerCase().trim());
+      zonesList.forEach(z => {
+        const isBuildingMatch = !building || String(z.building_id || z.build_id || "") === String(building);
+        const isFloorMatch = uniqueFloorIds.length > 0 ? uniqueFloorIds.includes(String(z.floor_id || z.fl_id || "")) : true;
         const zName = (z.zone || z.zone_name || "").toLowerCase().trim();
-        return selectedZoneNamesLower.length > 0 ? selectedZoneNamesLower.includes(zName) : true;
-      })
-      .map(z => String(z.id ?? z.zoneStatusId));
-
-    if (matchedZoneIds.length === 0 && isEditMode && editRequest?.Zone_Id) {
-      matchedZoneIds = String(editRequest.Zone_Id).split(",").map(s => s.trim()).filter(Boolean);
+        if (isBuildingMatch && isFloorMatch && (selectedZoneNamesLower.length === 0 || selectedZoneNamesLower.includes(zName))) {
+          const idVal = z.id ?? z.zoneStatusId ?? z.zone_id;
+          if (idVal) {
+            selectedZoneIds.add(String(idVal));
+            resolvedZoneNames.add(z.zone || z.zone_name);
+          }
+        }
+      });
     }
 
-    const Zone_Id = Array.from(new Set(matchedZoneIds)).join(",");
+    if (selectedZoneIds.size === 0 && isEditMode && editRequest?.Zone_Id) {
+      String(editRequest.Zone_Id).split(",").forEach(s => {
+        if (s.trim()) selectedZoneIds.add(s.trim());
+      });
+    }
+
+    const Zone_Id = Array.from(selectedZoneIds).join(",");
+    const zoneVal = (resolvedZoneNames.size > 0 ? Array.from(resolvedZoneNames) : uniqueZoneNames).join(",");
 
     // Resolve Room IDs across selected levels
     let Room_Nos = "";
@@ -2239,7 +2295,7 @@ function NewRequest() {
     console.log("[Room_Nos Debug]", {
       selectedRooms,
       Floor_Id,
-      matchedZoneIds,
+      Zone_Id,
       roomsList: roomsList.slice(0, 5),
       Room_Nos,
     });

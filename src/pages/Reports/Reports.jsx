@@ -681,17 +681,28 @@ const resolveZoneNameFromRooms = (row) => {
   let zonesToSearch = [];
 
   if (levelKey) {
-    const levelLower = levelKey.toLowerCase().trim();
-    const foundKey = Object.keys(ZONE_MAPPING).find(k =>
-      k.toLowerCase().trim().includes(levelLower) || levelLower.includes(k.toLowerCase().trim())
-    );
+    const levelLower = levelKey.toLowerCase().trim().replace(/\s+/g, '');
+    const foundKey = Object.keys(ZONE_MAPPING).find(k => {
+      const kClean = k.toLowerCase().trim().replace(/\s+/g, '');
+      return kClean.includes(levelLower) || levelLower.includes(kClean);
+    });
     if (foundKey) {
       zonesToSearch = ZONE_MAPPING[foundKey] || [];
     }
   }
 
   if (zonesToSearch.length === 0) {
-    zonesToSearch = Object.values(ZONE_MAPPING).flat();
+    const bName = (row.building_name || "").toLowerCase().trim();
+    const bPrefix = bName ? bName.split(/\s+/)[0] : "";
+    const relevantKeys = Object.keys(ZONE_MAPPING).filter(k => {
+      const kLower = k.toLowerCase().trim();
+      if (bPrefix && kLower.startsWith(bPrefix)) return true;
+      if (bName && kLower.includes(bName)) return true;
+      return false;
+    });
+    if (relevantKeys.length > 0) {
+      zonesToSearch = relevantKeys.flatMap(k => ZONE_MAPPING[k] || []);
+    }
   }
 
   // Find a zoneGroup that contains a room with matching name or ID

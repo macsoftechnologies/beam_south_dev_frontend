@@ -10,7 +10,7 @@ export async function generateObservationClientPdf(data, fileName = "Safety_Obse
   const obs = data?.observation || data || {};
   const history = Array.isArray(data?.history) ? data.history : [];
 
-  const isPositive = obs.observationType === "POSITIVE";
+  const isPositive = String(obs.observationType || "").toUpperCase() === "POSITIVE" || String(obs.type || "").toUpperCase() === "POSITIVE";
   const obsRef = obs.observationNumber || `SO-${obs.id || "Report"}`;
 
   const parseArray = (val) => {
@@ -61,9 +61,39 @@ export async function generateObservationClientPdf(data, fileName = "Safety_Obse
   const photos = (await Promise.all(rawPhotos.map((p) => toBase64(resolvePhotoUrl(p))))).filter(Boolean);
   const resolutionPhotos = (await Promise.all(rawResolutionPhotos.map((p) => toBase64(resolvePhotoUrl(p))))).filter(Boolean);
   const closureSignature = obs.closureSignature ? await toBase64(resolvePhotoUrl(obs.closureSignature)) : "";
+  const locationMapImage = obs.locationMapImage ? await toBase64(resolvePhotoUrl(obs.locationMapImage)) : "";
+
+  let closedByName = obs.closedBy;
+  if (!closedByName || closedByName.trim() === "HSE Department" || closedByName.trim() === "HSE Lead / Site Manager") {
+    closedByName = obs.createdByUserName || "Safety Inspector";
+  }
+
+  const finalClosureTime = obs.closedTime || obs.createdTime || obs.updatedTime;
+  const finalClosureComments = obs.closureComments || "Observation verified, documented, and closed in accordance with applicable project HSE requirements.";
+
+  const rawHistory = [...(history || [])];
+  if (isPositive) {
+    const existingClosedLog = rawHistory.find((l) => String(l.actionType || "").toUpperCase() === "CLOSED");
+    if (existingClosedLog) {
+      existingClosedLog.timestamp = finalClosureTime;
+      existingClosedLog.remarks = finalClosureComments;
+      if (!existingClosedLog.performedByUserName || existingClosedLog.performedByUserName === "System") {
+        existingClosedLog.performedByUserName = closedByName;
+      }
+    } else {
+      rawHistory.push({
+        actionType: "CLOSED",
+        performedByUserName: closedByName,
+        performedByUserRole: obs.createdByRole || "DEPARTMENT",
+        timestamp: finalClosureTime,
+        remarks: finalClosureComments,
+        photos: [],
+      });
+    }
+  }
 
   const resolvedHistory = await Promise.all(
-    history.map(async (log) => {
+    rawHistory.map(async (log) => {
       const logPhotos = parseArray(log.photos);
       const resolvedLogPhotos = (await Promise.all(logPhotos.map((p) => toBase64(resolvePhotoUrl(p))))).filter(Boolean);
       return {
@@ -189,10 +219,24 @@ export async function generateObservationClientPdf(data, fileName = "Safety_Obse
       </table>
     </div>
 
+    ${locationMapImage ? `
+    <div style="margin-bottom: 12px; border: 1px solid #cbd5e1; border-radius: 4px; padding: 4px; background: #f8fafc; page-break-inside: avoid; break-inside: avoid;">
+      <div style="font-size: 8px; font-weight: 700; color: #1e293b; display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px; padding: 0 2px;">
+        <span style="display: flex; align-items: center; gap: 4px;">
+          <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #16a34a;"></span>
+          Location Floor Map &bull; ${obs.buildingName || 'Building'} ${obs.floorLevel ? `(${obs.floorLevel})` : ''}
+        </span>
+        <span style="font-size: 7.5px; color: #64748b; font-weight: 600;">Zone / Specific Work Area</span>
+      </div>
+      <div style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 3px; overflow: hidden; width: 100%;">
+        <img src="${locationMapImage}" style="width: 100%; height: auto; display: block;" alt="Location Map" />
+      </div>
+    </div>` : ''}
+
     <!-- Finding & Observations -->
     <div style="border: 1px solid #cbd5e1; border-radius: 4px; margin-bottom: 12px; overflow: hidden;">
       <div style="background: #1e293b; color: #fff; padding: 5px 10px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
-        Finding Description &amp; Immediate Action
+        Finding Description
       </div>
       <div style="padding: 8px 10px;">
         <div style="font-weight: 700; color: #475569; margin-bottom: 3px;">Detailed Description:</div>
@@ -237,26 +281,19 @@ export async function generateObservationClientPdf(data, fileName = "Safety_Obse
     <!-- Sign-off & Closure Verification -->
     <div style="border: 1px solid #cbd5e1; border-radius: 4px; margin-bottom: 12px; overflow: hidden;">
       <div style="background: #1e293b; color: #fff; padding: 5px 10px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
-        HSE Department Sign-off &amp; Final Closure
+        Verification &amp; Final Closure
       </div>
       <table style="width: 100%; border-collapse: collapse; font-size: 10.5px;">
         <tr>
           <td style="width: 22%; background: #f8fafc; font-weight: 600; color: #475569; padding: 5px 8px; border: 1px solid #e2e8f0;">Closed By</td>
-          <td style="width: 28%; padding: 5px 8px; border: 1px solid #e2e8f0; font-weight: 700;">${obs.closedBy || "HSE Department"}</td>
+          <td style="width: 28%; padding: 5px 8px; border: 1px solid #e2e8f0; font-weight: 700;">${closedByName}</td>
           <td style="width: 22%; background: #f8fafc; font-weight: 600; color: #475569; padding: 5px 8px; border: 1px solid #e2e8f0;">Closure Date &amp; Time</td>
-          <td style="width: 28%; padding: 5px 8px; border: 1px solid #e2e8f0; font-weight: 700;">${formatDateTime(obs.closedTime || obs.updatedTime)}</td>
+          <td style="width: 28%; padding: 5px 8px; border: 1px solid #e2e8f0; font-weight: 700;">${formatDateTime(finalClosureTime)}</td>
         </tr>
         <tr>
           <td style="background: #f8fafc; font-weight: 600; color: #475569; padding: 5px 8px; border: 1px solid #e2e8f0;">Closure Verification Comments</td>
-          <td colspan="3" style="padding: 5px 8px; border: 1px solid #e2e8f0;">${obs.closureComments || "Observation verified, documented, and closed in accordance with applicable project HSE requirements."}</td>
+          <td colspan="3" style="padding: 5px 8px; border: 1px solid #e2e8f0;">${finalClosureComments}</td>
         </tr>
-        ${closureSignature ? `
-        <tr>
-          <td style="background: #f8fafc; font-weight: 600; color: #475569; padding: 5px 8px; border: 1px solid #e2e8f0; vertical-align: middle;">Digital Signature</td>
-          <td colspan="3" style="padding: 5px 8px; border: 1px solid #e2e8f0;">
-            <img src="${closureSignature}" style="max-height: 48px; object-fit: contain;" alt="Closure Signature" />
-          </td>
-        </tr>` : ""}
       </table>
     </div>
 

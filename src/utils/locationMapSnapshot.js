@@ -243,8 +243,22 @@ export async function generateLocationMapSnapshot({
         }
 
         // 5. Create Master Canvas
+        const hasRoomDetail = Boolean(roomDrawingCanvas && cropRect);
+        const overviewAspect = overviewCanvas.width / (overviewCanvas.height || 1);
+        // Floor plans with more height than width (portrait / vertical strip, e.g. MR building)
+        // are placed side-by-side with the room detail to avoid large horizontal empty gaps.
+        // Floor plans with more width than height (landscape / horizontal, e.g. JF building)
+        // are stacked up-and-down so both plans stretch across the full width.
+        const isVerticalFloor = overviewAspect < 1.15;
+
         const MASTER_W = 1600;
-        const MASTER_H = 720;
+        let MASTER_H;
+        if (hasRoomDetail) {
+            MASTER_H = isVerticalFloor ? 960 : 1120;
+        } else {
+            MASTER_H = isVerticalFloor ? 1000 : 720;
+        }
+
         const masterCanvas = document.createElement("canvas");
         masterCanvas.width = MASTER_W;
         masterCanvas.height = MASTER_H;
@@ -276,61 +290,110 @@ export async function generateLocationMapSnapshot({
 
         const contentY = HEADER_H;
         const contentH = MASTER_H - HEADER_H;
+        const SUBHEADER_H = 32;
 
-        if (roomDrawingCanvas && cropRect) {
-            // ── 2-PANEL COMPOSITE ──
-            // Left Panel: Overview (38% width)
-            // Right Panel: Specific Work Area Room Detail (62% width)
-            const splitX = Math.round(MASTER_W * 0.38);
+        if (hasRoomDetail) {
+            if (isVerticalFloor) {
+                // ── SIDE-BY-SIDE FORMAT (FOR TALL / PORTRAIT FLOOR PLANS) ──
+                // Left Column: Building Zone Overview (Vertical)
+                // Right Column: Specific Work Area Detail
+                const col1W = Math.round(MASTER_W * 0.38); // ~608px
+                const col2W = MASTER_W - col1W;            // ~992px
+                const splitX = col1W;
 
-            // Left sub-header
-            mCtx.fillStyle = "#f8fafc";
-            mCtx.fillRect(0, contentY, splitX, 30);
-            mCtx.fillStyle = "#334155";
-            mCtx.font = "bold 12px -apple-system, BlinkMacSystemFont, sans-serif";
-            mCtx.fillText(`BUILDING OVERVIEW — ${activeZone ? activeZone.name : "ZONE"}`, 16, contentY + 15);
+                // Left: Building Overview
+                mCtx.fillStyle = "#f8fafc";
+                mCtx.fillRect(0, contentY, col1W, SUBHEADER_H);
+                mCtx.fillStyle = "#334155";
+                mCtx.font = "bold 13px -apple-system, BlinkMacSystemFont, sans-serif";
+                mCtx.textBaseline = "middle";
+                mCtx.fillText(`BUILDING OVERVIEW — ${activeZone ? activeZone.name : "ZONE"}`, 16, contentY + SUBHEADER_H / 2);
 
-            // Draw Overview fitted into Left Panel
-            const oTargetX = 12;
-            const oTargetY = contentY + 34;
-            const oTargetW = splitX - 24;
-            const oTargetH = contentH - 44;
-            drawContained(mCtx, overviewCanvas, 0, 0, overviewCanvas.width, overviewCanvas.height, oTargetX, oTargetY, oTargetW, oTargetH);
+                const oTargetX = 14;
+                const oTargetY = contentY + SUBHEADER_H + 6;
+                const oTargetW = col1W - 28;
+                const oTargetH = contentH - SUBHEADER_H - 12;
+                drawContained(mCtx, overviewCanvas, 0, 0, overviewCanvas.width, overviewCanvas.height, oTargetX, oTargetY, oTargetW, oTargetH);
 
-            // Vertical divider line
-            mCtx.strokeStyle = "#cbd5e1";
-            mCtx.lineWidth = 1.5;
-            mCtx.beginPath();
-            mCtx.moveTo(splitX, contentY);
-            mCtx.lineTo(splitX, MASTER_H);
-            mCtx.stroke();
+                // Vertical divider line between columns
+                mCtx.strokeStyle = "#cbd5e1";
+                mCtx.lineWidth = 2;
+                mCtx.beginPath();
+                mCtx.moveTo(splitX, contentY);
+                mCtx.lineTo(splitX, MASTER_H);
+                mCtx.stroke();
 
-            // Right sub-header
-            mCtx.fillStyle = "#f8fafc";
-            mCtx.fillRect(splitX, contentY, MASTER_W - splitX, 30);
-            mCtx.fillStyle = "#15803d";
-            mCtx.font = "bold 12px -apple-system, BlinkMacSystemFont, sans-serif";
-            mCtx.fillText(`🎯 SPECIFIC WORK AREA — ROOM ${roomNames.join(", ")}`, splitX + 16, contentY + 15);
+                // Right: Specific Work Area
+                mCtx.fillStyle = "#f8fafc";
+                mCtx.fillRect(splitX, contentY, col2W, SUBHEADER_H);
+                mCtx.fillStyle = "#15803d";
+                mCtx.font = "bold 13px -apple-system, BlinkMacSystemFont, sans-serif";
+                mCtx.textBaseline = "middle";
+                mCtx.fillText(`🎯 SPECIFIC WORK AREA — ROOM ${roomNames.join(", ")}`, splitX + 16, contentY + SUBHEADER_H / 2);
 
-            // Draw Room Drawing fitted into Right Panel
-            const rTargetX = splitX + 12;
-            const rTargetY = contentY + 34;
-            const rTargetW = (MASTER_W - splitX) - 24;
-            const rTargetH = contentH - 44;
-            drawContained(mCtx, roomDrawingCanvas, cropRect.x, cropRect.y, cropRect.w, cropRect.h, rTargetX, rTargetY, rTargetW, rTargetH);
+                const rTargetX = splitX + 14;
+                const rTargetY = contentY + SUBHEADER_H + 6;
+                const rTargetW = col2W - 28;
+                const rTargetH = contentH - SUBHEADER_H - 12;
+                drawContained(mCtx, roomDrawingCanvas, cropRect.x, cropRect.y, cropRect.w, cropRect.h, rTargetX, rTargetY, rTargetW, rTargetH);
+            } else {
+                // ── UP-AND-DOWN FORMAT (FOR WIDE / LANDSCAPE FLOOR PLANS) ──
+                // Top Row: Building Zone Overview (Full Width)
+                // Bottom Row: Specific Work Area Detail (Full Width)
+                const row1H = Math.round(contentH * 0.44); // ~474px
+                const row2H = contentH - row1H;            // ~604px
+                const splitY = contentY + row1H;
+
+                // Top Row: Building Overview
+                mCtx.fillStyle = "#f8fafc";
+                mCtx.fillRect(0, contentY, MASTER_W, SUBHEADER_H);
+                mCtx.fillStyle = "#334155";
+                mCtx.font = "bold 13px -apple-system, BlinkMacSystemFont, sans-serif";
+                mCtx.textBaseline = "middle";
+                mCtx.fillText(`BUILDING OVERVIEW — ${activeZone ? activeZone.name : "ZONE"}`, 16, contentY + SUBHEADER_H / 2);
+
+                const oTargetX = 14;
+                const oTargetY = contentY + SUBHEADER_H + 6;
+                const oTargetW = MASTER_W - 28;
+                const oTargetH = row1H - SUBHEADER_H - 12;
+                drawContained(mCtx, overviewCanvas, 0, 0, overviewCanvas.width, overviewCanvas.height, oTargetX, oTargetY, oTargetW, oTargetH);
+
+                // Horizontal divider line between rows
+                mCtx.strokeStyle = "#cbd5e1";
+                mCtx.lineWidth = 2;
+                mCtx.beginPath();
+                mCtx.moveTo(0, splitY);
+                mCtx.lineTo(MASTER_W, splitY);
+                mCtx.stroke();
+
+                // Bottom Row: Specific Work Area
+                mCtx.fillStyle = "#f8fafc";
+                mCtx.fillRect(0, splitY, MASTER_W, SUBHEADER_H);
+                mCtx.fillStyle = "#15803d";
+                mCtx.font = "bold 13px -apple-system, BlinkMacSystemFont, sans-serif";
+                mCtx.textBaseline = "middle";
+                mCtx.fillText(`🎯 SPECIFIC WORK AREA — ROOM ${roomNames.join(", ")}`, 16, splitY + SUBHEADER_H / 2);
+
+                const rTargetX = 14;
+                const rTargetY = splitY + SUBHEADER_H + 6;
+                const rTargetW = MASTER_W - 28;
+                const rTargetH = row2H - SUBHEADER_H - 12;
+                drawContained(mCtx, roomDrawingCanvas, cropRect.x, cropRect.y, cropRect.w, cropRect.h, rTargetX, rTargetY, rTargetW, rTargetH);
+            }
         } else {
             // ── FULL WIDTH OVERVIEW ──
-            // Sub-header
+            const SUBHEADER_H = 32;
             mCtx.fillStyle = "#f8fafc";
-            mCtx.fillRect(0, contentY, MASTER_W, 30);
+            mCtx.fillRect(0, contentY, MASTER_W, SUBHEADER_H);
             mCtx.fillStyle = "#334155";
-            mCtx.font = "bold 12px -apple-system, BlinkMacSystemFont, sans-serif";
-            mCtx.fillText(`BUILDING FLOOR PLAN OVERVIEW — ${activeZone ? activeZone.name : "ZONE AREA"}`, 16, contentY + 15);
+            mCtx.font = "bold 13px -apple-system, BlinkMacSystemFont, sans-serif";
+            mCtx.textBaseline = "middle";
+            mCtx.fillText(`BUILDING FLOOR PLAN OVERVIEW — ${activeZone ? activeZone.name : "ZONE AREA"}`, 16, contentY + SUBHEADER_H / 2);
 
             const oTargetX = 16;
-            const oTargetY = contentY + 36;
+            const oTargetY = contentY + SUBHEADER_H + 6;
             const oTargetW = MASTER_W - 32;
-            const oTargetH = contentH - 48;
+            const oTargetH = contentH - SUBHEADER_H - 12;
             drawContained(mCtx, overviewCanvas, 0, 0, overviewCanvas.width, overviewCanvas.height, oTargetX, oTargetY, oTargetW, oTargetH);
         }
 

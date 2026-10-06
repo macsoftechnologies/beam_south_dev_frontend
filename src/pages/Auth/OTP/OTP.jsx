@@ -29,6 +29,13 @@ const ACTIVE_DIVISION = "north"; // ← change to match Login.jsx
 // ────────────────────────────────────────────────────────────────────
 
 const OTP_LENGTH = 6;
+const RESEND_TIMER_SECONDS = 180; // 3 minutes
+
+const formatTimer = (totalSeconds) => {
+  const mins = Math.floor(totalSeconds / 60);
+  const secs = totalSeconds % 60;
+  return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+};
 
 export default function OTP() {
   if (isTokenValid()) {
@@ -79,7 +86,7 @@ export default function OTP() {
   const [error, setError] = useState("");
   const [resent, setResent] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
-  const [timer, setTimer] = useState(30);
+  const [timer, setTimer] = useState(RESEND_TIMER_SECONDS);
   const [canResend, setCanResend] = useState(false);
 
   const inputRefs = useRef([]);
@@ -259,7 +266,7 @@ export default function OTP() {
       // Fallback: just show a message directing user to login again
       setResent(true);
       setCanResend(false);
-      setTimer(30);
+      setTimer(RESEND_TIMER_SECONDS);
       setDigits(Array(OTP_LENGTH).fill(""));
       inputRefs.current[0]?.focus();
       showSuccess("Please go back to login to request a new OTP.");
@@ -411,7 +418,7 @@ export default function OTP() {
               </button>
             ) : (
               <span className="resend-timer">
-                Resend in <strong>{timer}s</strong>
+                Resend in <strong>{formatTimer(timer)}</strong>
               </span>
             )}
           </div>

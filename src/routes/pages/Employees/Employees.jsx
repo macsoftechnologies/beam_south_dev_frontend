@@ -451,8 +451,9 @@ const Employees = () => {
           const rawTypes = selectedEmployee.userType ? String(selectedEmployee.userType).split(",").map(t => t.trim()).filter(Boolean) : [];
           const formattedTypes = rawTypes.map(t => EMPLOYEE_TYPE_LABELS[t] || t);
 
-          const otpType = String(selectedEmployee.otpNotificationType || selectedEmployee.otp_notification_type || "SMS").toUpperCase();
-          const isEmailOtp = otpType === "EMAIL";
+          const rawOtp = String(selectedEmployee.otpNotificationType || selectedEmployee.otp_notification_type || "SMS").toUpperCase();
+          const isBothOtp = rawOtp === "BOTH" || rawOtp === "ALL" || (rawOtp.includes("EMAIL") && rawOtp.includes("SMS"));
+          const isEmailOtp = rawOtp === "EMAIL";
 
           const deptName = departments.find(d => Number(d.id) === Number(selectedEmployee.departId))?.departmentName;
           const contractorName = contractors.find(s => Number(s.id) === Number(selectedEmployee.subContId))?.subContractorName;
@@ -483,9 +484,16 @@ const Employees = () => {
                 </div>
 
                 <div className="emp-hero-right">
-                  <span className={`emp-pill ${isEmailOtp ? "emp-pill--email" : "emp-pill--sms"}`}>
-                    {isEmailOtp ? "✉ OTP via Email" : "💬 OTP via SMS"}
-                  </span>
+                  {isBothOtp ? (
+                    <>
+                      <span className="emp-pill emp-pill--email">✉ Email</span>
+                      <span className="emp-pill emp-pill--sms">💬 SMS</span>
+                    </>
+                  ) : isEmailOtp ? (
+                    <span className="emp-pill emp-pill--email">✉ OTP via Email</span>
+                  ) : (
+                    <span className="emp-pill emp-pill--sms">💬 OTP via SMS</span>
+                  )}
                   <StatusBadge status={selectedEmployee.access === "1" || selectedEmployee.access === true} />
                 </div>
               </div>
@@ -564,10 +572,20 @@ const Employees = () => {
 
                 <div className="dept-view-item">
                   <span className="dept-view-label">Login OTP Delivery</span>
-                  <div className="dept-view-value">
-                    <span className={`emp-pill ${isEmailOtp ? "emp-pill--email" : "emp-pill--sms"}`}>
-                      {isEmailOtp ? "Email (OTP sent to registered email)" : "Mobile SMS (Twilio SMS)"}
-                    </span>
+                  <div className="dept-view-value" style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                    {isBothOtp ? (
+                      <span className="emp-pill" style={{ background: "rgba(99, 102, 241, 0.12)", color: "#4f46e5", border: "1px solid rgba(99, 102, 241, 0.25)" }}>
+                        Email &amp; Mobile SMS (Dual Dispatch)
+                      </span>
+                    ) : isEmailOtp ? (
+                      <span className="emp-pill emp-pill--email">
+                        Email (OTP sent to registered email)
+                      </span>
+                    ) : (
+                      <span className="emp-pill emp-pill--sms">
+                        Mobile SMS (Twilio SMS)
+                      </span>
+                    )}
                   </div>
                 </div>
 

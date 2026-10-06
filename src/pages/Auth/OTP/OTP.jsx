@@ -70,7 +70,9 @@ export default function OTP() {
   })();
   const maskedPhone = tempUser?.maskedPhone || "";
   const maskedEmail = tempUser?.maskedEmail || "";
-  const isEmailOtp = String(tempUser?.otpNotificationType || "").toUpperCase() === "EMAIL" || (!maskedPhone && !!maskedEmail);
+  const rawOtpType = String(tempUser?.otpNotificationType || "").toUpperCase();
+  const isBothOtp = rawOtpType === "BOTH" || (rawOtpType.includes("EMAIL") && rawOtpType.includes("SMS")) || (Boolean(maskedEmail) && Boolean(maskedPhone) && rawOtpType !== "EMAIL" && rawOtpType !== "SMS" && rawOtpType !== "");
+  const isEmailOnly = rawOtpType === "EMAIL" || (!isBothOtp && !maskedPhone && Boolean(maskedEmail));
 
   const [digits, setDigits] = useState(Array(OTP_LENGTH).fill(""));
   const [loading, setLoading] = useState(false);
@@ -316,15 +318,17 @@ export default function OTP() {
 
           <p className="otp-instruction">
             We've sent a <strong>6-digit security code</strong> to your registered{" "}
-            {isEmailOtp ? (
+            {isBothOtp ? (
               <>
-                email address
-                {maskedEmail ? <> (<strong>{maskedEmail}</strong>)</> : ""}
+                email address{maskedEmail ? <> (<strong>{maskedEmail}</strong>)</> : ""} and phone number{maskedPhone ? <> ending in <strong>{maskedPhone}</strong></> : ""}
+              </>
+            ) : isEmailOnly ? (
+              <>
+                email address{maskedEmail ? <> (<strong>{maskedEmail}</strong>)</> : ""}
               </>
             ) : (
               <>
-                phone number
-                {maskedPhone ? <> ending in <strong>{maskedPhone}</strong></> : ""}
+                phone number{maskedPhone ? <> ending in <strong>{maskedPhone}</strong></> : ""}
               </>
             )}
             . Enter it below to authorize this session.

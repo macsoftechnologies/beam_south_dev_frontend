@@ -9,6 +9,20 @@ import {
 } from "../../utils/modulePermissions";
 import "../../forms/styles/forms.css";
 
+const EmailIcon = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+    <polyline points="22,6 12,13 2,6" />
+  </svg>
+);
+
+const PhoneIcon = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="5" y="2" width="14" height="20" rx="2" ry="2" />
+    <line x1="12" y1="18" x2="12.01" y2="18" />
+  </svg>
+);
+
 const MODULE_OPTIONS = MODULE_DEFINITIONS;
 
 function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
@@ -29,7 +43,8 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
     "permit-to-work": "Department",
   });
   const [email, setEmail] = useState("");
-  const [otpNotificationType, setOtpNotificationType] = useState("SMS");
+  const [enableEmailOtp, setEnableEmailOtp] = useState(false);
+  const [enableSmsOtp, setEnableSmsOtp] = useState(true);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
@@ -109,12 +124,22 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
       }
 
       setEmail(initialData.email || "");
-      const rawOtpType = initialData.otpNotificationType || initialData.otp_notification_type;
-      setOtpNotificationType(rawOtpType ? String(rawOtpType).toUpperCase() : "SMS");
+      const rawOtpType = String(initialData.otpNotificationType || initialData.otp_notification_type || "SMS").toUpperCase();
+      if (rawOtpType === "BOTH" || rawOtpType === "ALL" || (rawOtpType.includes("EMAIL") && rawOtpType.includes("SMS"))) {
+        setEnableEmailOtp(true);
+        setEnableSmsOtp(true);
+      } else if (rawOtpType === "EMAIL") {
+        setEnableEmailOtp(true);
+        setEnableSmsOtp(false);
+      } else {
+        setEnableEmailOtp(false);
+        setEnableSmsOtp(true);
+      }
       setUsername(initialData.username || "");
       setPassword(""); // Leave blank in edit mode to avoid corrupting existing password
     } else if (!isEdit) {
-      setOtpNotificationType("SMS");
+      setEnableEmailOtp(false);
+      setEnableSmsOtp(true);
     }
   }, [initialData, isEdit]);
 
@@ -163,6 +188,22 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
       setObserId("");
     }
   }, [shouldShowContractor, shouldShowDepartment, hasObserver, subContId, departId, obserId]);
+
+  const handleToggleChannel = (channel) => {
+    if (channel === "EMAIL") {
+      if (enableEmailOtp && !enableSmsOtp) {
+        showError("At least one OTP notification channel must be selected.");
+        return;
+      }
+      setEnableEmailOtp(prev => !prev);
+    } else if (channel === "SMS") {
+      if (enableSmsOtp && !enableEmailOtp) {
+        showError("At least one OTP notification channel must be selected.");
+        return;
+      }
+      setEnableSmsOtp(prev => !prev);
+    }
+  };
 
   const handleToggleModule = (modId) => {
     setSelectedModules((prev) => {
@@ -249,22 +290,29 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
       }
     }
 
-    if (otpNotificationType === "EMAIL") {
-      if (!email || !email.trim()) {
-        showError("Email ID is mandatory when Email OTP notification is selected");
-        return;
-      }
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(email.trim())) {
-        showError("Please enter a valid email address");
-        return;
-      }
-    } else {
+    if (!enableEmailOtp && !enableSmsOtp) {
+      showError("Please select at least one Login OTP Notification channel (Email or SMS)");
+      return;
+    }
+
+    if (!email || !email.trim()) {
+      showError("Email Address is mandatory");
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      showError("Please enter a valid email address");
+      return;
+    }
+
+    if (enableSmsOtp) {
       if (!phoneNumber || !phoneNumber.trim()) {
         showError("Phone Number is required when SMS OTP notification is selected");
         return;
       }
     }
+
+    const otpNotificationType = enableEmailOtp && enableSmsOtp ? "BOTH" : enableEmailOtp ? "EMAIL" : "SMS";
 
     const activeModuleRoles = selectedModules.map((m) => {
       let roleVal = moduleUserTypes[m] || "Department";
@@ -570,33 +618,63 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
           </div>
         )}
 
-        {/* Login OTP Notification Type */}
+        {/* Login OTP Notification Channels */}
         <div className="df-field">
           <label className="df-label">
-            Login OTP Notification Type <span className="df-required">*</span>
+            Login OTP Notification Channels <span className="df-required">*</span>
           </label>
-          <select
-            className="df-select"
-            value={otpNotificationType}
-            onChange={(e) => setOtpNotificationType(e.target.value)}
-          >
-            <option value="SMS">Mobile SMS (Twilio)</option>
-            <option value="EMAIL">Email Address</option>
-          </select>
+          <div className="otp-channel-toggles-wrapper">
+            {/* Email Toggle */}
+            <label
+              className={`im-notif-channel-toggle email ${enableEmailOtp ? "active" : ""}`}
+              onClick={(e) => {
+                e.preventDefault();
+                handleToggleChannel("EMAIL");
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={enableEmailOtp}
+                readOnly
+              />
+              <EmailIcon />
+              <span>Email</span>
+            </label>
+
+            {/* SMS Toggle */}
+            <label
+              className={`im-notif-channel-toggle sms ${enableSmsOtp ? "active" : ""}`}
+              onClick={(e) => {
+                e.preventDefault();
+                handleToggleChannel("SMS");
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={enableSmsOtp}
+                readOnly
+              />
+              <PhoneIcon />
+              <span>SMS</span>
+            </label>
+          </div>
+          <div style={{ fontSize: "11px", color: "var(--text-muted, #94a3b8)", marginTop: "4px" }}>
+            Select Email, SMS, or both channels for login verification.
+          </div>
         </div>
 
         {/* Email */}
         <div className="df-field">
           <label className="df-label">
-            Email {otpNotificationType === "EMAIL" ? <span className="df-required">* (Mandatory for Login OTP)</span> : <span className="df-required">*</span>}
+            Email <span className="df-required">*</span>
           </label>
           <input
             type="email"
             className="df-input"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder={otpNotificationType === "EMAIL" ? "Mandatory: Enter email for OTP login" : "Email"}
-            required={otpNotificationType === "EMAIL"}
+            placeholder="Email"
+            required
           />
         </div>
 

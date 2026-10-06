@@ -435,124 +435,210 @@ const Employees = () => {
         <EmployeeForm isEdit initialData={selectedEmployee} onClose={() => setEditOpen(false)} onSubmit={handleSubmit} />
       </Modal>
 
-      <Modal open={viewOpen} onClose={() => setViewOpen(false)} title="Employee Details" size="md" type="info" scrollable>
-        {selectedEmployee && (
-          <div className="dept-view-grid">
-            <div className="dept-view-item">
-              <span className="dept-view-label">Employee Name</span>
-              <span className="dept-view-value">{selectedEmployee.employeeName}</span>
-            </div>
-            <div className="dept-view-item">
-              <span className="dept-view-label">Badge Id</span>
-              <span className="dept-view-value dept-view-value--code">{selectedEmployee.badgeId || "—"}</span>
-            </div>
-            <div className="dept-view-item">
-              <span className="dept-view-label">Designation</span>
-              <span className="dept-view-value">{selectedEmployee.designation || "—"}</span>
-            </div>
-            <div className="dept-view-item">
-              <span className="dept-view-label">Phone Number</span>
-              <span className="dept-view-value">{selectedEmployee.phonenumber || "—"}</span>
-            </div>
-            <div className="dept-view-item">
-              <span className="dept-view-label">Role</span>
-              <span className="dept-view-value dept-view-value--code">
-                {rolesList.find(r => Number(r.id) === Number(selectedEmployee.roleId))?.roleName || (selectedEmployee.roleId === 0 ? "Admin" : selectedEmployee.role || "—")}
-              </span>
-            </div>
-            <div className="dept-view-item">
-              <span className="dept-view-label">Employee Type</span>
-              <span className="dept-view-value">
-                {EMPLOYEE_TYPE_LABELS[selectedEmployee.userType] || selectedEmployee.userType || "—"}
-              </span>
-            </div>
-            <div className="dept-view-item">
-              <span className="dept-view-label">Company Name</span>
-              <span className="dept-view-value">{selectedEmployee.companyName || "—"}</span>
-            </div>
-            <div className="dept-view-item">
-              <span className="dept-view-label">Access</span>
-              <StatusBadge status={selectedEmployee.access === "1" || selectedEmployee.access === true} />
-            </div>
-            <div className="dept-view-item" style={{ gridColumn: "1 / -1" }}>
-              <span className="dept-view-label">Assigned Modules &amp; Module User Types</span>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "6px" }}>
-                {(() => {
-                  const raw = selectedEmployee.moduleAccess || selectedEmployee.module_access;
-                  const parsedMap = parseModuleAccess(raw);
-                  const mods = Object.keys(parsedMap);
-                  if (!mods.length) {
-                    return <span className="dept-view-value" style={{ color: "#9ca3af" }}>No modules assigned</span>;
-                  }
-                  return mods.map((modId) => {
-                    const modDef = MODULE_DEFINITIONS.find((m) => m.id === modId);
-                    const modLabel = modDef ? modDef.label : modId;
-                    const roleVal = parsedMap[modId] || selectedEmployee.userType || "Department";
-                    const roleLabel = getUserTypeLabel(roleVal, modId);
-                    const isObs = String(roleVal).toLowerCase().includes("observer");
-                    const isSub = String(roleVal).toLowerCase().includes("subcontractor");
+      <Modal open={viewOpen} onClose={() => setViewOpen(false)} title="Employee Details" size="lg" type="info" scrollable>
+        {selectedEmployee && (() => {
+          const initials = (() => {
+            const name = selectedEmployee.employeeName || selectedEmployee.name || "";
+            const parts = name.replace(/[_.-]/g, " ").trim().split(/\s+/);
+            if (!parts[0]) return "EMP";
+            if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+            return (parts[0][0] + parts[1][0]).toUpperCase();
+          })();
 
-                    return (
-                      <span
-                        key={modId}
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "6px",
-                          padding: "4px 10px",
-                          borderRadius: "8px",
-                          fontSize: "12px",
-                          fontWeight: "500",
-                          backgroundColor: "#1f2937",
-                          color: "#f3f4f6",
-                          border: "1px solid #374151",
-                        }}
-                      >
-                        <span style={{ fontWeight: 600 }}>{modLabel}</span>
-                        <span
-                          style={{
-                            fontSize: "10.5px",
-                            padding: "1px 6px",
-                            borderRadius: "4px",
-                            fontWeight: 700,
-                            textTransform: "uppercase",
-                            backgroundColor: isObs
-                              ? "rgba(99, 102, 241, 0.2)"
-                              : isSub
-                              ? "rgba(245, 158, 11, 0.2)"
-                              : "rgba(16, 185, 129, 0.2)",
-                            color: isObs ? "#818cf8" : isSub ? "#fbbf24" : "#34d399",
-                            border: `1px solid ${
-                              isObs
-                                ? "rgba(99, 102, 241, 0.4)"
-                                : isSub
-                                ? "rgba(245, 158, 11, 0.4)"
-                                : "rgba(16, 185, 129, 0.4)"
-                            }`,
-                          }}
-                        >
-                          {roleLabel}
+          const roleName = rolesList.find(r => Number(r.id) === Number(selectedEmployee.roleId))?.roleName ||
+            (selectedEmployee.roleId === 0 ? "Admin" : selectedEmployee.role || "—");
+
+          const rawTypes = selectedEmployee.userType ? String(selectedEmployee.userType).split(",").map(t => t.trim()).filter(Boolean) : [];
+          const formattedTypes = rawTypes.map(t => EMPLOYEE_TYPE_LABELS[t] || t);
+
+          const otpType = String(selectedEmployee.otpNotificationType || selectedEmployee.otp_notification_type || "SMS").toUpperCase();
+          const isEmailOtp = otpType === "EMAIL";
+
+          const deptName = departments.find(d => Number(d.id) === Number(selectedEmployee.departId))?.departmentName;
+          const contractorName = contractors.find(s => Number(s.id) === Number(selectedEmployee.subContId))?.subContractorName;
+
+          return (
+            <div className="emp-details-modal">
+              {/* Profile Hero Header */}
+              <div className="emp-hero-card">
+                <div className="emp-hero-left">
+                  <div className="emp-hero-avatar">
+                    {initials}
+                  </div>
+                  <div className="emp-hero-info">
+                    <span className="emp-hero-name">
+                      {selectedEmployee.employeeName || selectedEmployee.name || "Employee Details"}
+                    </span>
+                    <div className="emp-hero-meta">
+                      {selectedEmployee.designation && (
+                        <span className="emp-pill emp-pill--desig">
+                          {selectedEmployee.designation}
                         </span>
+                      )}
+                      <span className="emp-pill emp-pill--role">
+                        {roleName}
                       </span>
-                    );
-                  });
-                })()}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="emp-hero-right">
+                  <span className={`emp-pill ${isEmailOtp ? "emp-pill--email" : "emp-pill--sms"}`}>
+                    {isEmailOtp ? "✉ OTP via Email" : "💬 OTP via SMS"}
+                  </span>
+                  <StatusBadge status={selectedEmployee.access === "1" || selectedEmployee.access === true} />
+                </div>
+              </div>
+
+              {/* Grid of Details */}
+              <div className="dept-view-grid">
+                <div className="dept-view-item">
+                  <span className="dept-view-label">Badge ID</span>
+                  <span className="dept-view-value">
+                    {selectedEmployee.badgeId ? <code className="emp-code">{selectedEmployee.badgeId}</code> : "—"}
+                  </span>
+                </div>
+
+                <div className="dept-view-item">
+                  <span className="dept-view-label">Phone Number</span>
+                  <span className="dept-view-value" style={{ fontWeight: 600 }}>
+                    {selectedEmployee.phonenumber || selectedEmployee.phoneNumber || "—"}
+                  </span>
+                </div>
+
+                <div className="dept-view-item">
+                  <span className="dept-view-label">Email Address</span>
+                  <span className="dept-view-value" style={{ wordBreak: "break-all" }}>
+                    {selectedEmployee.email ? (
+                      <a href={`mailto:${selectedEmployee.email}`} style={{ color: "#3b82f6", textDecoration: "none" }}>
+                        {selectedEmployee.email}
+                      </a>
+                    ) : "—"}
+                  </span>
+                </div>
+
+                <div className="dept-view-item">
+                  <span className="dept-view-label">Username</span>
+                  <span className="dept-view-value">
+                    {selectedEmployee.username ? (
+                      <code className="emp-code">{selectedEmployee.username}</code>
+                    ) : "—"}
+                  </span>
+                </div>
+
+                <div className="dept-view-item">
+                  <span className="dept-view-label">Company Name</span>
+                  <span className="dept-view-value">
+                    {selectedEmployee.companyName || "—"}
+                  </span>
+                </div>
+
+                <div className="dept-view-item">
+                  <span className="dept-view-label">Employee Type</span>
+                  <div className="dept-view-value" style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                    {formattedTypes.length > 0 ? (
+                      formattedTypes.map((t, idx) => (
+                        <span key={idx} className="emp-pill emp-pill--type">
+                          {t}
+                        </span>
+                      ))
+                    ) : (
+                      "—"
+                    )}
+                  </div>
+                </div>
+
+                {deptName && (
+                  <div className="dept-view-item">
+                    <span className="dept-view-label">Department</span>
+                    <span className="dept-view-value">{deptName}</span>
+                  </div>
+                )}
+
+                {contractorName && (
+                  <div className="dept-view-item">
+                    <span className="dept-view-label">Contractor</span>
+                    <span className="dept-view-value">{contractorName}</span>
+                  </div>
+                )}
+
+                <div className="dept-view-item">
+                  <span className="dept-view-label">Login OTP Delivery</span>
+                  <div className="dept-view-value">
+                    <span className={`emp-pill ${isEmailOtp ? "emp-pill--email" : "emp-pill--sms"}`}>
+                      {isEmailOtp ? "Email (OTP sent to registered email)" : "Mobile SMS (Twilio SMS)"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="dept-view-item">
+                  <span className="dept-view-label">Account Access</span>
+                  <div className="dept-view-value">
+                    <StatusBadge status={selectedEmployee.access === "1" || selectedEmployee.access === true} />
+                  </div>
+                </div>
+
+                {selectedEmployee.serial !== undefined && (
+                  <div className="dept-view-item">
+                    <span className="dept-view-label">Serial No.</span>
+                    <span className="dept-view-value">#{selectedEmployee.serial}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Assigned Modules & Module User Types */}
+              <div className="emp-modules-card">
+                <div className="emp-modules-header">
+                  <span>Assigned Modules &amp; Module User Types</span>
+                </div>
+                <div className="emp-modules-list">
+                  {(() => {
+                    const raw = selectedEmployee.moduleAccess || selectedEmployee.module_access;
+                    const parsedMap = parseModuleAccess(raw);
+                    const mods = Object.keys(parsedMap);
+                    if (!mods.length) {
+                      return <span style={{ color: "#9ca3af", fontSize: "13px" }}>No modules assigned</span>;
+                    }
+                    return mods.map((modId) => {
+                      const modDef = MODULE_DEFINITIONS.find((m) => m.id === modId);
+                      const modLabel = modDef ? modDef.label : modId;
+                      const roleVal = parsedMap[modId] || selectedEmployee.userType || "Department";
+                      const roleLabel = getUserTypeLabel(roleVal, modId);
+                      const isObs = String(roleVal).toLowerCase().includes("observer");
+                      const isSub = String(roleVal).toLowerCase().includes("subcontractor");
+
+                      return (
+                        <div key={modId} className="emp-module-chip">
+                          <span style={{ fontWeight: 600 }}>{modLabel}</span>
+                          <span
+                            className="emp-module-chip-badge"
+                            style={{
+                              backgroundColor: isObs
+                                ? "rgba(99, 102, 241, 0.15)"
+                                : isSub
+                                ? "rgba(245, 158, 11, 0.15)"
+                                : "rgba(16, 185, 129, 0.15)",
+                              color: isObs ? "#6366f1" : isSub ? "#d97706" : "#059669",
+                              border: `1px solid ${
+                                isObs
+                                  ? "rgba(99, 102, 241, 0.3)"
+                                  : isSub
+                                  ? "rgba(245, 158, 11, 0.3)"
+                                  : "rgba(16, 185, 129, 0.3)"
+                              }`,
+                            }}
+                          >
+                            {roleLabel}
+                          </span>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
               </div>
             </div>
-            <div className="dept-view-item">
-              <span className="dept-view-label">Email</span>
-              <span className="dept-view-value">{selectedEmployee.email || "—"}</span>
-            </div>
-            <div className="dept-view-item">
-              <span className="dept-view-label">Username</span>
-              <span className="dept-view-value dept-view-value--code">{selectedEmployee.username}</span>
-            </div>
-            <div className="dept-view-item">
-              <span className="dept-view-label">Serial No.</span>
-              <span className="dept-view-value">#{selectedEmployee.serial}</span>
-            </div>
-          </div>
-        )}
+          );
+        })()}
       </Modal>
 
     </div>

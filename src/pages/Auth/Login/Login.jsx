@@ -61,14 +61,17 @@ export default function Login() {
           userType: response.userType,
           typeId: response.typeId,
           phonenumber: response.phonenumber,
+          email: response.email,
+          otpNotificationType: response.otpNotificationType || (response.maskedEmail ? "EMAIL" : "SMS"),
           maskedPhone: response.maskedPhone || "",
+          maskedEmail: response.maskedEmail || "",
           moduleAccess: response.moduleAccess || "",
           auth_token: response.auth_token,
           access_token: response.access_token || response.auth_token,
         };
         localStorage.setItem("tempUser", JSON.stringify(tempUser));
 
-        showSuccess("Login successful. OTP sent.");
+        showSuccess(response.message || "Login successful. OTP sent.");
 
         setTimeout(() => {
           setLoading(false);

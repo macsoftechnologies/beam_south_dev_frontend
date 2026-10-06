@@ -29,6 +29,7 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
     "permit-to-work": "Department",
   });
   const [email, setEmail] = useState("");
+  const [otpNotificationType, setOtpNotificationType] = useState("SMS");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
@@ -108,8 +109,12 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
       }
 
       setEmail(initialData.email || "");
+      const rawOtpType = initialData.otpNotificationType || initialData.otp_notification_type;
+      setOtpNotificationType(rawOtpType ? String(rawOtpType).toUpperCase() : "SMS");
       setUsername(initialData.username || "");
       setPassword(""); // Leave blank in edit mode to avoid corrupting existing password
+    } else if (!isEdit) {
+      setOtpNotificationType("SMS");
     }
   }, [initialData, isEdit]);
 
@@ -244,6 +249,23 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
       }
     }
 
+    if (otpNotificationType === "EMAIL") {
+      if (!email || !email.trim()) {
+        showError("Email ID is mandatory when Email OTP notification is selected");
+        return;
+      }
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email.trim())) {
+        showError("Please enter a valid email address");
+        return;
+      }
+    } else {
+      if (!phoneNumber || !phoneNumber.trim()) {
+        showError("Phone Number is required when SMS OTP notification is selected");
+        return;
+      }
+    }
+
     const activeModuleRoles = selectedModules.map((m) => {
       let roleVal = moduleUserTypes[m] || "Department";
       if (m === "safety-inspection" && roleVal === "Subcontractor") {
@@ -260,6 +282,7 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
       employeeName: employeeName,
       designation,
       phonenumber: phoneNumber,
+      otpNotificationType,
       roleId: roleId ? Number(roleId) : 4,
       userType: activeEmployeeTypes.join(","),
       companyName: companyName || (hasDepartment && !hasContractor ? "M3 South" : ""),
@@ -547,18 +570,33 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
           </div>
         )}
 
+        {/* Login OTP Notification Type */}
+        <div className="df-field">
+          <label className="df-label">
+            Login OTP Notification Type <span className="df-required">*</span>
+          </label>
+          <select
+            className="df-select"
+            value={otpNotificationType}
+            onChange={(e) => setOtpNotificationType(e.target.value)}
+          >
+            <option value="SMS">Mobile SMS (Twilio)</option>
+            <option value="EMAIL">Email Address</option>
+          </select>
+        </div>
+
         {/* Email */}
         <div className="df-field">
           <label className="df-label">
-            Email <span className="df-required">*</span>
+            Email {otpNotificationType === "EMAIL" ? <span className="df-required">* (Mandatory for Login OTP)</span> : <span className="df-required">*</span>}
           </label>
           <input
             type="email"
             className="df-input"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="Email"
-            required
+            placeholder={otpNotificationType === "EMAIL" ? "Mandatory: Enter email for OTP login" : "Email"}
+            required={otpNotificationType === "EMAIL"}
           />
         </div>
 

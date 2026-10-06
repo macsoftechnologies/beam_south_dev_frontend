@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import ReactDOM from "react-dom";
 import { useNavigate, useLocation } from "react-router-dom";
 import { LOGO_MAP } from "../../../config/logos";
-import { FaEdit, FaEye, FaCopy, FaTrash, FaPlus, FaFilter, FaHistory, FaCheck, FaTimes, FaEllipsisV, FaSearch } from "react-icons/fa";
+import { FaEdit, FaEye, FaCopy, FaTrash, FaPlus, FaFilter, FaHistory, FaCheck, FaTimes, FaEllipsisV, FaSearch, FaColumns, FaUndo } from "react-icons/fa";
 import Swal from "sweetalert2";
 
 const AnalogTimePicker = ({ initialTime, onSave, onCancel }) => {
@@ -940,11 +940,113 @@ const isTodayDate = (dateVal) => {
   );
 };
 
+const ALL_COLUMNS_CONFIG = [
+  { id: "PermitNo", label: "Permit Number" },
+  { id: "hraCell", label: "HRA'S" },
+  { id: "permit_under", label: "Permit Under" },
+  { id: "Request_Date", label: "Request Date" },
+  { id: "permit_type", label: "Permit Type" },
+  { id: "Activity", label: "Activity" },
+  { id: "contractorName", label: "Contractor" },
+  { id: "buildingName", label: "Building" },
+  { id: "Room_Type", label: "Level" },
+  { id: "zone", label: "Zone" },
+  { id: "rooms", label: "Rooms" },
+  { id: "Working_Date", label: "Working Date" },
+  { id: "timeCell", label: "Time" },
+  { id: "nightShiftCell", label: "Working After Midnight" },
+  { id: "newEndTimeCell", label: "New End Time" },
+  { id: "statusCell", label: "Status" },
+  { id: "operationsCell", label: "Operations" }
+];
+
+const STORAGE_KEY_VISIBLE_COLUMNS = "beam_list_request_visible_columns";
+
 const ListRequest = () => {
   const navigate = useNavigate();
   const currentUser = useMemo(() => getUser(), []);
   const userContractorId = currentUser?.typeId || currentUser?.subContId || currentUser?.subContractorId;
   const location = useLocation();
+
+  // Column Visibility States
+  const [visibleColumns, setVisibleColumns] = useState(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_VISIBLE_COLUMNS);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.error("Failed to load saved column preferences", e);
+    }
+    return ALL_COLUMNS_CONFIG.map(col => col.id);
+  });
+
+  const [colDropdownOpen, setColDropdownOpen] = useState(false);
+  const [columnSearch, setColumnSearch] = useState("");
+  const colDropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (colDropdownRef.current && !colDropdownRef.current.contains(e.target)) {
+        setColDropdownOpen(false);
+      }
+    };
+    if (colDropdownOpen) {
+      document.addEventListener("mousedown", handleOutsideClick);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+    };
+  }, [colDropdownOpen]);
+
+  const handleToggleColumn = (colId) => {
+    setVisibleColumns((prev) => {
+      let next;
+      if (prev.includes(colId)) {
+        if (prev.length <= 1) {
+          showError("At least one column must remain visible in the table.");
+          return prev;
+        }
+        next = prev.filter(id => id !== colId);
+        const colDef = ALL_COLUMNS_CONFIG.find(c => c.id === colId);
+        showSuccess(`Column "${colDef?.label || colId}" removed from table.`);
+      } else {
+        const allIds = ALL_COLUMNS_CONFIG.map(c => c.id);
+        next = allIds.filter(id => prev.includes(id) || id === colId);
+        const colDef = ALL_COLUMNS_CONFIG.find(c => c.id === colId);
+        showSuccess(`Column "${colDef?.label || colId}" displayed in table.`);
+      }
+      try {
+        localStorage.setItem(STORAGE_KEY_VISIBLE_COLUMNS, JSON.stringify(next));
+      } catch (e) {}
+      return next;
+    });
+  };
+
+  const handleRemoveColumn = (colId) => {
+    handleToggleColumn(colId);
+  };
+
+  const handleShowAllColumns = () => {
+    const allIds = ALL_COLUMNS_CONFIG.map(c => c.id);
+    setVisibleColumns(allIds);
+    try {
+      localStorage.setItem(STORAGE_KEY_VISIBLE_COLUMNS, JSON.stringify(allIds));
+    } catch (e) {}
+    showSuccess("All columns restored.");
+  };
+
+  const handleResetColumns = () => {
+    const allIds = ALL_COLUMNS_CONFIG.map(c => c.id);
+    setVisibleColumns(allIds);
+    try {
+      localStorage.removeItem(STORAGE_KEY_VISIBLE_COLUMNS);
+    } catch (e) {}
+    showSuccess("Reset columns to default.");
+  };
 
   useEffect(() => {
     const queryParams = new URLSearchParams(location.search);
@@ -2334,7 +2436,9 @@ const getInitialPage = () => {
   }, [requests, checkIfHideCheckbox]);
 
   // ─── Table Configuration ──────────────────────────────────────────────────
-  const columns = [
+  const isOpsVisible = visibleColumns.includes("operationsCell");
+
+  const rawColumns = [
     {
       header: !isObserver && !isSubcontractor && (
         <input
@@ -2362,14 +2466,29 @@ const getInitialPage = () => {
     { header: "Time", accessor: "timeCell" },
     { header: "Working After Midnight", accessor: "nightShiftCell" },
     { header: "New End Time", accessor: "newEndTimeCell" },
-    { header: "Status", accessor: "statusCell", className: "sticky-col-status" },
-    { header: "Operations", accessor: "operationsCell", className: "sticky-col-operations", style: { width: "180px", minWidth: "180px", maxWidth: "180px" } }
-  ].filter(col => {
-    if (col.accessor === "checkboxCell" && (isObserver || isSubcontractor)) {
-      return false;
+    {
+      header: "Status",
+      accessor: "statusCell",
+      className: isOpsVisible ? "sticky-col-status" : "sticky-col-status sticky-col-status--at-edge",
+      style: !isOpsVisible ? { right: 0 } : undefined
+    },
+    {
+      header: "Operations",
+      accessor: "operationsCell",
+      className: "sticky-col-operations",
+      style: { width: "180px", minWidth: "180px", maxWidth: "180px" }
     }
-    return true;
-  });
+  ];
+
+  const columns = useMemo(() => {
+    return rawColumns.filter(col => {
+      if (col.accessor === "checkboxCell") {
+        if (isObserver || isSubcontractor) return false;
+        return true;
+      }
+      return visibleColumns.includes(col.accessor);
+    });
+  }, [rawColumns, isObserver, isSubcontractor, visibleColumns]);
 
   const tableData = useMemo(() => {
     return requests.map((row) => {
@@ -3159,6 +3278,115 @@ const getInitialPage = () => {
 
       {/* Data Table */}
       <div className="dept-table-card" style={{ marginTop: "16px" }}>
+        <div className="table-toolbar-header">
+          <div className="table-toolbar-header__left">
+            <span className="table-toolbar-count">
+              Total Permits: <strong>{totalCount}</strong>
+            </span>
+          </div>
+          <div className="table-toolbar-header__right">
+            {/* Columns Visibility Dropdown */}
+            <div className="col-visibility-dropdown-container" ref={colDropdownRef}>
+              <button
+                type="button"
+                className={`col-visibility-toggle-btn ${visibleColumns.length < ALL_COLUMNS_CONFIG.length ? "col-visibility-btn--active" : ""}`}
+                onClick={() => setColDropdownOpen(p => !p)}
+                title="Customize table columns"
+              >
+                <FaColumns />
+                <span>Columns</span>
+                <span className="col-visibility-count-badge">
+                  {visibleColumns.length}/{ALL_COLUMNS_CONFIG.length}
+                </span>
+              </button>
+
+              {colDropdownOpen && (
+                <div className="col-visibility-menu">
+                  <div className="col-visibility-header">
+                    <div>
+                      <div className="col-visibility-title">Customize Columns</div>
+                      <div className="col-visibility-subtitle">
+                        {visibleColumns.length} of {ALL_COLUMNS_CONFIG.length} columns displayed
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="col-visibility-close-btn"
+                      onClick={() => setColDropdownOpen(false)}
+                      title="Close"
+                    >
+                      <FaTimes />
+                    </button>
+                  </div>
+
+                  <div className="col-visibility-actions">
+                    <button
+                      type="button"
+                      className="col-vis-action-link"
+                      onClick={handleShowAllColumns}
+                    >
+                      Show All
+                    </button>
+                    <button
+                      type="button"
+                      className="col-vis-action-link col-vis-action-link--reset"
+                      onClick={handleResetColumns}
+                    >
+                      <FaUndo style={{ fontSize: "11px", marginRight: "4px" }} />
+                      Reset
+                    </button>
+                  </div>
+
+                  <div className="col-visibility-search">
+                    <FaSearch className="col-vis-search-icon" />
+                    <input
+                      type="text"
+                      className="col-vis-search-input"
+                      placeholder="Search columns..."
+                      value={columnSearch}
+                      onChange={(e) => setColumnSearch(e.target.value)}
+                    />
+                    {columnSearch && (
+                      <button
+                        type="button"
+                        className="col-vis-search-clear"
+                        onClick={() => setColumnSearch("")}
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="col-visibility-list">
+                    {ALL_COLUMNS_CONFIG
+                      .filter(c => c.label.toLowerCase().includes(columnSearch.toLowerCase().trim()))
+                      .map((col) => {
+                        const isChecked = visibleColumns.includes(col.id);
+                        return (
+                          <label
+                            key={col.id}
+                            className={`col-vis-item ${isChecked ? "col-vis-item--checked" : ""}`}
+                          >
+                            <input
+                              type="checkbox"
+                              className="col-vis-checkbox"
+                              checked={isChecked}
+                              onChange={() => handleToggleColumn(col.id)}
+                            />
+                            <span className="col-vis-item-label">{col.label}</span>
+                            <span className={`col-vis-status-tag ${isChecked ? "col-vis-status-tag--visible" : "col-vis-status-tag--hidden"}`}>
+                              {isChecked ? "Visible" : "Hidden"}
+                            </span>
+                          </label>
+                        );
+                      })}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
         <Table
           columns={columns}
           data={tableData}

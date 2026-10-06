@@ -205,18 +205,28 @@
 /* ── View Detail Grid ────────────────────────────────────── */
 .dept-view-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .dept-view-item {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  background-color: rgba(255, 255, 255, 0.02);
-  border: 1px solid #1F2937;
-  border-radius: 10px;
-  padding: 14px 16px;
+  background-color: var(--bg-card-hover, rgba(255, 255, 255, 0.02));
+  border: 1px solid var(--border-color, #1F2937);
+  border-radius: 12px;
+  padding: 13px 16px;
+  min-width: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+  transition: all 0.2s ease;
+}
+
+.dept-view-item:hover {
+  border-color: var(--border-hover, rgba(99, 102, 241, 0.3));
 }
 
 .dept-view-item--full {
@@ -226,25 +236,269 @@
 .dept-view-label {
   font-size: 0.72rem;
   font-weight: 700;
-  color: #4B5563;
+  color: var(--text-muted, #6B7280);
   text-transform: uppercase;
   letter-spacing: 0.6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .dept-view-value {
   font-size: 0.95rem;
   font-weight: 500;
-  color: #F9FAFB;
+  color: var(--text-main, #F9FAFB);
   line-height: 1.5;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  min-width: 0;
 }
 
 /* Monospace code badge */
 .dept-view-value--code {
-  font-family: 'Courier New', monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   color: #3B82F6;
+  font-weight: 600;
+  font-size: 0.92rem;
+  letter-spacing: 0.5px;
+  word-break: break-all;
+}
+
+/* ── Premium Employee Details Modal Styling ──────────────── */
+.emp-details-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Top Hero Banner */
+.emp-hero-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 22px;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(14, 165, 233, 0.04) 100%);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: 16px;
+  box-sizing: border-box;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.emp-hero-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+  flex: 1;
+}
+
+.emp-hero-avatar {
+  width: 54px;
+  height: 54px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #6366f1 0%, #3b82f6 50%, #06b6d4 100%);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35);
+  flex-shrink: 0;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.emp-hero-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.emp-hero-name {
+  font-size: 1.22rem;
   font-weight: 700;
-  font-size: 1rem;
-  letter-spacing: 1px;
+  color: var(--text-main, #ffffff);
+  line-height: 1.3;
+  word-break: break-word;
+  letter-spacing: -0.2px;
+}
+
+.emp-hero-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.emp-hero-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Pills */
+.emp-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+
+.emp-pill--role {
+  background: rgba(99, 102, 241, 0.12);
+  color: #6366f1;
+  border: 1px solid rgba(99, 102, 241, 0.25);
+}
+
+.emp-pill--desig {
+  background: rgba(14, 165, 233, 0.1);
+  color: #0284c7;
+  border: 1px solid rgba(14, 165, 233, 0.2);
+}
+
+.emp-pill--sms {
+  background: rgba(16, 185, 129, 0.12);
+  color: #059669;
+  border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.emp-pill--email {
+  background: rgba(168, 85, 247, 0.12);
+  color: #9333ea;
+  border: 1px solid rgba(168, 85, 247, 0.25);
+}
+
+.emp-pill--type {
+  background: rgba(245, 158, 11, 0.12);
+  color: #d97706;
+  border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+/* Code badge */
+.emp-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.88rem;
+  font-weight: 600;
+  background: rgba(99, 102, 241, 0.08);
+  color: #4f46e5;
+  padding: 3px 9px;
+  border-radius: 6px;
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  display: inline-block;
+  word-break: break-all;
+  max-width: 100%;
+}
+
+/* Assigned Modules Card */
+.emp-modules-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background-color: var(--bg-card-hover, rgba(255, 255, 255, 0.02));
+  border: 1px solid var(--border-color, #1F2937);
+  border-radius: 14px;
+  padding: 16px 18px;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+}
+
+.emp-modules-header {
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--text-muted, #6B7280);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.emp-modules-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.emp-module-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  font-size: 12.5px;
+  font-weight: 500;
+  background: var(--bg-card, #ffffff);
+  color: var(--text-main, #1e293b);
+  border: 1px solid var(--border-color, #e2e8f0);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.emp-module-chip:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.06);
+}
+
+.emp-module-chip-badge {
+  font-size: 10.5px;
+  padding: 2px 7px;
+  border-radius: 5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+/* Light Mode Overrides */
+html[data-theme="light"] .emp-hero-card {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.06) 0%, rgba(14, 165, 233, 0.03) 100%) !important;
+  border-color: rgba(99, 102, 241, 0.22) !important;
+}
+
+html[data-theme="light"] .emp-modules-card,
+html[data-theme="light"] .dept-view-item {
+  background-color: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+}
+
+html[data-theme="light"] .emp-module-chip {
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+html[data-theme="light"] .emp-code {
+  background: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+  color: #2563eb !important;
+}
+
+/* Dark Mode Overrides */
+html[data-theme="dark"] .emp-module-chip,
+html:not([data-theme="light"]) .emp-module-chip {
+  background: #1f2937 !important;
+  border-color: #374151 !important;
+  color: #f3f4f6 !important;
+}
+
+html[data-theme="dark"] .emp-code,
+html:not([data-theme="light"]) .emp-code {
+  background: rgba(99, 102, 241, 0.12) !important;
+  border-color: rgba(99, 102, 241, 0.3) !important;
+  color: #818cf8 !important;
 }
 
 /* ── Responsive ──────────────────────────────────────────── */
@@ -259,6 +513,7 @@
     grid-column: 1;
   }
 }
+
 
 /* new css  */
 

@@ -10,6 +10,7 @@ import { FLOOR_PDFS } from "../../../data/pdfMapping";
 import { ZONE_MAPPING } from "../../../data/zones";
 import { BUILDINGS } from "../../../data/buildings";
 import { getBuildings, getRooms, getFloors, getContractors } from "../../../services/authService";
+import IncidentCategoryDropdown from "../components/IncidentCategoryDropdown";
 
 export const AnalogTimePicker = ({ initialTime, onSave, onCancel }) => {
   const [hour, setHour] = useState(12);
@@ -765,19 +766,20 @@ function IMCreate() {
                 <div className="mod-form-group">
                   <label className="mod-form-label">Incident Category <span style={{ color: "#DC2626" }}>*</span></label>
                   <div style={{ fontSize: "11px", color: "var(--text-muted)", marginBottom: "8px" }}>The categorisation may change following the incident investigation or if the incident develops further over time.</div>
-                  <select
-                    className="mod-form-select"
+                  <IncidentCategoryDropdown
+                    options={incidentCategories}
                     value={form.categories[0] || ""}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setForm(prev => ({ ...prev, categories: val ? [val] : [] }));
+                    onChange={(val) => {
+                      setForm(prev => ({
+                        ...prev,
+                        categories: val ? [val] : [],
+                        ...(val === "Near Miss" ? { actual: "" } : {})
+                      }));
+                      if (errors.categories) setErrors(prev => ({ ...prev, categories: null }));
                     }}
-                  >
-                    <option value="">Select Incident Category...</option>
-                    {incidentCategories.map(cat => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
-                  </select>
+                    placeholder="Select Incident Category..."
+                    hasError={!!errors.categories}
+                  />
                   {errors.categories && <span style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: "4px" }}>{errors.categories}</span>}
                 </div>
 

@@ -43,27 +43,42 @@ export async function generateLocationMapSnapshot({
             return str.split(":::").pop().trim();
         }).filter(Boolean);
 
-        // 2. Identify the active zone that contains these room(s)
-        let activeZone = null;
-        if (roomNames.length > 0 && Array.isArray(zones)) {
-            activeZone = zones.find((z) =>
-                z.rooms && z.rooms.some((r) => {
+        // 2. Identify ALL active zones that contain any selected room(s) or are selected
+        const activeZones = [];
+        if (Array.isArray(zones) && zones.length > 0) {
+            zones.forEach((z) => {
+                const zNameLower = (z.name || "").trim().toLowerCase();
+
+                // Check if any selected token matches this zone by name (e.g. Level:::Zone:::Room)
+                const tokenMatches = (selectedRooms || []).some((sr) => {
+                    if (typeof sr === "string" && sr.includes(":::")) {
+                        const parts = sr.split(":::");
+                        const tokenZ = parts.length > 1 ? parts[parts.length - 2].trim().toLowerCase() : "";
+                        return tokenZ && tokenZ === zNameLower;
+                    }
+                    if (typeof sr === "object" && sr !== null) {
+                        const objZ = (sr.zoneName || sr.zone || "").trim().toLowerCase();
+                        return objZ && objZ === zNameLower;
+                    }
+                    return false;
+                });
+
+                // Check if any room belonging to this zone is in the selected roomNames
+                const roomMatches = (z.rooms || []).some((r) => {
                     const rName = (typeof r === "object" ? r.name : r || "").trim().toLowerCase();
                     return roomNames.some((rn) => rn.toLowerCase() === rName);
-                })
-            );
-        }
+                });
 
-        // Fallback: match by zone token or first zone
-        if (!activeZone && Array.isArray(zones) && zones.length > 0) {
-            const zoneToken = (selectedRooms || []).find((r) => typeof r === "string" && r.includes(":::"));
-            if (zoneToken) {
-                const parts = zoneToken.split(":::");
-                const zName = parts.length > 1 ? parts[parts.length - 2].trim().toLowerCase() : "";
-                activeZone = zones.find((z) => z.name && z.name.trim().toLowerCase() === zName);
-            }
-            if (!activeZone && zones.length === 1) {
-                activeZone = zones[0];
+                if (tokenMatches || roomMatches) {
+                    if (!activeZones.some((az) => az.id === z.id || az.name === z.name)) {
+                        activeZones.push(z);
+                    }
+                }
+            });
+
+            // Fallback: if no active zones found but zones exist, and only 1 zone in total
+            if (activeZones.length === 0 && zones.length === 1) {
+                activeZones.push(zones[0]);
             }
         }
 
@@ -75,10 +90,10 @@ export async function generateLocationMapSnapshot({
         const oCtx = overviewCanvas.getContext("2d");
         oCtx.drawImage(overviewPdfCanvas, 0, 0);
 
-        // Highlight zones on the overview canvas
+        // Highlight all active zones on the overview canvas
         (zones || []).forEach((z) => {
             if (!z.points || z.points.length < 3) return;
-            const isMatch = activeZone && (z.id === activeZone.id || z.name === activeZone.name);
+            const isMatch = activeZones.some((az) => az.id === z.id || az.name === z.name);
             const scaleX = overviewCanvas.width / (z.pdfWidth || 1);
             const scaleY = overviewCanvas.height / (z.pdfHeight || 1);
 
@@ -127,26 +142,31 @@ export async function generateLocationMapSnapshot({
             }
         });
 
-        // 4. If room(s) are selected and activeZone has a separate zone.pdf:
+        // 4. Room Detail Drawing:
+        // ONLY generate room detail if EXACTLY ONE zone is selected.
+        // If more zones are provided, only the zones overview map is enough per user requirement.
         let roomDrawingCanvas = null;
         let cropRect = null;
-        const matchedRoomObjs = (activeZone?.rooms || []).filter((r) => {
-            const rName = (typeof r === "object" ? r.name : r || "").trim().toLowerCase();
-            return roomNames.some((rn) => rn.toLowerCase() === rName);
-        });
+        const singleActiveZone = activeZones.length === 1 ? activeZones[0] : null;
 
-        if (activeZone?.pdf && matchedRoomObjs.length > 0) {
-            try {
-                // Render Zone CAD PDF at high resolution (1400px width)
-                const zonePdfCanvas = await renderPdf(activeZone.pdf, 1400);
-                roomDrawingCanvas = document.createElement("canvas");
-                roomDrawingCanvas.width = zonePdfCanvas.width;
-                roomDrawingCanvas.height = zonePdfCanvas.height;
-                const rCtx = roomDrawingCanvas.getContext("2d");
+        if (singleActiveZone && singleActiveZone.pdf) {
+            const matchedRoomObjs = (singleActiveZone.rooms || []).filter((r) => {
+                const rName = (typeof r === "object" ? r.name : r || "").trim().toLowerCase();
+                return roomNames.some((rn) => rn.toLowerCase() === rName);
+            });
+
+            if (matchedRoomObjs.length > 0) {
+                try {
+                    // Render Zone CAD PDF at high resolution (1400px width)
+                    const zonePdfCanvas = await renderPdf(singleActiveZone.pdf, 1400);
+                    roomDrawingCanvas = document.createElement("canvas");
+                    roomDrawingCanvas.width = zonePdfCanvas.width;
+                    roomDrawingCanvas.height = zonePdfCanvas.height;
+                    const rCtx = roomDrawingCanvas.getContext("2d");
                 rCtx.drawImage(zonePdfCanvas, 0, 0);
 
-                // Draw unselected rooms softly
-                (activeZone.rooms || []).forEach((r) => {
+                    // Draw unselected rooms softly
+                    (singleActiveZone.rooms || []).forEach((r) => {
                     if (!r.points || r.points.length < 3) return;
                     const isSelected = matchedRoomObjs.some((sr) => sr.name === r.name);
                     if (isSelected) return;
@@ -241,6 +261,7 @@ export async function generateLocationMapSnapshot({
                 roomDrawingCanvas = null;
             }
         }
+    }
 
         // 5. Create Master Canvas
         const hasRoomDetail = Boolean(roomDrawingCanvas && cropRect);
@@ -277,10 +298,20 @@ export async function generateLocationMapSnapshot({
         mCtx.fillStyle = "#ffffff";
         mCtx.font = "bold 15px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
         mCtx.textBaseline = "middle";
-        const locParts = [buildingName, level, activeZone?.name].filter(Boolean);
+        const zoneDisplayNames = activeZones.map((z) => z.name).filter(Boolean);
+        const zoneTitle = zoneDisplayNames.length > 0
+            ? (zoneDisplayNames.length === 1 ? zoneDisplayNames[0] : `${zoneDisplayNames.length} Zones (${zoneDisplayNames.join(", ")})`)
+            : "";
+        const locParts = [buildingName, level, zoneTitle].filter(Boolean);
         const locTitle = locParts.length > 0 ? locParts.join(" • ") : "Floor Plan Location";
-        const roomTitle = roomNames.length > 0 ? ` • Room(s): ${roomNames.join(", ")}` : "";
-        mCtx.fillText(`📍 Location: ${locTitle}${roomTitle}`, 16, HEADER_H / 2);
+        const maxHeaderLeftW = MASTER_W - 320;
+        let displayLocationText = `📍 Location: ${locTitle}`;
+        if (roomNames.length === 1) {
+            displayLocationText += ` • Room: ${roomNames[0]}`;
+        } else if (roomNames.length > 1) {
+            displayLocationText += ` • ${roomNames.length} Rooms Selected`;
+        }
+        mCtx.fillText(displayLocationText, 16, HEADER_H / 2);
 
         mCtx.fillStyle = "#94a3b8";
         mCtx.font = "500 13px -apple-system, BlinkMacSystemFont, sans-serif";
@@ -307,7 +338,7 @@ export async function generateLocationMapSnapshot({
                 mCtx.fillStyle = "#334155";
                 mCtx.font = "bold 13px -apple-system, BlinkMacSystemFont, sans-serif";
                 mCtx.textBaseline = "middle";
-                mCtx.fillText(`BUILDING OVERVIEW — ${activeZone ? activeZone.name : "ZONE"}`, 16, contentY + SUBHEADER_H / 2);
+                mCtx.fillText(`BUILDING OVERVIEW — ${singleActiveZone ? singleActiveZone.name : "ZONE"}`, 16, contentY + SUBHEADER_H / 2);
 
                 const oTargetX = 14;
                 const oTargetY = contentY + SUBHEADER_H + 6;
@@ -329,7 +360,10 @@ export async function generateLocationMapSnapshot({
                 mCtx.fillStyle = "#15803d";
                 mCtx.font = "bold 13px -apple-system, BlinkMacSystemFont, sans-serif";
                 mCtx.textBaseline = "middle";
-                mCtx.fillText(`🎯 SPECIFIC WORK AREA — ROOM ${roomNames.join(", ")}`, splitX + 16, contentY + SUBHEADER_H / 2);
+                const workAreaText = roomNames.length === 1
+                    ? `🎯 SPECIFIC WORK AREA — ROOM ${roomNames[0]}`
+                    : `🎯 SPECIFIC WORK AREA — SELECTED ROOMS DETAIL (${roomNames.length} ROOMS)`;
+                mCtx.fillText(workAreaText, splitX + 16, contentY + SUBHEADER_H / 2);
 
                 const rTargetX = splitX + 14;
                 const rTargetY = contentY + SUBHEADER_H + 6;
@@ -350,7 +384,7 @@ export async function generateLocationMapSnapshot({
                 mCtx.fillStyle = "#334155";
                 mCtx.font = "bold 13px -apple-system, BlinkMacSystemFont, sans-serif";
                 mCtx.textBaseline = "middle";
-                mCtx.fillText(`BUILDING OVERVIEW — ${activeZone ? activeZone.name : "ZONE"}`, 16, contentY + SUBHEADER_H / 2);
+                mCtx.fillText(`BUILDING OVERVIEW — ${singleActiveZone ? singleActiveZone.name : "ZONE"}`, 16, contentY + SUBHEADER_H / 2);
 
                 const oTargetX = 14;
                 const oTargetY = contentY + SUBHEADER_H + 6;
@@ -372,7 +406,10 @@ export async function generateLocationMapSnapshot({
                 mCtx.fillStyle = "#15803d";
                 mCtx.font = "bold 13px -apple-system, BlinkMacSystemFont, sans-serif";
                 mCtx.textBaseline = "middle";
-                mCtx.fillText(`🎯 SPECIFIC WORK AREA — ROOM ${roomNames.join(", ")}`, 16, splitY + SUBHEADER_H / 2);
+                const workAreaText = roomNames.length === 1
+                    ? `🎯 SPECIFIC WORK AREA — ROOM ${roomNames[0]}`
+                    : `🎯 SPECIFIC WORK AREA — SELECTED ROOMS DETAIL (${roomNames.length} ROOMS)`;
+                mCtx.fillText(workAreaText, 16, splitY + SUBHEADER_H / 2);
 
                 const rTargetX = 14;
                 const rTargetY = splitY + SUBHEADER_H + 6;
@@ -388,7 +425,18 @@ export async function generateLocationMapSnapshot({
             mCtx.fillStyle = "#334155";
             mCtx.font = "bold 13px -apple-system, BlinkMacSystemFont, sans-serif";
             mCtx.textBaseline = "middle";
-            mCtx.fillText(`BUILDING FLOOR PLAN OVERVIEW — ${activeZone ? activeZone.name : "ZONE AREA"}`, 16, contentY + SUBHEADER_H / 2);
+
+            let subheaderTitle = "BUILDING FLOOR PLAN OVERVIEW";
+            if (activeZones.length === 1) {
+                subheaderTitle += ` — ${activeZones[0].name || "ZONE AREA"}`;
+            } else if (activeZones.length > 1) {
+                const zNames = activeZones.map((z) => z.name).filter(Boolean).join(", ");
+                subheaderTitle += ` — SELECTED ZONES (${zNames})`;
+                if (mCtx.measureText(subheaderTitle).width > MASTER_W - 32) {
+                    subheaderTitle = `BUILDING FLOOR PLAN OVERVIEW — ${activeZones.length} SELECTED ZONES`;
+                }
+            }
+            mCtx.fillText(subheaderTitle, 16, contentY + SUBHEADER_H / 2);
 
             const oTargetX = 16;
             const oTargetY = contentY + SUBHEADER_H + 6;

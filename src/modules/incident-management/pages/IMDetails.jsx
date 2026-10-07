@@ -13,6 +13,7 @@ import { BUILDINGS } from "../../../data/buildings";
 import nneLogo from "../../../assets/images/nne_logo.png";
 import novoLogo from "../../../assets/images/Logo.jpeg";
 import { IncidentPdfExporter } from "../components/IncidentPdfExporter";
+import IncidentCategoryDropdown from "../components/IncidentCategoryDropdown";
 import { getDenmarkDateString, parseUTCToDate, formatToDenmark24Hour, formatToDenmark24HourObj } from "../../../utils/dateUtils";
 import "../../../styles/module-shared.css";
 import "./IMDetails.css";
@@ -667,6 +668,7 @@ export default function IMDetails() {
   const [markedOk, setMarkedOk] = useState(false);
   const [reviewerName, setReviewerName] = useState(() => getLoggedInUser());
   const [reviewerRole, setReviewerRole] = useState("");
+  const [reviewerRoleError, setReviewerRoleError] = useState("");
 
   // Selectors
   const [buildingsList, setBuildingsList] = useState([]);
@@ -841,8 +843,12 @@ export default function IMDetails() {
   const [huReviewComments, setHuReviewComments] = useState("");
   const [irReviewComments, setIrReviewComments] = useState("");
   const [irReviewerRole, setIrReviewerRole] = useState("");
+  const [irReviewerRoleError, setIrReviewerRoleError] = useState("");
   const [invReviewComments, setInvReviewComments] = useState("");
   const [isReturningRevision, setIsReturningRevision] = useState(false);
+  const [isApprovingHu, setIsApprovingHu] = useState(false);
+  const [isApprovingIr, setIsApprovingIr] = useState(false);
+  const [isApprovingInv, setIsApprovingInv] = useState(false);
 
   const handleReturnForRevision = async (stage) => {
     let reviewer = "";
@@ -852,17 +858,17 @@ export default function IMDetails() {
 
     if (stage === "HEADS_UP") {
       reviewer = reviewerName || getLoggedInUser();
-      role = reviewerRole || "NNE Peer Reviewer";
+      role = reviewerRole;
       reason = huReviewComments;
       sig = signature;
     } else if (stage === "INITIAL_REPORT") {
       reviewer = irReviewerName || getLoggedInUser();
-      role = irReviewerRole || "Customer Approver";
+      role = irReviewerRole;
       reason = irReviewComments;
       sig = irSignature;
     } else if (stage === "INVESTIGATION") {
       reviewer = invReviewerName || getLoggedInUser();
-      role = invReviewerRole || "Site HSE Lead";
+      role = invReviewerRole;
       reason = invReviewComments;
       sig = invRevSignature;
     }
@@ -873,6 +879,13 @@ export default function IMDetails() {
     }
     if (!reason || !reason.trim()) {
       showError("Please enter review comments / reason for revision in the review section.");
+      return;
+    }
+    if (!role || !role.trim()) {
+      if (stage === "HEADS_UP") setReviewerRoleError("Approver Initials are required");
+      else if (stage === "INITIAL_REPORT") setIrReviewerRoleError("Approver Initials are required");
+      else if (stage === "INVESTIGATION") setInvReviewerRoleError("Approver Initials are required");
+      showError("Approver Initials are required");
       return;
     }
 
@@ -965,6 +978,7 @@ export default function IMDetails() {
   const [invRevSignature, setInvRevSignature] = useState(false);
   const [invReviewerName, setInvReviewerName] = useState(() => getLoggedInUser());
   const [invReviewerRole, setInvReviewerRole] = useState("");
+  const [invReviewerRoleError, setInvReviewerRoleError] = useState("");
   const [invRevMarkedOk, setInvRevMarkedOk] = useState(false);
 
   // Investigation Additional States
@@ -1956,6 +1970,10 @@ export default function IMDetails() {
   };
 
   const addActionToList = async () => {
+    if (isClosed) {
+      showError("Cannot add or edit action items because the incident is closed.");
+      return;
+    }
     if (!newAction.action || !newAction.responsible || !newAction.attachmentUrl) {
       if (!newAction.attachmentUrl) {
         showError("An attachment is required for Corrective Actions.");
@@ -2009,6 +2027,10 @@ export default function IMDetails() {
   };
 
   const deleteAction = async (itemId) => {
+    if (isClosed) {
+      showError("Cannot delete action item because the incident is closed.");
+      return;
+    }
     const result = await Swal.fire({
       title: "Are you sure?",
       text: "This action item will be deleted permanently!",
@@ -2058,15 +2080,19 @@ export default function IMDetails() {
   };
 
   const editAction = (action) => {
-    if (action.status === 'COMPLETED' || action.status === 'CLOSED' || String(action.status || '').toUpperCase() === 'COMPLETED' || String(action.status || '').toUpperCase() === 'CLOSED') {
+    if (isClosed) {
+      showError("Cannot edit action item because the incident is closed.");
       return;
     }
     const att = (action.attachments && action.attachments[0]) || {};
+    const statusUpper = String(action.status || '').toUpperCase();
+    const normalizedStatus = statusUpper === 'IN_PROGRESS' || statusUpper === 'IN PROGRESS' ? 'IN_PROGRESS' : statusUpper === 'COMPLETED' ? 'COMPLETED' : 'PENDING';
+
     setNewAction({
       action: action.action || "",
       responsible: action.responsible || "",
       targetDate: action.targetDate ? action.targetDate.substring(0, 10) : "",
-      status: action.status || "PENDING",
+      status: normalizedStatus,
       attachmentUrl: action.attachmentUrl || action.fileUrl || att.url || att.fileUrl || "",
       attachmentName: action.attachmentName || action.fileName || att.name || att.fileName || "",
       fileSize: action.fileSize || att.size || null,
@@ -2074,7 +2100,9 @@ export default function IMDetails() {
     });
     setEditingActionId(action.id);
     setShowAddAction(true);
-    window.scrollTo(0, document.body.scrollHeight);
+    setTimeout(() => {
+      document.getElementById('action-item-form')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 50);
   };
 
   const toggleBodyPart = (part) => {
@@ -2297,16 +2325,16 @@ export default function IMDetails() {
     );
   }
 
-  const isStep3ApprovedOrFilled = Boolean(
-    investigationApproved ||
-    (investigationData && (
-      investigationData.reviewedBy ||
-      investigationData.approvedBy ||
-      (Array.isArray(investigationData.signatures) && investigationData.signatures.length > 0)
-    ))
+  const areAllStepsCompleted = Boolean(
+    headsUpApproved &&
+    (initialReportApproved || (isNoFurtherInvestigation && !hasInitialReportData)) &&
+    (investigationApproved || (isNoFurtherInvestigation && !hasInvestigationData))
   );
 
-  const isStep3PendingClosure = !isClosed && (isStep3ApprovedOrFilled || (isNoFurtherInvestigation && hasInitialReportData));
+  const isStep3PendingClosure = !isClosed && (
+    (investigationApproved && areAllStepsCompleted) ||
+    (isNoFurtherInvestigation && hasInitialReportData && initialReportApproved)
+  );
 
   // Single source of truth for step statuses shared between tabs and timeline
   const getStepStatusInfo = (stepKey) => {
@@ -2352,11 +2380,13 @@ export default function IMDetails() {
       if (isNoFurtherInvestigation && !hasInvestigationData) {
         return { label: "WAIVED", state: "waived", chipClass: "chip-waived" };
       }
-      if (investigationApproved || isClosed) {
+      if (isClosed) {
         return { label: "COMPLETED", state: "done", chipClass: "chip-approved" };
       }
-      if (isStep3PendingClosure) {
-        return { label: "PENDING CLOSURE", state: "pending_closure", chipClass: "chip-inprogress" };
+      if (investigationApproved) {
+        return !isClosed
+          ? { label: "PENDING CLOSURE", state: "pending_closure", chipClass: "chip-inprogress" }
+          : { label: "COMPLETED", state: "done", chipClass: "chip-approved" };
       }
       if (hasInvestigationData || investigationSubmitted) {
         return { label: "IN REVIEW", state: "current", chipClass: "chip-inprogress" };
@@ -3798,12 +3828,12 @@ export default function IMDetails() {
                 <div className="grid-3" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px" }}>
                   <div className="mod-form-group">
                     <label className="mod-form-label">Incident Category *</label>
-                    <select className="mod-form-select" value={huCategories[0] || ""} onChange={(e) => handleHuCategoryToggle(e.target.value)}>
-                      <option value="">Select Category</option>
-                      {incidentCategories.map(cat => (
-                        <option key={cat} value={cat}>{cat}</option>
-                      ))}
-                    </select>
+                    <IncidentCategoryDropdown
+                      options={incidentCategories}
+                      value={huCategories[0] || ""}
+                      onChange={(cat) => handleHuCategoryToggle(cat)}
+                      placeholder="Select Category"
+                    />
                   </div>
                   <div className="mod-form-group">
                     <label className="mod-form-label">Actual Severity Assessment *</label>
@@ -4419,8 +4449,28 @@ export default function IMDetails() {
                   <input type="text" className="mod-form-input" placeholder="Type your full name" value={reviewerName} onChange={(e) => setReviewerName(e.target.value)} readOnly style={{ backgroundColor: "var(--bg-dark)", cursor: "not-allowed", color: "var(--text-muted)", opacity: 0.8 }} />
                 </div>
                 <div className="mod-form-group" style={{ marginTop: 16 }}>
-                  <label className="mod-form-label" style={{ textTransform: "uppercase" }}>Approver Initials</label>
-                  <input type="text" className="mod-form-input" placeholder="e.g. JD" value={reviewerRole} onChange={(e) => setReviewerRole(e.target.value)} />
+                  <label className="mod-form-label" style={{ textTransform: "uppercase" }}>
+                    Approver Initials <span style={{ color: "var(--color-risk, #ef4444)" }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    className="mod-form-input"
+                    placeholder="e.g. JD"
+                    value={reviewerRole}
+                    onChange={(e) => {
+                      setReviewerRole(e.target.value);
+                      if (reviewerRoleError) setReviewerRoleError("");
+                    }}
+                    onBlur={() => {
+                      if (!reviewerRole.trim()) setReviewerRoleError("Approver Initials are required");
+                    }}
+                    style={{ borderColor: reviewerRoleError ? "var(--color-risk, #ef4444)" : undefined }}
+                  />
+                  {reviewerRoleError && (
+                    <span style={{ fontSize: "0.75rem", color: "var(--color-risk, #ef4444)", marginTop: "4px", display: "block" }}>
+                      {reviewerRoleError}
+                    </span>
+                  )}
                 </div>
                 <div className="mod-form-group" style={{ marginTop: 16 }}>
                   <label className="mod-form-label" style={{ textTransform: "uppercase" }}>Digital Signature</label>
@@ -4458,29 +4508,56 @@ export default function IMDetails() {
                   >
                     {isReturningRevision ? "Returning..." : "Return for Revision"}
                   </button>
-                  <button className="mod-btn-primary im-btn-primary" disabled={!markedOk || !signature || !reviewerName} onClick={async () => {
-                    try {
-                      const userName = reviewerName || getLoggedInUser();
-                      await approveHeadsUp(id, {
-                        approvedBy: userName,
-                        approverRole: reviewerRole || "NNE Peer Reviewer",
-                        signature: signature,
-                        noFurtherInvestigation: huNoFurtherInvestigation
-                      });
-                      showSuccess("Heads-Up Notification Approved!");
-                      setHeadsUpApproved(true);
-                      if (huNoFurtherInvestigation) {
-                        navigate("/incident-management/list");
-                      } else {
-                        setActiveTab("initialReport");
-                        window.scrollTo(0, 0);
+                  <button
+                    type="button"
+                    className="mod-btn-primary im-btn-primary"
+                    disabled={isApprovingHu}
+                    onClick={async () => {
+                      if (!reviewerName || !reviewerName.trim()) {
+                        showError("Reviewer Name is required");
+                        return;
                       }
-                    } catch (err) {
-                      console.error("Failed to approve Heads Up", err);
-                      const msg = err.response?.data?.message || err.message || "Failed to approve Heads Up";
-                      showError(Array.isArray(msg) ? msg[0] : msg);
-                    }
-                  }}>Approve & Sign Off</button>
+                      if (!reviewerRole || !reviewerRole.trim()) {
+                        setReviewerRoleError("Approver Initials are required");
+                        showError("Approver Initials are required");
+                        return;
+                      }
+                      if (!signature) {
+                        showError("Digital signature is required");
+                        return;
+                      }
+                      if (!markedOk) {
+                        showError("Please confirm by checking Marked OK");
+                        return;
+                      }
+                      try {
+                        setIsApprovingHu(true);
+                        const userName = reviewerName || getLoggedInUser();
+                        await approveHeadsUp(id, {
+                          approvedBy: userName,
+                          approverRole: reviewerRole.trim(),
+                          signature: signature,
+                          noFurtherInvestigation: huNoFurtherInvestigation
+                        });
+                        showSuccess("Heads-Up Notification Approved!");
+                        setHeadsUpApproved(true);
+                        if (huNoFurtherInvestigation) {
+                          navigate("/incident-management/list");
+                        } else {
+                          setActiveTab("initialReport");
+                          window.scrollTo(0, 0);
+                        }
+                      } catch (err) {
+                        console.error("Failed to approve Heads Up", err);
+                        const msg = err.response?.data?.message || err.message || "Failed to approve Heads Up";
+                        showError(Array.isArray(msg) ? msg[0] : msg);
+                      } finally {
+                        setIsApprovingHu(false);
+                      }
+                    }}
+                  >
+                    {isApprovingHu ? "Approving..." : "Approve & Sign Off"}
+                  </button>
                 </div>
               </div>
             </div>
@@ -5520,8 +5597,28 @@ export default function IMDetails() {
                         <input type="text" className="mod-form-input" placeholder="Type your full name" value={irReviewerName} onChange={(e) => setIrReviewerName(e.target.value)} readOnly style={{ backgroundColor: "var(--bg-dark)", cursor: "not-allowed", color: "var(--text-muted)", opacity: 0.8 }} />
                       </div>
                       <div className="mod-form-group" style={{ marginTop: 16 }}>
-                        <label className="mod-form-label" style={{ textTransform: "uppercase" }}>Approver Initials</label>
-                        <input type="text" className="mod-form-input" placeholder="e.g. JD" value={irReviewerRole} onChange={(e) => setIrReviewerRole(e.target.value)} />
+                        <label className="mod-form-label" style={{ textTransform: "uppercase" }}>
+                          Approver Initials <span style={{ color: "var(--color-risk, #ef4444)" }}>*</span>
+                        </label>
+                        <input
+                          type="text"
+                          className="mod-form-input"
+                          placeholder="e.g. JD"
+                          value={irReviewerRole}
+                          onChange={(e) => {
+                            setIrReviewerRole(e.target.value);
+                            if (irReviewerRoleError) setIrReviewerRoleError("");
+                          }}
+                          onBlur={() => {
+                            if (!irReviewerRole.trim()) setIrReviewerRoleError("Approver Initials are required");
+                          }}
+                          style={{ borderColor: irReviewerRoleError ? "var(--color-risk, #ef4444)" : undefined }}
+                        />
+                        {irReviewerRoleError && (
+                          <span style={{ fontSize: "0.75rem", color: "var(--color-risk, #ef4444)", marginTop: "4px", display: "block" }}>
+                            {irReviewerRoleError}
+                          </span>
+                        )}
                       </div>
                       <div className="mod-form-group" style={{ marginTop: 16 }}>
                         <label className="mod-form-label" style={{ textTransform: "uppercase" }}>Digital Signature</label>
@@ -5559,27 +5656,56 @@ export default function IMDetails() {
                         >
                           {isReturningRevision ? "Returning..." : "Return for Revision"}
                         </button>
-                        <button className="mod-btn-primary im-btn-primary" disabled={!irMarkedOk || !irSignature || !irReviewerName} onClick={async () => {
-                          try {
-                            const userName = irReviewerName || getLoggedInUser();
-                            await approveInitialReport(id, {
-                              signature: irSignature,
-                              approvedBy: userName,
-                              noFurtherInvestigation: irNoFurtherInvestigation
-                            });
-                            showSuccess("Initial Report Approved!");
-                            setInitialReportApproved(true);
-                            if (irNoFurtherInvestigation || huNoFurtherInvestigation || incident.noFurtherInvestigation) {
-                              navigate("/incident-management/list");
-                            } else {
-                              setActiveTab("investigation");
-                              window.scrollTo(0, 0);
+                        <button
+                          type="button"
+                          className="mod-btn-primary im-btn-primary"
+                          disabled={isApprovingIr}
+                          onClick={async () => {
+                            if (!irReviewerName || !irReviewerName.trim()) {
+                              showError("Reviewer Name is required");
+                              return;
                             }
-                          } catch (err) {
-                            const msg = err.response?.data?.message || err.message || "Failed to approve initial report";
-                            showError(Array.isArray(msg) ? msg[0] : msg);
-                          }
-                        }}>Approve & Sign Off</button>
+                            if (!irReviewerRole || !irReviewerRole.trim()) {
+                              setIrReviewerRoleError("Approver Initials are required");
+                              showError("Approver Initials are required");
+                              return;
+                            }
+                            if (!irSignature) {
+                              showError("Digital signature is required");
+                              return;
+                            }
+                            if (!irMarkedOk) {
+                              showError("Please confirm by checking Marked OK");
+                              return;
+                            }
+                            try {
+                              setIsApprovingIr(true);
+                              const userName = irReviewerName || getLoggedInUser();
+                              await approveInitialReport(id, {
+                                signature: irSignature,
+                                approvedBy: userName,
+                                approverRole: irReviewerRole.trim(),
+                                noFurtherInvestigation: irNoFurtherInvestigation
+                              });
+                              showSuccess("Initial Report Approved!");
+                              setInitialReportApproved(true);
+                              if (irNoFurtherInvestigation || huNoFurtherInvestigation || incident.noFurtherInvestigation) {
+                                navigate("/incident-management/list");
+                              } else {
+                                setActiveTab("investigation");
+                                window.scrollTo(0, 0);
+                              }
+                            } catch (err) {
+                              console.error("Failed to approve initial report", err);
+                              const msg = err.response?.data?.message || err.message || "Failed to approve initial report";
+                              showError(Array.isArray(msg) ? msg[0] : msg);
+                            } finally {
+                              setIsApprovingIr(false);
+                            }
+                          }}
+                        >
+                          {isApprovingIr ? "Approving..." : "Approve & Sign Off"}
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -5702,7 +5828,11 @@ export default function IMDetails() {
                 <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                   <span className="mod-card-title">Incident Investigation Report (7 days)</span>
                   {investigationApproved ? (
-                    <span className="inv-chip chip-done">Completed</span>
+                    !isClosed ? (
+                      <span className="inv-chip chip-inprogress">Pending Closure</span>
+                    ) : (
+                      <span className="inv-chip chip-done">Completed</span>
+                    )
                   ) : (isEditingInvestigation && investigationSubmitted) ? (
                     <span className="inv-chip chip-inprogress">Editing</span>
                   ) : investigationSubmitted ? (
@@ -6919,8 +7049,28 @@ export default function IMDetails() {
                         <input type="text" className="mod-form-input" placeholder="Type your full name" value={invReviewerName} onChange={(e) => setInvReviewerName(e.target.value)} readOnly style={{ backgroundColor: "var(--bg-dark)", cursor: "not-allowed", color: "var(--text-muted)", opacity: 0.8 }} />
                       </div>
                       <div className="mod-form-group" style={{ marginTop: 16 }}>
-                        <label className="mod-form-label" style={{ textTransform: "uppercase" }}>Approver Initials</label>
-                        <input type="text" className="mod-form-input" placeholder="e.g. JD" value={invReviewerRole} onChange={(e) => setInvReviewerRole(e.target.value)} />
+                        <label className="mod-form-label" style={{ textTransform: "uppercase" }}>
+                          Approver Initials <span style={{ color: "var(--color-risk, #ef4444)" }}>*</span>
+                        </label>
+                        <input
+                          type="text"
+                          className="mod-form-input"
+                          placeholder="e.g. JD"
+                          value={invReviewerRole}
+                          onChange={(e) => {
+                            setInvReviewerRole(e.target.value);
+                            if (invReviewerRoleError) setInvReviewerRoleError("");
+                          }}
+                          onBlur={() => {
+                            if (!invReviewerRole.trim()) setInvReviewerRoleError("Approver Initials are required");
+                          }}
+                          style={{ borderColor: invReviewerRoleError ? "var(--color-risk, #ef4444)" : undefined }}
+                        />
+                        {invReviewerRoleError && (
+                          <span style={{ fontSize: "0.75rem", color: "var(--color-risk, #ef4444)", marginTop: "4px", display: "block" }}>
+                            {invReviewerRoleError}
+                          </span>
+                        )}
                       </div>
                       <div className="mod-form-group" style={{ marginTop: 16 }}>
                         <label className="mod-form-label" style={{ textTransform: "uppercase" }}>Digital Signature</label>
@@ -6943,22 +7093,49 @@ export default function IMDetails() {
                         >
                           {isReturningRevision ? "Returning..." : "Return for Revision"}
                         </button>
-                        <button className="mod-btn-primary im-btn-primary" disabled={!invRevMarkedOk || !invRevSignature || !invReviewerName || !invReviewerRole} onClick={async () => {
-                          try {
-                            const userName = invReviewerName || getLoggedInUser();
-                            await reviewInvestigation(id, {
-                              approvedBy: userName,
-                              approverRole: invReviewerRole || "Project HSE Lead",
-                              signature: invRevSignature
-                            });
-                            showSuccess("Investigation Report Signed Off!");
-                            navigate("/incident-management/list");
-                          } catch (err) {
-                            console.error("Failed to sign off investigation", err);
-                            const msg = err.response?.data?.message || err.message || "Failed to sign off investigation";
-                            showError(Array.isArray(msg) ? msg[0] : msg);
-                          }
-                        }}>Approve & Sign Off</button>
+                        <button
+                          type="button"
+                          className="mod-btn-primary im-btn-primary"
+                          disabled={isApprovingInv}
+                          onClick={async () => {
+                            if (!invReviewerName || !invReviewerName.trim()) {
+                              showError("Reviewer Name is required");
+                              return;
+                            }
+                            if (!invReviewerRole || !invReviewerRole.trim()) {
+                              setInvReviewerRoleError("Approver Initials are required");
+                              showError("Approver Initials are required");
+                              return;
+                            }
+                            if (!invRevSignature) {
+                              showError("Digital signature is required");
+                              return;
+                            }
+                            if (!invRevMarkedOk) {
+                              showError("Please confirm by checking Marked OK");
+                              return;
+                            }
+                            try {
+                              setIsApprovingInv(true);
+                              const userName = invReviewerName || getLoggedInUser();
+                              await reviewInvestigation(id, {
+                                approvedBy: userName,
+                                approverRole: invReviewerRole.trim(),
+                                signature: invRevSignature
+                              });
+                              showSuccess("Investigation Report Signed Off!");
+                              navigate("/incident-management/list");
+                            } catch (err) {
+                              console.error("Failed to sign off investigation", err);
+                              const msg = err.response?.data?.message || err.message || "Failed to sign off investigation";
+                              showError(Array.isArray(msg) ? msg[0] : msg);
+                            } finally {
+                              setIsApprovingInv(false);
+                            }
+                          }}
+                        >
+                          {isApprovingInv ? "Signing Off..." : "Approve & Sign Off"}
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -7189,8 +7366,8 @@ export default function IMDetails() {
                     }
                   }}>Close Incident</button>
                 )}
-                {isNneUser() && (
-                  <button className="mod-btn-primary im-btn-primary" disabled={incident?.closedBy || incident?.status === 2 || String(incident?.stage).toUpperCase() === "CLOSED"} style={{ padding: "4px 12px", fontSize: "12px", opacity: (incident?.closedBy || incident?.status === 2 || String(incident?.stage).toUpperCase() === "CLOSED") ? 0.5 : 1, cursor: (incident?.closedBy || incident?.status === 2 || String(incident?.stage).toUpperCase() === "CLOSED") ? "not-allowed" : "pointer" }} onClick={() => {
+                {isNneUser() && !isClosed && (
+                  <button className="mod-btn-primary im-btn-primary" style={{ padding: "4px 12px", fontSize: "12px", cursor: "pointer" }} onClick={() => {
                     if (showAddAction) {
                       setShowAddAction(false);
                       setEditingActionId(null);
@@ -7198,12 +7375,31 @@ export default function IMDetails() {
                     } else {
                       setShowAddAction(true);
                     }
-                  }}>{showAddAction ? 'Cancel' : '+ Add Action'}</button>
+                  }}>{showAddAction ? (editingActionId ? 'Cancel Edit' : 'Cancel') : '+ Add Action'}</button>
                 )}
               </div>
             </div>
-            {isNneUser() && showAddAction && (
-              <div style={{ padding: "16px", borderBottom: "1px solid var(--border-color)", background: "var(--bg-dark)" }}>
+            {isNneUser() && showAddAction && !isClosed && (
+              <div id="action-item-form" style={{ padding: "16px", borderBottom: "1px solid var(--border-color)", background: "var(--bg-dark)" }}>
+                {editingActionId && (
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", padding: "8px 12px", borderRadius: "6px", background: "rgba(37,99,235,0.08)", border: "1px solid rgba(37,99,235,0.2)" }}>
+                    <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--accent-primary, #2563eb)", display: "flex", alignItems: "center", gap: "6px" }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                      Editing Corrective Action #{editingActionId}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAddAction(false);
+                        setEditingActionId(null);
+                        setNewAction({ action: "", responsible: "", targetDate: "", status: "PENDING", attachmentUrl: "", attachmentName: "", fileSize: null, fileType: "" });
+                      }}
+                      style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: "12px", fontWeight: 600 }}
+                    >
+                      ✕ Cancel Edit
+                    </button>
+                  </div>
+                )}
                 <div className="grid-2">
                   <div className="mod-form-group" style={{ gridColumn: "1 / -1" }}>
                     <label className="mod-form-label">Action Description</label>
@@ -7344,8 +7540,24 @@ export default function IMDetails() {
                       </div>
                     )}
                   </div>
-                  <div className="mod-form-group" style={{ gridColumn: "1 / -1", display: "flex", justifyContent: "flex-end", marginTop: "8px" }}>
-                    <button type="button" className="mod-btn-primary im-btn-primary" style={{ padding: "0 24px", height: "36px", width: "max-content", flexShrink: 0 }} onClick={addActionToList}>Save Action</button>
+                  <div className="mod-form-group" style={{ gridColumn: "1 / -1", display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "8px" }}>
+                    {editingActionId && (
+                      <button
+                        type="button"
+                        className="mod-btn-outline"
+                        style={{ padding: "0 18px", height: "36px", width: "max-content", flexShrink: 0 }}
+                        onClick={() => {
+                          setShowAddAction(false);
+                          setEditingActionId(null);
+                          setNewAction({ action: "", responsible: "", targetDate: "", status: "PENDING", attachmentUrl: "", attachmentName: "", fileSize: null, fileType: "" });
+                        }}
+                      >
+                        Cancel Edit
+                      </button>
+                    )}
+                    <button type="button" className="mod-btn-primary im-btn-primary" style={{ padding: "0 24px", height: "36px", width: "max-content", flexShrink: 0 }} onClick={addActionToList}>
+                      {editingActionId ? "Update Action" : "Save Action"}
+                    </button>
                   </div>
                 </div>
               </div>
@@ -7496,14 +7708,18 @@ export default function IMDetails() {
                                   </td>
                                   {isNneUser() && (
                                     <td style={{ textAlign: "right", whiteSpace: "nowrap" }} onClick={e => e.stopPropagation()}>
-                                      {a.status !== 'COMPLETED' && a.status !== 'CLOSED' && String(a.status || '').toUpperCase() !== 'COMPLETED' && String(a.status || '').toUpperCase() !== 'CLOSED' && (
-                                        <button onClick={() => editAction(a)} style={{ background: "var(--color-caution-bg)", border: "none", color: "var(--color-caution)", cursor: "pointer", marginRight: 8, padding: "6px", borderRadius: "6px", display: "inline-flex", alignItems: "center", justifyContent: "center" }} title="Edit">
-                                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
-                                        </button>
+                                      {!isClosed ? (
+                                        <>
+                                          <button onClick={() => editAction(a)} style={{ background: "var(--color-caution-bg)", border: "none", color: "var(--color-caution)", cursor: "pointer", marginRight: 8, padding: "6px", borderRadius: "6px", display: "inline-flex", alignItems: "center", justifyContent: "center" }} title="Edit">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                                          </button>
+                                          <button onClick={() => deleteAction(a.id)} style={{ background: "var(--color-risk-bg)", border: "none", color: "var(--color-risk)", cursor: "pointer", padding: "6px", borderRadius: "6px", display: "inline-flex", alignItems: "center", justifyContent: "center" }} title="Delete">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                                          </button>
+                                        </>
+                                      ) : (
+                                        <span style={{ color: "var(--text-muted)", fontSize: "12px", fontStyle: "italic" }}>Locked</span>
                                       )}
-                                      <button onClick={() => deleteAction(a.id)} style={{ background: "var(--color-risk-bg)", border: "none", color: "var(--color-risk)", cursor: "pointer", padding: "6px", borderRadius: "6px", display: "inline-flex", alignItems: "center", justifyContent: "center" }} title="Delete">
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-                                      </button>
                                     </td>
                                   )}
                                 </tr>

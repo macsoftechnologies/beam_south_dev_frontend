@@ -464,6 +464,8 @@ function Navbar({ toggleSidebar, theme, onThemeChange }) {
   const [cpModalOpen, setCpModalOpen] = useState(false);
   const [cpStep, setCpStep] = useState(1); // 1=sending OTP, 2=OTP+pass form
   const [cpMaskedPhone, setCpMaskedPhone] = useState("");
+  const [cpMaskedEmail, setCpMaskedEmail] = useState("");
+  const [cpOtpType, setCpOtpType] = useState("SMS");
   const [cpDigits, setCpDigits] = useState(Array(6).fill(""));
   const cpInputRefs = useRef([]);
   const [cpNewPass, setCpNewPass] = useState("");
@@ -723,9 +725,14 @@ function Navbar({ toggleSidebar, theme, onThemeChange }) {
     try {
       const res = await sendChangePasswordOtp();
       if (res && (res.statusCode === 200 || res.status === true)) {
-        setCpMaskedPhone(res.maskedPhone || "");
+        const maskedPhone = res.maskedPhone || "";
+        const maskedEmail = res.maskedEmail || "";
+        const otpType = res.otpNotificationType || (maskedEmail && maskedPhone ? "BOTH" : maskedEmail ? "EMAIL" : "SMS");
+        setCpMaskedPhone(maskedPhone);
+        setCpMaskedEmail(maskedEmail);
+        setCpOtpType(otpType);
         setCpStep(2);
-        setCpSuccess(`OTP sent to your phone${res.maskedPhone ? ` ending in ${res.maskedPhone}` : ""}`);
+        setCpSuccess(res.message || "Verification code sent successfully.");
         setTimeout(() => setCpSuccess(""), 4000);
         setTimeout(() => cpInputRefs.current[0]?.focus(), 200);
       } else {
@@ -733,6 +740,30 @@ function Navbar({ toggleSidebar, theme, onThemeChange }) {
       }
     } catch (err) {
       setCpError(err?.response?.data?.message || err?.message || "Failed to send OTP.");
+    } finally {
+      setCpSending(false);
+    }
+  };
+
+  const handleCpResendOtp = async () => {
+    setCpSending(true);
+    setCpError("");
+    try {
+      const res = await sendChangePasswordOtp();
+      if (res && (res.statusCode === 200 || res.status === true)) {
+        const maskedPhone = res.maskedPhone || "";
+        const maskedEmail = res.maskedEmail || "";
+        const otpType = res.otpNotificationType || (maskedEmail && maskedPhone ? "BOTH" : maskedEmail ? "EMAIL" : "SMS");
+        setCpMaskedPhone(maskedPhone);
+        setCpMaskedEmail(maskedEmail);
+        setCpOtpType(otpType);
+        setCpSuccess(res.message || "Verification code resent successfully.");
+        setTimeout(() => setCpSuccess(""), 4000);
+      } else {
+        setCpError(res?.message || "Failed to resend OTP.");
+      }
+    } catch (err) {
+      setCpError(err?.response?.data?.message || err?.message || "Failed to resend OTP.");
     } finally {
       setCpSending(false);
     }
@@ -1051,17 +1082,17 @@ function Navbar({ toggleSidebar, theme, onThemeChange }) {
 
             <div className="ns-modal-body">
               {/* Sending OTP step */}
-              {cpSending && (
+              {cpSending && cpStep === 1 && (
                 <div style={{ textAlign: 'center', padding: '24px 0', color: 'rgba(226,232,240,0.6)', fontSize: 14 }}>
                   <div style={{ width: 32, height: 32, border: '3px solid rgba(129,140,248,0.3)', borderTopColor: '#818cf8', borderRadius: '50%', animation: 'nspin 0.7s linear infinite', margin: '0 auto 12px' }} />
-                  Sending OTP to your phone...
+                  Sending verification code...
                 </div>
               )}
 
               {/* Error */}
               {cpError && (
                 <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 10, padding: '10px 14px', fontSize: 13, color: '#fca5a5', marginBottom: 14, display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 15, height: 15, flexShrink: 0, marginTop: 1 }}><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 15, height: 15, flexShrink: 0, marginTop: 1 }}><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="16" /></svg>
                   {cpError}
                 </div>
               )}
@@ -1075,15 +1106,29 @@ function Navbar({ toggleSidebar, theme, onThemeChange }) {
               )}
 
               {/* OTP + password form (step 2) */}
-              {cpStep === 2 && !cpSending && (
+              {cpStep === 2 && (
                 <form onSubmit={handleCpSubmit} noValidate>
                   <p style={{ fontSize: 13, marginBottom: 16, lineHeight: 1.5, color: 'var(--text-muted, #64748b)' }}>
-                    Enter the 6-digit code sent to your phone{cpMaskedPhone ? <> ending in <strong style={{ color: '#6366f1' }}>{cpMaskedPhone}</strong></> : ""} and your new password.
+                    Enter the 6-digit verification code sent to your{" "}
+                    {cpOtpType === "BOTH" ? (
+                      <>
+                        registered email{cpMaskedEmail ? <> (<strong>{cpMaskedEmail}</strong>)</> : ""} and phone{cpMaskedPhone ? <> ending in <strong>{cpMaskedPhone}</strong></> : ""}
+                      </>
+                    ) : cpOtpType === "EMAIL" ? (
+                      <>
+                        registered email{cpMaskedEmail ? <> (<strong>{cpMaskedEmail}</strong>)</> : ""}
+                      </>
+                    ) : (
+                      <>
+                        registered phone{cpMaskedPhone ? <> ending in <strong>{cpMaskedPhone}</strong></> : ""}
+                      </>
+                    )}{" "}
+                    and your new password.
                   </p>
 
                   {/* OTP inputs */}
                   <label className="cp-label">Verification Code</label>
-                  <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 18 }} onPaste={handleCpPaste}>
+                  <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 12 }} onPaste={handleCpPaste}>
                     {cpDigits.map((d, i) => (
                       <input
                         key={i}
@@ -1098,6 +1143,17 @@ function Navbar({ toggleSidebar, theme, onThemeChange }) {
                         className="cp-otp-digit"
                       />
                     ))}
+                  </div>
+
+                  <div style={{ textAlign: 'right', marginTop: -4, marginBottom: 14 }}>
+                    <button
+                      type="button"
+                      onClick={handleCpResendOtp}
+                      disabled={cpSending}
+                      style={{ background: 'none', border: 'none', color: '#6366f1', fontSize: 12, cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
+                    >
+                      {cpSending ? 'Resending...' : "Didn't receive code? Resend Code"}
+                    </button>
                   </div>
 
                   {/* New password */}

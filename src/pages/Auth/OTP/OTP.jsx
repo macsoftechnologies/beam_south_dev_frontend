@@ -29,7 +29,7 @@ const ACTIVE_DIVISION = "north"; // ← change to match Login.jsx
 // ────────────────────────────────────────────────────────────────────
 
 const OTP_LENGTH = 6;
-const RESEND_TIMER_SECONDS = 180; // 3 minutes
+const RESEND_TIMER_SECONDS = 300; // 5 minutes
 
 const formatTimer = (totalSeconds) => {
   const mins = Math.floor(totalSeconds / 60);

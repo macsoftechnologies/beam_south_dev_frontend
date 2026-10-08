@@ -3282,28 +3282,64 @@ export default function IMDetails() {
       {/* Tabs */}
       <div className="inc-tabs">
         {[
-          { id: "overview", label: "Overview" },
+          {
+            id: "overview",
+            label: "Overview",
+            icon: (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 3h7v9H3z" />
+                <path d="M14 3h7v5h-7z" />
+                <path d="M14 12h7v9h-7z" />
+                <path d="M3 16h7v5H3z" />
+              </svg>
+            )
+          },
           {
             id: "headsUp",
             label: "Step 1: Heads-Up (2hr)",
+            icon: (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg>
+            ),
             tabBadge: getStepStatusInfo("headsUp").label,
             tabBadgeClass: getStepStatusInfo("headsUp").chipClass
           },
           {
             id: "initialReport",
             label: "Step 2: Initial Report (24hr)",
+            icon: (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="16" y1="13" x2="8" y2="13" />
+                <line x1="16" y1="17" x2="8" y2="17" />
+              </svg>
+            ),
             tabBadge: getStepStatusInfo("initialReport").label,
             tabBadgeClass: getStepStatusInfo("initialReport").chipClass
           },
           {
             id: "investigation",
             label: "Step 3: Investigation Report (7 days)",
+            icon: (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+            ),
             tabBadge: getStepStatusInfo("investigation").label,
             tabBadgeClass: getStepStatusInfo("investigation").chipClass
           },
           {
             id: "immediateActions",
             label: "Immediate Actions",
+            icon: (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+              </svg>
+            ),
             tabBadge: (() => {
               const list = [];
               (huImmActions || []).forEach(a => {
@@ -3327,7 +3363,18 @@ export default function IMDetails() {
             })(),
             tabBadgeClass: "chip-approved"
           },
-          { id: "actions", label: "Corrective Actions" }
+          {
+            id: "actions",
+            label: "Corrective Actions",
+            icon: (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 11l3 3L22 4" />
+                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+              </svg>
+            ),
+            tabBadge: (actionsList && actionsList.length > 0) ? `${actionsList.length}` : undefined,
+            tabBadgeClass: "chip-approved"
+          }
         ].map(t => (
           <button
             key={t.id}
@@ -3339,12 +3386,12 @@ export default function IMDetails() {
               }
             }}
           >
-            {t.label}
+            <span className="inc-tab-icon">{t.icon}</span>
+            <span className="inc-tab-label">{t.label}</span>
             {t.tabBadge && (
               <span
                 className={`inv-chip ${t.tabBadgeClass}`}
                 style={{
-                  marginLeft: "8px",
                   cursor: (!isContractorUser() && (t.tabBadge === "IN REVIEW" || t.tabBadge === "REVISION REQUIRED" || t.tabBadge === "Pending NNE Review")) ? "pointer" : "inherit"
                 }}
                 onClick={(e) => {

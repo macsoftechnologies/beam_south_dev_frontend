@@ -34,7 +34,17 @@ export const approveInitialReport = async (incidentId, data) => {
 
 // Save Investigation Report (Stage 3)
 export const saveInvestigation = async (incidentId, data) => {
-  const response = await api.put(`/incidents/${incidentId}/investigation/`, data);
+  let userType = "";
+  try {
+    const u = localStorage.getItem("user");
+    userType = localStorage.getItem("UserType") || "";
+    if (!userType && u && u.startsWith("{")) {
+      const parsed = JSON.parse(u);
+      userType = parsed.role || parsed.userType || parsed.user_type || "";
+    }
+  } catch (e) {}
+  const queryParam = userType ? `?userRole=${encodeURIComponent(userType)}` : "";
+  const response = await api.put(`/incidents/${incidentId}/investigation/${queryParam}`, data);
   return response.data;
 };
 

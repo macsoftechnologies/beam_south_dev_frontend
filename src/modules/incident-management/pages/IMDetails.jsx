@@ -1296,6 +1296,11 @@ export default function IMDetails() {
       const ir = rawIncident.initialReport || rawIncident.initial_report || {};
       const stage = String(inc?.stage || rawIncident?.stage || "").toUpperCase();
       const isClosedInc = Boolean(inc?.closedBy || inc?.status === 2 || stage === "CLOSED" || rawIncident?.closedBy || rawIncident?.status === 2);
+      const reopenLogs = Array.isArray(inc?.reopenLogs) ? inc.reopenLogs : (Array.isArray(rawIncident?.reopenLogs) ? rawIncident.reopenLogs : []);
+      const isReopenedInc = reopenLogs.length > 0 && !isClosedInc;
+      if (isReopenedInc && isContractorUser()) {
+        setIsEditingInvestigation(false);
+      }
 
       // Hydrate Heads-Up specific states
       setHuTitle(hu.title || inc.title || "");
@@ -2824,48 +2829,56 @@ export default function IMDetails() {
                             </svg>
                           </button>
 
-                          {/* 2. Edit Button - ONLY when filled but NOT approved (Icon only) */}
-                          {!isFormApproved && !isObserverUser() && (
-                            <button
-                              type="button"
-                              style={{
-                                background: "#ffffff",
-                                color: "#1e293b",
-                                border: "1px solid #cbd5e1",
-                                width: "32px",
-                                height: "32px",
-                                padding: 0,
-                                borderRadius: "6px",
-                                display: "inline-flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                cursor: "pointer",
-                                boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
-                                transition: "all 0.15s ease"
-                              }}
-                              title={`Edit ${stg.st.label}`}
-                              onClick={() => {
-                                if (stg.key === "headsUp") setIsEditingHeadsUp(true);
-                                if (stg.key === "initialReport") {
-                                  setInitialReportStarted(true);
-                                  setIsEditingInitialReport(true);
-                                }
-                                if (stg.key === "investigation") {
-                                  setInvestigationStarted(true);
-                                  setIsEditingInvestigation(true);
-                                }
-                                setActiveTab(stg.key);
-                                setTimeout(() => {
-                                  document.getElementById('inc-panels')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                                }, 100);
-                              }}
-                            >
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                              </svg>
-                            </button>
-                          )}
+                          {/* 2. Edit Button - ONLY when editable (Icon only) */}
+                          {(() => {
+                            const canEditStage = !isObserverUser() && (
+                              stg.key === "investigation" && isCurrentlyReopened
+                                ? ((isNneUser() || isAdminUser()) && !isContractorUser())
+                                : !isFormApproved
+                            );
+                            if (!canEditStage) return null;
+                            return (
+                              <button
+                                type="button"
+                                style={{
+                                  background: "#ffffff",
+                                  color: "#1e293b",
+                                  border: "1px solid #cbd5e1",
+                                  width: "32px",
+                                  height: "32px",
+                                  padding: 0,
+                                  borderRadius: "6px",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  cursor: "pointer",
+                                  boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+                                  transition: "all 0.15s ease"
+                                }}
+                                title={`Edit ${stg.st.label}`}
+                                onClick={() => {
+                                  if (stg.key === "headsUp") setIsEditingHeadsUp(true);
+                                  if (stg.key === "initialReport") {
+                                    setInitialReportStarted(true);
+                                    setIsEditingInitialReport(true);
+                                  }
+                                  if (stg.key === "investigation") {
+                                    setInvestigationStarted(true);
+                                    setIsEditingInvestigation(true);
+                                  }
+                                  setActiveTab(stg.key);
+                                  setTimeout(() => {
+                                    document.getElementById('inc-panels')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                  }, 100);
+                                }}
+                              >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                                </svg>
+                              </button>
+                            );
+                          })()}
 
                           {/* 3. Download Button (Icon only) */}
                           <button
@@ -6223,7 +6236,11 @@ export default function IMDetails() {
                       </svg>
                       View in Modal
                     </button>
-                    {!isClosed && (!investigationApproved || isNneUser()) && !isEditingInvestigation && (investigationSubmitted || isCurrentlyReopened) && (
+                    {!isClosed && !isObserverUser() && !isEditingInvestigation && (investigationSubmitted || isCurrentlyReopened) && (
+                      isCurrentlyReopened
+                        ? ((isNneUser() || isAdminUser()) && !isContractorUser())
+                        : (!investigationApproved || isNneUser() || isAdminUser())
+                    ) && (
                       <button
                         type="button"
                         className="mod-btn-outline"
@@ -6268,7 +6285,15 @@ export default function IMDetails() {
                 )}
               </div>
               <div className="mod-card-body">
-                <fieldset disabled={!isEditingInvestigation && investigationSubmitted} style={{ border: "none", padding: 0, margin: 0, opacity: (!isEditingInvestigation && investigationSubmitted) ? 0.95 : 1 }}>
+                {isCurrentlyReopened && isContractorUser() && (
+                  <div style={{ marginBottom: 16, padding: "12px 16px", borderRadius: 8, background: "#fffbeb", border: "1px solid #fde68a", color: "#92400e", fontSize: 13, display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontSize: 18 }}>ℹ️</span>
+                    <div>
+                      <strong>Incident Reopened:</strong> This incident was reopened by the Department. Editing access for Step 3 (Investigation Report) is restricted to Department and Admin users only. This form is in read-only mode for Contractors.
+                    </div>
+                  </div>
+                )}
+                <fieldset disabled={(!isEditingInvestigation && investigationSubmitted) || (isCurrentlyReopened && isContractorUser())} style={{ border: "none", padding: 0, margin: 0, opacity: ((!isEditingInvestigation && investigationSubmitted) || (isCurrentlyReopened && isContractorUser())) ? 0.95 : 1 }}>
 
                   {/* Incident Description (Carried over) */}
                   <div className="fsec">
@@ -7221,7 +7246,7 @@ export default function IMDetails() {
 
                   {/* Footer */}
                   <div className="fsec">
-                    {(!investigationSubmitted || isEditingInvestigation) && !isClosed && (
+                    {(!investigationSubmitted || isEditingInvestigation) && !isClosed && !(isCurrentlyReopened && isContractorUser()) && (
                       <div style={{ display: "flex", gap: "12px", marginTop: "16px" }}>
                         <button className="mod-btn-primary im-btn-primary" onClick={async () => {
                           let hasError = false;

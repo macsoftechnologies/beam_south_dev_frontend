@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { spotCheckService } from "../../../services/spotCheckService";
+import { getModuleUserContext } from "../../../utils/modulePermissions";
 import { showSuccess, showError } from "../../../components/common/Toast/Toast";
 import Swal from "sweetalert2";
 import "./SCView.css";
@@ -91,11 +92,9 @@ export default function SCView() {
     }
   }, []);
 
-  const rawRole = (localStorage.getItem("UserType") || currentUser?.role || currentUser?.userType || currentUser?.user_type || "").toUpperCase();
-  const userRolesArr = Array.isArray(currentUser?.userTypes) ? currentUser.userTypes.map((t) => String(t).toUpperCase()) : [];
-  const allRoles = [rawRole, ...userRolesArr].join(" ");
-  const isContractor = allRoles.includes("CONTRACTOR") || allRoles.includes("SUBCONTRACTOR") || Boolean(currentUser?.subcontractor_id) || Boolean(currentUser?.contractorId) || Boolean(currentUser?.typeId && allRoles.includes("SUBCONTRACTOR"));
-  const isObserver = allRoles.includes("OBSERVER");
+  const modCtx = React.useMemo(() => getModuleUserContext("spot-checks", currentUser), [currentUser]);
+  const isContractor = modCtx.isContractor;
+  const isObserver = modCtx.isObserver;
   const isReadOnly = isContractor || isObserver;
 
 

@@ -5,6 +5,7 @@ import Loader from "../../../components/common/Loader/Loader";
 import { getIncidents, getIncidentStats, deleteIncident } from "../../../services/incidentService";
 import { getBuildings, getContractors } from "../../../services/authService";
 import { formatToDenmark24Hour } from "../../../utils/dateUtils";
+import { getModuleUserContext } from "../../../utils/modulePermissions";
 import "../../../styles/module-shared.css";
 import "./IMList.css";
 
@@ -156,6 +157,9 @@ const StatusTracker = ({ inc, pipeline, isPendingClosure: initialIsPendingClosur
   );
   const [realHasInvestigation, setRealHasInvestigation] = React.useState(initialHasInvestigation);
 
+  const initialReopenLogs = inc?.reopenLogs || inc?.incident?.reopenLogs;
+  const [realReopenLogs, setRealReopenLogs] = React.useState(initialReopenLogs);
+
   React.useEffect(() => {
     let isMounted = true;
     const checkRealStatus = async () => {
@@ -221,6 +225,10 @@ const StatusTracker = ({ inc, pipeline, isPendingClosure: initialIsPendingClosur
         if (hasInv !== realHasInvestigation) {
           setRealHasInvestigation(hasInv);
         }
+
+        if (data.reopenLogs !== undefined) {
+          setRealReopenLogs(data.reopenLogs);
+        }
       } catch (err) {
         console.error("StatusTracker fetch failed", err);
       }
@@ -266,17 +274,30 @@ const StatusTracker = ({ inc, pipeline, isPendingClosure: initialIsPendingClosur
   else if (order.hasOwnProperty(pipeline)) curIdx = order[pipeline];
 
   const closed = normalizedPipeline === "CLOSED" || pipeline === "Closed";
+
+  const hasReopen = Boolean(
+    (Array.isArray(realReopenLogs) && realReopenLogs.length > 0) ||
+    (typeof realReopenLogs === 'string' && realReopenLogs.length > 2 && realReopenLogs !== '[]')
+  );
+  const isCurrentlyReopened = !closed && hasReopen;
+  if (isCurrentlyReopened) {
+    curIdx = 2;
+  }
+
   const isOpenedState = !closed && curIdx === 2 && realIsPendingClosure;
   
   const label = closed 
     ? (realIsWaived ? "Closed (Waived)" : "Closed") 
-    : isOpenedState 
-      ? (realIsWaived ? "Pending Closure (Waived)" : "Pending Closure") 
-      : (steps[curIdx] ? steps[curIdx].title : pipeline);
+    : isCurrentlyReopened
+      ? "Reopened (Investigation)"
+      : isOpenedState 
+        ? (realIsWaived ? "Pending Closure (Waived)" : "Pending Closure") 
+        : (steps[curIdx] ? steps[curIdx].title : pipeline);
 
   const getStageColor = () => {
     if (closed && realIsWaived) return "#475569"; // Slate for waived
     if (closed) return "#059669"; // Green
+    if (isCurrentlyReopened) return "#d97706"; // Amber for Reopened
     if (isOpenedState) return "#ea580c"; // Orange
     if (curIdx === 0) return "#dc2626"; // Red
     if (curIdx === 1) return "#2563eb"; // Blue
@@ -303,12 +324,12 @@ const StatusTracker = ({ inc, pipeline, isPendingClosure: initialIsPendingClosur
       {steps.map((step, i) => {
         let state = "pending";
         if (i === 0) {
-          if (closed || curIdx > 0) state = "done";
+          if (closed || isCurrentlyReopened || curIdx > 0) state = "done";
           else if (curIdx === 0) state = "current";
         } else if (i === 1) {
           if (realIsWaived && !realHasInitialReport) {
             state = "waived";
-          } else if (closed || curIdx > 1) {
+          } else if (closed || isCurrentlyReopened || curIdx > 1) {
             state = "done";
           } else if (curIdx === 1) {
             state = "current";
@@ -320,7 +341,7 @@ const StatusTracker = ({ inc, pipeline, isPendingClosure: initialIsPendingClosur
             state = "done";
           } else if (isOpenedState) {
             state = "opened";
-          } else if (curIdx === 2) {
+          } else if (curIdx === 2 || isCurrentlyReopened) {
             state = "current";
           }
         }
@@ -395,13 +416,14 @@ function IMList() {
   const [stats, setStats] = useState(null);
 
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
-  const rawRole = (localStorage.getItem("UserType") || currentUser?.role || currentUser?.userType || currentUser?.user_type || "").toUpperCase();
-  const userRolesArr = Array.isArray(currentUser?.userTypes) ? currentUser.userTypes.map((t) => String(t).toUpperCase()) : [];
-  const allRoles = [rawRole, ...userRolesArr].join(" ");
-  const isObserver = allRoles.includes("OBSERVER");
-  const isAdmin = (allRoles.includes("ADMIN") || allRoles.includes("SUPERADMIN") || Boolean(currentUser?.isSuperAdmin)) && !isObserver;
-  const isContractor = allRoles.includes("CONTRACTOR") || allRoles.includes("SUBCONTRACTOR") || Boolean(currentUser?.subcontractor_id) || Boolean(currentUser?.typeId && allRoles.includes("SUBCONTRACTOR"));
-  const contractorId = currentUser?.typeId || currentUser?.subcontractor_id || currentUser?.subContId || currentUser?.contractorId;
+  const modCtx = getModuleUserContext("incident-management", currentUser);
+  const rawRole = (modCtx.effectiveRole || localStorage.getItem("UserType") || currentUser?.role || "").toUpperCase();
+  const isObserver = modCtx.isObserver;
+  const isAdmin = modCtx.isAdmin;
+  const isContractor = modCtx.isContractor;
+  const isDepartment = modCtx.isDepartment;
+  const contractorId = modCtx.contractorId;
+  const departmentId = modCtx.departmentId;
 
   const [deletingIncident, setDeletingIncident] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -428,16 +450,22 @@ function IMList() {
     if (!isContractor) return null;
     return (
       contractors.find(c => 
-        String(c.id) === String(contractorId) || 
-        String(c.subcontractor_id) === String(contractorId) ||
-        (currentUser?.username && c.username === currentUser.username) ||
-        (currentUser?.company_name && (c.subContractorName === currentUser.company_name || c.company_name === currentUser.company_name)) ||
-        (currentUser?.companyName && (c.subContractorName === currentUser.companyName || c.company_name === currentUser.companyName))
+        (contractorId && (String(c.id) === String(contractorId) || String(c.subcontractor_id) === String(contractorId))) ||
+        (currentUser?.subContractorName && (c.subContractorName === currentUser.subContractorName || c.company_name === currentUser.subContractorName)) ||
+        (currentUser?.contractorName && (c.subContractorName === currentUser.contractorName || c.company_name === currentUser.contractorName)) ||
+        (currentUser?.username && c.username === currentUser.username)
       ) || (contractors.length === 1 ? contractors[0] : null)
     );
-  }, [isContractor, contractors, contractorId, currentUser?.company_name, currentUser?.companyName, currentUser?.username]);
+  }, [isContractor, contractors, contractorId, currentUser?.subContractorName, currentUser?.contractorName, currentUser?.username]);
 
-  const myContractorName = currentUser?.company_name || currentUser?.companyName || currentUser?.subContractorName || currentUser?.contractorName || myContractor?.subContractorName || myContractor?.company_name || myContractor?.companyName || myContractor?.subcontractor_name || myContractor?.name || "";
+  const myContractorName = 
+    myContractor?.subContractorName || 
+    myContractor?.company_name || 
+    myContractor?.name || 
+    currentUser?.subContractorName || 
+    currentUser?.contractorName || 
+    (contractors.some(c => c.subContractorName === currentUser?.companyName || c.company_name === currentUser?.companyName) ? (currentUser?.companyName || currentUser?.company_name) : "") || 
+    "";
 
   const fetchIncidents = async () => {
     setLoading(true);

@@ -56,6 +56,12 @@ export const closeIncident = async (incidentId, data) => {
   return response.data;
 };
 
+// Reopen Incident
+export const reopenIncident = async (incidentId, data) => {
+  const response = await api.post(`/incidents/${incidentId}/reopen/`, data);
+  return response.data;
+};
+
 // Get Single Incident Report
 export const getIncidentById = async (incidentId) => {
   const response = await api.get(`/incidents/${incidentId}/`);

@@ -23,6 +23,10 @@ api.interceptors.request.use(
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
         }
+        const userType = localStorage.getItem("UserType");
+        if (userType) {
+            config.headers["X-User-Type"] = userType;
+        }
         return config;
     },
     (error) => Promise.reject(error)

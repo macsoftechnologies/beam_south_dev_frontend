@@ -227,9 +227,9 @@ function Dashboard() {
     ? parsedUser.userTypes.map(t => String(t).toLowerCase())
     : (Array.isArray(parsedUser?.userType) ? parsedUser.userType.map(t => String(t).toLowerCase()) : [rawRole]);
 
-  const isObserver = rawRole.includes("observer") || userTypesArr.some(t => t.includes("observer"));
-  const isDepartment = rawRole.includes("department") || userTypesArr.some(t => t.includes("department"));
-  const isContractor = rawRole.includes("subcontractor") || rawRole.includes("contractor") || userTypesArr.some(t => t.includes("subcontractor") || t.includes("contractor"));
+  const isObserver = rawRole.includes("observer") || (!rawRole && userTypesArr.some(t => t.includes("observer")));
+  const isDepartment = !isObserver && (rawRole.includes("department") || userTypesArr.some(t => t.includes("department")));
+  const isContractor = !isObserver && (rawRole.includes("subcontractor") || rawRole.includes("contractor") || (!isDepartment && userTypesArr.some(t => t.includes("subcontractor") || t.includes("contractor"))));
   const isDepartmentOrContractor = isDepartment || isContractor;
 
   const barChartRef = useRef(null)

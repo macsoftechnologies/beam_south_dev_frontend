@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { spotCheckService } from "../../../services/spotCheckService";
 import { getBuildings, getContractors } from "../../../services/authService";
+import { getModuleUserContext } from "../../../utils/modulePermissions";
 import { generateSpotCheckStatsPdf } from "../utils/spotCheckStatsPdfGenerator";
 import "./SCDashboard.css";
 
@@ -372,12 +373,57 @@ export default function SCDashboard() {
     handleRangeChange('13m');
   };
 
+  const currentUser = useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem('user')) || {};
+    } catch {
+      return {};
+    }
+  }, []);
+
+  const modCtx = useMemo(() => getModuleUserContext("spot-checks", currentUser), [currentUser]);
+  const isContractor = modCtx.isContractor;
+  const isDepartment = modCtx.isDepartment;
+  const isAdmin = modCtx.isAdmin;
+  const isObserver = modCtx.isObserver;
+  const isReadOnly = isContractor || isObserver;
+  const contractorId = modCtx.contractorId;
+
+  const myContractor = useMemo(() => {
+    if (!isContractor) return null;
+    return (
+      contractorsList.find(c => 
+        (contractorId && (String(c.id) === String(contractorId) || String(c.subcontractor_id) === String(contractorId))) ||
+        (currentUser?.subContractorName && (c.subContractorName === currentUser.subContractorName || c.company_name === currentUser.subContractorName)) ||
+        (currentUser?.contractorName && (c.subContractorName === currentUser.contractorName || c.company_name === currentUser.contractorName)) ||
+        (currentUser?.username && (c.username === currentUser.username || String(c.subContractorName || c.company_name || c.name || '').toLowerCase() === String(currentUser.username).toLowerCase()))
+      ) || (contractorsList.length === 1 ? contractorsList[0] : null)
+    );
+  }, [isContractor, contractorsList, contractorId, currentUser?.subContractorName, currentUser?.contractorName, currentUser?.username]);
+
+  const myContractorName = 
+    myContractor?.subContractorName || 
+    myContractor?.company_name || 
+    myContractor?.name || 
+    currentUser?.subContractorName || 
+    currentUser?.contractorName || 
+    (contractorsList.some(c => c.subContractorName === currentUser?.companyName || c.company_name === currentUser?.companyName) ? (currentUser?.companyName || currentUser?.company_name) : "") || 
+    "";
+
   useEffect(() => {
     const loadDashboard = async () => {
       try {
         setIsLoading(true);
+        const scParams = { page: 1, limit: 1000 };
+        if (isContractor) {
+          scParams.userRole = "CONTRACTOR";
+          if (contractorId) scParams.contractorId = contractorId;
+          if (myContractorName) scParams.contractor = myContractorName;
+        } else if (isDepartment) {
+          scParams.userRole = "DEPARTMENT";
+        }
         const [allChecksRes, cListRes, bListRes] = await Promise.all([
-          spotCheckService.getSpotChecks({ page: 1, limit: 1000 }).catch(() => ({ spotChecks: [] })),
+          spotCheckService.getSpotChecks(scParams).catch(() => ({ spotChecks: [] })),
           getContractors(1, 1000).catch(() => ({ data: [] })),
           getBuildings(1, 1000).catch(() => ({ data: [] })),
         ]);
@@ -397,43 +443,7 @@ export default function SCDashboard() {
       }
     };
     loadDashboard();
-  }, []);
-
-  const currentUser = useMemo(() => {
-    try {
-      return JSON.parse(localStorage.getItem('user')) || {};
-    } catch {
-      return {};
-    }
-  }, []);
-
-  const rawRoleAdmin = (localStorage.getItem("UserType") || currentUser?.role || currentUser?.userType || currentUser?.user_type || "").toUpperCase();
-  const userRolesArrAdmin = Array.isArray(currentUser?.userTypes) ? currentUser.userTypes.map((t) => String(t).toUpperCase()) : [];
-  const allRolesAdmin = [rawRoleAdmin, ...userRolesArrAdmin].join(" ");
-  const isAdmin = allRolesAdmin.includes("ADMIN") || allRolesAdmin.includes("SUPERADMIN") || Boolean(currentUser?.isSuperAdmin);
-
-  const rawRole = (localStorage.getItem("UserType") || currentUser?.role || currentUser?.userType || currentUser?.user_type || "").toUpperCase();
-  const userRolesArr = Array.isArray(currentUser?.userTypes) ? currentUser.userTypes.map((t) => String(t).toUpperCase()) : [];
-  const allRoles = [rawRole, ...userRolesArr].join(" ");
-  const isContractor = allRoles.includes("CONTRACTOR") || allRoles.includes("SUBCONTRACTOR") || Boolean(currentUser?.subcontractor_id) || Boolean(currentUser?.contractorId) || Boolean(currentUser?.typeId && allRoles.includes("SUBCONTRACTOR"));
-  const isObserver = allRoles.includes("OBSERVER");
-  const isReadOnly = isContractor || isObserver;
-  const contractorId = currentUser?.typeId || currentUser?.subcontractor_id || currentUser?.subContId || currentUser?.contractorId;
-
-  const myContractor = useMemo(() => {
-    if (!isContractor) return null;
-    return (
-      contractorsList.find(c => 
-        String(c.id) === String(contractorId) || 
-        String(c.subcontractor_id) === String(contractorId) ||
-        (currentUser?.username && c.username === currentUser.username) ||
-        (currentUser?.company_name && (c.subContractorName === currentUser.company_name || c.company_name === currentUser.company_name)) ||
-        (currentUser?.companyName && (c.subContractorName === currentUser.companyName || c.company_name === currentUser.companyName))
-      ) || (contractorsList.length === 1 ? contractorsList[0] : null)
-    );
-  }, [isContractor, contractorsList, contractorId, currentUser?.company_name, currentUser?.companyName, currentUser?.username]);
-
-  const myContractorName = currentUser?.company_name || currentUser?.companyName || currentUser?.subContractorName || currentUser?.contractorName || myContractor?.subContractorName || myContractor?.company_name || myContractor?.companyName || myContractor?.subcontractor_name || myContractor?.name || "";
+  }, [isContractor, contractorId, myContractorName, isDepartment]);
 
   // ── Dropdown Options ──
   const buildingOptions = useMemo(() => {

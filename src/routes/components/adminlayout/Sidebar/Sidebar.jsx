@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useLocation, Link } from 'react-router-dom'
 import "./Sidebar.css";
 import { getMenuByRole } from './navigation.service';
+import { getEffectiveRoleForModule } from '../../../../utils/modulePermissions';
 import LogoImg from "../../../assets/images/Logo.jpeg";
 
 /* ── NAV ITEM with collapsible submenu ── */
@@ -71,15 +72,33 @@ function Sidebar({ sidebarOpen }) {
 
   useEffect(() => {
     try {
+      const activeUserType = localStorage.getItem("UserType");
+      if (activeUserType) {
+        setUserRole(activeUserType);
+        return;
+      }
       const u = localStorage.getItem("user")
       if (u) {
         const parsed = JSON.parse(u)
-        setUserRole(parsed.role || parsed.userType || "")
+        const ptwRole = getEffectiveRoleForModule("permit-to-work", parsed);
+        const roles = [];
+        if (ptwRole) {
+          String(ptwRole).split(",").forEach(r => roles.push(r.trim()));
+        }
+        if (parsed.role) {
+          if (typeof parsed.role === "string") parsed.role.split(",").forEach(r => roles.push(r.trim()));
+          else if (Array.isArray(parsed.role)) parsed.role.forEach(r => roles.push(String(r).trim()));
+        }
+        if (parsed.userType) {
+          if (typeof parsed.userType === "string") parsed.userType.split(",").forEach(r => roles.push(r.trim()));
+          else if (Array.isArray(parsed.userType)) parsed.userType.forEach(r => roles.push(String(r).trim()));
+        }
+        setUserRole(Array.from(new Set(roles.filter(Boolean))).join(","))
       }
     } catch (e) {
       console.error(e)
     }
-  }, [])
+  }, [pathname])
 
   // Helper: exact match or starts-with for parent routes
   const isActive = (path) => pathname === path || pathname.startsWith(path + '/')

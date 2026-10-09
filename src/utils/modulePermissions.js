@@ -68,6 +68,31 @@ export function getUserTypeLabel(roleValue, moduleId = null) {
 }
 
 /**
+ * Format role for display in the navbar under the username.
+ * For example:
+ * - PTW Department1 -> Department1
+ * - Contractor/Subcontractor -> Contractor
+ * - Department -> Department
+ * - Observer -> Observer
+ */
+export function getNavbarDisplayRole(role) {
+  if (!role) return "";
+  const r = String(role).trim();
+  const lower = r.toLowerCase();
+  if (lower === "subcontractor" || lower === "contractor") return "Contractor";
+  if (lower === "department1" || lower === "c&q") return "Department1";
+  if (lower === "department" || lower === "conm/hse" || lower === "conm") return "Department";
+  if (lower === "observer") return "Observer";
+  if (lower === "admin") return "Admin";
+  if (lower === "superadmin") return "SuperAdmin";
+  if (r.includes(",")) {
+    const first = r.split(",")[0].trim();
+    return getNavbarDisplayRole(first);
+  }
+  return r;
+}
+
+/**
  * Detect module ID from a path/pathname
  */
 export function detectModuleFromPath(pathname = "") {
@@ -235,10 +260,24 @@ export function getEffectiveRoleForModule(moduleId, user = null) {
     user?.user_type ||
     "Department";
 
-  // If primary is comma-separated (e.g. "Department,Department1"), extract first or matching
+  // If primary is comma-separated (e.g. "Department,Department1" or "Department1,Subcontractor,Observer"), extract matching role
   let resolvedPrimary = primary;
   if (typeof primary === "string" && primary.includes(",")) {
-    resolvedPrimary = primary.split(",")[0].trim();
+    const parts = primary.split(",").map((s) => s.trim()).filter(Boolean);
+    if (moduleId === "permit-to-work") {
+      if (parts.includes("Department1")) resolvedPrimary = "Department1";
+      else if (parts.includes("Department")) resolvedPrimary = "Department";
+      else if (parts.includes("Subcontractor") || parts.includes("Contractor")) resolvedPrimary = "Subcontractor";
+      else if (parts.includes("Observer")) resolvedPrimary = "Observer";
+      else resolvedPrimary = parts[0] || "Department";
+    } else if (moduleId === "incident-management" || moduleId === "safety-observations" || moduleId === "safety-inspection" || moduleId === "spot-checks") {
+      if (parts.includes("Subcontractor") || parts.includes("Contractor")) resolvedPrimary = "Subcontractor";
+      else if (parts.includes("Department") || parts.includes("Department1")) resolvedPrimary = "Department";
+      else if (parts.includes("Observer")) resolvedPrimary = "Observer";
+      else resolvedPrimary = parts[0] || "Department";
+    } else {
+      resolvedPrimary = parts[0] || "Department";
+    }
   }
 
   if (moduleId !== "permit-to-work" && resolvedPrimary === "Department1") {
@@ -246,6 +285,85 @@ export function getEffectiveRoleForModule(moduleId, user = null) {
   }
 
   return resolvedPrimary || "Department";
+}
+
+/**
+ * Resolve effective role, typeId, contractorId, departmentId for a specific module.
+ * If user is a multi-role employee (has both departId and subContId):
+ * - If module role is Subcontractor/Contractor -> uses subContId / subcontractor_id.
+ * - If module role is Department/Department1 -> uses departId / department_id.
+ * - If module role is Observer -> uses obserId / departId.
+ */
+export function getModuleUserContext(moduleId, user = null) {
+  if (!user) {
+    try {
+      user = JSON.parse(localStorage.getItem("user") || "{}");
+    } catch {
+      user = {};
+    }
+  }
+
+  const effectiveRole = getEffectiveRoleForModule(moduleId, user);
+  const roleLower = String(effectiveRole || "").toLowerCase();
+
+  const isObserver = roleLower.includes("observer");
+  const isContractor = (roleLower.includes("subcontractor") || roleLower.includes("contractor")) && !isObserver;
+  const isDepartment = (roleLower.includes("department") || roleLower.includes("department1")) && !isObserver;
+  const isAdmin = isUserAdmin(user);
+
+  // Subcontractor ID (Bilfinger, etc.): Explicit subcontractor ID takes priority over ambiguous typeId
+  const rawSubContId =
+    user?.subContId !== undefined && user?.subContId !== null ? user.subContId :
+    user?.subcontractor_id !== undefined && user?.subcontractor_id !== null ? user.subcontractor_id :
+    user?.subContractorId !== undefined && user?.subContractorId !== null ? user.subContractorId :
+    (isContractor && !user?.departId ? user?.typeId : null);
+
+  const contractorId = rawSubContId ? Number(rawSubContId) : null;
+
+  // Department ID: Explicit department ID takes priority over typeId
+  const rawDepartId =
+    user?.departId !== undefined && user?.departId !== null ? user.departId :
+    user?.department_id !== undefined && user?.department_id !== null ? user.department_id :
+    user?.departmentId !== undefined && user?.departmentId !== null ? user.departmentId :
+    (!isContractor ? user?.typeId : null);
+
+  const departmentId = rawDepartId ? Number(rawDepartId) : null;
+
+  // Observer ID:
+  const rawObserId =
+    user?.obserId !== undefined && user?.obserId !== null ? user.obserId :
+    user?.observerId !== undefined && user?.observerId !== null ? user.observerId :
+    departmentId;
+
+  const observerId = rawObserId ? Number(rawObserId) : null;
+
+  // Active Type ID based on selected module role
+  let activeTypeId = null;
+  if (isContractor) {
+    activeTypeId = contractorId || Number(user?.typeId) || null;
+  } else if (isDepartment) {
+    activeTypeId = departmentId || Number(user?.typeId) || null;
+  } else if (isObserver) {
+    activeTypeId = observerId || Number(user?.typeId) || null;
+  } else {
+    activeTypeId = Number(user?.typeId) || null;
+  }
+
+  return {
+    moduleId,
+    effectiveRole,
+    roleLower,
+    isObserver,
+    isContractor,
+    isDepartment,
+    isAdmin,
+    isDeptOrAdmin: (isAdmin || isDepartment) && !isContractor && !isObserver,
+    isReadOnly: isObserver,
+    contractorId,
+    departmentId,
+    observerId,
+    activeTypeId,
+  };
 }
 
 /**
@@ -267,28 +385,34 @@ export function syncActiveModuleRole(pathname = window.location.pathname) {
     }
 
     const moduleId = detectModuleFromPath(pathname);
-    const effectiveRole = getEffectiveRoleForModule(moduleId, user);
+    const ctx = getModuleUserContext(moduleId, user);
 
-    if (effectiveRole) {
-      localStorage.setItem("UserType", effectiveRole);
+    if (ctx.effectiveRole) {
+      localStorage.setItem("UserType", ctx.effectiveRole);
       localStorage.setItem("activeModule", moduleId);
-      localStorage.setItem("activeModuleRole", effectiveRole);
+      localStorage.setItem("activeModuleRole", ctx.effectiveRole);
     }
-
-    const roleLower = String(effectiveRole || "").toLowerCase();
-    const isObserver = roleLower.includes("observer");
-    const isContractor = roleLower.includes("subcontractor") || roleLower.includes("contractor");
-    const isDepartment = roleLower.includes("department");
-    const isAdmin = isUserAdmin(user);
+    if (ctx.activeTypeId) {
+      localStorage.setItem("activeTypeId", String(ctx.activeTypeId));
+    }
+    if (ctx.contractorId) {
+      localStorage.setItem("activeContractorId", String(ctx.contractorId));
+    }
+    if (ctx.departmentId) {
+      localStorage.setItem("activeDepartmentId", String(ctx.departmentId));
+    }
 
     return {
       moduleId,
-      effectiveRole,
-      isObserver,
-      isContractor,
-      isDepartment,
-      isAdmin,
-      isReadOnly: isObserver || isContractor,
+      effectiveRole: ctx.effectiveRole,
+      isObserver: ctx.isObserver,
+      isContractor: ctx.isContractor,
+      isDepartment: ctx.isDepartment,
+      isAdmin: ctx.isAdmin,
+      isReadOnly: ctx.isReadOnly,
+      contractorId: ctx.contractorId,
+      departmentId: ctx.departmentId,
+      activeTypeId: ctx.activeTypeId,
     };
   } catch (err) {
     console.error("Error syncing active module role:", err);

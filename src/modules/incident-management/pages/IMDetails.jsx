@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import PageHeader from "../../../components/common/PageHeader/PageHeader";
-import { getIncidentById, updateHeadsUp, approveHeadsUp, submitInitialReport, approveInitialReport, getActionItems, addActionItem, updateActionItem, deleteActionItem, deleteIncident, saveInvestigation, reviewInvestigation, closeIncident, exportIncidentPdf, uploadIncidentAttachment, returnForRevision } from "../../../services/incidentService";
+import { getIncidentById, updateHeadsUp, approveHeadsUp, submitInitialReport, approveInitialReport, getActionItems, addActionItem, updateActionItem, deleteActionItem, deleteIncident, saveInvestigation, reviewInvestigation, closeIncident, reopenIncident, exportIncidentPdf, uploadIncidentAttachment, returnForRevision } from "../../../services/incidentService";
 import { getBuildings, getFloors, getContractors, getRooms } from "../../../services/authService";
 import { showSuccess, showError } from "../../../components/common/Toast/Toast";
 import Loader from "../../../components/common/Loader/Loader";
@@ -185,7 +185,7 @@ const CheckIcon = () => (
   </svg>
 );
 
-const SignaturePad = ({ value, onChange, onClear }) => {
+const SignaturePad = ({ value, onChange, onClear, height = 280 }) => {
   const canvasRef = useRef(null);
   const [isDrawing, setIsDrawing] = useState(false);
 
@@ -261,7 +261,7 @@ const SignaturePad = ({ value, onChange, onClear }) => {
           position: "relative",
           border: "1px dashed var(--border-color)",
           borderRadius: 6,
-          height: 280,
+          height: height,
           background: "#f8fafc",
           touchAction: "none",
           overflow: "hidden"
@@ -271,7 +271,7 @@ const SignaturePad = ({ value, onChange, onClear }) => {
         <canvas
           ref={canvasRef}
           width={800}
-          height={280}
+          height={height}
           style={{ width: "100%", height: "100%", cursor: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='black'%3E%3Cpath d='M7.127 22.562l-7.127 1.438 1.438-7.128 5.689 5.69zm1.414-1.414l11.228-11.225-5.69-5.692-11.227 11.227 5.689 5.69zm9.768-21.148l-2.816 2.817 5.691 5.691 2.816-2.819-5.691-5.689z'/%3E%3C/svg%3E\") 0 20, pointer", display: "block" }}
           onMouseDown={startDrawing}
           onMouseMove={draw}
@@ -849,6 +849,55 @@ export default function IMDetails() {
   const [isApprovingHu, setIsApprovingHu] = useState(false);
   const [isApprovingIr, setIsApprovingIr] = useState(false);
   const [isApprovingInv, setIsApprovingInv] = useState(false);
+
+  // --- Reopen Incident States ---
+  const [showReopenModal, setShowReopenModal] = useState(false);
+  const [reopenReason, setReopenReason] = useState("");
+  const [reopenRole, setReopenRole] = useState("Department HSE User");
+  const [reopenSignature, setReopenSignature] = useState(false);
+  const [isReopeningIncident, setIsReopeningIncident] = useState(false);
+  const [reopenError, setReopenError] = useState("");
+
+  const handleReopenIncident = async () => {
+    if (!reopenReason || !reopenReason.trim()) {
+      setReopenError("Reason for reopening is mandatory. Please provide a clear explanation.");
+      return;
+    }
+    setReopenError("");
+    setIsReopeningIncident(true);
+    try {
+      const user = getLoggedInUser() || "Department User";
+      await reopenIncident(id, {
+        reopenedBy: user,
+        role: reopenRole || "Department User / HSE",
+        reason: reopenReason.trim(),
+        signature: reopenSignature || undefined,
+      });
+
+      showSuccess("Incident Reopened Successfully! Step 3 (Investigation) & Corrective Actions are now accessible.");
+      setShowReopenModal(false);
+      setReopenReason("");
+      setReopenSignature(false);
+
+      // Refresh incident
+      const data = await getIncidentById(id);
+      const incData = data?.data || data;
+      setRawIncident(incData);
+
+      // Switch to investigation tab so department users can immediately view/edit
+      setActiveTab("investigation");
+      setIsEditingInvestigation(true);
+      setInvestigationStarted(true);
+      window.scrollTo(0, 0);
+    } catch (err) {
+      console.error("Failed to reopen incident:", err);
+      const msg = err.response?.data?.message || err.message || "Failed to reopen incident";
+      setReopenError(Array.isArray(msg) ? msg[0] : msg);
+      showError(Array.isArray(msg) ? msg[0] : msg);
+    } finally {
+      setIsReopeningIncident(false);
+    }
+  };
 
   const handleReturnForRevision = async (stage) => {
     let reviewer = "";
@@ -2286,16 +2335,28 @@ export default function IMDetails() {
     rawIncident?.noFurtherInvestigation
   );
 
-  const isClosed = Boolean(
-    incident?.closedBy ||
-    incident?.status === 2 ||
-    String(incident?.stage).toUpperCase() === "CLOSED" ||
-    rawIncident?.incident?.closedBy ||
-    rawIncident?.closedBy ||
-    rawIncident?.incident?.status === 2 ||
-    rawIncident?.status === 2 ||
-    String(rawIncident?.incident?.stage || rawIncident?.stage).toUpperCase() === "CLOSED"
-  );
+  const incObj = incident || rawIncident?.incident || rawIncident || {};
+  const currentStage = String(incObj?.stage || "").toUpperCase();
+  const isClosed = currentStage === "CLOSED" || ((incObj?.status === 2 || rawIncident?.status === 2) && Boolean(incObj?.closedBy || rawIncident?.closedBy));
+
+  const reopenHistoryList = Array.isArray(incObj?.reopenLogs)
+    ? incObj.reopenLogs
+    : Array.isArray(rawIncident?.incident?.reopenLogs)
+      ? rawIncident.incident.reopenLogs
+      : Array.isArray(rawIncident?.reopenLogs)
+        ? rawIncident.reopenLogs
+        : [];
+
+  const closureHistoryList = Array.isArray(incObj?.closureHistory)
+    ? incObj.closureHistory
+    : Array.isArray(rawIncident?.incident?.closureHistory)
+      ? rawIncident.incident.closureHistory
+      : Array.isArray(rawIncident?.closureHistory)
+        ? rawIncident.closureHistory
+        : [];
+
+  const isReopened = reopenHistoryList.length > 0;
+  const isCurrentlyReopened = isReopened && !isClosed;
 
   const hasInitialReportData = Boolean(
     initialReportSubmitted ||
@@ -2387,6 +2448,9 @@ export default function IMDetails() {
         return !isClosed
           ? { label: "PENDING CLOSURE", state: "pending_closure", chipClass: "chip-inprogress" }
           : { label: "COMPLETED", state: "done", chipClass: "chip-approved" };
+      }
+      if (isCurrentlyReopened) {
+        return { label: "REOPENED", state: "current", chipClass: "chip-inprogress" };
       }
       if (hasInvestigationData || investigationSubmitted) {
         return { label: "IN REVIEW", state: "current", chipClass: "chip-inprogress" };
@@ -2965,11 +3029,13 @@ export default function IMDetails() {
               </div>
             </div>
 
-            {/* Arrow */}
-            <svg className="audit-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            {/* Arrow (only if signature card is displayed) */}
+            {type !== "CLOSED" && (type !== "REOPENED" || Boolean(step.signature)) && (
+              <svg className="audit-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            )}
           </div>
 
-          {renderSignatureCard(step, index)}
+          {type !== "CLOSED" && (type !== "REOPENED" || Boolean(step.signature)) && renderSignatureCard(step, index)}
         </div>
       </div>
     );
@@ -3080,14 +3146,18 @@ export default function IMDetails() {
   }
   if (investigationData?.editHistory && Array.isArray(investigationData.editHistory)) {
     investigationData.editHistory.forEach(ed => {
+      const isReopen = ed.status === "REOPENED" || (ed.action && String(ed.action).toLowerCase().includes("reopen"));
+      if (isReopen) return; // Reopen steps are tracked directly in reopenAuditSteps
+
       const isReturned = ed.status === "RETURNED_FOR_REVISION" || (ed.action && String(ed.action).toLowerCase().includes("return"));
+      const eventTime = ed.timestamp || ed.returnedTime || ed.editedTime;
       invAudit.push({
         title: "Incident Investigation Report (7 days)",
         type: isReturned ? "RETURNED_FOR_REVISION" : "EDITED",
         user: ed.returnedBy || ed.editedBy || "User",
         role: ed.role || (isReturned ? "Site HSE Lead Reviewer" : "Investigator / Editor"),
         reason: ed.reason || ed.editReason || ed.changes,
-        timestamp: ed.returnedTime || ed.editedTime || ed.timestamp,
+        timestamp: eventTime,
         signature: ed.signature,
         iconSvg: isReturned ? (
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
@@ -3106,14 +3176,24 @@ export default function IMDetails() {
     });
   }
 
-  const closeAuditStep = (isClosed || incident.closedBy || incident.closedTime || incident.status === 2 || String(incident.stage).toUpperCase() === "CLOSED") ? {
-    title: "Incident Closed",
+  const closureAuditSteps = (closureHistoryList.length > 0
+    ? closureHistoryList
+    : (incident.closedBy || incident.closedTime)
+      ? [{
+          closedBy: incident.closedBy,
+          closedTime: incident.closedTime || incident.updatedTime,
+          closureComments: incident.closureComments,
+          cycle: 1
+        }]
+      : []
+  ).map((c, idx) => ({
+    title: idx > 0 ? `Incident Closed (Post-Reopen Cycle ${idx + 1})` : "Incident Closed",
     type: "CLOSED",
-    user: incident.closedBy || "Site HSE Lead / Admin",
+    user: c.closedBy || "Site HSE Lead / Admin",
     role: "Incident Closer",
-    reason: incident.closureComments,
-    timestamp: incident.closedTime || incident.updatedTime,
-    signature: incident.closureSignature,
+    reason: c.closureComments || "Official incident closure",
+    timestamp: c.closedTime || c.timestamp || incident.updatedTime,
+    signature: undefined,
     iconSvg: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
         <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
@@ -3121,27 +3201,30 @@ export default function IMDetails() {
       </svg>
     ),
     color: "#059669"
-  } : null;
+  }));
 
-  if (closeAuditStep) {
-    if ((huNoFurtherInvestigation || incident.noFurtherInvestigation) && !hasInitialReportData) {
-      huAudit.push(closeAuditStep);
-    }
-    if ((irNoFurtherInvestigation || huNoFurtherInvestigation || incident.noFurtherInvestigation) && !hasInvestigationData) {
-      irAudit.push(closeAuditStep);
-    }
-    invAudit.push(closeAuditStep);
-  }
+  const reopenAuditSteps = reopenHistoryList.map((r, idx) => ({
+    title: idx > 0 ? `Incident Reopened (#${idx + 1})` : "Incident Reopened",
+    type: "REOPENED",
+    user: r.reopenedBy || "Department User",
+    role: r.role || "Department HSE User",
+    reason: r.reason,
+    timestamp: r.reopenedTime || r.timestamp,
+    signature: r.signature,
+    iconSvg: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="1 4 1 10 7 10"></polyline>
+        <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+      </svg>
+    ),
+    color: "#d97706"
+  }));
 
-  const allAuditSteps = [...huAudit, ...irAudit, ...invAudit].filter((step, idx, arr) => {
-    if (step.type === "CLOSED") {
-      return arr.findIndex(s => s.type === "CLOSED") === idx;
-    }
-    return true;
+  const allAuditSteps = [...huAudit, ...irAudit, ...invAudit, ...reopenAuditSteps, ...closureAuditSteps].sort((a, b) => {
+    const tA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+    const tB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+    return tA - tB;
   });
-  if (closeAuditStep && !allAuditSteps.some(s => s.type === "CLOSED")) {
-    allAuditSteps.push(closeAuditStep);
-  }
 
   return (
     <div className="mod-page">
@@ -3207,6 +3290,39 @@ export default function IMDetails() {
             </svg>
             {downloadingPdf ? "Downloading..." : "Export PDF"}
           </button>
+
+          {isClosed && isNneUser() && (
+            <button
+              className="mod-btn-primary"
+              onClick={() => {
+                setReopenReason("");
+                setReopenError("");
+                setReopenSignature(false);
+                setShowReopenModal(true);
+              }}
+              style={{
+                fontSize: "13px",
+                padding: "8px 16px",
+                borderRadius: "8px",
+                fontWeight: 600,
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                background: "linear-gradient(135deg, #d97706 0%, #b45309 100%)",
+                border: "none",
+                color: "#ffffff",
+                boxShadow: "0 2px 6px rgba(217, 119, 6, 0.25)"
+              }}
+              title="Reopen incident to Step 3 for investigation & corrective actions"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="1 4 1 10 7 10"></polyline>
+                <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+              </svg>
+              Reopen Incident
+            </button>
+          )}
 
           {isAdminUser() && (
             <button
@@ -3450,12 +3566,48 @@ export default function IMDetails() {
                   <div>
                     <dt style={{ color: "var(--text-muted)", fontSize: "11px", fontWeight: 700, letterSpacing: "0.5px", textTransform: "uppercase", marginBottom: "4px" }}>Status</dt>
                     <dd style={{ fontWeight: 500, fontSize: "14px", color: "var(--text-main)" }}>
-                      <span style={{ display: "inline-block", padding: "2px 8px", background: (incident.status === 2 || incident.closedBy || String(incident.stage).toUpperCase() === "CLOSED" || isClosed) ? "#ecfdf5" : "var(--bg-card-hover)", color: (incident.status === 2 || incident.closedBy || String(incident.stage).toUpperCase() === "CLOSED" || isClosed) ? "#059669" : "inherit", borderRadius: "12px", fontSize: "12px", fontWeight: 600 }}>
-                        {(incident.status === 2 || incident.closedBy || String(incident.stage).toUpperCase() === "CLOSED" || isClosed) ? "Closed" : "Open"}
-                      </span>
-                      {(incident.status === 2 || incident.closedBy || String(incident.stage).toUpperCase() === "CLOSED" || isClosed) && (incident.closedTime || incident.updatedTime) && (
-                        <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "4px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                        <span style={{
+                          display: "inline-block",
+                          padding: "3px 10px",
+                          background: isClosed ? "#ecfdf5" : isCurrentlyReopened ? "#fffbeb" : "var(--bg-card-hover)",
+                          color: isClosed ? "#059669" : isCurrentlyReopened ? "#b45309" : "inherit",
+                          border: isClosed ? "1px solid #a7f3d0" : isCurrentlyReopened ? "1px solid #fde68a" : "1px solid var(--border-color)",
+                          borderRadius: "12px",
+                          fontSize: "12px",
+                          fontWeight: 700
+                        }}>
+                          {isClosed ? "Closed" : isCurrentlyReopened ? "Reopened (In Investigation)" : "Open"}
+                        </span>
+                        {reopenHistoryList.length > 0 && isClosed && (
+                          <span style={{ fontSize: "11px", fontWeight: 700, color: "#b45309", background: "#fef3c7", padding: "2px 8px", borderRadius: "10px", border: "1px solid #fde68a" }}>
+                            Reopened &amp; Closed ({reopenHistoryList.length}x)
+                          </span>
+                        )}
+                        {isClosed && isNneUser() && (
+                          <button
+                            type="button"
+                            className="mod-btn-outline"
+                            onClick={() => {
+                              setReopenReason("");
+                              setReopenError("");
+                              setReopenSignature(false);
+                              setShowReopenModal(true);
+                            }}
+                            style={{ fontSize: "11px", padding: "2px 10px", borderRadius: "6px", fontWeight: 700, color: "#d97706", borderColor: "#d97706", cursor: "pointer" }}
+                          >
+                            Reopen Incident
+                          </button>
+                        )}
+                      </div>
+                      {isClosed && (incident.closedTime || incident.updatedTime) && (
+                        <div style={{ fontSize: "11.5px", color: "var(--text-muted)", marginTop: "4px" }}>
                           Closed: {formatToDenmark24Hour(incident.closedTime || incident.updatedTime)}
+                        </div>
+                      )}
+                      {isCurrentlyReopened && reopenHistoryList.length > 0 && (
+                        <div style={{ fontSize: "11.5px", color: "#b45309", marginTop: "4px", fontWeight: 500 }}>
+                          Reopened: {formatToDenmark24Hour(reopenHistoryList[reopenHistoryList.length - 1].reopenedTime)} by {reopenHistoryList[reopenHistoryList.length - 1].reopenedBy}
                         </div>
                       )}
                     </dd>
@@ -3511,6 +3663,134 @@ export default function IMDetails() {
             </div>
           </div>
 
+          {/* Incident Reopen & Closure Lifecycle History */}
+          {(reopenHistoryList.length > 0 || closureHistoryList.length > 0 || isClosed) && (
+            <div className="mod-card" style={{ marginTop: 24, borderLeft: "4px solid #f59e0b" }}>
+              <div className="mod-card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+                <div>
+                  <span className="mod-card-title" style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 17, color: "var(--text-main)" }}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="1 4 1 10 7 10"></polyline>
+                      <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+                    </svg>
+                    Incident Reopen &amp; Closure Lifecycle History
+                  </span>
+                  <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 2 }}>
+                    Comprehensive audit logs tracking when and who reopened the incident, reasons provided, and subsequent closure sign-offs.
+                  </div>
+                </div>
+                {isClosed && isNneUser() && (
+                  <button
+                    className="mod-btn-primary"
+                    style={{ background: "linear-gradient(135deg, #d97706 0%, #b45309 100%)", padding: "6px 14px", fontSize: "12.5px", fontWeight: 700 }}
+                    onClick={() => {
+                      setReopenReason("");
+                      setReopenError("");
+                      setShowReopenModal(true);
+                    }}
+                  >
+                    + Reopen Incident
+                  </button>
+                )}
+              </div>
+              <div className="mod-card-body" style={{ padding: "16px 20px" }}>
+                {isCurrentlyReopened && (
+                  <div style={{ marginBottom: 16, padding: "10px 14px", borderRadius: 8, background: "#fffbeb", border: "1px solid #fde68a", color: "#92400e", fontSize: 13, display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontSize: 18 }}>⚠️</span>
+                    <div>
+                      <strong>Incident is currently REOPENED.</strong> Step 3 (Investigation Form) and Corrective Actions are unlocked for Department editing. Step 1 and Step 2 remain COMPLETED.
+                    </div>
+                  </div>
+                )}
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                    <thead>
+                      <tr style={{ background: "var(--bg-dark, #f8fafc)", borderBottom: "1.5px solid var(--border-color)", textAlign: "left", color: "var(--text-muted)" }}>
+                        <th style={{ padding: "10px 12px", width: "16%", fontWeight: 700 }}>Stage / Event</th>
+                        <th style={{ padding: "10px 12px", width: "22%", fontWeight: 700 }}>Action Performed By</th>
+                        <th style={{ padding: "10px 12px", width: "34%", fontWeight: 700 }}>Reason / Closure Remarks</th>
+                        <th style={{ padding: "10px 12px", width: "16%", fontWeight: 700 }}>Timestamp</th>
+                        <th style={{ padding: "10px 12px", width: "12%", fontWeight: 700 }}>Signature</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(() => {
+                        const allCombined = [
+                          ...reopenHistoryList.map((r, i) => ({
+                            type: "REOPENED",
+                            badge: "REOPENED",
+                            badgeClass: "badge-reopened",
+                            badgeBg: "#fef3c7",
+                            badgeColor: "#b45309",
+                            user: r.reopenedBy || "Department User",
+                            role: r.role || "Department HSE User",
+                            reason: r.reason || "Reopened for investigation & corrective actions",
+                            time: r.reopenedTime || r.timestamp,
+                            sig: r.signature,
+                            cycle: r.cycle || (i + 1)
+                          })),
+                          ...(closureHistoryList.length > 0 ? closureHistoryList : (incident.closedBy ? [{
+                            closedBy: incident.closedBy,
+                            closedTime: incident.closedTime,
+                            closureComments: incident.closureComments,
+                            cycle: 1
+                          }] : [])).map((c, i) => ({
+                            type: "CLOSED",
+                            badge: i === 0 && reopenHistoryList.length === 0 ? "CLOSED" : `CLOSED (CYCLE ${i + 1})`,
+                            badgeClass: "badge-closed",
+                            badgeBg: "#ecfdf5",
+                            badgeColor: "#059669",
+                            user: c.closedBy || "Site HSE Lead / Admin",
+                            role: "Incident Closer",
+                            reason: c.closureComments || "Official incident closure sign-off",
+                            time: c.closedTime || c.timestamp,
+                            sig: null,
+                            cycle: c.cycle || (i + 1)
+                          }))
+                        ].sort((a, b) => {
+                          const tA = a.time ? new Date(a.time).getTime() : 0;
+                          const tB = b.time ? new Date(b.time).getTime() : 0;
+                          return tA - tB;
+                        });
+
+                        return allCombined.map((ev, idx) => (
+                          <tr key={idx} style={{ borderBottom: "1px solid var(--border-color)", background: idx % 2 === 0 ? "transparent" : "var(--bg-dark, #fafafa)" }}>
+                            <td style={{ padding: "10px 12px", verticalAlign: "top" }}>
+                              <span style={{ display: "inline-block", padding: "3px 8px", borderRadius: "12px", fontSize: "11px", fontWeight: 700, background: ev.badgeBg, color: ev.badgeColor, border: `1px solid ${ev.badgeColor}33` }}>
+                                {ev.badge}
+                              </span>
+                            </td>
+                            <td style={{ padding: "10px 12px", verticalAlign: "top" }}>
+                              <div style={{ fontWeight: 700, color: "var(--text-main)" }}>{ev.user}</div>
+                              <div style={{ fontSize: "11.5px", color: "var(--text-muted)", marginTop: "2px" }}>{ev.role}</div>
+                            </td>
+                            <td style={{ padding: "10px 12px", verticalAlign: "top", color: "var(--text-main)", lineHeight: 1.5 }}>
+                              {ev.reason || "—"}
+                            </td>
+                            <td style={{ padding: "10px 12px", verticalAlign: "top", color: "var(--text-muted)", fontSize: "12px" }}>
+                              {formatToDenmark24Hour(ev.time)}
+                            </td>
+                            <td style={{ padding: "10px 12px", verticalAlign: "top" }}>
+                              {ev.type === "REOPENED" ? (
+                                ev.sig ? (
+                                  <img src={getSignatureUrl(ev.sig) || getAttachmentUrl(ev.sig)} alt="Sig" style={{ height: 28, maxWidth: 100, objectFit: "contain", borderBottom: "1px solid #94a3b8" }} />
+                                ) : (
+                                  <span style={{ color: "var(--text-muted)", fontSize: "11px", fontStyle: "italic" }}>No signature</span>
+                                )
+                              ) : (
+                                <span style={{ color: "var(--text-muted)", fontSize: "12px" }}>—</span>
+                              )}
+                            </td>
+                          </tr>
+                        ));
+                      })()}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Audit Trail & Sign-Off Log */}
           <div className="mod-card" style={{ marginTop: 24 }}>
             <div className="mod-card-header" style={{ paddingBottom: 4, display: "flex", flexDirection: "column", gap: 4 }}>
@@ -3551,15 +3831,33 @@ export default function IMDetails() {
                 };
 
                 const allEvents = [];
-                if (incident?.closedBy || incident?.closedTime || incident?.status === 2 || String(incident?.stage).toUpperCase() === "CLOSED" || isClosed) {
-                  const cTime = incident?.closedTime || incident?.updatedTime;
+                // Add all closure events from history
+                (closureHistoryList.length > 0 ? closureHistoryList : (incident?.closedBy ? [{
+                  closedBy: incident?.closedBy,
+                  closedTime: incident?.closedTime || incident?.updatedTime,
+                  closureComments: incident?.closureComments
+                }] : [])).forEach((c, idx) => {
+                  const cTime = c.closedTime || c.timestamp || incident?.updatedTime;
                   allEvents.push({
-                    text: "Incident closed",
-                    user: incident?.closedBy || "System Admin / Site HSE",
+                    text: idx > 0 ? `Incident closed (Post-reopening cycle ${idx + 1})${c.closureComments ? ` — "${c.closureComments}"` : ''}` : `Incident closed${c.closureComments ? ` — "${c.closureComments}"` : ''}`,
+                    user: c.closedBy || "System Admin / Site HSE",
                     rawDate: cTime,
                     date: formatDateTime(cTime)
                   });
-                }
+                });
+
+                // Add all reopen events from history
+                const trackedReopenTimes = new Set();
+                reopenHistoryList.forEach((r, idx) => {
+                  const rTime = r.reopenedTime || r.timestamp;
+                  if (rTime) trackedReopenTimes.add(rTime);
+                  allEvents.push({
+                    text: `Incident reopened by Department${r.reason ? ` — "${r.reason}"` : ''}`,
+                    user: `${r.reopenedBy || 'Department User'}${r.role ? ` (${r.role})` : ''}`,
+                    rawDate: rTime,
+                    date: formatDateTime(rTime)
+                  });
+                });
 
                 // Stage 3 Investigation events
                 if (investigationApproved) {
@@ -3572,14 +3870,24 @@ export default function IMDetails() {
                 }
                 if (investigationData?.editHistory && Array.isArray(investigationData.editHistory)) {
                   investigationData.editHistory.forEach(ed => {
+                    const eventTime = ed.timestamp || ed.reopenedTime || ed.returnedTime || ed.editedTime || ed.date || ed.time;
+                    const isReopen = ed.status === "REOPENED" || (ed.action && String(ed.action).toLowerCase().includes("reopen"));
+                    
+                    // Skip if already tracked via reopenHistoryList
+                    if (isReopen && (trackedReopenTimes.has(eventTime) || trackedReopenTimes.has(ed.timestamp))) {
+                      return;
+                    }
+
                     const isReturned = ed.status === "RETURNED_FOR_REVISION" || (ed.action && String(ed.action).toLowerCase().includes("return"));
                     allEvents.push({
-                      text: isReturned
-                        ? `Incident Investigation Report returned for revision${ed.reason ? ` — "${ed.reason}"` : ''}`
-                        : `Incident Investigation Report edited & re-submitted${ed.reason ? ` — "${ed.reason}"` : ''}`,
-                      user: ed.returnedBy || ed.editedBy || "User",
-                      rawDate: ed.returnedTime || ed.editedTime,
-                      date: formatDateTime(ed.returnedTime || ed.editedTime)
+                      text: isReopen
+                        ? `Incident reopened by Department${ed.reason ? ` — "${ed.reason}"` : ''}`
+                        : isReturned
+                          ? `Incident Investigation Report returned for revision${ed.reason ? ` — "${ed.reason}"` : ''}`
+                          : `Incident Investigation Report edited & re-submitted${ed.reason ? ` — "${ed.reason}"` : ''}`,
+                      user: ed.returnedBy || ed.reopenedBy || ed.editedBy || "User",
+                      rawDate: eventTime,
+                      date: formatDateTime(eventTime)
                     });
                   });
                 }
@@ -3605,14 +3913,15 @@ export default function IMDetails() {
                 }
                 if (initialReportData?.editHistory && Array.isArray(initialReportData.editHistory)) {
                   initialReportData.editHistory.forEach(ed => {
+                    const eventTime = ed.timestamp || ed.returnedTime || ed.editedTime || ed.date || ed.time;
                     const isReturned = ed.status === "RETURNED_FOR_REVISION" || (ed.action && String(ed.action).toLowerCase().includes("return"));
                     allEvents.push({
                       text: isReturned
                         ? `Initial Incident Report returned for revision${ed.reason ? ` — "${ed.reason}"` : ''}`
                         : `Initial Incident Report edited & re-submitted${ed.reason ? ` — "${ed.reason}"` : ''}`,
                       user: ed.returnedBy || ed.editedBy || "User",
-                      rawDate: ed.returnedTime || ed.editedTime,
-                      date: formatDateTime(ed.returnedTime || ed.editedTime)
+                      rawDate: eventTime,
+                      date: formatDateTime(eventTime)
                     });
                   });
                 }
@@ -3637,14 +3946,15 @@ export default function IMDetails() {
                 }
                 if (headsUpData?.editHistory && Array.isArray(headsUpData.editHistory)) {
                   headsUpData.editHistory.forEach(ed => {
+                    const eventTime = ed.timestamp || ed.returnedTime || ed.editedTime || ed.date || ed.time;
                     const isReturned = ed.status === "RETURNED_FOR_REVISION" || (ed.action && String(ed.action).toLowerCase().includes("return"));
                     allEvents.push({
                       text: isReturned
                         ? `Heads-Up Notification returned for revision${ed.reason ? ` — "${ed.reason}"` : ''}`
                         : `Heads-Up Notification edited & re-submitted${ed.reason ? ` — "${ed.reason}"` : ''}`,
                       user: ed.returnedBy || ed.editedBy || "User",
-                      rawDate: ed.returnedTime || ed.editedTime,
-                      date: formatDateTime(ed.returnedTime || ed.editedTime)
+                      rawDate: eventTime,
+                      date: formatDateTime(eventTime)
                     });
                   });
                 }
@@ -5913,7 +6223,7 @@ export default function IMDetails() {
                       </svg>
                       View in Modal
                     </button>
-                    {!isClosed && !investigationApproved && !isEditingInvestigation && investigationSubmitted && (
+                    {!isClosed && (!investigationApproved || isNneUser()) && !isEditingInvestigation && (investigationSubmitted || isCurrentlyReopened) && (
                       <button
                         type="button"
                         className="mod-btn-outline"
@@ -7399,19 +7709,57 @@ export default function IMDetails() {
                 )}
               </div>
               <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-                {!isContractorUser() && !isObserverUser() && (
-                  <button className="mod-btn-primary im-btn-primary" disabled={incident?.closedBy || incident?.status === 2 || String(incident?.stage).toUpperCase() === "CLOSED"} style={{ background: "var(--color-risk)", padding: "6px 16px", fontSize: "13px", fontWeight: 600, opacity: (incident?.closedBy || incident?.status === 2 || String(incident?.stage).toUpperCase() === "CLOSED") ? 0.5 : 1, cursor: (incident?.closedBy || incident?.status === 2 || String(incident?.stage).toUpperCase() === "CLOSED") ? "not-allowed" : "pointer" }} onClick={async () => {
-                    try {
-                      const userName = getLoggedInUser() || "Site HSE Admin";
-                      await closeIncident(id, { closedBy: userName });
-                      showSuccess("Incident Closed Successfully!");
-                      const data = await getIncidentById(id);
-                      setRawIncident(data?.data || data);
-                    } catch (err) {
-                      const msg = err.response?.data?.message || err.response?.data?.error || err.message || "Failed to close incident";
-                      showError(Array.isArray(msg) ? msg[0] : msg);
-                    }
-                  }}>Close Incident</button>
+                {isClosed && isNneUser() && (
+                  <button
+                    className="mod-btn-outline"
+                    onClick={() => {
+                      setReopenReason("");
+                      setReopenError("");
+                      setReopenSignature(false);
+                      setShowReopenModal(true);
+                    }}
+                    style={{
+                      background: "rgba(245, 158, 11, 0.12)",
+                      borderColor: "#d97706",
+                      color: "#b45309",
+                      padding: "6px 16px",
+                      fontSize: "13px",
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      borderRadius: "6px"
+                    }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M1 4v6h6"></path><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+                    Reopen Incident
+                  </button>
+                )}
+                {!isContractorUser() && !isObserverUser() && !isClosed && (
+                  <button
+                    className="mod-btn-primary im-btn-primary"
+                    style={{ background: "var(--color-risk)", padding: "6px 16px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}
+                    onClick={async () => {
+                      try {
+                        const userName = getLoggedInUser() || "Site HSE Admin";
+                        await closeIncident(id, { closedBy: userName });
+                        showSuccess("Incident Closed Successfully!");
+                        const data = await getIncidentById(id);
+                        setRawIncident(data?.data || data);
+                      } catch (err) {
+                        const msg = err.response?.data?.message || err.response?.data?.error || err.message || "Failed to close incident";
+                        showError(Array.isArray(msg) ? msg[0] : msg);
+                      }
+                    }}
+                  >
+                    {reopenHistoryList?.length > 0 ? "Re-close Incident" : "Close Incident"}
+                  </button>
+                )}
+                {isClosed && !isNneUser() && (
+                  <span style={{ fontSize: "12px", color: "var(--text-muted)", fontStyle: "italic", padding: "4px 8px" }}>
+                    Incident is Closed
+                  </span>
                 )}
                 {isNneUser() && !isClosed && (
                   <button className="mod-btn-primary im-btn-primary" style={{ padding: "4px 12px", fontSize: "12px", cursor: "pointer" }} onClick={() => {
@@ -7979,6 +8327,434 @@ export default function IMDetails() {
           onClose={() => setShowPdfExport(false)}
           targetForm={pdfTargetForm}
         />
+      )}
+
+      {/* Reopen Incident Modal */}
+      {showReopenModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(15, 23, 42, 0.72)",
+            backdropFilter: "blur(6px)",
+            WebkitBackdropFilter: "blur(6px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 10000099,
+            padding: "24px 16px",
+            overflowY: "auto"
+          }}
+          onClick={() => !isReopeningIncident && setShowReopenModal(false)}
+        >
+          <div
+            style={{
+              position: "relative",
+              maxWidth: 620,
+              width: "100%",
+              backgroundColor: "var(--bg-card, #ffffff)",
+              borderRadius: "18px",
+              border: "1px solid var(--border-color, #e2e8f0)",
+              borderTop: "4px solid #f59e0b",
+              boxShadow: "0 25px 60px -15px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(0, 0, 0, 0.05)",
+              maxHeight: "90vh",
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden"
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "20px 24px 18px",
+                borderBottom: "1px solid var(--border-color, #e2e8f0)",
+                backgroundColor: "var(--bg-card, #ffffff)",
+                flexShrink: 0
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                <div
+                  style={{
+                    width: 46,
+                    height: 46,
+                    borderRadius: "12px",
+                    background: "linear-gradient(135deg, rgba(245, 158, 11, 0.18), rgba(217, 119, 6, 0.32))",
+                    color: "#d97706",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                    border: "1px solid rgba(245, 158, 11, 0.4)",
+                    boxShadow: "0 4px 12px rgba(245, 158, 11, 0.15)"
+                  }}
+                >
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="1 4 1 10 7 10"></polyline>
+                    <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+                  </svg>
+                </div>
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", marginBottom: 3 }}>
+                    <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 800, color: "var(--text-main, #0f172a)", letterSpacing: "-0.3px" }}>
+                      Reopen Incident Investigation
+                    </h3>
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "4px",
+                        padding: "2px 8px",
+                        borderRadius: "6px",
+                        fontSize: "11px",
+                        fontWeight: 700,
+                        background: "rgba(245, 158, 11, 0.15)",
+                        color: "#b45309",
+                        border: "1px solid rgba(245, 158, 11, 0.3)"
+                      }}
+                    >
+                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#f59e0b" }}></span>
+                      Stage 3 Unlock
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", color: "var(--text-muted, #64748b)" }}>
+                    <span>Case: <strong style={{ fontFamily: "monospace", color: "var(--text-main, #0f172a)", background: "var(--bg-dark, #f1f5f9)", padding: "1px 6px", borderRadius: "4px" }}>{incident?.caseNumber || `#${id}`}</strong></span>
+                    <span>•</span>
+                    <span>Department HSE Authorization</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Close Button */}
+              <button
+                type="button"
+                onClick={() => !isReopeningIncident && setShowReopenModal(false)}
+                disabled={isReopeningIncident}
+                title="Close modal"
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: "8px",
+                  border: "1px solid var(--border-color, #e2e8f0)",
+                  background: "var(--bg-card, #ffffff)",
+                  color: "var(--text-muted, #64748b)",
+                  cursor: isReopeningIncident ? "not-allowed" : "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "14px",
+                  fontWeight: 700,
+                  transition: "all 0.15s ease",
+                  flexShrink: 0
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "rgba(239, 68, 68, 0.1)";
+                  e.currentTarget.style.color = "#ef4444";
+                  e.currentTarget.style.borderColor = "rgba(239, 68, 68, 0.3)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "var(--bg-card, #ffffff)";
+                  e.currentTarget.style.color = "var(--text-muted, #64748b)";
+                  e.currentTarget.style.borderColor = "var(--border-color, #e2e8f0)";
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body (Scrollable) */}
+            <div
+              style={{
+                padding: "20px 24px",
+                overflowY: "auto",
+                flex: 1,
+                display: "flex",
+                flexDirection: "column",
+                gap: "18px"
+              }}
+            >
+              {/* Informative Notice Box */}
+              <div
+                style={{
+                  padding: "14px 16px",
+                  borderRadius: "12px",
+                  background: "linear-gradient(135deg, rgba(254, 243, 199, 0.7) 0%, rgba(253, 230, 138, 0.35) 100%)",
+                  border: "1px solid rgba(245, 158, 11, 0.4)",
+                  display: "flex",
+                  gap: "12px",
+                  alignItems: "flex-start"
+                }}
+              >
+                <div style={{ color: "#d97706", flexShrink: 0, marginTop: "2px" }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                  </svg>
+                </div>
+                <div style={{ fontSize: "12.5px", lineHeight: "1.55", color: "#92400e" }}>
+                  <div style={{ fontWeight: 700, marginBottom: "3px" }}>
+                    Lifecycle & Form Edit Notice
+                  </div>
+                  <div>
+                    Reopening transitions this incident to <strong>Step 3: Investigation Report & Corrective Actions</strong>.
+                  </div>
+                  <div style={{ marginTop: "3px" }}>
+                    • <strong>Step 1 (Heads-Up)</strong> and <strong>Step 2 (Initial Report)</strong> will remain marked as <strong style={{ color: "#15803d" }}>COMPLETED</strong>.<br />
+                    • Department users will have permissions to edit Form 3 findings and add/manage corrective actions.
+                  </div>
+                </div>
+              </div>
+
+              {/* User and Role Info */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
+                <div>
+                  <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "11px", fontWeight: 700, color: "var(--text-muted, #64748b)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                    Reopened By
+                  </label>
+                  <div style={{ position: "relative" }}>
+                    <input
+                      type="text"
+                      className="mod-form-input"
+                      value={getLoggedInUser() || "Department User"}
+                      readOnly
+                      style={{
+                        width: "100%",
+                        background: "var(--bg-dark, #f8fafc)",
+                        opacity: 0.9,
+                        cursor: "not-allowed",
+                        fontWeight: 600,
+                        padding: "9px 12px",
+                        borderRadius: "8px",
+                        border: "1px solid var(--border-color, #cbd5e1)"
+                      }}
+                    />
+                    <span
+                      style={{
+                        position: "absolute",
+                        right: 10,
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        fontSize: "10px",
+                        fontWeight: 700,
+                        color: "#16a34a",
+                        background: "rgba(22, 163, 74, 0.1)",
+                        padding: "2px 6px",
+                        borderRadius: "4px"
+                      }}
+                    >
+                      Verified
+                    </span>
+                  </div>
+                </div>
+                <div>
+                  <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "11px", fontWeight: 700, color: "var(--text-muted, #64748b)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>
+                    Role / Department
+                  </label>
+                  <input
+                    type="text"
+                    className="mod-form-input"
+                    value={reopenRole}
+                    onChange={(e) => setReopenRole(e.target.value)}
+                    placeholder="e.g. Department HSE User"
+                    style={{
+                      width: "100%",
+                      padding: "9px 12px",
+                      borderRadius: "8px",
+                      border: "1px solid var(--border-color, #cbd5e1)",
+                      fontWeight: 500
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Reason for Reopening */}
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "11px", fontWeight: 700, color: "var(--text-muted, #64748b)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                    Reason for Reopening <span style={{ color: "#ef4444" }}>*</span>
+                  </label>
+                  <span style={{ fontSize: "11px", color: "var(--text-muted, #64748b)", fontStyle: "italic" }}>
+                    Mandatory for audit logs
+                  </span>
+                </div>
+
+                {/* Quick Suggestion Chips */}
+                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "8px" }}>
+                  {[
+                    "Additional corrective actions required",
+                    "New investigation evidence received",
+                    "Root cause analysis revision",
+                    "External audit compliance finding"
+                  ].map((chip) => (
+                    <button
+                      key={chip}
+                      type="button"
+                      onClick={() => {
+                        const trimmed = reopenReason ? `${reopenReason.trim()} • ${chip}` : chip;
+                        setReopenReason(trimmed);
+                        if (reopenError) setReopenError("");
+                      }}
+                      style={{
+                        background: "var(--bg-dark, #f1f5f9)",
+                        border: "1px solid var(--border-color, #cbd5e1)",
+                        borderRadius: "6px",
+                        padding: "3px 8px",
+                        fontSize: "11px",
+                        fontWeight: 600,
+                        color: "var(--text-main, #334155)",
+                        cursor: "pointer",
+                        transition: "all 0.15s ease"
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = "#d97706";
+                        e.currentTarget.style.color = "#d97706";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = "var(--border-color, #cbd5e1)";
+                        e.currentTarget.style.color = "var(--text-main, #334155)";
+                      }}
+                    >
+                      + {chip}
+                    </button>
+                  ))}
+                </div>
+
+                <textarea
+                  className="mod-form-textarea"
+                  rows="3"
+                  value={reopenReason}
+                  onChange={(e) => {
+                    setReopenReason(e.target.value);
+                    if (reopenError) setReopenError("");
+                  }}
+                  placeholder="Specify why this incident is being reopened (e.g., additional corrective actions required, new investigation findings, updated root cause analysis)..."
+                  style={{
+                    width: "100%",
+                    padding: "10px 12px",
+                    borderRadius: "8px",
+                    fontSize: "13px",
+                    lineHeight: "1.5",
+                    border: reopenError ? "1.5px solid #ef4444" : "1px solid var(--border-color, #cbd5e1)",
+                    backgroundColor: "var(--bg-card, #ffffff)",
+                    color: "var(--text-main, #0f172a)",
+                    resize: "vertical",
+                    minHeight: "85px"
+                  }}
+                />
+                {reopenError && (
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "#ef4444", fontSize: "12px", marginTop: "6px", fontWeight: 600 }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                    {reopenError}
+                  </div>
+                )}
+              </div>
+
+              {/* Digital Signature */}
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "11px", fontWeight: 700, color: "var(--text-muted, #64748b)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 19l7-7 3 3-7 7-3-3z"></path><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path><path d="M2 2l7.586 7.586"></path><circle cx="11" cy="11" r="2"></circle></svg>
+                    Digital Signature (Department Sign-off)
+                  </label>
+                  {reopenSignature && (
+                    <span style={{ fontSize: "11px", color: "#16a34a", fontWeight: 700, display: "flex", alignItems: "center", gap: "4px" }}>
+                      ✓ Signature Recorded
+                    </span>
+                  )}
+                </div>
+                <div
+                  style={{
+                    border: "1px solid var(--border-color, #cbd5e1)",
+                    borderRadius: "10px",
+                    padding: "8px",
+                    background: "var(--bg-dark, #f8fafc)"
+                  }}
+                >
+                  <SignaturePad
+                    value={reopenSignature}
+                    onChange={setReopenSignature}
+                    onClear={() => setReopenSignature(false)}
+                    height={140}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                padding: "16px 24px",
+                borderTop: "1px solid var(--border-color, #e2e8f0)",
+                backgroundColor: "var(--bg-card-hover, #f8fafc)",
+                flexShrink: 0
+              }}
+            >
+              <div style={{ fontSize: "11.5px", color: "var(--text-muted, #64748b)", display: "flex", alignItems: "center", gap: "5px" }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                Timestamp &amp; user log will be archived
+              </div>
+              <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                <button
+                  type="button"
+                  className="mod-btn-outline"
+                  disabled={isReopeningIncident}
+                  onClick={() => setShowReopenModal(false)}
+                  style={{
+                    padding: "8px 18px",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    borderRadius: "8px",
+                    cursor: isReopeningIncident ? "not-allowed" : "pointer"
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="mod-btn-primary"
+                  disabled={isReopeningIncident}
+                  style={{
+                    background: "linear-gradient(135deg, #d97706 0%, #b45309 100%)",
+                    border: "none",
+                    color: "#fff",
+                    padding: "8px 22px",
+                    fontSize: "13px",
+                    fontWeight: 700,
+                    borderRadius: "8px",
+                    boxShadow: "0 4px 12px rgba(217, 119, 6, 0.35)",
+                    cursor: isReopeningIncident ? "not-allowed" : "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px"
+                  }}
+                  onClick={handleReopenIncident}
+                >
+                  {isReopeningIncident ? (
+                    <>
+                      <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true" style={{ width: 14, height: 14, border: "2px solid #fff", borderTopColor: "transparent", borderRadius: "50%", display: "inline-block", animation: "spin 1s linear infinite" }}></span>
+                      Reopening...
+                    </>
+                  ) : (
+                    <>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+                      Confirm &amp; Reopen Incident
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Delete Confirmation Modal */}

@@ -267,6 +267,137 @@ export function IncidentPdfExporter({ incident, onClose, targetForm = "all" }) {
     </div>
   );
 
+  // Lifecycle Logs (Reopen and Closure)
+  let reopenList = [];
+  let closureList = [];
+
+  if (typeof incident.reopenLogs === 'string') {
+    try { reopenList = JSON.parse(incident.reopenLogs); } catch (e) {}
+  } else if (Array.isArray(incident.reopenLogs)) {
+    reopenList = incident.reopenLogs;
+  }
+
+  if (typeof incident.closureHistory === 'string') {
+    try { closureList = JSON.parse(incident.closureHistory); } catch (e) {}
+  } else if (Array.isArray(incident.closureHistory)) {
+    closureList = incident.closureHistory;
+  }
+
+  // Synthesize current closure if closed but not yet in closureHistory
+  if (incident.closedBy || incident.closedTime) {
+    const hasMatchingClosure = closureList.some(
+      (c) => c.closedTime && incident.closedTime && new Date(c.closedTime).getTime() === new Date(incident.closedTime).getTime()
+    );
+    if (!hasMatchingClosure) {
+      closureList.push({
+        action: 'Closed',
+        status: 'CLOSED',
+        closedBy: incident.closedBy || 'Site HSE Lead / Admin',
+        closedTime: incident.closedTime || incident.updatedTime,
+        closureComments: incident.closureComments || '',
+        signature: incident.closureSignature || null,
+        timestamp: incident.closedTime || incident.updatedTime,
+      });
+    }
+  }
+
+  const allLifecycleEvents = [
+    ...reopenList.map((r, idx) => ({
+      eventType: 'REOPENED',
+      actionText: 'Incident Reopened',
+      badgeBg: '#fef3c7',
+      badgeColor: '#b45309',
+      userName: r.reopenedBy || 'Department User',
+      role: r.role || 'Department User / HSE',
+      remarks: r.reason || 'Reopened for investigation & corrective actions',
+      timestamp: r.reopenedTime || r.timestamp || r.date,
+      signature: r.signature,
+      cycle: r.cycle || (idx + 1),
+    })),
+    ...closureList.map((c, idx) => ({
+      eventType: 'CLOSED',
+      actionText: 'Incident Closed',
+      badgeBg: '#d1fae5',
+      badgeColor: '#065f46',
+      userName: c.closedBy || 'Site HSE Lead / Admin',
+      role: c.role || 'Site HSE Lead',
+      remarks: c.closureComments || 'All corrective actions completed and verified.',
+      timestamp: c.closedTime || c.timestamp,
+      signature: c.signature || c.closureSignature,
+      cycle: c.cycle || (idx + 1),
+    })),
+  ].sort((a, b) => {
+    const ta = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+    const tb = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+    return ta - tb;
+  });
+
+  const renderLifecycleTable = () => {
+    if (allLifecycleEvents.length === 0) return null;
+    return (
+      <div style={{ marginTop: 14, marginBottom: 14 }}>
+        <div style={{ fontSize: 11, fontWeight: 800, color: "#0f172a", marginBottom: 6 }}>
+          Incident Lifecycle History (Reopen & Closure Records)
+        </div>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 9 }}>
+          <thead>
+            <tr style={{ background: "#0f172a", color: "#fff" }}>
+              <th style={{ padding: "5px 6px", border: "1px solid #0f172a", textAlign: "left", width: "16%" }}>Action / Stage</th>
+              <th style={{ padding: "5px 6px", border: "1px solid #0f172a", textAlign: "left", width: "20%" }}>Performed By / Role</th>
+              <th style={{ padding: "5px 6px", border: "1px solid #0f172a", textAlign: "left", width: "16%" }}>Date & Time</th>
+              <th style={{ padding: "5px 6px", border: "1px solid #0f172a", textAlign: "left", width: "34%" }}>Reason / Closure Remarks</th>
+              <th style={{ padding: "5px 6px", border: "1px solid #0f172a", textAlign: "left", width: "14%" }}>Signature</th>
+            </tr>
+          </thead>
+          <tbody>
+            {allLifecycleEvents.map((ev, idx) => (
+              <tr key={idx} style={{ background: idx % 2 === 0 ? "#f8fafc" : "#ffffff" }}>
+                <td style={{ padding: "5px 6px", border: "1px solid #cbd5e1" }}>
+                  <span style={{
+                    display: "inline-block",
+                    padding: "2px 6px",
+                    borderRadius: 4,
+                    fontSize: 8.5,
+                    fontWeight: 700,
+                    background: ev.badgeBg,
+                    color: ev.badgeColor
+                  }}>
+                    {ev.actionText} {ev.cycle ? `(Cycle ${ev.cycle})` : ""}
+                  </span>
+                </td>
+                <td style={{ padding: "5px 6px", border: "1px solid #cbd5e1" }}>
+                  <div style={{ fontWeight: 600 }}>{ev.userName}</div>
+                  <div style={{ fontSize: 8, color: "#64748b" }}>{ev.role}</div>
+                </td>
+                <td style={{ padding: "5px 6px", border: "1px solid #cbd5e1" }}>
+                  {ev.timestamp ? new Date(ev.timestamp).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" }) : "N/A"}
+                </td>
+                <td style={{ padding: "5px 6px", border: "1px solid #cbd5e1", whiteSpace: "pre-wrap" }}>
+                  {ev.remarks}
+                </td>
+                <td style={{ padding: "5px 6px", border: "1px solid #cbd5e1" }}>
+                  {ev.eventType === 'REOPENED' ? (
+                    ev.signature ? (
+                      typeof ev.signature === 'string' && ev.signature.startsWith('data:image') ? (
+                        <img src={ev.signature} alt="sig" style={{ maxHeight: 22, maxWidth: 80, display: "block" }} />
+                      ) : (
+                        <span style={{ fontStyle: "italic", fontSize: 8.5 }}>Signed by {ev.userName}</span>
+                      )
+                    ) : (
+                      <span style={{ color: "#94a3b8", fontSize: 8 }}>No signature</span>
+                    )
+                  ) : (
+                    <span style={{ color: "#94a3b8", fontSize: 8 }}>—</span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
   const Checkbox = ({ checked, label }) => (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 4, marginRight: 12, marginBottom: 4, fontSize: 10 }}>
       <span
@@ -645,6 +776,8 @@ export function IncidentPdfExporter({ incident, onClose, targetForm = "all" }) {
                     </tbody>
                   </table>
 
+                  {(!includeForm2 && !includeForm3) && renderLifecycleTable()}
+
                   {renderNneFooter(p1, totalPages)}
                 </div>
               )}
@@ -783,6 +916,8 @@ export function IncidentPdfExporter({ incident, onClose, targetForm = "all" }) {
                       </tr>
                     </tbody>
                   </table>
+
+                  {!includeForm3 && renderLifecycleTable()}
 
                   {renderNneFooter(p2 || 2, totalPages)}
                 </div>
@@ -970,6 +1105,8 @@ export function IncidentPdfExporter({ incident, onClose, targetForm = "all" }) {
                       </tr>
                     </tbody>
                   </table>
+
+                  {renderLifecycleTable()}
 
                   {renderNneFooter(p3 || 3, totalPages)}
                 </div>

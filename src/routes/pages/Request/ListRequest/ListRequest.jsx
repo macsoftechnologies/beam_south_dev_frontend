@@ -186,7 +186,9 @@ import {
   getZones,
   getRooms,
   getUser,
-  getPrecautions
+  getPrecautions,
+  getElectricalWorks,
+  getMechanicalWorks
 } from "../../../services/authService";
 import {
   searchRequests,
@@ -210,6 +212,7 @@ import "../../styles/pages.css";
 import "../../../forms/styles/forms.css";
 import { ZONE_MAPPING } from "../../../data/zones";
 import { getDenmarkTimeISOString, formatToDenmarkDateTime } from "../../../utils/dateUtils";
+import { getModuleUserContext, parseModuleAccess, isUserAdmin, getEffectiveRoleForModule } from "../../../../utils/modulePermissions";
 
 const getTodayDateString = () => {
   const d = new Date();
@@ -290,6 +293,21 @@ const resolveZoneNameFromRooms = (row) => {
     }
   }
 
+  return "—";
+};
+
+// Helper to resolve Type of Work (Electrical Works, Mechanical Works) from request
+const resolveTypeOfWork = (row) => {
+  if (!row) return "—";
+  if (row.work_type) return row.work_type;
+  if (row.Work_Type) return row.Work_Type;
+  const hasElec = (row.electrical_works && row.electrical_works.length > 0 && row.electrical_works !== "N/A" && row.electrical_works !== "0") ||
+                  row.power_on === 1 || row.power_on === "1";
+  const hasMech = (row.mechanical_works && row.mechanical_works.length > 0 && row.mechanical_works !== "N/A" && row.mechanical_works !== "0") ||
+                  row.pressurization === 1 || row.pressurization === "1";
+  if (hasElec && hasMech) return "Electrical Works, Mechanical Works";
+  if (hasElec) return "Electrical Works";
+  if (hasMech) return "Mechanical Works";
   return "—";
 };
 
@@ -946,6 +964,7 @@ const ALL_COLUMNS_CONFIG = [
   { id: "permit_under", label: "Permit Under" },
   { id: "Request_Date", label: "Request Date" },
   { id: "permit_type", label: "Permit Type" },
+  { id: "work_type", label: "Type of Work" },
   { id: "Activity", label: "Activity" },
   { id: "contractorName", label: "Contractor" },
   { id: "buildingName", label: "Building" },
@@ -965,7 +984,20 @@ const STORAGE_KEY_VISIBLE_COLUMNS = "beam_list_request_visible_columns";
 const ListRequest = () => {
   const navigate = useNavigate();
   const currentUser = useMemo(() => getUser(), []);
-  const userContractorId = currentUser?.typeId || currentUser?.subContId || currentUser?.subContractorId;
+  const ptwModuleCtx = useMemo(() => getModuleUserContext("permit-to-work", currentUser), [currentUser]);
+  const userContractorId = useMemo(() => {
+    if (ptwModuleCtx.contractorId) return String(ptwModuleCtx.contractorId);
+    const rawSubId =
+      currentUser?.subContId !== undefined && currentUser?.subContId !== null ? currentUser.subContId :
+      currentUser?.subcontractor_id !== undefined && currentUser?.subcontractor_id !== null ? currentUser.subcontractor_id :
+      currentUser?.subContractorId !== undefined && currentUser?.subContractorId !== null ? currentUser.subContractorId :
+      null;
+    if (rawSubId) return String(rawSubId);
+    if (ptwModuleCtx.isContractor && currentUser?.typeId && !currentUser?.departId) {
+      return String(currentUser.typeId);
+    }
+    return "";
+  }, [currentUser, ptwModuleCtx]);
   const location = useLocation();
 
   // Column Visibility States
@@ -1099,6 +1131,8 @@ const getInitialSearchFilters = () => {
           hras: [],
           permitType: "",
           permitUnder: "",
+          electricalWorks: [],
+          mechanicalWorks: [],
           fromDate: "",
           toDate: "",
           startTime: "",
@@ -1108,6 +1142,8 @@ const getInitialSearchFilters = () => {
           newEndTime: "",
           typeOfActivityId: "",
           ...parsed,
+          electricalWorks: parsed.electricalWorks || [],
+          mechanicalWorks: parsed.mechanicalWorks || [],
         };
       }
     } catch (e) {
@@ -1126,6 +1162,8 @@ const getInitialSearchFilters = () => {
     hras: [],
     permitType: "",
     permitUnder: "",
+    electricalWorks: [],
+    mechanicalWorks: [],
     fromDate: "",
     toDate: "",
     startTime: "",
@@ -1217,58 +1255,151 @@ const getInitialPage = () => {
   const [showCopyNewEndPicker, setShowCopyNewEndPicker] = useState(false);
   const [logsData, setLogsData] = useState([]);
   const [copyDates, setCopyDates] = useState({ from: "", to: "", startTime: "", endTime: "", nightShift: false, newEndTime: "" });
+  const [electricalWorksList, setElectricalWorksList] = useState([]);
+  const [mechanicalWorksList, setMechanicalWorksList] = useState([]);
 
-  // Check operator credentials (with multi-role support)
+  // Check operator credentials (with multi-role support for permit-to-work)
   const userRoles = useMemo(() => {
-    const roleVal = currentUser?.role || currentUser?.userType || "";
-    if (typeof roleVal === "string") {
-      return roleVal.split(",").map(r => r.trim().toLowerCase());
+    if (isUserAdmin(currentUser)) {
+      return ["admin"];
     }
-    if (Array.isArray(roleVal)) {
-      return roleVal.map(r => String(r).trim().toLowerCase());
+    const parsedMap = parseModuleAccess(currentUser?.moduleAccess);
+    const ptwRole = parsedMap["permit-to-work"];
+    let effectiveRole = null;
+    try {
+      effectiveRole = getEffectiveRoleForModule("permit-to-work", currentUser);
+    } catch {
+      // fallback
     }
-    return [String(roleVal).trim().toLowerCase()];
+    const allRoleStrings = [
+      effectiveRole,
+      ptwRole,
+      currentUser?.role,
+      currentUser?.userType,
+      currentUser?.user_type,
+      localStorage.getItem("primaryUserType"),
+      localStorage.getItem("UserType")
+    ].filter(Boolean);
+
+    const rolesSet = new Set();
+    allRoleStrings.forEach(val => {
+      if (typeof val === "string") {
+        val.split(",").forEach(r => {
+          const trimmed = r.trim().toLowerCase();
+          if (trimmed) rolesSet.add(trimmed);
+        });
+      } else if (Array.isArray(val)) {
+        val.forEach(r => {
+          const trimmed = String(r).trim().toLowerCase();
+          if (trimmed) rolesSet.add(trimmed);
+        });
+      }
+    });
+    return Array.from(rolesSet);
   }, [currentUser]);
 
-  const isAdmin = userRoles.some(r => ["admin", "superadmin"].includes(r));
-  const isDept = userRoles.includes("department");
-  const isDept1 = userRoles.includes("department1");
-  const isSubcontractor = userRoles.includes("subcontractor") ||
-    userRoles.includes("contractor") ||
-    userRoles.includes("sub_contractor") ||
-    userRoles.includes("sub-contractor");;
-  const isObserver = userRoles.includes("observer");
-  const canBulkAction = isAdmin || isDept || isDept1;
-  const isMultiDept = isDept && isDept1;
+  const activeRole = (localStorage.getItem("UserType") || "").toLowerCase().trim();
+  const isObserver = activeRole ? activeRole.includes("observer") : (userRoles.includes("observer") && !userRoles.some(r => ["admin", "superadmin", "department", "department1"].includes(r)));
+  const isAdmin = !isObserver && (activeRole ? (activeRole.includes("admin") || activeRole.includes("superadmin")) : (userRoles.some(r => ["admin", "superadmin"].includes(r)) || isUserAdmin(currentUser)));
+  const isDept = !isObserver && !isAdmin && (activeRole ? (activeRole.includes("department") || activeRole.includes("conm") || activeRole.includes("hse")) && !activeRole.includes("department1") : userRoles.some(r => ["department", "operator", "conm", "hse"].includes(r)));
+  const isDept1 = !isObserver && !isAdmin && (activeRole ? (activeRole.includes("department1") || activeRole.includes("c&q") || activeRole.includes("comm")) : userRoles.some(r => ["department1", "operator1", "c&q", "comm"].includes(r)));
+  const isMultiDept = !isObserver && !isAdmin && ((isDept && isDept1) || activeRole.includes("multi_dept") || userRoles.includes("multi_dept"));
+  const isSubcontractor = !isObserver && !isAdmin && !isDept && !isDept1 && (activeRole ? (activeRole.includes("subcontractor") || activeRole.includes("contractor")) : (userRoles.includes("subcontractor") || userRoles.includes("contractor") || userRoles.includes("sub_contractor") || userRoles.includes("sub-contractor")));
+  const canBulkAction = !isObserver && (isAdmin || isDept || isDept1 || isMultiDept);
 
   const checkIfHideCheckbox = useCallback((row) => {
+    // Observers and Subcontractors have no bulk permit management / selection rights
     if (isObserver || isSubcontractor) return true;
+    if (!row) return true;
+
+    // Normalization of fields (safely defaulting to "Construction" if empty, matching backend & database)
+    const pUnder = (row.permit_under || row.permitUnder || "Construction").toString().trim().toLowerCase();
+    const pType = (row.permit_type || row.permitType || "Construction").toString().trim().toLowerCase();
+    const status = (row.Request_status || row.request_status || row.requestStatus || "").toString().trim().toLowerCase();
+
+    // Terminal statuses & draft cannot be approved, pre-approved, rejected, or bulk edited by departments
+    const isTerminalOrDraft = ["closed", "cancelled", "auto-cancelled", "auto cancelled", "rejected", "draft"].includes(status);
+    if (isTerminalOrDraft) {
+      // SuperAdmin / Admin can select terminal rows for bulk deletion
+      return !isAdmin;
+    }
+
+    // Admin and Multi-Department (holding both Department & Department1) have access to all active permits
     if (isAdmin || isMultiDept) return false;
+
+    // 1. Pure Construction permit (Construction under Construction)
+    if (pUnder === "construction" && pType === "construction") {
+      // Accessible ONLY by Department (ConM)
+      return !isDept;
+    }
+
+    // 2. Pure Commissioning permit (Commissioning under Commissioning)
+    if (pUnder === "commissioning" && pType === "commissioning") {
+      // Accessible ONLY by Department1 (C&Q / COMM)
+      return !isDept1;
+    }
+
+    // 3. Mixed: Construction permit under Commissioning
+    if (pUnder === "commissioning" && pType === "construction") {
+      // At Hold: ConM (Department) pre-approves/rejects
+      if (status === "hold") {
+        return !isDept;
+      }
+      // At Pre-Approved: COMM (Department1) performs final approval/rejection
+      if (status === "pre-approved") {
+        return !isDept1;
+      }
+      // At Approved or Opened: both departments have oversight / operational access
+      if (status === "approved" || status === "opened") {
+        return !(isDept || isDept1);
+      }
+      return !(isDept || isDept1);
+    }
+
+    // 4. Mixed: Commissioning permit under Construction
+    if (pUnder === "construction" && pType === "commissioning") {
+      // At Hold: COMM (Department1) pre-approves/rejects
+      if (status === "hold") {
+        return !isDept1;
+      }
+      // At Pre-Approved: ConM (Department) performs final approval/rejection
+      if (status === "pre-approved") {
+        return !isDept;
+      }
+      // At Approved or Opened: both departments have oversight / operational access
+      if (status === "approved" || status === "opened") {
+        return !(isDept || isDept1);
+      }
+      return !(isDept || isDept1);
+    }
+
+    // Fallback: Check if user's role matches either stream
     if (isDept) {
-      const eitherIsConstruction = String(row.permit_under).toLowerCase() === "construction" ||
-        String(row.permit_type).toLowerCase() === "construction";
-      return !eitherIsConstruction;
+      const involvesConstruction = pUnder === "construction" || pType === "construction";
+      return !involvesConstruction;
     }
     if (isDept1) {
-      const bothAreConstruction = String(row.permit_under).toLowerCase() === "construction" &&
-        String(row.permit_type).toLowerCase() === "construction";
-      return bothAreConstruction;
+      const involvesCommissioning = pUnder === "commissioning" || pType === "commissioning";
+      return !involvesCommissioning;
     }
-    return false;
+
+    return true;
   }, [isAdmin, isDept, isDept1, isMultiDept, isObserver, isSubcontractor]);
 
   // ─── Fetch Selector Lists ──────────────────────────────────────────────────
   useEffect(() => {
     const fetchSelectors = async () => {
       try {
-        const [subRes, actRes, buildRes, floorRes, zoneRes, roomRes, precautionsRes] = await Promise.all([
+        const [subRes, actRes, buildRes, floorRes, zoneRes, roomRes, precautionsRes, eleRes, mechRes] = await Promise.all([
           getContractors(1, 1000),
           getActivities(1, 1000),
           getBuildings(1, 1000),
           getFloors(1, 1000),
           getZones(1, 10000),
           getRooms(1, 10000),
-          getPrecautions(1, 1000)
+          getPrecautions(1, 1000),
+          getElectricalWorks(1, 1000),
+          getMechanicalWorks(1, 1000)
         ]);
         const rawContractors = subRes?.data?.rows ?? subRes?.data ?? subRes ?? [];
         const loadedContractors = rawContractors
@@ -1290,6 +1421,8 @@ const getInitialPage = () => {
         setZonesList(zoneRes?.data ?? []);
         setRoomsList(roomRes?.data?.rows ?? roomRes?.data ?? roomRes ?? []);
         setPrecautionsList(precautionsRes?.data?.rows ?? precautionsRes?.data ?? precautionsRes ?? []);
+        setElectricalWorksList(eleRes?.data?.rows ?? eleRes?.data ?? eleRes ?? []);
+        setMechanicalWorksList(mechRes?.data?.rows ?? mechRes?.data ?? mechRes ?? []);
       } catch (err) {
         console.error("Failed to load selectors lists", err);
       }
@@ -1459,6 +1592,20 @@ const getInitialPage = () => {
     }));
   }, [roomsList, zonesList, floorsList, searchFilters.buildings, searchFilters.levels, searchFilters.zones]);
 
+  const electricalWorksOptions = useMemo(() => {
+    return electricalWorksList.map(item => ({
+      value: String(item.id),
+      label: item.electrical_works || item.electricalWork || item.name || `Electrical Work ${item.id}`
+    }));
+  }, [electricalWorksList]);
+
+  const mechanicalWorksOptions = useMemo(() => {
+    return mechanicalWorksList.map(item => ({
+      value: String(item.id),
+      label: item.mechanical_works || item.mechanicalWork || item.name || `Mechanical Work ${item.id}`
+    }));
+  }, [mechanicalWorksList]);
+
   // ─── Fetch List Data ──────────────────────────────────────────────────────
   const fetchRequests = useCallback(async (page = 1) => {
     if (searchFilters.fromDate && searchFilters.toDate) {
@@ -1492,6 +1639,8 @@ const getInitialPage = () => {
         zone: searchFilters.zones && searchFilters.zones.length > 0 ? searchFilters.zones.join(",") : null,
         permit_type: searchFilters.permitType || "",
         permit_under: searchFilters.permitUnder || "",
+        electrical_works: (isAdmin || isDept1 || isMultiDept) && searchFilters.electricalWorks && searchFilters.electricalWorks.length > 0 ? searchFilters.electricalWorks.join(",") : null,
+        mechanical_works: (isAdmin || isDept1 || isMultiDept) && searchFilters.mechanicalWorks && searchFilters.mechanicalWorks.length > 0 ? searchFilters.mechanicalWorks.join(",") : null,
         night_shift: searchFilters.nightShift || "",
         new_date: searchFilters.newDate || "",
         new_end_time: searchFilters.newEndTime ? (searchFilters.newEndTime.length === 5 ? `${searchFilters.newEndTime}:00` : searchFilters.newEndTime) : "",
@@ -1579,7 +1728,7 @@ const getInitialPage = () => {
     setSearchFilters({
       keyword: "",
       permitNo: "",
-      contractors: isSubcontractor && currentUser?.typeId ? [String(currentUser.typeId)] : [],
+      contractors: isSubcontractor && userContractorId ? [String(userContractorId)] : [],
       statuses: [],
       buildings: [],
       levels: [],
@@ -1588,6 +1737,8 @@ const getInitialPage = () => {
       hras: [],
       permitType: "",
       permitUnder: "",
+      electricalWorks: [],
+      mechanicalWorks: [],
       fromDate: "",
       toDate: "",
       startTime: "",
@@ -1602,11 +1753,13 @@ const getInitialPage = () => {
 
   // ─── Select Handling ───────────────────────────────────────────────────────
   const handleSelectAll = (checked) => {
+    const selectableRequests = requests.filter(r => !checkIfHideCheckbox(r));
+    const selectableIds = selectableRequests.map(r => r.id);
     if (checked) {
-      const selectableRequests = requests.filter(r => !checkIfHideCheckbox(r));
-      setSelectedIds(selectableRequests.map(r => r.id));
+      setSelectedIds(prev => Array.from(new Set([...prev, ...selectableIds])));
     } else {
-      setSelectedIds([]);
+      const selectableSet = new Set(selectableIds);
+      setSelectedIds(prev => prev.filter(id => !selectableSet.has(id)));
     }
   };
 
@@ -1743,20 +1896,32 @@ const getInitialPage = () => {
     return false;
   };
 
-  const canUserReject = (row) => {
+  const canUserReject = (row, targetStatus = modalStatus) => {
     if (isAdmin || isMultiDept) return true;
     if (!row) return false;
     const permitType = row.permit_type || "";
     const permitUnder = row.permit_under || "";
-    const isBothConstruction = (permitUnder === "Construction" && permitType === "Construction");
-    const isBothCommissioning = (permitUnder === "Commissioning" && permitType === "Commissioning");
-    const isMixed = (permitUnder === "Construction" && permitType === "Commissioning") ||
-                    (permitUnder === "Commissioning" && permitType === "Construction");
+    const currentStatus = row.Request_status || row.request_status || "";
 
-    if (isBothConstruction) return isDept;
-    if (isBothCommissioning) return isDept1;
-    if (isMixed) return isDept || isDept1;
-    return false;
+    if (permitUnder === "Construction" && permitType === "Construction") {
+      return isDept;
+    }
+    if (permitUnder === "Commissioning" && permitType === "Commissioning") {
+      return isDept1;
+    }
+    if (permitType === "Construction" && permitUnder === "Commissioning") {
+      if (currentStatus === "Hold" || targetStatus === "Pre-Approved") {
+        return isDept;
+      }
+      return isDept1;
+    }
+    if (permitType === "Commissioning" && permitUnder === "Construction") {
+      if (currentStatus === "Hold" || targetStatus === "Pre-Approved") {
+        return isDept1;
+      }
+      return isDept;
+    }
+    return isDept || isDept1;
   };
 
   const proceedWithStatusChange = (row, status) => {
@@ -1799,10 +1964,10 @@ const getInitialPage = () => {
     const permitUnder = row.permit_under || "";
 
     // Role based validations for Pre-Approved and Approved transitions
-    if (!isAdmin) {
+    if (!isAdmin && !isMultiDept) {
       if (status === "Pre-Approved" || status === "Approved") {
         const canApproveThis = canUserApprove(row, status);
-        const canRejectThis = canUserReject(row);
+        const canRejectThis = canUserReject(row, status);
 
         if (!canApproveThis && !canRejectThis) {
           if (status === "Pre-Approved") {
@@ -2443,7 +2608,10 @@ const getInitialPage = () => {
       header: !isObserver && !isSubcontractor && (
         <input
           type="checkbox"
-          checked={selectableRequestsCount > 0 && selectedIds.length === selectableRequestsCount}
+          checked={
+            selectableRequestsCount > 0 &&
+            requests.filter(r => !checkIfHideCheckbox(r)).every(r => selectedIds.includes(r.id))
+          }
           onChange={(e) => handleSelectAll(e.target.checked)}
         />
       ),
@@ -2456,6 +2624,7 @@ const getInitialPage = () => {
     { header: "Permit Under", accessor: "permit_under" },
     { header: "Request Date", accessor: "Request_Date" },
     { header: "Permit Type", accessor: "permit_type" },
+    { header: "Type of Work", accessor: "work_type" },
     { header: "Activity", accessor: "Activity" },
     { header: "Contractor", accessor: "contractorName" },
     { header: "Building", accessor: "buildingName" },
@@ -2536,14 +2705,15 @@ const getInitialPage = () => {
         </div>
       );
 
-      const isDept1Commissioning = isDept1 && (
-        String(row.permit_under).toLowerCase() === "commissioning" ||
-        String(row.permit_type).toLowerCase() === "commissioning"
-      );
+      const pUnder = (row.permit_under || row.permitUnder || "Construction").toString().trim().toLowerCase();
+      const pType = (row.permit_type || row.permitType || "Construction").toString().trim().toLowerCase();
+      const isDept1Commissioning = isDept1 && (pUnder === "commissioning" || pType === "commissioning");
+      const isDeptConstruction = isDept && (pUnder === "construction" || pType === "construction");
 
       const isMultiDept = isDept && isDept1;
 
       const isEditable = (() => {
+        if (isObserver) return false;
         const isStatusAllowed = row.Request_status !== "Cancelled" &&
           row.Request_status !== "Closed" &&
           row.Request_status !== "Rejected" &&
@@ -2561,9 +2731,7 @@ const getInitialPage = () => {
         if (isAdmin || isMultiDept) return true;
 
         if (isDept) {
-          const eitherIsConstruction = String(row.permit_under).toLowerCase() === "construction" ||
-            String(row.permit_type).toLowerCase() === "construction";
-          return eitherIsConstruction;
+          return isDeptConstruction;
         }
 
         if (isDept1) {
@@ -2574,6 +2742,7 @@ const getInitialPage = () => {
       })();
 
       const isDeletable = (() => {
+        if (isObserver) return false;
         if (isDept || isDept1 || isMultiDept) return false;
         if (isAdmin) return true;
 
@@ -2581,19 +2750,15 @@ const getInitialPage = () => {
       })();
 
       const isCopyable = (() => {
-        if (currentUser?.role === "Observer") return false;
+        if (isObserver || currentUser?.role === "Observer") return false;
         if (isAdmin || isSubcontractor || isMultiDept) return true;
 
         if (isDept) {
-          const eitherIsConstruction = String(row.permit_under).toLowerCase() === "construction" ||
-            String(row.permit_type).toLowerCase() === "construction";
-          return eitherIsConstruction;
+          return isDeptConstruction;
         }
 
         if (isDept1) {
-          const bothAreConstruction = String(row.permit_under).toLowerCase() === "construction" &&
-            String(row.permit_type).toLowerCase() === "construction";
-          return !bothAreConstruction;
+          return isDept1Commissioning;
         }
 
         return false;
@@ -2603,6 +2768,7 @@ const getInitialPage = () => {
       const statusClass = `status-badge status-badge--${row.Request_status?.toLowerCase().replace(" ", "-")}`;
 
       const handleStatusClick = () => {
+        if (isObserver) return;
         // If status is Draft, click opens edit form
         if (row.Request_status === "Draft") {
           if (isEditable) {
@@ -2647,8 +2813,8 @@ const getInitialPage = () => {
       const statusCell = (
         <span
           className={statusClass}
-          onClick={handleStatusClick}
-          style={{ cursor: "pointer" }}
+          onClick={isObserver ? undefined : handleStatusClick}
+          style={{ cursor: isObserver ? "default" : "pointer" }}
         >
           {row.Request_status}
         </span>
@@ -2728,6 +2894,7 @@ const getInitialPage = () => {
         Request_Date: formatDateToDDMMYYYY(row.Request_Date),
         Working_Date: formatDateToDDMMYYYY(row.Working_Date),
         Activity: trimLongValue(row.Activity, 30),
+        work_type: resolveTypeOfWork(row),
         timeCell,
         nightShiftCell,
         newEndTimeCell,
@@ -2736,7 +2903,7 @@ const getInitialPage = () => {
         operationsCell
       };
     });
-  }, [requests, selectedIds, contractors, buildingsList, isSubcontractor, canBulkAction, isAdmin, currentUser]);
+  }, [requests, selectedIds, contractors, buildingsList, isSubcontractor, canBulkAction, isAdmin, currentUser, isDept, isDept1, isMultiDept, checkIfHideCheckbox]);
 
   const totalPages = Math.ceil(totalCount / limit);
 
@@ -2850,7 +3017,7 @@ const getInitialPage = () => {
                   <input
                     type="text"
                     className="df-input df-readonly"
-                    value={contractors.length > 0 ? (contractors.find(c => String(c.id) === String(currentUser?.typeId))?.subContractorName || contractors[0]?.subContractorName) : "Loading..."}
+                    value={contractors.length > 0 ? (contractors.find(c => String(c.id) === String(userContractorId))?.subContractorName || contractors[0]?.subContractorName) : "Loading..."}
                     readOnly
                   />
                 ) : (
@@ -3151,6 +3318,33 @@ const getInitialPage = () => {
                   isHra={true}
                 />
               </div>
+
+              {/* Row 9: Electrical Works | Mechanical Works (C&Q / Commissioning / Admin only) */}
+              {(isAdmin || isDept1 || isMultiDept) && (
+                <>
+                  <div className="df-field">
+                    <label className="df-label">Electrical Works</label>
+                    <MultiSelectDropdown
+                      placeholder="Select Electrical Works"
+                      searchPlaceholder="Search electrical work..."
+                      options={electricalWorksOptions}
+                      selectedValues={searchFilters.electricalWorks || []}
+                      onChange={(vals) => setSearchFilters(prev => ({ ...prev, electricalWorks: vals }))}
+                    />
+                  </div>
+
+                  <div className="df-field">
+                    <label className="df-label">Mechanical Works</label>
+                    <MultiSelectDropdown
+                      placeholder="Select Mechanical Works"
+                      searchPlaceholder="Search mechanical work..."
+                      options={mechanicalWorksOptions}
+                      selectedValues={searchFilters.mechanicalWorks || []}
+                      onChange={(vals) => setSearchFilters(prev => ({ ...prev, mechanicalWorks: vals }))}
+                    />
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Action Buttons */}

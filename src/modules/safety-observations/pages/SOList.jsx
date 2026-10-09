@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import PageHeader from "../../../components/common/PageHeader/PageHeader";
 import { observationService } from "../../../services/observationService";
 import { getContractors, getBuildings } from "../../../services/authService";
+import { getModuleUserContext } from "../../../utils/modulePermissions";
 import { SAFETY_CATEGORIES } from "../data/observations";
 import "../../../styles/module-shared.css";
 
@@ -135,16 +136,16 @@ function SOList() {
   const [contractorsList, setContractorsList] = useState([]);
 
   const user = JSON.parse(localStorage.getItem("user") || "{}");
-  const rawRole = (localStorage.getItem("UserType") || user?.role || user?.userType || user?.user_type || "").toUpperCase();
-  const userRolesArr = Array.isArray(user?.userTypes) ? user.userTypes.map((t) => String(t).toUpperCase()) : [];
-  const allRoles = [rawRole, ...userRolesArr].join(" ");
-  const isContractor = allRoles.includes("CONTRACTOR") || allRoles.includes("SUBCONTRACTOR") || Boolean(user?.subcontractor_id) || Boolean(user?.typeId && allRoles.includes("SUBCONTRACTOR"));
-  const isObserver = allRoles.includes("OBSERVER");
-  const isAdmin = allRoles.includes("ADMIN") || allRoles.includes("SUPERADMIN") || Boolean(user?.isSuperAdmin) || (Array.isArray(user?.userTypes) && user.userTypes.some(t => String(t).toUpperCase().includes("ADMIN")));
-  const isDepartment = allRoles.includes("DEPARTMENT") || allRoles.includes("OPERATOR") || allRoles.includes("SITE_HSE") || allRoles.includes("SAFETY") || allRoles.includes("HSE");
+  const modCtx = useMemo(() => getModuleUserContext("safety-observations", user), [user]);
+  const isContractor = modCtx.isContractor;
+  const isDepartment = modCtx.isDepartment;
+  const isAdmin = modCtx.isAdmin;
+  const isObserver = modCtx.isObserver;
   const isDeptOrAdmin = (isAdmin || isDepartment) && !isContractor && !isObserver;
   const isReadOnly = isObserver;
-  const contractorId = user?.typeId || user?.subcontractor_id || user?.subContId || user?.contractorId;
+  const contractorId = modCtx.contractorId;
+
+  const rawRole = (localStorage.getItem("UserType") || user?.role || user?.userType || user?.user_type || "").toUpperCase();
 
   const [deletingObs, setDeletingObs] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -199,16 +200,22 @@ function SOList() {
     if (!isContractor) return null;
     return (
       contractorsList.find(c => 
-        String(c.id) === String(contractorId) || 
-        String(c.subcontractor_id) === String(contractorId) ||
-        (user?.username && c.username === user.username) ||
-        (user?.company_name && (c.subContractorName === user.company_name || c.company_name === user.company_name)) ||
-        (user?.companyName && (c.subContractorName === user.companyName || c.company_name === user.companyName))
+        (contractorId && (String(c.id) === String(contractorId) || String(c.subcontractor_id) === String(contractorId))) ||
+        (user?.subContractorName && (c.subContractorName === user.subContractorName || c.company_name === user.subContractorName)) ||
+        (user?.contractorName && (c.subContractorName === user.contractorName || c.company_name === user.contractorName)) ||
+        (user?.username && (c.username === user.username || String(c.subContractorName || c.company_name || c.name || '').toLowerCase() === String(user.username).toLowerCase()))
       ) || (contractorsList.length === 1 ? contractorsList[0] : null)
     );
-  }, [isContractor, contractorsList, contractorId, user?.company_name, user?.companyName, user?.username]);
+  }, [isContractor, contractorsList, contractorId, user?.subContractorName, user?.contractorName, user?.username]);
 
-  const myContractorName = user?.company_name || user?.companyName || user?.subContractorName || user?.contractorName || myContractor?.subContractorName || myContractor?.company_name || myContractor?.companyName || myContractor?.subcontractor_name || myContractor?.name || "";
+  const myContractorName = 
+    myContractor?.subContractorName || 
+    myContractor?.company_name || 
+    myContractor?.name || 
+    user?.subContractorName || 
+    user?.contractorName || 
+    (contractorsList.some(c => c.subContractorName === user?.companyName || c.company_name === user?.companyName) ? (user?.companyName || user?.company_name) : "") || 
+    "";
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -232,7 +239,8 @@ function SOList() {
         statsParams.userRole = "CONTRACTOR";
         if (contractorId) statsParams.contractorId = contractorId;
         if (myContractorName) statsParams.contractor = myContractorName;
-        if (user?.id) statsParams.userId = user.id;
+      } else {
+        if (isDepartment) statsParams.userRole = "DEPARTMENT";
       }
       if (filterContractor) statsParams.contractor = filterContractor;
       if (filterLocation) statsParams.building = filterLocation;
@@ -287,7 +295,8 @@ function SOList() {
         params.userRole = "CONTRACTOR";
         if (contractorId) params.contractorId = contractorId;
         if (myContractorName) params.contractor = myContractorName;
-        if (user?.id) params.userId = user.id;
+      } else {
+        if (isDepartment) params.userRole = "DEPARTMENT";
       }
       if (filterStatus) params.status = filterStatus;
       if (filterType) params.type = filterType;

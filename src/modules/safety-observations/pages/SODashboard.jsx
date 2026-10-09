@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { OBSERVATIONS, SAFETY_CATEGORIES, SO_RISK_LEVELS, SO_STATUSES } from "../data/observations";
 import observationService from "../../../services/observationService";
 import { getBuildings, getContractors } from "../../../services/authService";
+import { getModuleUserContext } from "../../../utils/modulePermissions";
 import { generateObservationStatsPdf } from "../utils/observationStatsPdfGenerator";
 import "./SODashboard.css";
 
@@ -504,28 +505,34 @@ export default function SODashboard() {
   const [loading, setLoading] = useState(true);
 
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
-  const rawRole = (localStorage.getItem("UserType") || currentUser?.role || currentUser?.userType || currentUser?.user_type || "").toUpperCase();
-  const userRolesArr = Array.isArray(currentUser?.userTypes) ? currentUser.userTypes.map((t) => String(t).toUpperCase()) : [];
-  const allRoles = [rawRole, ...userRolesArr].join(" ");
-  const isContractor = allRoles.includes("CONTRACTOR") || allRoles.includes("SUBCONTRACTOR") || Boolean(currentUser?.subcontractor_id) || Boolean(currentUser?.typeId && allRoles.includes("SUBCONTRACTOR"));
-  const isObserver = allRoles.includes("OBSERVER");
+  const modCtx = useMemo(() => getModuleUserContext("safety-observations", currentUser), [currentUser]);
+  const isContractor = modCtx.isContractor;
+  const isDepartment = modCtx.isDepartment;
+  const isAdmin = modCtx.isAdmin;
+  const isObserver = modCtx.isObserver;
   const isReadOnly = isObserver;
-  const contractorId = currentUser?.typeId || currentUser?.subcontractor_id || currentUser?.subContId || currentUser?.contractorId;
+  const contractorId = modCtx.contractorId;
 
   const myContractor = useMemo(() => {
     if (!isContractor) return null;
     return (
       contractorsList.find(c => 
-        String(c.id) === String(contractorId) || 
-        String(c.subcontractor_id) === String(contractorId) ||
-        (currentUser?.username && c.username === currentUser.username) ||
-        (currentUser?.company_name && (c.subContractorName === currentUser.company_name || c.company_name === currentUser.company_name)) ||
-        (currentUser?.companyName && (c.subContractorName === currentUser.companyName || c.company_name === currentUser.companyName))
+        (contractorId && (String(c.id) === String(contractorId) || String(c.subcontractor_id) === String(contractorId))) ||
+        (currentUser?.subContractorName && (c.subContractorName === currentUser.subContractorName || c.company_name === currentUser.subContractorName)) ||
+        (currentUser?.contractorName && (c.subContractorName === currentUser.contractorName || c.company_name === currentUser.contractorName)) ||
+        (currentUser?.username && (c.username === currentUser.username || String(c.subContractorName || c.company_name || c.name || '').toLowerCase() === String(currentUser.username).toLowerCase()))
       ) || (contractorsList.length === 1 ? contractorsList[0] : null)
     );
-  }, [isContractor, contractorsList, contractorId, currentUser?.company_name, currentUser?.companyName, currentUser?.username]);
+  }, [isContractor, contractorsList, contractorId, currentUser?.subContractorName, currentUser?.contractorName, currentUser?.username]);
 
-  const myContractorName = currentUser?.company_name || currentUser?.companyName || currentUser?.subContractorName || currentUser?.contractorName || myContractor?.subContractorName || myContractor?.company_name || myContractor?.companyName || myContractor?.subcontractor_name || myContractor?.name || "";
+  const myContractorName = 
+    myContractor?.subContractorName || 
+    myContractor?.company_name || 
+    myContractor?.name || 
+    currentUser?.subContractorName || 
+    currentUser?.contractorName || 
+    (contractorsList.some(c => c.subContractorName === currentUser?.companyName || c.company_name === currentUser?.companyName) ? (currentUser?.companyName || currentUser?.company_name) : "") || 
+    "";
 
   // Fetch Master Selector Data (Buildings & Contractors)
   useEffect(() => {
@@ -557,8 +564,11 @@ export default function SODashboard() {
           params.userRole = "CONTRACTOR";
           if (contractorId) params.contractorId = contractorId;
           if (myContractorName) params.contractor = myContractorName;
-        } else if (selectedContractors.length > 0) {
-          params.contractor = selectedContractors.join(',');
+        } else {
+          if (isDepartment) params.userRole = "DEPARTMENT";
+          if (selectedContractors.length > 0) {
+            params.contractor = selectedContractors.join(',');
+          }
         }
         if (selectedBuildings.length > 0) params.building = selectedBuildings.join(',');
         if (selectedRange && selectedRange !== 'custom') params.range = selectedRange;
@@ -598,7 +608,7 @@ export default function SODashboard() {
       }
     };
     loadData();
-  }, [selectedBuildings, selectedContractors, selectedRange, startDate, endDate, isContractor, contractorId, myContractorName]);
+  }, [selectedBuildings, selectedContractors, selectedRange, startDate, endDate, isContractor, contractorId, myContractorName, isDepartment]);
 
   const agg = useMemo(() => {
     if (serverStats?.total !== undefined && !isContractor) {
@@ -606,7 +616,7 @@ export default function SODashboard() {
     }
     const source = isContractor
       ? observationsList.filter(o => {
-          if (contractorId && String(o.assignedContractorId) === String(contractorId)) return true;
+          if (contractorId && (String(o.assignedContractorId) === String(contractorId) || String(o.createdByContractorId) === String(contractorId))) return true;
           if (myContractorName && o.assignedContractorName && o.assignedContractorName.toLowerCase().includes(myContractorName.toLowerCase())) return true;
           if (myContractorName && o.contractor && o.contractor.toLowerCase().includes(myContractorName.toLowerCase())) return true;
           return false;
@@ -619,7 +629,7 @@ export default function SODashboard() {
     let source = observationsList.length > 0 ? observationsList : OBSERVATIONS;
     if (isContractor) {
       source = source.filter(o => {
-        if (contractorId && String(o.assignedContractorId) === String(contractorId)) return true;
+        if (contractorId && (String(o.assignedContractorId) === String(contractorId) || String(o.createdByContractorId) === String(contractorId))) return true;
         if (myContractorName && o.assignedContractorName && o.assignedContractorName.toLowerCase().includes(myContractorName.toLowerCase())) return true;
         if (myContractorName && o.contractor && o.contractor.toLowerCase().includes(myContractorName.toLowerCase())) return true;
         if (currentUser?.id && (String(o.createdByUserId) === String(currentUser.id) || String(o.createdById) === String(currentUser.id))) return true;

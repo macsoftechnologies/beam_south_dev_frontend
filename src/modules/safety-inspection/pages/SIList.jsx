@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { safetyInspectionService } from "../../../services/safetyInspectionService";
 import { observationService } from "../../../services/observationService";
 import { getBuildings, getFloors, getRooms } from "../../../services/authService";
+import { getModuleUserContext } from "../../../utils/modulePermissions";
 import "./SIDashboard.css"; // Reusing dashboard CSS
 
 export default function SIList() {
@@ -42,8 +43,8 @@ export default function SIList() {
     }
   }, []);
 
-  const roleUpper = String(currentUser?.role || '').toUpperCase();
-  const isAdmin = roleUpper.includes('ADMIN') || roleUpper.includes('SUPERADMIN');
+  const siCtx = useMemo(() => getModuleUserContext("safety-inspection", currentUser), [currentUser]);
+  const isAdmin = siCtx.isAdmin;
 
   useEffect(() => {
     const loadSelectors = async () => {
@@ -308,12 +309,8 @@ export default function SIList() {
     }
   };
 
-  const rawRole = (localStorage.getItem("UserType") || currentUser?.role || currentUser?.userType || currentUser?.user_type || "").toUpperCase();
-  const userRolesArr = Array.isArray(currentUser?.userTypes) ? currentUser.userTypes.map((t) => String(t).toUpperCase()) : [];
-  const allRoles = [rawRole, ...userRolesArr].join(" ");
-  const isContractor = allRoles.includes("CONTRACTOR") || allRoles.includes("SUBCONTRACTOR") || Boolean(currentUser?.subcontractor_id) || Boolean(currentUser?.contractorId) || Boolean(currentUser?.typeId && allRoles.includes("SUBCONTRACTOR"));
-  const isObserver = allRoles.includes("OBSERVER");
-  const isReadOnly = isContractor || isObserver;
+  const isObserver = siCtx.isObserver;
+  const isReadOnly = isObserver;
 
   return (
     <div className="si-dashboard-container">

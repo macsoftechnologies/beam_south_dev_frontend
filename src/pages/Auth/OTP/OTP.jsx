@@ -194,6 +194,13 @@ export default function OTP() {
           role: response.userType || tempUser.userType, // UserType is the role
           name: response.username || tempUser.username,
           typeId: response.typeId || tempUser.typeId,
+          departId: response.departId ?? tempUser.departId ?? null,
+          subContId: response.subContId ?? tempUser.subContId ?? null,
+          subcontractor_id: response.subcontractor_id ?? tempUser.subcontractor_id ?? response.subContId ?? tempUser.subContId ?? null,
+          subContractorName: response.subContractorName || tempUser.subContractorName || null,
+          companyName: response.companyName || tempUser.companyName || null,
+          company_name: response.companyName || tempUser.companyName || null,
+          obserId: response.obserId ?? tempUser.obserId ?? null,
           moduleAccess: response.moduleAccess || tempUser?.moduleAccess || "permit-to-work,incident-management,safety-observations,safety-inspection,spot-checks",
         };
         localStorage.setItem("user", JSON.stringify(activeUser));
@@ -222,6 +229,13 @@ export default function OTP() {
           role: tempUser.userType,
           name: tempUser.username,
           typeId: tempUser.typeId,
+          departId: tempUser.departId ?? null,
+          subContId: tempUser.subContId ?? null,
+          subcontractor_id: tempUser.subcontractor_id ?? tempUser.subContId ?? null,
+          subContractorName: tempUser.subContractorName || null,
+          companyName: tempUser.companyName || null,
+          company_name: tempUser.companyName || null,
+          obserId: tempUser.obserId ?? null,
           moduleAccess: tempUser.moduleAccess || "permit-to-work,incident-management,safety-observations,safety-inspection,spot-checks",
         };
         localStorage.setItem("user", JSON.stringify(activeUser));

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import Table from "../../components/common/Table/Table";
 import { searchRequests } from "../../services/requestService";
 import { getContractors, getUser } from "../../services/authService";
+import { getModuleUserContext } from "../../utils/modulePermissions";
 import { API_BASE_URL } from "../../services/api";
 import "../styles/pages.css";
 import LogHistoryModal from "./LogHistoryModel";
@@ -72,11 +73,9 @@ const LogHistory = () => {
         setContractorsList(sorted);
 
         const currentUser = getUser();
-        const userRoles = currentUser?.roles || currentUser?.role || [];
-        const isSubcontractor = Array.isArray(userRoles)
-          ? userRoles.includes("subcontractor") || userRoles.includes("Subcontractor")
-          : String(userRoles).toLowerCase().includes("subcontractor");
-        const userContractorId = currentUser?.typeId || currentUser?.subContId || currentUser?.subContractorId;
+        const ptwCtx = getModuleUserContext("permit-to-work", currentUser);
+        const isSubcontractor = ptwCtx.isContractor;
+        const userContractorId = ptwCtx.contractorId || currentUser?.subContId || currentUser?.subcontractor_id || (isSubcontractor ? currentUser?.typeId : null);
 
         if (isSubcontractor && userContractorId) {
           setSelectedContractor(String(userContractorId));

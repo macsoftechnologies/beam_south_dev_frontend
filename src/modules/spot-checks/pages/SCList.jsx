@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { spotCheckService } from "../../../services/spotCheckService";
 import { getBuildings, getContractors } from "../../../services/authService";
+import { getModuleUserContext } from "../../../utils/modulePermissions";
 import { showSuccess, showError, showDeleteConfirm, showDeleteSuccess } from "../../../components/common/Toast/Toast";
 import Swal from "sweetalert2";
 import "./SCDashboard.css";
@@ -131,20 +132,47 @@ export default function SCList() {
     }
   }, []);
 
-  const rawRoleAdmin = (localStorage.getItem("UserType") || currentUser?.role || currentUser?.userType || currentUser?.user_type || "").toUpperCase();
-  const userRolesArrAdmin = Array.isArray(currentUser?.userTypes) ? currentUser.userTypes.map((t) => String(t).toUpperCase()) : [];
-  const allRolesAdmin = [rawRoleAdmin, ...userRolesArrAdmin].join(" ");
-  const isAdmin = (allRolesAdmin.includes("ADMIN") || allRolesAdmin.includes("SUPERADMIN") || Boolean(currentUser?.isSuperAdmin));
+  const modCtx = React.useMemo(() => getModuleUserContext("spot-checks", currentUser), [currentUser]);
+  const isContractor = modCtx.isContractor;
+  const isDepartment = modCtx.isDepartment;
+  const isAdmin = modCtx.isAdmin;
+  const isObserver = modCtx.isObserver;
+  const isReadOnly = isContractor || isObserver;
+  const contractorId = modCtx.contractorId;
+
+  const myContractor = React.useMemo(() => {
+    if (!isContractor) return null;
+    return (
+      contractorsList.find(c => 
+        (contractorId && (String(c.id) === String(contractorId) || String(c.subcontractor_id) === String(contractorId))) ||
+        (currentUser?.subContractorName && (c.subContractorName === currentUser.subContractorName || c.company_name === currentUser.subContractorName)) ||
+        (currentUser?.contractorName && (c.subContractorName === currentUser.contractorName || c.company_name === currentUser.contractorName)) ||
+        (currentUser?.username && (c.username === currentUser.username || String(c.subContractorName || c.company_name || c.name || '').toLowerCase() === String(currentUser.username).toLowerCase()))
+      ) || (contractorsList.length === 1 ? contractorsList[0] : null)
+    );
+  }, [isContractor, contractorsList, contractorId, currentUser?.subContractorName, currentUser?.contractorName, currentUser?.username]);
+
+  const myContractorName = 
+    myContractor?.subContractorName || 
+    myContractor?.company_name || 
+    myContractor?.name || 
+    currentUser?.subContractorName || 
+    currentUser?.contractorName || 
+    (contractorsList.some(c => c.subContractorName === currentUser?.companyName || c.company_name === currentUser?.companyName) ? (currentUser?.companyName || currentUser?.company_name) : "") || 
+    "";
 
   const fetchSpotChecks = useCallback(async () => {
     setIsLoading(true);
     try {
+      const activeContractor = isContractor ? (myContractorName || undefined) : (filter.company || undefined);
       const data = await spotCheckService.getSpotChecks({
         page,
         limit,
         q: filter.q || undefined,
         compliance: filter.compliance || undefined,
-        contractor: filter.company || undefined,
+        contractor: activeContractor,
+        contractorId: isContractor ? (contractorId || undefined) : undefined,
+        userRole: isContractor ? "CONTRACTOR" : (isDepartment ? "DEPARTMENT" : undefined),
         building: filter.building || undefined,
       });
 
@@ -157,7 +185,7 @@ export default function SCList() {
     } finally {
       setIsLoading(false);
     }
-  }, [page, limit, filter]);
+  }, [page, limit, filter, isContractor, isDepartment, contractorId, myContractorName]);
 
   useEffect(() => {
     fetchSpotChecks();
@@ -227,13 +255,6 @@ export default function SCList() {
     }
   };
 
-  const rawRole = (localStorage.getItem("UserType") || currentUser?.role || currentUser?.userType || currentUser?.user_type || "").toUpperCase();
-  const userRolesArr = Array.isArray(currentUser?.userTypes) ? currentUser.userTypes.map((t) => String(t).toUpperCase()) : [];
-  const allRoles = [rawRole, ...userRolesArr].join(" ");
-  const isContractor = allRoles.includes("CONTRACTOR") || allRoles.includes("SUBCONTRACTOR") || Boolean(currentUser?.subcontractor_id) || Boolean(currentUser?.contractorId) || Boolean(currentUser?.typeId && allRoles.includes("SUBCONTRACTOR"));
-  const isObserver = allRoles.includes("OBSERVER");
-  const isReadOnly = isContractor || isObserver;
-
   return (
     <div className="sc-dashboard-container">
       <div className="dash-hero">
@@ -283,21 +304,30 @@ export default function SCList() {
           </select>
 
           {/* Company / Contractor dropdown */}
-          <select
-            className="df-input"
-            style={{ flex: '0 1 200px', minWidth: 160 }}
-            value={filter.company}
-            onChange={e => {
-              setFilter({ ...filter, company: e.target.value });
-              setPage(1);
-            }}
-          >
-            <option value="">All Companies</option>
-            {contractorsList.map((c, i) => {
-              const name = c.subContractorName || c.company_name || c.contractor_name || c.name || `Contractor ${c.id || i}`;
-              return <option key={c.id || i} value={name}>{name}</option>;
-            })}
-          </select>
+          {!isContractor ? (
+            <select
+              className="df-input"
+              style={{ flex: '0 1 200px', minWidth: 160 }}
+              value={filter.company}
+              onChange={e => {
+                setFilter({ ...filter, company: e.target.value });
+                setPage(1);
+              }}
+            >
+              <option value="">All Companies</option>
+              {contractorsList.map((c, i) => {
+                const name = c.subContractorName || c.company_name || c.contractor_name || c.name || `Contractor ${c.id || i}`;
+                return <option key={c.id || i} value={name}>{name}</option>;
+              })}
+            </select>
+          ) : (
+            <div
+              className="df-input"
+              style={{ flex: '0 1 200px', minWidth: 160, display: 'flex', alignItems: 'center', background: 'var(--bg-muted, #f8fafc)', color: 'var(--text-main, #334155)', fontWeight: 600, fontSize: '13px', padding: '0 10px', borderRadius: 6, border: '1px solid var(--border-color, #e2e8f0)' }}
+            >
+              {myContractorName || 'My Contractor'}
+            </div>
+          )}
 
           {/* Compliance dropdown */}
           <select

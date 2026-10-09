@@ -3,6 +3,7 @@ import ReactDOM from "react-dom";
 import Table from "../../components/common/Table/Table";
 import { FaFileCsv, FaArrowDown, FaSearch } from "react-icons/fa";
 import * as XLSX from "xlsx";
+import { getModuleUserContext, parseModuleAccess, isUserAdmin } from "../../../utils/modulePermissions";
 
 const AnalogTimePicker = ({ initialTime, onSave, onCancel }) => {
   const [hour, setHour] = useState(12);
@@ -1050,8 +1051,14 @@ const StatusBadge = ({ status }) => {
 
 const Reports = () => {
   const currentUser = useMemo(() => getUser(), []);
+  const ptwModuleCtx = useMemo(() => getModuleUserContext("permit-to-work", currentUser), [currentUser]);
   const userRoles = useMemo(() => {
-    const roleVal = currentUser?.role || currentUser?.userType || "";
+    if (isUserAdmin(currentUser)) {
+      return ["admin"];
+    }
+    const parsedMap = parseModuleAccess(currentUser?.moduleAccess);
+    const ptwRole = parsedMap["permit-to-work"];
+    const roleVal = ptwRole || currentUser?.role || currentUser?.userType || "";
     if (typeof roleVal === "string") {
       return roleVal.split(",").map(r => r.trim().toLowerCase());
     }
@@ -1060,8 +1067,30 @@ const Reports = () => {
     }
     return [String(roleVal).trim().toLowerCase()];
   }, [currentUser]);
-  const userContractorId = currentUser?.typeId || currentUser?.subContId || currentUser?.subContractorId;
-  const isSubcontractor = userRoles.includes("subcontractor");
+
+  const activeRole = (localStorage.getItem("UserType") || "").toLowerCase().trim();
+  const isObserver = activeRole ? activeRole.includes("observer") : (userRoles.includes("observer") && !userRoles.some(r => ["admin", "superadmin", "department", "department1"].includes(r)));
+  const isAdmin = !isObserver && (userRoles.some(r => ["admin", "superadmin"].includes(r)) || isUserAdmin(currentUser));
+  const isDept = !isObserver && userRoles.includes("department");
+  const isDept1 = !isObserver && userRoles.includes("department1");
+  const isSubcontractor = !isObserver && (userRoles.includes("subcontractor") ||
+    userRoles.includes("contractor") ||
+    userRoles.includes("sub_contractor") ||
+    userRoles.includes("sub-contractor")) && !isDept && !isDept1 && !isAdmin;
+
+  const userContractorId = useMemo(() => {
+    if (ptwModuleCtx.contractorId) return String(ptwModuleCtx.contractorId);
+    const rawSubId =
+      currentUser?.subContId !== undefined && currentUser?.subContId !== null ? currentUser.subContId :
+      currentUser?.subcontractor_id !== undefined && currentUser?.subcontractor_id !== null ? currentUser.subcontractor_id :
+      currentUser?.subContractorId !== undefined && currentUser?.subContractorId !== null ? currentUser.subContractorId :
+      null;
+    if (rawSubId) return String(rawSubId);
+    if (isSubcontractor && currentUser?.typeId && !currentUser?.departId) {
+      return String(currentUser.typeId);
+    }
+    return "";
+  }, [currentUser, ptwModuleCtx, isSubcontractor]);
 
   const [filters, setFilters] = useState(INITIAL_FILTERS);
 
@@ -1449,7 +1478,7 @@ const Reports = () => {
   const handleReset = () => {
     setFilters({
       ...INITIAL_FILTERS,
-      subContractor: isSubcontractor && currentUser?.typeId ? [String(currentUser.typeId)] : []
+      subContractor: isSubcontractor && userContractorId ? [String(userContractorId)] : []
     });
     setTableData([]);
     setHasSearched(false);

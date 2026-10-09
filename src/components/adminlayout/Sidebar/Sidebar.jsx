@@ -3,6 +3,7 @@ import { useLocation, Link } from 'react-router-dom'
 import "./Sidebar.css";
 import "./Sidebar.module.css";
 import { getMenuByRole, imNavigationMenu, soNavigationMenu } from './navigation.service';
+import { getEffectiveRoleForModule } from '../../../utils/modulePermissions';
 import LogoImg from "../../../assets/images/Logo.jpeg";
 
 /* ════════════════════════════════════════════════════
@@ -124,15 +125,33 @@ function Sidebar({ sidebarOpen, toggleSidebar }) {
 
   useEffect(() => {
     try {
+      const activeUserType = localStorage.getItem("UserType");
+      if (activeUserType) {
+        setUserRole(activeUserType);
+        return;
+      }
       const u = localStorage.getItem("user")
       if (u) {
         const parsed = JSON.parse(u)
-        setUserRole(parsed.role || parsed.userType || "")
+        const ptwRole = getEffectiveRoleForModule("permit-to-work", parsed);
+        const roles = [];
+        if (ptwRole) {
+          String(ptwRole).split(",").forEach(r => roles.push(r.trim()));
+        }
+        if (parsed.role) {
+          if (typeof parsed.role === "string") parsed.role.split(",").forEach(r => roles.push(r.trim()));
+          else if (Array.isArray(parsed.role)) parsed.role.forEach(r => roles.push(String(r).trim()));
+        }
+        if (parsed.userType) {
+          if (typeof parsed.userType === "string") parsed.userType.split(",").forEach(r => roles.push(r.trim()));
+          else if (Array.isArray(parsed.userType)) parsed.userType.forEach(r => roles.push(String(r).trim()));
+        }
+        setUserRole(Array.from(new Set(roles.filter(Boolean))).join(","))
       }
     } catch (e) {
       console.error(e)
     }
-  }, [])
+  }, [pathname])
 
   const activeModule = detectModule(pathname);
   const moduleConf   = MODULE_CONFIG[activeModule];  // null for PTW
@@ -262,16 +281,16 @@ function Sidebar({ sidebarOpen, toggleSidebar }) {
   };
 
   const userRoles = typeof userRole === "string"
-    ? userRole.split(",").map(r => r.trim())
+    ? userRole.split(",").map(r => r.trim().toLowerCase())
     : Array.isArray(userRole)
-    ? userRole
-    : userRole ? [userRole] : [];
+    ? userRole.map(r => String(r).trim().toLowerCase())
+    : userRole ? [String(userRole).trim().toLowerCase()] : [];
 
   // ── Decide which menu to render
   const rawMenuItems = moduleConf ? moduleConf.menu : getMenuByRole(userRole);
   const menuItems = (rawMenuItems || []).filter(item => {
     if (item.allowedRoles && item.allowedRoles.length > 0) {
-      return item.allowedRoles.some(r => userRoles.includes(r));
+      return item.allowedRoles.some(r => userRoles.includes(String(r).toLowerCase()));
     }
     return true;
   });

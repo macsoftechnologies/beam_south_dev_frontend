@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import PageHeader from "../../../components/common/PageHeader/PageHeader";
 import StatusBadge from "../../../components/common/StatusBadge/StatusBadge";
 import { observationService } from "../../../services/observationService";
 import { getContractors } from "../../../services/authService";
+import { getModuleUserContext } from "../../../utils/modulePermissions";
 import "../../../styles/module-shared.css";
 
 const CAIcon = () => (
@@ -22,9 +23,9 @@ function SOCorrectiveActions() {
   const [contractorsList, setContractorsList] = useState([]);
 
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
-  const rawRole = (localStorage.getItem("UserType") || currentUser?.role || currentUser?.userType || currentUser?.user_type || "").toUpperCase();
-  const isContractor = rawRole.includes("CONTRACTOR") || rawRole.includes("SUBCONTRACTOR") || Boolean(currentUser?.subcontractor_id) || Boolean(currentUser?.typeId && rawRole.includes("SUBCONTRACTOR"));
-  const contractorId = currentUser?.typeId || currentUser?.subcontractor_id || currentUser?.subContId || currentUser?.contractorId;
+  const modCtx = useMemo(() => getModuleUserContext("safety-observations", currentUser), [currentUser]);
+  const isContractor = modCtx.isContractor;
+  const contractorId = modCtx.contractorId;
 
   useEffect(() => {
     async function loadContractors() {
@@ -39,14 +40,26 @@ function SOCorrectiveActions() {
     loadContractors();
   }, []);
 
-  const myContractor = contractorsList.find(c => 
-    String(c.id) === String(contractorId) || 
-    String(c.subcontractor_id) === String(contractorId) ||
-    (currentUser?.username && c.username === currentUser.username) ||
-    (currentUser?.company_name && (c.subContractorName === currentUser.company_name || c.company_name === currentUser.company_name)) ||
-    (currentUser?.companyName && (c.subContractorName === currentUser.companyName || c.company_name === currentUser.companyName))
-  ) || (contractorsList.length === 1 ? contractorsList[0] : null);
-  const myContractorName = currentUser?.company_name || currentUser?.companyName || currentUser?.subContractorName || currentUser?.contractorName || myContractor?.subContractorName || myContractor?.company_name || myContractor?.companyName || myContractor?.subcontractor_name || myContractor?.name || "";
+  const myContractor = useMemo(() => {
+    if (!isContractor) return null;
+    return (
+      contractorsList.find(c => 
+        (contractorId && (String(c.id) === String(contractorId) || String(c.subcontractor_id) === String(contractorId))) ||
+        (currentUser?.subContractorName && (c.subContractorName === currentUser.subContractorName || c.company_name === currentUser.subContractorName)) ||
+        (currentUser?.contractorName && (c.subContractorName === currentUser.contractorName || c.company_name === currentUser.contractorName)) ||
+        (currentUser?.username && (c.username === currentUser.username || String(c.subContractorName || c.company_name || c.name || '').toLowerCase() === String(currentUser.username).toLowerCase()))
+      ) || (contractorsList.length === 1 ? contractorsList[0] : null)
+    );
+  }, [isContractor, contractorsList, contractorId, currentUser?.subContractorName, currentUser?.contractorName, currentUser?.username]);
+
+  const myContractorName = 
+    myContractor?.subContractorName || 
+    myContractor?.company_name || 
+    myContractor?.name || 
+    currentUser?.subContractorName || 
+    currentUser?.contractorName || 
+    (contractorsList.some(c => c.subContractorName === currentUser?.companyName || c.company_name === currentUser?.companyName) ? (currentUser?.companyName || currentUser?.company_name) : "") || 
+    "";
 
   useEffect(() => {
     async function loadData() {

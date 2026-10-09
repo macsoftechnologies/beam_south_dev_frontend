@@ -8,9 +8,9 @@ import "./IMList.css";
 import FloorDrawing from "../../../pages/Request/FloorDrawing/FloorDrawing";
 import { FLOOR_PDFS } from "../../../data/pdfMapping";
 import { ZONE_MAPPING } from "../../../data/zones";
-import { BUILDINGS } from "../../../data/buildings";
 import { getBuildings, getRooms, getFloors, getContractors } from "../../../services/authService";
 import IncidentCategoryDropdown from "../components/IncidentCategoryDropdown";
+import { getModuleUserContext } from "../../../utils/modulePermissions";
 
 export const AnalogTimePicker = ({ initialTime, onSave, onCancel }) => {
   const [hour, setHour] = useState(12);
@@ -322,23 +322,35 @@ function IMCreate() {
     }
   }, []);
 
-  const rawRole = (localStorage.getItem("UserType") || currentUser?.role || currentUser?.userType || currentUser?.user_type || "").toUpperCase();
-  const isContractor = rawRole.includes("CONTRACTOR") || rawRole.includes("SUBCONTRACTOR") || Boolean(currentUser?.subcontractor_id) || Boolean(currentUser?.contractorId) || Boolean(currentUser?.typeId && rawRole.includes("SUBCONTRACTOR"));
-  const contractorId = currentUser?.typeId || currentUser?.subcontractor_id || currentUser?.subContId || currentUser?.contractorId;
+  const modCtx = getModuleUserContext("incident-management", currentUser);
+  const rawRole = (modCtx.effectiveRole || localStorage.getItem("UserType") || currentUser?.role || "").toUpperCase();
+  const isContractor = modCtx.isContractor;
+  const isObserver = modCtx.isObserver;
+  const isDepartment = modCtx.isDepartment;
+  const isAdmin = modCtx.isAdmin;
+  const contractorId = modCtx.contractorId;
+  const departmentId = modCtx.departmentId;
 
   const myContractor = React.useMemo(() => {
     if (!isContractor) return null;
     return (
       contractorsList.find((c) =>
         (contractorId && (String(c.id) === String(contractorId) || String(c.subcontractor_id) === String(contractorId))) ||
-        (currentUser?.username && (c.username === currentUser.username || String(c.subContractorName || c.company_name || c.name || "").toLowerCase() === String(currentUser.username).toLowerCase())) ||
-        (currentUser?.company_name && (c.subContractorName === currentUser.company_name || c.company_name === currentUser.company_name || c.name === currentUser.company_name)) ||
-        (currentUser?.companyName && (c.subContractorName === currentUser.companyName || c.company_name === currentUser.companyName || c.name === currentUser.companyName))
+        (currentUser?.subContractorName && (c.subContractorName === currentUser.subContractorName || c.company_name === currentUser.subContractorName)) ||
+        (currentUser?.contractorName && (c.subContractorName === currentUser.contractorName || c.company_name === currentUser.contractorName)) ||
+        (currentUser?.username && (c.username === currentUser.username || String(c.subContractorName || c.company_name || c.name || "").toLowerCase() === String(currentUser.username).toLowerCase()))
       ) || (contractorsList.length === 1 ? contractorsList[0] : null)
     );
   }, [isContractor, contractorsList, contractorId, currentUser]);
 
-  const myContractorName = currentUser?.company_name || currentUser?.companyName || currentUser?.subContractorName || currentUser?.contractorName || myContractor?.subContractorName || myContractor?.company_name || myContractor?.companyName || myContractor?.subcontractor_name || myContractor?.name || "";
+  const myContractorName = 
+    myContractor?.subContractorName || 
+    myContractor?.company_name || 
+    myContractor?.name || 
+    currentUser?.subContractorName || 
+    currentUser?.contractorName || 
+    (contractorsList.some(c => c.subContractorName === currentUser?.companyName || c.company_name === currentUser?.companyName) ? (currentUser?.companyName || currentUser?.company_name) : "") || 
+    "";
 
   // Auto-set and lock contractor for contractor logins
   useEffect(() => {

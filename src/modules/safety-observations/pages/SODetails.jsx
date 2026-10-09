@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import PageHeader from "../../../components/common/PageHeader/PageHeader";
 import { observationService } from "../../../services/observationService";
 import { getContractors } from "../../../services/authService";
+import { getModuleUserContext } from "../../../utils/modulePermissions";
 import { API_BASE_URL } from "../../../services/api";
 import { formatToDenmark24Hour } from "../../../utils/dateUtils";
 import "../../../styles/module-shared.css";
@@ -40,32 +41,36 @@ function SODetails() {
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
 
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
-  const rawRole = (localStorage.getItem("UserType") || currentUser?.role || currentUser?.userType || currentUser?.user_type || "").toUpperCase();
-  const userRolesArr = Array.isArray(currentUser?.userTypes) ? currentUser.userTypes.map((t) => String(t).toUpperCase()) : [];
-  const allRoles = [rawRole, ...userRolesArr].join(" ");
-  const isContractor = allRoles.includes("CONTRACTOR") || allRoles.includes("SUBCONTRACTOR") || Boolean(currentUser?.subcontractor_id) || Boolean(currentUser?.contractorId) || Boolean(currentUser?.typeId && allRoles.includes("SUBCONTRACTOR"));
-  const isObserver = allRoles.includes("OBSERVER");
-  const isAdmin = allRoles.includes("ADMIN") || allRoles.includes("SUPERADMIN") || Boolean(currentUser?.isSuperAdmin);
-  const isDepartment = allRoles.includes("DEPARTMENT") || allRoles.includes("OPERATOR") || allRoles.includes("SITE_HSE") || allRoles.includes("SAFETY") || allRoles.includes("HSE");
+  const modCtx = useMemo(() => getModuleUserContext("safety-observations", currentUser), [currentUser]);
+  const isContractor = modCtx.isContractor;
+  const isDepartment = modCtx.isDepartment;
+  const isAdmin = modCtx.isAdmin;
+  const isObserver = modCtx.isObserver;
   const isDeptOrAdmin = (isAdmin || isDepartment) && !isContractor && !isObserver;
   const isReadOnly = isObserver;
+  const contractorId = modCtx.contractorId;
+  const rawRole = (localStorage.getItem("UserType") || currentUser?.role || currentUser?.userType || currentUser?.user_type || "").toUpperCase();
 
-  // Contractor Resolution & Master lookup (Must be called unconditionally at top of component)
-  const contractorId = currentUser?.typeId || currentUser?.subcontractor_id || currentUser?.subContId || currentUser?.contractorId;
   const myContractor = useMemo(() => {
     if (!isContractor) return null;
     return (
       contractorsList.find(c => 
-        String(c.id) === String(contractorId) || 
-        String(c.subcontractor_id) === String(contractorId) ||
-        (currentUser?.username && c.username === currentUser.username) ||
-        (currentUser?.company_name && (c.subContractorName === currentUser.company_name || c.company_name === currentUser.company_name)) ||
-        (currentUser?.companyName && (c.subContractorName === currentUser.companyName || c.company_name === currentUser.companyName))
+        (contractorId && (String(c.id) === String(contractorId) || String(c.subcontractor_id) === String(contractorId))) ||
+        (currentUser?.subContractorName && (c.subContractorName === currentUser.subContractorName || c.company_name === currentUser.subContractorName)) ||
+        (currentUser?.contractorName && (c.subContractorName === currentUser.contractorName || c.company_name === currentUser.contractorName)) ||
+        (currentUser?.username && (c.username === currentUser.username || String(c.subContractorName || c.company_name || c.name || '').toLowerCase() === String(currentUser.username).toLowerCase()))
       ) || (contractorsList.length === 1 ? contractorsList[0] : null)
     );
-  }, [isContractor, contractorsList, contractorId, currentUser?.company_name, currentUser?.companyName, currentUser?.username]);
+  }, [isContractor, contractorsList, contractorId, currentUser?.subContractorName, currentUser?.contractorName, currentUser?.username]);
 
-  const myContractorName = currentUser?.company_name || currentUser?.companyName || currentUser?.subContractorName || currentUser?.contractorName || myContractor?.subContractorName || myContractor?.company_name || myContractor?.companyName || myContractor?.subcontractor_name || myContractor?.name || "";
+  const myContractorName = 
+    myContractor?.subContractorName || 
+    myContractor?.company_name || 
+    myContractor?.name || 
+    currentUser?.subContractorName || 
+    currentUser?.contractorName || 
+    (contractorsList.some(c => c.subContractorName === currentUser?.companyName || c.company_name === currentUser?.companyName) ? (currentUser?.companyName || currentUser?.company_name) : "") || 
+    "";
 
   const handleDeleteObservation = async () => {
     try {

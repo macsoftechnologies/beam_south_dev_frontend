@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { safetyInspectionService } from "../../../services/safetyInspectionService";
+import { getModuleUserContext } from "../../../utils/modulePermissions";
 import "./SIDashboard.css";
 
 // ── Icons ──
@@ -109,12 +110,9 @@ export default function SIDashboard() {
     }
   }, []);
 
-  const rawRole = (localStorage.getItem("UserType") || currentUser?.role || currentUser?.userType || currentUser?.user_type || "").toUpperCase();
-  const userRolesArr = Array.isArray(currentUser?.userTypes) ? currentUser.userTypes.map((t) => String(t).toUpperCase()) : [];
-  const allRoles = [rawRole, ...userRolesArr].join(" ");
-  const isContractor = allRoles.includes("CONTRACTOR") || allRoles.includes("SUBCONTRACTOR") || Boolean(currentUser?.subcontractor_id) || Boolean(currentUser?.contractorId) || Boolean(currentUser?.typeId && allRoles.includes("SUBCONTRACTOR"));
-  const isObserver = allRoles.includes("OBSERVER");
-  const isReadOnly = isContractor || isObserver;
+  const siCtx = React.useMemo(() => getModuleUserContext("safety-inspection", currentUser), [currentUser]);
+  const isObserver = siCtx.isObserver;
+  const isReadOnly = isObserver;
 
   return (
     <div className="si-dashboard-container">

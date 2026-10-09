@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { getIncidents, getIncidentStats } from "../../../services/incidentService";
 import { getBuildings, getContractors } from "../../../services/authService";
 import { generateIncidentStatsPdf } from "../utils/incidentStatsPdfGenerator";
+import { getModuleUserContext } from "../../../utils/modulePermissions";
 import "./IMDashboard.css";
 import BodyMap from "../../../components/BodyMap/BodyMap";
 
@@ -542,26 +543,36 @@ export default function IMDashboard() {
   const [contractorsList, setContractorsList] = useState([]);
 
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
-  const rawRole = (localStorage.getItem("UserType") || currentUser?.role || currentUser?.userType || currentUser?.user_type || "").toUpperCase();
-  const userRolesArr = Array.isArray(currentUser?.userTypes) ? currentUser.userTypes.map((t) => String(t).toUpperCase()) : [];
-  const allRoles = [rawRole, ...userRolesArr].join(" ");
-  const isObserver = allRoles.includes("OBSERVER");
-  const isAdmin = (allRoles.includes("ADMIN") || allRoles.includes("SUPERADMIN") || Boolean(currentUser?.isSuperAdmin)) && !isObserver;
-  const isContractor = rawRole.includes("CONTRACTOR") || rawRole.includes("SUBCONTRACTOR") || Boolean(currentUser?.subcontractor_id) || Boolean(currentUser?.typeId && rawRole.includes("SUBCONTRACTOR"));
-  const contractorId = currentUser?.typeId || currentUser?.subcontractor_id || currentUser?.subContId || currentUser?.contractorId;
+  const modCtx = getModuleUserContext("incident-management", currentUser);
+  const rawRole = (modCtx.effectiveRole || localStorage.getItem("UserType") || currentUser?.role || "").toUpperCase();
+  const isObserver = modCtx.isObserver;
+  const isAdmin = modCtx.isAdmin;
+  const isContractor = modCtx.isContractor;
+  const isDepartment = modCtx.isDepartment;
+  const contractorId = modCtx.contractorId;
+  const departmentId = modCtx.departmentId;
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
   const myContractor = useMemo(() => {
     if (!isContractor) return null;
-    return contractorsList.find(c => 
-      String(c.id) === String(contractorId) || 
-      String(c.subcontractor_id) === String(contractorId) ||
-      (currentUser?.company_name && (c.subContractorName === currentUser.company_name || c.company_name === currentUser.company_name)) ||
-      (currentUser?.companyName && (c.subContractorName === currentUser.companyName || c.company_name === currentUser.companyName))
+    return (
+      contractorsList.find(c => 
+        (contractorId && (String(c.id) === String(contractorId) || String(c.subcontractor_id) === String(contractorId))) ||
+        (currentUser?.subContractorName && (c.subContractorName === currentUser.subContractorName || c.company_name === currentUser.subContractorName)) ||
+        (currentUser?.contractorName && (c.subContractorName === currentUser.contractorName || c.company_name === currentUser.contractorName)) ||
+        (currentUser?.username && c.username === currentUser.username)
+      ) || (contractorsList.length === 1 ? contractorsList[0] : null)
     );
-  }, [isContractor, contractorsList, contractorId, currentUser?.company_name, currentUser?.companyName]);
+  }, [isContractor, contractorsList, contractorId, currentUser?.subContractorName, currentUser?.contractorName, currentUser?.username]);
 
-  const myContractorName = currentUser?.company_name || currentUser?.companyName || currentUser?.subContractorName || currentUser?.contractorName || myContractor?.subContractorName || myContractor?.company_name || myContractor?.companyName || myContractor?.subcontractor_name || myContractor?.name || "";
+  const myContractorName = 
+    myContractor?.subContractorName || 
+    myContractor?.company_name || 
+    myContractor?.name || 
+    currentUser?.subContractorName || 
+    currentUser?.contractorName || 
+    (contractorsList.some(c => c.subContractorName === currentUser?.companyName || c.company_name === currentUser?.companyName) ? (currentUser?.companyName || currentUser?.company_name) : "") || 
+    "";
 
   // Fetch Master Data (Buildings & Contractors API)
   useEffect(() => {

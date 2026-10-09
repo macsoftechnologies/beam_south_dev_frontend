@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import PageHeader from "../../../components/common/PageHeader/PageHeader";
 import { observationService } from "../../../services/observationService";
 import { getContractors, getBuildings, getRooms, getFloors } from "../../../services/authService";
+import { getModuleUserContext } from "../../../utils/modulePermissions";
 import { OBSERVATION_CATEGORIES_TREE, SAFETY_CATEGORIES } from "../data/observations";
 import FloorDrawing from "../../../pages/Request/FloorDrawing/FloorDrawing";
 import { FLOOR_PDFS } from "../../../data/pdfMapping";
@@ -77,12 +78,12 @@ function SOCreate() {
   const fileInputRef = useRef(null);
 
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
-  const rawRole = (localStorage.getItem("UserType") || currentUser?.role || currentUser?.userType || currentUser?.user_type || "").toLowerCase();
-  const isContractor = rawRole.includes("contractor") || rawRole.includes("subcontractor") || Boolean(currentUser?.subcontractor_id) || Boolean(currentUser?.contractorId) || Boolean(currentUser?.typeId && rawRole.includes("subcontractor"));
-  const isAdmin = rawRole.includes("admin") || rawRole.includes("superadmin") || Boolean(currentUser?.isSuperAdmin) || (Array.isArray(currentUser?.userTypes) && currentUser.userTypes.some(t => String(t).toLowerCase().includes("admin")));
-  const isDepartment = rawRole.includes("department") || rawRole.includes("operator") || rawRole.includes("site_hse") || rawRole.includes("safety") || rawRole.includes("hse");
+  const modCtx = useMemo(() => getModuleUserContext("safety-observations", currentUser), [currentUser]);
+  const isContractor = modCtx.isContractor;
+  const isDepartment = modCtx.isDepartment;
+  const isAdmin = modCtx.isAdmin;
   const isDeptOrAdmin = (isAdmin || isDepartment || !isContractor) && !isContractor;
-  const userRole = localStorage.getItem("UserType") || "DEPARTMENT";
+  const userRole = isContractor ? "CONTRACTOR" : (isAdmin ? "ADMIN" : "DEPARTMENT");
 
   // If in edit mode, fetch observation details to prefill form
   useEffect(() => {
@@ -511,7 +512,7 @@ const dataURLtoBlob = (dataurl) => {
         formData.append("createdByUserId", currentUser.id || "");
         formData.append("createdByUserName", currentUser.username || currentUser.name || "User");
         formData.append("createdByRole", userRole);
-        const cId = currentUser?.typeId || currentUser?.subcontractor_id || currentUser?.subContId || currentUser?.contractorId;
+        const cId = isContractor ? modCtx.contractorId : null;
         if (cId) formData.append("createdByContractorId", cId);
 
         await observationService.createObservation(formData);

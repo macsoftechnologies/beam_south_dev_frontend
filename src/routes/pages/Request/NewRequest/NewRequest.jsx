@@ -382,6 +382,7 @@ import { showSuccess, showError } from "../../../components/common/Toast/Toast";
 import { useNavigate, useLocation } from "react-router-dom";
 import { HotWorks, ElectricalSystems, substanceChemical, WorkingAtHight, ConfinedSpace, ExcavationWorks, Craneslifting, electrical_works, mechanical1, testingequipment } from "../../../config/logos";
 import { HardHat, SpecificGloves, Safetyshoes, HighVisibility, Longpants, Eyeprotection, Fallprotection, Hearingprotection, Respiratoryprotection } from "../../../config/safetyIcons";
+import { getModuleUserContext, parseModuleAccess, isUserAdmin } from "../../../../utils/modulePermissions";
 
 const ELECTRICAL_WORKS_SELECT = [
   { id: "1", ElectricalWorksval: "Yes" },
@@ -516,8 +517,14 @@ function NewRequest() {
   const [building, setBuilding] = useState("");
   const [level, setLevel] = useState("");
   const currentUser = useMemo(() => getUser(), []);
+  const ptwModuleCtx = useMemo(() => getModuleUserContext("permit-to-work", currentUser), [currentUser]);
   const userRoles = useMemo(() => {
-    const roleVal = currentUser?.role || currentUser?.userType || "";
+    if (isUserAdmin(currentUser)) {
+      return ["admin"];
+    }
+    const parsedMap = parseModuleAccess(currentUser?.moduleAccess);
+    const ptwRole = parsedMap["permit-to-work"];
+    const roleVal = ptwRole || currentUser?.role || currentUser?.userType || "";
     if (typeof roleVal === "string") {
       return roleVal.split(",").map(r => r.trim().toLowerCase());
     }
@@ -526,12 +533,29 @@ function NewRequest() {
     }
     return [String(roleVal).trim().toLowerCase()];
   }, [currentUser]);
-  const isSubcontractor = userRoles.includes("subcontractor");
-  const isAdmin = userRoles.some(r => ["admin", "superadmin"].includes(r));
+  const isAdmin = userRoles.some(r => ["admin", "superadmin"].includes(r)) || isUserAdmin(currentUser);
   const isDept = userRoles.includes("department");
   const isDept1 = userRoles.includes("department1");
   const isMultiDept = isDept && isDept1;
   const isDepartmentAccess = isDept || isDept1 || isMultiDept;
+  const isSubcontractor = (userRoles.includes("subcontractor") ||
+    userRoles.includes("contractor") ||
+    userRoles.includes("sub_contractor") ||
+    userRoles.includes("sub-contractor")) && !isDepartmentAccess && !isAdmin;
+
+  const userContractorId = useMemo(() => {
+    if (ptwModuleCtx.contractorId) return String(ptwModuleCtx.contractorId);
+    const rawSubId =
+      currentUser?.subContId !== undefined && currentUser?.subContId !== null ? currentUser.subContId :
+      currentUser?.subcontractor_id !== undefined && currentUser?.subcontractor_id !== null ? currentUser.subcontractor_id :
+      currentUser?.subContractorId !== undefined && currentUser?.subContractorId !== null ? currentUser.subContractorId :
+      null;
+    if (rawSubId) return String(rawSubId);
+    if (isSubcontractor && currentUser?.typeId && !currentUser?.departId) {
+      return String(currentUser.typeId);
+    }
+    return "";
+  }, [currentUser, ptwModuleCtx, isSubcontractor]);
   const canEditOpenedPermit = isAdmin || isDepartmentAccess;
   const isReadOnly = isEditMode && (editRequest?.Request_status === "Opened" || editRequest?.request_status === "Opened") && !canEditOpenedPermit;
   const canDeleteNotes = userRoles.some(r => ["admin", "superadmin", "department", "department1"].includes(r));
@@ -846,9 +870,10 @@ function NewRequest() {
           .sort((a, b) => (a.subContractorName || "").localeCompare(b.subContractorName || "", undefined, { sensitivity: "base" }));
         setContractors(loadedContractors);
         if (isSubcontractor && loadedContractors.length > 0) {
+          const defaultSubId = userContractorId ? String(userContractorId) : String(loadedContractors[0].id);
           setFormData(prev => ({
             ...prev,
-            Sub_Contractor_Id: String(loadedContractors[0].id)
+            Sub_Contractor_Id: defaultSubId
           }));
         }
         setActivitiesList(activitiesRes?.data?.rows ?? activitiesRes?.data ?? activitiesRes ?? []);
@@ -935,13 +960,13 @@ function NewRequest() {
 
   // Default subcontractor id if current user is a contractor
   useEffect(() => {
-    if (isSubcontractor && currentUser?.typeId) {
+    if (isSubcontractor && userContractorId) {
       setFormData(prev => ({
         ...prev,
-        Sub_Contractor_Id: String(currentUser.typeId)
+        Sub_Contractor_Id: String(userContractorId)
       }));
     }
-  }, [isSubcontractor, currentUser]);
+  }, [isSubcontractor, userContractorId]);
 
   // Bind edit request data once selectors have finished loading
   useEffect(() => {
@@ -2790,7 +2815,7 @@ function NewRequest() {
                   <input
                     type="text"
                     className="df-input df-readonly"
-                    value={contractors.length > 0 ? (contractors.find(c => String(c.id) === String(formData.Sub_Contractor_Id))?.subContractorName || contractors[0]?.subContractorName) : "Loading..."}
+                    value={contractors.length > 0 ? (contractors.find(c => String(c.id) === String(formData.Sub_Contractor_Id || userContractorId))?.subContractorName || contractors[0]?.subContractorName) : "Loading..."}
                     readOnly
                   />
                 ) : (

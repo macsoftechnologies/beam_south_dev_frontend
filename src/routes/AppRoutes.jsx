@@ -158,7 +158,7 @@ function AppRoutes() {
           <Route
             path="/mechanical-works"
             element={
-              <ProtectedRoute allowedRoles={["Admin", "Department1"]}>
+              <ProtectedRoute allowedRoles={["Admin", "admin", "SuperAdmin", "superadmin", "Department1", "department1", "Operator1", "operator1", "COMM", "comm", "C&Q", "c&q"]}>
                 <MechanicalWorks />
               </ProtectedRoute>
             }
@@ -166,7 +166,7 @@ function AppRoutes() {
           <Route
             path="/electrical-works"
             element={
-              <ProtectedRoute allowedRoles={["Admin", "Department1"]}>
+              <ProtectedRoute allowedRoles={["Admin", "admin", "SuperAdmin", "superadmin", "Department1", "department1", "Operator1", "operator1", "COMM", "comm", "C&Q", "c&q"]}>
                 <ElectricalWorks />
               </ProtectedRoute>
             }
@@ -230,7 +230,7 @@ function AppRoutes() {
           <Route
             path="/log-history"
             element={
-              <ProtectedRoute allowedRoles={["Admin", "Department", "Department1"]}>
+              <ProtectedRoute allowedRoles={["Admin", "admin", "SuperAdmin", "superadmin", "Department", "department", "Department1", "department1", "Operator", "operator", "Operator1", "operator1", "ConM", "conm", "COMM", "comm", "C&Q", "c&q"]}>
                 <LogHistory />
               </ProtectedRoute>
             }

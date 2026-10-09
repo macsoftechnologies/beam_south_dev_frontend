@@ -8,6 +8,7 @@ import { BUILDINGS } from "../../../data/buildings";
 import { getBuildings, getRooms, getFloors, getEmployees } from "../../../services/authService";
 import { safetyInspectionService } from "../../../services/safetyInspectionService";
 import { showSuccess, showError } from "../../../components/common/Toast/Toast";
+import { getModuleUserContext } from "../../../utils/modulePermissions";
 import "./SICreate.css";
 
 // The 20 standard safety inspection items
@@ -83,6 +84,15 @@ export default function SICreate() {
       return {};
     }
   }, []);
+
+  const siCtx = React.useMemo(() => getModuleUserContext("safety-inspection", currentUser), [currentUser]);
+
+  useEffect(() => {
+    if (siCtx.isObserver) {
+      showError("Observers have read-only access and cannot create or edit inspections.");
+      navigate("/safety-inspection/list");
+    }
+  }, [siCtx.isObserver, navigate]);
 
   const loggedInUserName = React.useMemo(() => {
     const name = currentUser.name || `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || currentUser.username || "Superadmin";
@@ -488,7 +498,7 @@ export default function SICreate() {
         isCompleted: targetIsCompleted,
         createdByUserId: currentUser?.id,
         createdByUserName: currentUser?.name || currentUser?.username || 'Safety Inspector',
-        createdByRole: currentUser?.role || 'DEPARTMENT',
+        createdByRole: siCtx.isAdmin ? 'ADMIN' : (siCtx.isObserver ? 'OBSERVER' : 'DEPARTMENT'),
         checklistItems,
         locationMapImage: locationMapImage || undefined
       };
@@ -503,7 +513,7 @@ export default function SICreate() {
           : (wasClosed ? 'Inspection reopened and updated via edit form' : 'Inspection updated via edit form');
         payload.modifiedByUserId = currentUser?.id;
         payload.modifiedByUserName = currentUser?.name || currentUser?.username || 'Safety Inspector';
-        payload.modifiedByUserRole = currentUser?.role || 'DEPARTMENT';
+        payload.modifiedByUserRole = siCtx.isAdmin ? 'ADMIN' : (siCtx.isObserver ? 'OBSERVER' : 'DEPARTMENT');
         await safetyInspectionService.updateInspection(id, payload);
         showSuccess("Safety inspection updated successfully.");
         navigate(`/safety-inspection/${id}`);

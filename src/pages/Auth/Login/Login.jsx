@@ -7,19 +7,40 @@ import { isTokenValid } from "../../../components/common/PublicRoute";
 import "./Login.css";
 
 export default function Login() {
+  const getPostLoginTarget = () => {
+    try {
+      const saved = sessionStorage.getItem("post_login_redirect");
+      if (saved && saved.startsWith("/") && saved !== "/login" && saved !== "/") {
+        sessionStorage.removeItem("post_login_redirect");
+        return saved;
+      }
+    } catch (e) {}
+    return "/modules";
+  };
+
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const redirectParam = params.get("redirect");
+      if (redirectParam && redirectParam.startsWith("/") && redirectParam !== "/login" && redirectParam !== "/") {
+        sessionStorage.setItem("post_login_redirect", redirectParam);
+      }
+    } catch (e) {}
+  }, []);
+
   if (isTokenValid()) {
-    return <Navigate to="/modules" replace />;
+    return <Navigate to={getPostLoginTarget()} replace />;
   }
 
   useEffect(() => {
     const handleCheck = () => {
       if (isTokenValid()) {
-        navigateTo("/modules", true);
+        navigateTo(getPostLoginTarget(), true);
       }
     };
 
     if (isTokenValid()) {
-      navigateTo("/modules", true);
+      navigateTo(getPostLoginTarget(), true);
     }
 
     window.addEventListener("pageshow", handleCheck);

@@ -117,12 +117,21 @@ function renderApp() {
           setDirect(`${p}user`, userObjStr);
         });
 
-        // Clean SSO token from URL and navigate to dashboard
+        // Clean SSO token from URL and navigate to dashboard or post_login_redirect
         const currentOrigin = window.location.origin;
         const currentPath = window.location.pathname.replace(/\/$/, '');
-        const targetDashboard = currentPath.includes('/dashboard') ? currentPath : `${currentPath}/dashboard`;
+        let targetRoute = currentPath.includes('/dashboard') ? currentPath : `${currentPath}/dashboard`;
+        try {
+          const savedRedirect = sessionStorage.getItem('post_login_redirect');
+          if (savedRedirect && savedRedirect.startsWith('/')) {
+            sessionStorage.removeItem('post_login_redirect');
+            targetRoute = savedRedirect.startsWith('/development/m3south')
+              ? savedRedirect
+              : `/development/m3south${savedRedirect}`;
+          }
+        } catch (e) {}
 
-        window.location.href = `${currentOrigin}${targetDashboard}`;
+        window.location.href = `${currentOrigin}${targetRoute.startsWith('/') ? '' : '/'}${targetRoute}`;
         return;
       }
     } catch (err) {

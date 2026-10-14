@@ -267,7 +267,7 @@ const projects = [
 
 const incidentCategories = [
   "Near Miss", "No Treatment Injury", "First Aid Injury", "Medical Treatment Injury",
-  "Restricted Work Injury", "Loss Time Injury", "Permanent Disability", "Fatality",
+  "Restricted Work Injury", "Lost Time Injury", "Permanent Disability", "Fatality",
   "Occupational Illness", "Environmental Incident", "Property Damage"
 ];
 
@@ -644,7 +644,7 @@ function IMCreate() {
           <h3 className="mod-card-title">1. Location & Identification <span style={{ color: "#DC2626" }}>*</span></h3>
           {errors.api && <div style={{ color: "#DC2626", marginTop: "8px", fontSize: "0.875rem" }}>{errors.api}</div>}
           <div style={{ fontSize: "13px", color: "#b45309", background: "#fef3c7", border: "1px solid #fde68a", padding: "10px 16px", borderRadius: "8px", fontWeight: "600", display: "flex", overflow: "hidden", whiteSpace: "nowrap", marginTop: "8px" }}>
-            <marquee scrollamount="5">⚠️ Must be completed within 2 hours of the incident occurrence.</marquee>
+            <marquee scrollamount="5">⚠️ Must be completed within 1 hour of the incident occurrence.</marquee>
           </div>
         </div>
         <div className="mod-card-body">

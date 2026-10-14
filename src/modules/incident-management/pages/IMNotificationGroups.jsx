@@ -9,7 +9,6 @@ import {
   addIncidentNotificationGroupMembers,
   updateIncidentNotificationGroupMember,
   removeIncidentNotificationGroupMember,
-  seedDefaultIncidentNotificationGroup,
 } from "../../../services/incidentService";
 import "../../../styles/module-shared.css";
 import "./IMList.css";
@@ -63,6 +62,7 @@ export default function IMNotificationGroups() {
   const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
+  const [activeGroup, setActiveGroup] = useState("GROUP_1");
   const [saving, setSaving] = useState(false);
   const [members, setMembers] = useState([]);
   const [availableUsers, setAvailableUsers] = useState([]);
@@ -85,12 +85,12 @@ export default function IMNotificationGroups() {
   const [editingMember, setEditingMember] = useState(null);
 
   // Load Group Members & Available Users
-  const loadData = async () => {
+  const loadData = async (targetGroup = activeGroup) => {
     try {
       setLoading(true);
       const [membersData, candidatesData] = await Promise.all([
-        getIncidentNotificationGroup(),
-        getAvailableIncidentGroupUsers(),
+        getIncidentNotificationGroup(targetGroup),
+        getAvailableIncidentGroupUsers(targetGroup),
       ]);
       setMembers(Array.isArray(membersData) ? membersData : []);
       setAvailableUsers(Array.isArray(candidatesData) ? candidatesData : []);
@@ -107,8 +107,8 @@ export default function IMNotificationGroups() {
   };
 
   useEffect(() => {
-    loadData();
-  }, []);
+    loadData(activeGroup);
+  }, [activeGroup]);
 
   // Filtered Members
   const filteredMembers = useMemo(() => {
@@ -180,9 +180,10 @@ export default function IMNotificationGroups() {
 
   // Remove a member from the group
   const handleRemoveMember = async (member) => {
+    const groupLabel = activeGroup === "GROUP_1" ? "Notification Group 1" : "Notification Group 2";
     const result = await Swal.fire({
       title: "Remove from Group?",
-      html: `Are you sure you want to remove <strong>${member.name || member.email}</strong> from the Incident Notification Group? They will no longer receive alerts.`,
+      html: `Are you sure you want to remove <strong>${member.name || member.email}</strong> from <strong>${groupLabel}</strong>? They will no longer receive alerts for this group.`,
       icon: "warning",
       showCancelButton: true,
       confirmButtonColor: "#EF4444",
@@ -199,52 +200,17 @@ export default function IMNotificationGroups() {
         Swal.fire({
           icon: "success",
           title: "Removed",
-          text: `${member.name || member.email} removed from group.`,
+          text: `${member.name || member.email} removed from ${groupLabel}.`,
           timer: 1500,
           showConfirmButton: false,
         });
-        loadData();
+        loadData(activeGroup);
       } catch (err) {
         console.error("Failed to remove member:", err);
         Swal.fire({
           icon: "error",
           title: "Error",
           text: "Failed to remove member.",
-        });
-      } finally {
-        setSaving(false);
-      }
-    }
-  };
-
-  // Quick Seed Department Users
-  const handleSeedDefaults = async () => {
-    const result = await Swal.fire({
-      title: "Import Department Users?",
-      html: "This will add all active <strong>Department</strong> and <strong>Department1</strong> users into the notification group if they aren't already added.",
-      icon: "question",
-      showCancelButton: true,
-      confirmButtonColor: "#2563EB",
-      cancelButtonColor: "#64748B",
-      confirmButtonText: "Yes, Import",
-    });
-
-    if (result.isConfirmed) {
-      try {
-        setSaving(true);
-        const res = await seedDefaultIncidentNotificationGroup();
-        Swal.fire({
-          icon: "success",
-          title: "Imported Successfully",
-          text: `Added ${res.count || 0} department users to the notification group.`,
-        });
-        loadData();
-      } catch (err) {
-        console.error("Failed to seed department users:", err);
-        Swal.fire({
-          icon: "error",
-          title: "Import Failed",
-          text: "Failed to import department users.",
         });
       } finally {
         setSaving(false);
@@ -317,17 +283,18 @@ export default function IMNotificationGroups() {
           isInAppEnabled: modalDefaultInApp,
         }));
 
-      await addIncidentNotificationGroupMembers(selectedMembers);
+      await addIncidentNotificationGroupMembers(selectedMembers, activeGroup);
       setIsAddModalOpen(false);
       setSelectedUserIds([]);
+      const groupLabel = activeGroup === "GROUP_1" ? "Notification Group 1" : "Notification Group 2";
       Swal.fire({
         icon: "success",
         title: "Members Added",
-        text: `Successfully added ${selectedMembers.length} user(s) to the group.`,
+        text: `Successfully added ${selectedMembers.length} user(s) to ${groupLabel}.`,
         timer: 1500,
         showConfirmButton: false,
       });
-      loadData();
+      loadData(activeGroup);
     } catch (err) {
       console.error("Failed to add members:", err);
       Swal.fire({
@@ -383,16 +350,111 @@ export default function IMNotificationGroups() {
   return (
     <div className="mod-page-wrapper">
       <PageHeader
-        title="Incident Notification Group"
-        subtitle="Manage who receives SMS, Email, and In-App notifications when contractors submit incident reports"
+        title="Incident Notification Groups"
+        subtitle={
+          activeGroup === "GROUP_1"
+            ? "Notification Group 1: Manage who receives alerts on Heads-Up submissions and return to revision"
+            : "Notification Group 2: Manage who receives alerts when Step 1 (Heads-Up) is reviewed & approved"
+        }
         icon={<BellGroupIcon />}
         breadcrumbs={[
           { label: "Incident Management", path: "/incident-management/dashboard" },
-          { label: "Notification Group" },
+          { label: "Notification Groups" },
         ]}
       />
 
       <div className="mod-content-container im-notif-container">
+        {/* Two Notification Groups Switcher Tabs */}
+        <div style={{
+          display: "flex",
+          gap: "12px",
+          marginBottom: "24px",
+          borderBottom: "1px solid var(--border-color, #E2E8F0)",
+          paddingBottom: "16px",
+          flexWrap: "wrap"
+        }}>
+          <button
+            type="button"
+            onClick={() => setActiveGroup("GROUP_1")}
+            style={{
+              flex: "1 1 320px",
+              display: "flex",
+              alignItems: "center",
+              gap: "12px",
+              padding: "12px 18px",
+              borderRadius: "10px",
+              fontWeight: 600,
+              fontSize: "14px",
+              border: activeGroup === "GROUP_1" ? "2px solid #2563EB" : "1px solid var(--border-color, #E2E8F0)",
+              background: activeGroup === "GROUP_1" ? "rgba(37, 99, 235, 0.08)" : "var(--bg-card, #FFFFFF)",
+              color: activeGroup === "GROUP_1" ? "#1D4ED8" : "var(--text-main, #334155)",
+              cursor: "pointer",
+              transition: "all 0.15s ease",
+              boxShadow: activeGroup === "GROUP_1" ? "0 2px 8px rgba(37, 99, 235, 0.15)" : "none"
+            }}
+          >
+            <span style={{
+              width: "28px",
+              height: "28px",
+              borderRadius: "8px",
+              background: activeGroup === "GROUP_1" ? "#2563EB" : "#94A3B8",
+              color: "#FFFFFF",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "13px",
+              fontWeight: 700,
+              flexShrink: 0
+            }}>1</span>
+            <div style={{ textAlign: "left" }}>
+              <div style={{ fontSize: "15px", fontWeight: 700 }}>Notification Group 1</div>
+              <div style={{ fontSize: "12px", fontWeight: 400, color: "var(--text-muted, #64748B)", marginTop: "2px" }}>
+                Step 1, 2, 3 Submissions &amp; Return-to-Revision
+              </div>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveGroup("GROUP_2")}
+            style={{
+              flex: "1 1 320px",
+              display: "flex",
+              alignItems: "center",
+              gap: "12px",
+              padding: "12px 18px",
+              borderRadius: "10px",
+              fontWeight: 600,
+              fontSize: "14px",
+              border: activeGroup === "GROUP_2" ? "2px solid #2563EB" : "1px solid var(--border-color, #E2E8F0)",
+              background: activeGroup === "GROUP_2" ? "rgba(37, 99, 235, 0.08)" : "var(--bg-card, #FFFFFF)",
+              color: activeGroup === "GROUP_2" ? "#1D4ED8" : "var(--text-main, #334155)",
+              cursor: "pointer",
+              transition: "all 0.15s ease",
+              boxShadow: activeGroup === "GROUP_2" ? "0 2px 8px rgba(37, 99, 235, 0.15)" : "none"
+            }}
+          >
+            <span style={{
+              width: "28px",
+              height: "28px",
+              borderRadius: "8px",
+              background: activeGroup === "GROUP_2" ? "#2563EB" : "#94A3B8",
+              color: "#FFFFFF",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "13px",
+              fontWeight: 700,
+              flexShrink: 0
+            }}>2</span>
+            <div style={{ textAlign: "left" }}>
+              <div style={{ fontSize: "15px", fontWeight: 700 }}>Notification Group 2</div>
+              <div style={{ fontSize: "12px", fontWeight: 400, color: "var(--text-muted, #64748B)", marginTop: "2px" }}>
+                Step 1, 2, 3 Review OK &amp; Approvals
+              </div>
+            </div>
+          </button>
+        </div>
         {/* Metric / Stat Summary Cards */}
         <div className="im-notif-stats-grid">
           <div className="im-notif-stat-card">
@@ -533,10 +595,12 @@ export default function IMNotificationGroups() {
                     <td colSpan="5" style={{ textAlign: "center", padding: "48px 16px", color: "var(--text-muted)" }}>
                       <div style={{ fontSize: "36px", marginBottom: "8px" }}>🔔</div>
                       <div style={{ fontSize: "16px", fontWeight: 600, color: "var(--text-main)" }}>
-                        No Group Members Found
+                        No Members in {activeGroup === "GROUP_1" ? "Notification Group 1" : "Notification Group 2"}
                       </div>
-                      <div style={{ fontSize: "13px", marginTop: "4px", maxWidth: "420px", margin: "4px auto 16px auto" }}>
-                        Add users to this group so they receive instant SMS, Email, and In-App notifications when contractors submit incident reports.
+                      <div style={{ fontSize: "13px", marginTop: "4px", maxWidth: "460px", margin: "4px auto 16px auto" }}>
+                        {activeGroup === "GROUP_1"
+                          ? "Add users to receive instant notifications when contractors submit a Heads-Up incident report or when it is returned for revision."
+                          : "Add users to receive notifications when Step 1 (Heads-Up) is reviewed & approved and proceeds to investigation."}
                       </div>
                       <button
                         type="button"
@@ -705,10 +769,12 @@ export default function IMNotificationGroups() {
             <div className="im-notif-modal-header">
               <div>
                 <h3 className="im-notif-modal-title">
-                  Add Group Members
+                  Add Members to {activeGroup === "GROUP_1" ? "Notification Group 1" : "Notification Group 2"}
                 </h3>
                 <p className="im-notif-modal-subtitle">
-                  Select users to receive incident alerts via In-App, Email, and SMS.
+                  {activeGroup === "GROUP_1"
+                    ? "Select users to receive notifications on Heads-Up submissions and return to revision."
+                    : "Select users to receive notifications when Step 1 (Heads-Up) is reviewed & approved."}
                 </p>
               </div>
               <button

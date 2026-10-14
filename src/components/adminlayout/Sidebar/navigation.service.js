@@ -368,9 +368,9 @@ export const imNavigationMenu = [
         state: "incident-management/list",
     },
     {
-        name: "Notification Group",
+        name: "Notification Groups",
         type: "link",
-        tooltip: "Manage Notification Group",
+        tooltip: "Manage Notification Groups",
         icon: "ti-bell",
         state: "incident-management/notification-groups",
         allowedRoles: ["Admin"],

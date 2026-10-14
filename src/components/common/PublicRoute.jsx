@@ -55,7 +55,15 @@ export const isTokenValid = () => {
 
 const PublicRoute = ({ children }) => {
   if (isTokenValid()) {
-    return <Navigate to="/dashboard" replace />;
+    let target = "/modules";
+    try {
+      const saved = sessionStorage.getItem("post_login_redirect");
+      if (saved && saved.startsWith("/") && saved !== "/login" && saved !== "/") {
+        sessionStorage.removeItem("post_login_redirect");
+        target = saved;
+      }
+    } catch (e) {}
+    return <Navigate to={target} replace />;
   }
 
   return children;

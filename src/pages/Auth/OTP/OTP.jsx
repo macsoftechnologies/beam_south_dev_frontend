@@ -38,8 +38,19 @@ const formatTimer = (totalSeconds) => {
 };
 
 export default function OTP() {
+  const getPostLoginTarget = () => {
+    try {
+      const saved = sessionStorage.getItem("post_login_redirect");
+      if (saved && saved.startsWith("/") && saved !== "/login" && saved !== "/") {
+        sessionStorage.removeItem("post_login_redirect");
+        return saved;
+      }
+    } catch (e) {}
+    return "/modules";
+  };
+
   if (isTokenValid()) {
-    return <Navigate to="/modules" replace />;
+    return <Navigate to={getPostLoginTarget()} replace />;
   }
 
   const tempUserStr = localStorage.getItem("tempUser");
@@ -50,14 +61,14 @@ export default function OTP() {
   useEffect(() => {
     const handleCheck = () => {
       if (isTokenValid()) {
-        navigateTo("/modules", true);
+        navigateTo(getPostLoginTarget(), true);
       } else if (!localStorage.getItem("tempUser")) {
         navigateTo("/login", true);
       }
     };
 
     if (isTokenValid()) {
-      navigateTo("/modules", true);
+      navigateTo(getPostLoginTarget(), true);
       return;
     }
     if (!localStorage.getItem("tempUser")) {
@@ -214,7 +225,7 @@ export default function OTP() {
 
         setTimeout(() => {
           setLoading(false);
-          navigateTo("/modules", true);
+          navigateTo(getPostLoginTarget(), true);
         }, 1200);
       } else if (tempUser && tempUser.user_id) {
         // Fallback for development server: allow any random OTP to authenticate
@@ -249,7 +260,7 @@ export default function OTP() {
 
         setTimeout(() => {
           setLoading(false);
-          navigateTo("/modules", true);
+          navigateTo(getPostLoginTarget(), true);
         }, 1200);
       } else {
         setLoading(false);

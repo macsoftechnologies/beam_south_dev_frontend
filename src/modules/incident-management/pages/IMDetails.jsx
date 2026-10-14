@@ -867,14 +867,57 @@ export default function IMDetails() {
     setIsReopeningIncident(true);
     try {
       const user = getLoggedInUser() || "Department User";
+      const incObj = rawIncident?.incident || rawIncident || {};
+      const huObj = rawIncident?.headsUp || rawIncident?.headsup || {};
+      const irObj = rawIncident?.initialReport || rawIncident?.initial_report || {};
+      const invObj = rawIncident?.investigation || {};
+
+      const isWaived = Boolean(
+        incObj?.noFurtherInvestigation ||
+        huObj?.noFurtherInvestigation ||
+        irObj?.noFurtherInvestigation ||
+        huNoFurtherInvestigation ||
+        irNoFurtherInvestigation
+      );
+      const hasIr = Boolean(
+        initialReportSubmitted ||
+        (irObj && (
+          (irObj.submittedBy && irObj.submittedBy !== "User") ||
+          irObj.signature ||
+          irObj.submittedTime ||
+          irObj.injuredPersonName
+        ))
+      );
+      const hasInv = Boolean(
+        (invObj?.signatures && Array.isArray(invObj.signatures) && invObj.signatures.length > 0) ||
+        (invObj?.problemStatement && invObj.problemStatement.trim().length > 0) ||
+        (invObj?.investigationDetails && invObj.investigationDetails.trim().length > 0) ||
+        (invObj?.submittedBy && invObj.submittedBy !== "User" && invObj.submittedBy !== "Investigator")
+      );
+
+      let targetStep = 3;
+      let targetStage = "INVESTIGATION";
+      let stepLabel = "Step 3 (Investigation) & Corrective Actions";
+
+      if (isWaived && !hasIr) {
+        targetStep = 1;
+        targetStage = "HEADS_UP";
+        stepLabel = "Step 1: Heads-Up Notification (2hr)";
+      } else if (isWaived && !hasInv) {
+        targetStep = 2;
+        targetStage = "INITIAL_REPORT";
+        stepLabel = "Step 2: Initial Incident Report (24hr)";
+      }
+
       await reopenIncident(id, {
         reopenedBy: user,
         role: reopenRole || "Department User / HSE",
         reason: reopenReason.trim(),
         signature: reopenSignature || undefined,
+        stageReopenedTo: targetStage,
       });
 
-      showSuccess("Incident Reopened Successfully! Step 3 (Investigation) & Corrective Actions are now accessible.");
+      showSuccess(`Incident Reopened Successfully! ${stepLabel} is now accessible for Department and Admin editing.`);
       setShowReopenModal(false);
       setReopenReason("");
       setReopenSignature(false);
@@ -884,10 +927,21 @@ export default function IMDetails() {
       const incData = data?.data || data;
       setRawIncident(incData);
 
-      // Switch to investigation tab so department users can immediately view/edit
-      setActiveTab("investigation");
-      setIsEditingInvestigation(true);
-      setInvestigationStarted(true);
+      // Switch to target tab so department/admin users can immediately view/edit
+      if (targetStep === 1) {
+        setActiveTab("headsUp");
+        setIsEditingHeadsUp(true);
+        if (!huEditorName) setHuEditorName(user);
+      } else if (targetStep === 2) {
+        setActiveTab("initialReport");
+        setInitialReportStarted(true);
+        setIsEditingInitialReport(true);
+        if (!irEditorName) setIrEditorName(user);
+      } else {
+        setActiveTab("investigation");
+        setIsEditingInvestigation(true);
+        setInvestigationStarted(true);
+      }
       window.scrollTo(0, 0);
     } catch (err) {
       console.error("Failed to reopen incident:", err);
@@ -969,8 +1023,8 @@ export default function IMDetails() {
 
   const incidentCategories = [
     "Near Miss", "No Treatment Injury", "First Aid Injury", "Medical Treatment Injury",
-    "Restricted Work Injury", "Loss Time Injury", "Permanent Disability", "Fatality",
-    "Occupational Illness", "Environmental Incident", "Property Damage", "Electrical Hazards"
+    "Restricted Work Injury", "Lost Time Injury", "Permanent Disability", "Fatality",
+    "Occupational Illness", "Environmental Incident", "Property Damage"
   ];
 
   const severityOptions = [
@@ -1128,6 +1182,7 @@ export default function IMDetails() {
         editorRole: huEditorRole || "HSE Editor",
         editReason: huEditReason || "Updated Heads-Up Notification",
         editorSignature: huEditorSignature,
+        noFurtherInvestigation: huNoFurtherInvestigation,
         locationMapImage: huLocationMapImage || undefined
       };
 
@@ -1300,6 +1355,8 @@ export default function IMDetails() {
       const isReopenedInc = reopenLogs.length > 0 && !isClosedInc;
       if (isReopenedInc && isContractorUser()) {
         setIsEditingInvestigation(false);
+        setIsEditingInitialReport(false);
+        setIsEditingHeadsUp(false);
       }
 
       // Hydrate Heads-Up specific states
@@ -2362,6 +2419,7 @@ export default function IMDetails() {
 
   const isReopened = reopenHistoryList.length > 0;
   const isCurrentlyReopened = isReopened && !isClosed;
+  const lastReopenLog = reopenHistoryList.length > 0 ? reopenHistoryList[reopenHistoryList.length - 1] : null;
 
   const hasInitialReportData = Boolean(
     initialReportSubmitted ||
@@ -2379,6 +2437,29 @@ export default function IMDetails() {
     (investigationData?.investigationDetails && investigationData.investigationDetails.trim().length > 0) ||
     (investigationData?.submittedBy && investigationData.submittedBy !== "User" && investigationData.submittedBy !== "Investigator")
   );
+
+  // Identify which step was waived (if any)
+  const waivedAtStep = (isNoFurtherInvestigation && !hasInitialReportData)
+    ? 1
+    : (isNoFurtherInvestigation && !hasInvestigationData)
+      ? 2
+      : null;
+
+  // Identify target step for reopen when closed:
+  const targetReopenStep = waivedAtStep === 1 ? 1 : waivedAtStep === 2 ? 2 : 3;
+
+  // When currently reopened, determine which step was reopened:
+  const reopenedStep = lastReopenLog?.stageReopenedTo === 'HEADS_UP'
+    ? 1
+    : lastReopenLog?.stageReopenedTo === 'INITIAL_REPORT'
+      ? 2
+      : lastReopenLog?.stageReopenedTo === 'INVESTIGATION'
+        ? 3
+        : targetReopenStep;
+
+  const isReopenedToStep1 = isCurrentlyReopened && reopenedStep === 1;
+  const isReopenedToStep2 = isCurrentlyReopened && reopenedStep === 2;
+  const isReopenedToStep3 = isCurrentlyReopened && reopenedStep === 3;
 
   if (!rawIncident) {
     return (
@@ -2405,6 +2486,9 @@ export default function IMDetails() {
   // Single source of truth for step statuses shared between tabs and timeline
   const getStepStatusInfo = (stepKey) => {
     if (stepKey === "headsUp" || stepKey === 1) {
+      if (isReopenedToStep1) {
+        return { label: "REOPENED", state: "current", chipClass: "chip-inprogress" };
+      }
       const hist = headsUpData?.editHistory || [];
       const lastHist = hist.length > 0 ? hist[hist.length - 1] : null;
       if (lastHist && (lastHist.status === "RETURNED_FOR_REVISION" || String(lastHist.action).toLowerCase().includes("return")) && !headsUpApproved) {
@@ -2420,12 +2504,15 @@ export default function IMDetails() {
     }
 
     if (stepKey === "initialReport" || stepKey === 2) {
+      if (isReopenedToStep2) {
+        return { label: "REOPENED", state: "current", chipClass: "chip-inprogress" };
+      }
       const hist = initialReportData?.editHistory || [];
       const lastHist = hist.length > 0 ? hist[hist.length - 1] : null;
       if (lastHist && (lastHist.status === "RETURNED_FOR_REVISION" || String(lastHist.action).toLowerCase().includes("return")) && !initialReportApproved) {
         return { label: "REVISION REQUIRED", state: "revision_required", chipClass: "chip-inprogress" };
       }
-      if (isNoFurtherInvestigation && !hasInitialReportData) {
+      if (isNoFurtherInvestigation && !hasInitialReportData && !isReopenedToStep2) {
         return { label: "WAIVED", state: "waived", chipClass: "chip-waived" };
       }
       if (initialReportApproved) {
@@ -2438,12 +2525,15 @@ export default function IMDetails() {
     }
 
     if (stepKey === "investigation" || stepKey === 3) {
+      if (isReopenedToStep3) {
+        return { label: "REOPENED", state: "current", chipClass: "chip-inprogress" };
+      }
       const hist = investigationData?.editHistory || [];
       const lastHist = hist.length > 0 ? hist[hist.length - 1] : null;
       if (lastHist && (lastHist.status === "RETURNED_FOR_REVISION" || String(lastHist.action).toLowerCase().includes("return")) && !investigationApproved) {
         return { label: "REVISION REQUIRED", state: "revision_required", chipClass: "chip-inprogress" };
       }
-      if (isNoFurtherInvestigation && !hasInvestigationData) {
+      if (isNoFurtherInvestigation && !hasInvestigationData && !isReopenedToStep3) {
         return { label: "WAIVED", state: "waived", chipClass: "chip-waived" };
       }
       if (isClosed) {
@@ -2453,9 +2543,6 @@ export default function IMDetails() {
         return !isClosed
           ? { label: "PENDING CLOSURE", state: "pending_closure", chipClass: "chip-inprogress" }
           : { label: "COMPLETED", state: "done", chipClass: "chip-approved" };
-      }
-      if (isCurrentlyReopened) {
-        return { label: "REOPENED", state: "current", chipClass: "chip-inprogress" };
       }
       if (hasInvestigationData || investigationSubmitted) {
         return { label: "IN REVIEW", state: "current", chipClass: "chip-inprogress" };
@@ -2832,9 +2919,13 @@ export default function IMDetails() {
                           {/* 2. Edit Button - ONLY when editable (Icon only) */}
                           {(() => {
                             const canEditStage = !isObserverUser() && (
-                              stg.key === "investigation" && isCurrentlyReopened
+                              (stg.key === "headsUp" && isReopenedToStep1)
                                 ? ((isNneUser() || isAdminUser()) && !isContractorUser())
-                                : !isFormApproved
+                                : (stg.key === "initialReport" && isReopenedToStep2)
+                                  ? ((isNneUser() || isAdminUser()) && !isContractorUser())
+                                  : (stg.key === "investigation" && isReopenedToStep3)
+                                    ? ((isNneUser() || isAdminUser()) && !isContractorUser())
+                                    : !isFormApproved
                             );
                             if (!canEditStage) return null;
                             return (
@@ -2857,10 +2948,14 @@ export default function IMDetails() {
                                 }}
                                 title={`Edit ${stg.st.label}`}
                                 onClick={() => {
-                                  if (stg.key === "headsUp") setIsEditingHeadsUp(true);
+                                  if (stg.key === "headsUp") {
+                                    setIsEditingHeadsUp(true);
+                                    if (!huEditorName) setHuEditorName(getLoggedInUser() || "");
+                                  }
                                   if (stg.key === "initialReport") {
                                     setInitialReportStarted(true);
                                     setIsEditingInitialReport(true);
+                                    if (!irEditorName) setIrEditorName(getLoggedInUser() || "");
                                   }
                                   if (stg.key === "investigation") {
                                     setInvestigationStarted(true);
@@ -3304,7 +3399,7 @@ export default function IMDetails() {
             {downloadingPdf ? "Downloading..." : "Export PDF"}
           </button>
 
-          {isClosed && isNneUser() && (
+          {isClosed && (isNneUser() || isAdminUser()) && !isContractorUser() && (
             <button
               className="mod-btn-primary"
               onClick={() => {
@@ -3327,7 +3422,13 @@ export default function IMDetails() {
                 color: "#ffffff",
                 boxShadow: "0 2px 6px rgba(217, 119, 6, 0.25)"
               }}
-              title="Reopen incident to Step 3 for investigation & corrective actions"
+              title={
+                targetReopenStep === 1
+                  ? "Reopen incident to Step 1 (Heads-Up Notification)"
+                  : targetReopenStep === 2
+                    ? "Reopen incident to Step 2 (Initial Incident Report)"
+                    : "Reopen incident to Step 3 for investigation & corrective actions"
+              }
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="1 4 1 10 7 10"></polyline>
@@ -3597,7 +3698,7 @@ export default function IMDetails() {
                             Reopened &amp; Closed ({reopenHistoryList.length}x)
                           </span>
                         )}
-                        {isClosed && isNneUser() && (
+                        {isClosed && (isNneUser() || isAdminUser()) && !isContractorUser() && (
                           <button
                             type="button"
                             className="mod-btn-outline"
@@ -3692,13 +3793,14 @@ export default function IMDetails() {
                     Comprehensive audit logs tracking when and who reopened the incident, reasons provided, and subsequent closure sign-offs.
                   </div>
                 </div>
-                {isClosed && isNneUser() && (
+                {isClosed && (isNneUser() || isAdminUser()) && !isContractorUser() && (
                   <button
                     className="mod-btn-primary"
                     style={{ background: "linear-gradient(135deg, #d97706 0%, #b45309 100%)", padding: "6px 14px", fontSize: "12.5px", fontWeight: 700 }}
                     onClick={() => {
                       setReopenReason("");
                       setReopenError("");
+                      setReopenSignature(false);
                       setShowReopenModal(true);
                     }}
                   >
@@ -3711,7 +3813,14 @@ export default function IMDetails() {
                   <div style={{ marginBottom: 16, padding: "10px 14px", borderRadius: 8, background: "#fffbeb", border: "1px solid #fde68a", color: "#92400e", fontSize: 13, display: "flex", alignItems: "center", gap: 10 }}>
                     <span style={{ fontSize: 18 }}>⚠️</span>
                     <div>
-                      <strong>Incident is currently REOPENED.</strong> Step 3 (Investigation Form) and Corrective Actions are unlocked for Department editing. Step 1 and Step 2 remain COMPLETED.
+                      <strong>Incident is currently REOPENED.</strong>{" "}
+                      {isReopenedToStep1 ? (
+                        <>Step 1 (Heads-Up Notification) is unlocked for Department and Admin editing. Subsequent steps remain waived.</>
+                      ) : isReopenedToStep2 ? (
+                        <>Step 2 (Initial Incident Report) is unlocked for Department and Admin editing. Step 1 remains COMPLETED and Step 3 remains waived.</>
+                      ) : (
+                        <>Step 3 (Investigation Form) and Corrective Actions are unlocked for Department editing. Step 1 and Step 2 remain COMPLETED.</>
+                      )}
                     </div>
                   </div>
                 )}
@@ -4033,7 +4142,7 @@ export default function IMDetails() {
           </div>
         </div>
         <div className={`inc-tab-panel ${activeTab === "headsUp" ? "active" : ""}`}>
-          {isEditingHeadsUp && !headsUpApproved ? (
+          {isEditingHeadsUp && (!headsUpApproved || (isReopenedToStep1 && (isNneUser() || isAdminUser()) && !isContractorUser())) ? (
             /* ================= EDIT HEADS-UP NOTIFICATION FORM ================= */
             <div className="mod-card mb-4">
               <div className="mod-card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
@@ -4445,6 +4554,18 @@ export default function IMDetails() {
                   <label className="mod-form-label">Editor Digital Signature</label>
                   <SignaturePad value={huEditorSignature} onChange={setHuEditorSignature} onClear={() => setHuEditorSignature(false)} />
                 </div>
+                <div style={{ marginTop: 14, padding: "10px 14px", background: huNoFurtherInvestigation ? "rgba(16, 185, 129, 0.08)" : "var(--bg-dark, #f8fafc)", borderRadius: "8px", border: huNoFurtherInvestigation ? "1px solid rgba(16, 185, 129, 0.3)" : "1px solid var(--border-color)", display: "flex", alignItems: "center", gap: 10 }}>
+                  <input
+                    type="checkbox"
+                    id="editHuNoFurtherInvestigation"
+                    checked={huNoFurtherInvestigation}
+                    onChange={e => setHuNoFurtherInvestigation(e.target.checked)}
+                    style={{ width: 17, height: 17, cursor: "pointer" }}
+                  />
+                  <label htmlFor="editHuNoFurtherInvestigation" style={{ fontWeight: 600, fontSize: 13, cursor: "pointer", color: "var(--text-main)" }}>
+                    No further investigation required (Incident can be closed after approval)
+                  </label>
+                </div>
 
                 <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "24px" }}>
                   <button type="button" className="mod-btn-outline" onClick={() => setIsEditingHeadsUp(false)}>
@@ -4462,7 +4583,11 @@ export default function IMDetails() {
               <div className="mod-card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                   <span className="mod-card-title">Step 1: Heads-Up Notification (2hr)</span>
-                  {headsUpApproved ? (
+                  {isReopenedToStep1 ? (
+                    <span className="inv-chip chip-inprogress" style={{ background: "#fef3c7", color: "#b45309", borderColor: "#fde68a" }}>
+                      Reopened for Editing
+                    </span>
+                  ) : headsUpApproved ? (
                     <span className="inv-chip chip-approved">Reviewed & Approved</span>
                   ) : (
                     <span
@@ -4475,13 +4600,32 @@ export default function IMDetails() {
                     </span>
                   )}
                 </div>
-                <div style={{ display: "flex", gap: "8px" }}>
-                  {!headsUpApproved && (
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+                  {isClosed && (isNneUser() || isAdminUser()) && !isContractorUser() && (
+                    <button
+                      type="button"
+                      className="mod-btn-outline"
+                      style={{ padding: "6px 14px", fontSize: "13px", fontWeight: 700, color: "#d97706", borderColor: "#d97706", display: "inline-flex", alignItems: "center", gap: "6px" }}
+                      onClick={() => {
+                        setReopenReason("");
+                        setReopenError("");
+                        setReopenSignature(false);
+                        setShowReopenModal(true);
+                      }}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+                      Reopen Incident
+                    </button>
+                  )}
+                  {(!headsUpApproved || (isReopenedToStep1 && (isNneUser() || isAdminUser()) && !isContractorUser())) && !isEditingHeadsUp && (
                     <button
                       type="button"
                       className="mod-btn-outline"
                       style={{ padding: "6px 14px", fontSize: "13px", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "6px", color: "var(--accent-primary, #3b82f6)", borderColor: "var(--accent-primary, #3b82f6)" }}
-                      onClick={() => setIsEditingHeadsUp(true)}
+                      onClick={() => {
+                        setIsEditingHeadsUp(true);
+                        if (!huEditorName) setHuEditorName(getLoggedInUser() || "");
+                      }}
                     >
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
@@ -4527,6 +4671,14 @@ export default function IMDetails() {
                 </div>
               </div>
               <div className="mod-card-body" style={{ padding: "24px" }}>
+                {isReopenedToStep1 && (
+                  <div style={{ marginBottom: 16, padding: "12px 16px", borderRadius: 8, background: "#fffbeb", border: "1px solid #fde68a", color: "#92400e", fontSize: 13, display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontSize: 18 }}>⚠️</span>
+                    <div>
+                      <strong>Heads-Up Notification is currently REOPENED.</strong> Department and Admin users have permissions to edit this form, update immediate containment actions, or modify investigation waiver requirements.
+                    </div>
+                  </div>
+                )}
                 <div style={{ fontSize: "12px", color: "var(--text-muted)", marginBottom: "20px" }}>
                   Submitted by <b>{huSubmitterName || incident.reportedBy || incident.gatekeeperName || "User"}</b> on <b>{(() => {
                     const rawSub = huSubmittedTime || incident.createdTime;
@@ -4953,6 +5105,21 @@ export default function IMDetails() {
                   >
                     ← View Filled Heads-Up Form
                   </button>
+                  {isClosed && (isNneUser() || isAdminUser()) && !isContractorUser() && (
+                    <button
+                      className="mod-btn-outline"
+                      style={{ padding: "8px 20px", fontSize: "13px", fontWeight: 700, color: "#d97706", borderColor: "rgba(245, 158, 11, 0.4)", background: "rgba(245, 158, 11, 0.08)" }}
+                      onClick={() => {
+                        setReopenReason("");
+                        setReopenError("");
+                        setReopenSignature(false);
+                        setShowReopenModal(true);
+                      }}
+                      title="Reopen this incident for further updates"
+                    >
+                      ↺ Reopen Incident
+                    </button>
+                  )}
                   {headsUpApproved && !isClosed && (
                     <button
                       className="mod-btn-primary im-btn-primary"
@@ -5027,7 +5194,27 @@ export default function IMDetails() {
                       </svg>
                       View in Modal
                     </button>
-                    {!isClosed && !initialReportApproved && !isEditingInitialReport && initialReportSubmitted && (
+                    {isClosed && (isNneUser() || isAdminUser()) && !isContractorUser() && (
+                      <button
+                        type="button"
+                        className="mod-btn-outline"
+                        style={{ padding: "6px 14px", fontSize: "13px", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: "6px", color: "#d97706", borderColor: "rgba(245, 158, 11, 0.4)", background: "rgba(245, 158, 11, 0.08)" }}
+                        onClick={() => {
+                          setReopenReason("");
+                          setReopenError("");
+                          setReopenSignature(false);
+                          setShowReopenModal(true);
+                        }}
+                        title="Reopen this incident for further updates"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="1 4 1 10 7 10"></polyline>
+                          <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+                        </svg>
+                        Reopen Incident
+                      </button>
+                    )}
+                    {!isClosed && (!initialReportApproved || (isReopenedToStep2 && (isNneUser() || isAdminUser()) && !isContractorUser())) && !isEditingInitialReport && initialReportSubmitted && (
                       <button
                         type="button"
                         className="mod-btn-outline"
@@ -5072,7 +5259,15 @@ export default function IMDetails() {
                 )}
               </div>
               <div className="mod-card-body">
-                <fieldset disabled={!isEditingInitialReport && initialReportSubmitted} style={{ border: "none", padding: 0, margin: 0, opacity: (!isEditingInitialReport && initialReportSubmitted) ? 0.95 : 1 }}>
+                {isReopenedToStep2 && (
+                  <div style={{ marginBottom: 16, padding: "12px 16px", borderRadius: 8, background: "#fffbeb", border: "1px solid #fde68a", color: "#92400e", fontSize: 13, display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontSize: 18 }}>⚠️</span>
+                    <div>
+                      <strong>Initial Incident Report (Step 2) is currently REOPENED.</strong> Department and Admin users have permissions to edit this report, modify findings, update severity assessments, or adjust investigation waiver settings.
+                    </div>
+                  </div>
+                )}
+                <fieldset disabled={(!isEditingInitialReport && initialReportSubmitted) || (isReopenedToStep2 && isContractorUser())} style={{ border: "none", padding: 0, margin: 0, opacity: (!isEditingInitialReport && initialReportSubmitted) ? 0.95 : 1 }}>
                   {/* A. Heads-Up Summary */}
                   <div className="fsec"><div className="fsec-title">A. Heads-Up Summary</div>
                     <div className="readonly-box">
@@ -5683,6 +5878,22 @@ export default function IMDetails() {
                           onClear={() => setIrEditorSignature(false)}
                         />
                       </div>
+
+                      {/* Investigation waiver option for Department/Admin editor */}
+                      {(isNneUser() || isAdminUser()) && !isContractorUser() && (
+                        <div style={{ marginTop: 16, padding: "12px 16px", background: irNoFurtherInvestigation ? "rgba(16, 185, 129, 0.08)" : "var(--bg-dark, #f8fafc)", borderRadius: "8px", border: irNoFurtherInvestigation ? "1px solid rgba(16, 185, 129, 0.3)" : "1px solid var(--border-color)", display: "flex", alignItems: "center", gap: 10 }}>
+                          <input
+                            type="checkbox"
+                            id="editIrNoFurtherInvestigation"
+                            checked={irNoFurtherInvestigation}
+                            onChange={e => setIrNoFurtherInvestigation(e.target.checked)}
+                            style={{ width: 18, height: 18, cursor: "pointer" }}
+                          />
+                          <label htmlFor="editIrNoFurtherInvestigation" style={{ fontWeight: 600, fontSize: 13.5, cursor: "pointer", color: "var(--text-main)" }}>
+                            No further investigation required (Stage 3 Investigation will be waived)
+                          </label>
+                        </div>
+                      )}
                     </div>
                   ) : initialReportSubmitted ? (
                     <div className="fsec">
@@ -5755,7 +5966,7 @@ export default function IMDetails() {
                         </div>
                       </div>
                     )}
-                    {(!initialReportSubmitted || isEditingInitialReport) && !isClosed && (
+                    {(!initialReportSubmitted || isEditingInitialReport) && !isClosed && !(isReopenedToStep2 && isContractorUser()) && (
                       <div style={{ display: "flex", gap: "12px", marginTop: "16px" }}>
                         <button className="mod-btn-primary im-btn-primary" disabled={!headsUpApproved} title={!headsUpApproved ? "Stage 1 Heads-Up Notification must be approved first" : ""} onClick={async () => {
                           try {
@@ -6158,6 +6369,21 @@ export default function IMDetails() {
                   >
                     ← View Filled {hasInitialReportData ? "Initial Report" : "Heads-Up Form"}
                   </button>
+                  {isClosed && (isNneUser() || isAdminUser()) && !isContractorUser() && (
+                    <button
+                      className="mod-btn-outline"
+                      style={{ padding: "8px 20px", fontSize: "13px", fontWeight: 700, color: "#d97706", borderColor: "rgba(245, 158, 11, 0.4)", background: "rgba(245, 158, 11, 0.08)" }}
+                      onClick={() => {
+                        setReopenReason("");
+                        setReopenError("");
+                        setReopenSignature(false);
+                        setShowReopenModal(true);
+                      }}
+                      title="Reopen this waived incident"
+                    >
+                      ↺ Reopen Incident
+                    </button>
+                  )}
                   {(headsUpApproved || initialReportApproved) && !isClosed && (
                     <button
                       className="mod-btn-primary im-btn-primary"
@@ -8425,7 +8651,11 @@ export default function IMDetails() {
                 <div>
                   <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", marginBottom: 3 }}>
                     <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 800, color: "var(--text-main, #0f172a)", letterSpacing: "-0.3px" }}>
-                      Reopen Incident Investigation
+                      {targetReopenStep === 1
+                        ? "Reopen Heads-Up Notification (Step 1)"
+                        : targetReopenStep === 2
+                          ? "Reopen Initial Incident Report (Step 2)"
+                          : "Reopen Incident Investigation"}
                     </h3>
                     <span
                       style={{
@@ -8442,7 +8672,11 @@ export default function IMDetails() {
                       }}
                     >
                       <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#f59e0b" }}></span>
-                      Stage 3 Unlock
+                      {targetReopenStep === 1
+                        ? "Stage 1 Unlock"
+                        : targetReopenStep === 2
+                          ? "Stage 2 Unlock"
+                          : "Stage 3 Unlock"}
                     </span>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", color: "var(--text-muted, #64748b)" }}>
@@ -8525,11 +8759,35 @@ export default function IMDetails() {
                     Lifecycle & Form Edit Notice
                   </div>
                   <div>
-                    Reopening transitions this incident to <strong>Step 3: Investigation Report & Corrective Actions</strong>.
+                    {targetReopenStep === 1 ? (
+                      <>Reopening transitions this incident to <strong>Step 1: Heads-Up Notification</strong> for department and admin review.</>
+                    ) : targetReopenStep === 2 ? (
+                      <>Reopening transitions this incident to <strong>Step 2: Initial Incident Report (24hr)</strong> for department and admin review.</>
+                    ) : (
+                      <>Reopening transitions this incident to <strong>Step 3: Investigation Report &amp; Corrective Actions</strong>.</>
+                    )}
                   </div>
                   <div style={{ marginTop: "3px" }}>
-                    • <strong>Step 1 (Heads-Up)</strong> and <strong>Step 2 (Initial Report)</strong> will remain marked as <strong style={{ color: "#15803d" }}>COMPLETED</strong>.<br />
-                    • Department users will have permissions to edit Form 3 findings and add/manage corrective actions.
+                    {targetReopenStep === 1 ? (
+                      <>
+                        • <strong>Step 1 (Heads-Up)</strong> will be unlocked for editing by Department and Admin users.<br />
+                        • Stages 2 and 3 remain waived unless further investigation is re-enabled.<br />
+                        • Contractor users will have read-only access.
+                      </>
+                    ) : targetReopenStep === 2 ? (
+                      <>
+                        • <strong>Step 1 (Heads-Up)</strong> remains marked as <strong style={{ color: "#15803d" }}>COMPLETED</strong>.<br />
+                        • <strong>Step 2 (Initial Report)</strong> will be unlocked for editing by Department and Admin users.<br />
+                        • Stage 3 remains waived unless further investigation is re-enabled.<br />
+                        • Contractor users will have read-only access.
+                      </>
+                    ) : (
+                      <>
+                        • <strong>Step 1 (Heads-Up)</strong> and <strong>Step 2 (Initial Report)</strong> will remain marked as <strong style={{ color: "#15803d" }}>COMPLETED</strong>.<br />
+                        • Department users will have permissions to edit Form 3 findings and add/manage corrective actions.<br />
+                        • Contractor users will have read-only access.
+                      </>
+                    )}
                   </div>
                 </div>
               </div>

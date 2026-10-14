@@ -184,21 +184,21 @@ export const exportIncidentPdf = async (incidentId, formType = "all", includeWit
 
 // ── Incident Notification Group API Methods ──
 
-// Get all members of the Incident Notification Group
-export const getIncidentNotificationGroup = async () => {
-  const response = await api.get("/notifications/incident-group");
+// Get all members of the Incident Notification Group (GROUP_1 or GROUP_2)
+export const getIncidentNotificationGroup = async (group = "GROUP_1") => {
+  const response = await api.get(`/notifications/incident-group?group=${group}`);
   return response.data;
 };
 
 // Get all available system users/employees for group assignment
-export const getAvailableIncidentGroupUsers = async () => {
-  const response = await api.get("/notifications/incident-group/available-users");
+export const getAvailableIncidentGroupUsers = async (group = "GROUP_1") => {
+  const response = await api.get(`/notifications/incident-group/available-users?group=${group}`);
   return response.data;
 };
 
 // Add members to the group
-export const addIncidentNotificationGroupMembers = async (members) => {
-  const response = await api.post("/notifications/incident-group", { members });
+export const addIncidentNotificationGroupMembers = async (members, group = "GROUP_1") => {
+  const response = await api.post("/notifications/incident-group", { members, group });
   return response.data;
 };
 

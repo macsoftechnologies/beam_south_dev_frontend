@@ -131,6 +131,17 @@ function ModuleSelection() {
     }
   }, []);
 
+  // Forward user if they arrived from an incident notification link before logging in
+  useEffect(() => {
+    try {
+      const savedRedirect = sessionStorage.getItem("post_login_redirect");
+      if (savedRedirect && savedRedirect.startsWith("/") && savedRedirect !== "/modules" && savedRedirect !== "/login") {
+        sessionStorage.removeItem("post_login_redirect");
+        navigate(savedRedirect, { replace: true });
+      }
+    } catch (e) {}
+  }, [navigate]);
+
   const rawRole = (localStorage.getItem("UserType") || user?.role || user?.userType || user?.user_type || "").toUpperCase();
   const userRolesArr = Array.isArray(user?.userTypes) ? user.userTypes.map((t) => String(t).toUpperCase()) : [];
   const allRoles = [rawRole, ...userRolesArr].join(" ");

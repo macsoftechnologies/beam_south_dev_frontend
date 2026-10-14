@@ -31,6 +31,85 @@ const sevHex = (s) => {
   return m[s?.toUpperCase()] || '#A1A5B3';
 };
 
+export const HEADS_UP_INCIDENT_CATEGORIES = [
+  "Near Miss",
+  "No Treatment Injury",
+  "First Aid Injury",
+  "Medical Treatment Injury",
+  "Restricted Work Injury",
+  "Lost Time Injury",
+  "Loss Time Injury",
+  "Permanent Disability",
+  "Fatality",
+  "Occupational Illness",
+  "Environmental Incident",
+  "Property Damage"
+];
+
+export const resolveHeadsUpCategory = (rawCategories) => {
+  let list = [];
+  if (Array.isArray(rawCategories)) {
+    list = rawCategories;
+  } else if (typeof rawCategories === "string") {
+    try {
+      const parsed = JSON.parse(rawCategories);
+      list = Array.isArray(parsed) ? parsed : [parsed];
+    } catch {
+      list = [rawCategories];
+    }
+  }
+
+  const cleaned = list.filter(Boolean).map(c => String(c).trim());
+  if (cleaned.length === 0) return "Near Miss";
+
+  for (const c of cleaned) {
+    const low = c.toLowerCase();
+    if (low.includes("fatal")) return "Fatality";
+  }
+  for (const c of cleaned) {
+    const low = c.toLowerCase();
+    if (low.includes("permanent") || low.includes("disability")) return "Permanent Disability";
+  }
+  for (const c of cleaned) {
+    const low = c.toLowerCase();
+    if (low.includes("lost time") || low.includes("loss time") || low === "lti") return "Lost Time Injury";
+  }
+  for (const c of cleaned) {
+    const low = c.toLowerCase();
+    if (low.includes("restricted work") || low === "rwi") return "Restricted Work Injury";
+  }
+  for (const c of cleaned) {
+    const low = c.toLowerCase();
+    if (low.includes("medical treatment") || low === "mti") return "Medical Treatment Injury";
+  }
+  for (const c of cleaned) {
+    const low = c.toLowerCase();
+    if (low.includes("first aid") || low === "fai") return "First Aid Injury";
+  }
+  for (const c of cleaned) {
+    const low = c.toLowerCase();
+    if (low.includes("no treatment")) return "No Treatment Injury";
+  }
+  for (const c of cleaned) {
+    const low = c.toLowerCase();
+    if (low.includes("occupational illness") || low.includes("illness")) return "Occupational Illness";
+  }
+  for (const c of cleaned) {
+    const low = c.toLowerCase();
+    if (low.includes("environmental") || low.includes("environ") || low.includes("spill")) return "Environmental Incident";
+  }
+  for (const c of cleaned) {
+    const low = c.toLowerCase();
+    if (low.includes("property")) return "Property Damage";
+  }
+  for (const c of cleaned) {
+    const low = c.toLowerCase();
+    if (low.includes("near miss") || low === "nearmiss") return "Near Miss";
+  }
+
+  return "Near Miss";
+};
+
 const formatDateStr = (dateVal) => {
   if (!dateVal) return "—";
   try {
@@ -496,6 +575,7 @@ export default function IMDashboard() {
   
   // Filter States
   const [stageFilter, setStageFilter] = useState('all');
+  const [selectedCategory, setSelectedCategory] = useState(null);
   const [selectedBodyPart, setSelectedBodyPart] = useState(null);
   const [selectedBuildings, setSelectedBuildings] = useState([]);
   const [selectedContractors, setSelectedContractors] = useState([]);
@@ -726,8 +806,8 @@ export default function IMDashboard() {
     displayedIncidents.forEach(r => {
       const isClosed = r.status === 'closed' || r.status === 'Closed' || r.pipeline === 'Closed' || r.stage === 'CLOSED';
       if (isClosed) closed++; else active++;
-      const ty = (r.categories?.[0] || r.category || r.classification || r.type || 'Other');
-      if (/Lost Time|LTI/i.test(ty)) lti++;
+      const ty = resolveHeadsUpCategory(r.categories || r.category || r.classification || r.type);
+      if (/Lost Time|Loss Time|LTI/i.test(ty)) lti++;
       if (!isClosed) needsAction++;
       
       sevCount[getSev(r)]++;
@@ -743,29 +823,36 @@ export default function IMDashboard() {
     });
 
     const categoryColorMap = {
-      "Near Miss": "#C07D10",
-      "First Aid Injury": "#583C66",
       "Medical Treatment Injury": "#E8663A",
-      "Restricted Work Injury": "#8F1B32",
-      "Lost Time Injury": "#E32B50",
+      "First Aid Injury": "#583C66",
+      "Near Miss": "#C07D10",
+      "Environmental Incident": "#2D9E5A",
+      "Occupational Illness": "#6366F1",
       "Property Damage": "#A1A5B3",
-      "Environmental Incident": "#7BBE97",
-      "Personal Injury": "#E32B50"
+      "Lost Time Injury": "#E32B50",
+      "Loss Time Injury": "#E32B50",
+      "Restricted Work Injury": "#8F1B32",
+      "No Treatment Injury": "#64748B",
+      "Permanent Disability": "#991B1B",
+      "Fatality": "#450A0A"
     };
 
-    const typeList = Object.keys(typeCountMap).map(key => ({
-      type: key,
-      count: typeCountMap[key],
-      color: categoryColorMap[key] || '#131E40'
-    })).sort((a, b) => b.count - a.count);
+    const typeList = Object.keys(typeCountMap)
+      .filter(key => typeCountMap[key] > 0)
+      .map(key => ({
+        type: key,
+        count: typeCountMap[key],
+        color: categoryColorMap[key] || '#131E40'
+      }))
+      .sort((a, b) => b.count - a.count);
 
     if (typeList.length === 0) {
       typeList.push(
-        { type: 'Near Miss', count: 5, color: '#C07D10' },
-        { type: 'First Aid Injury', count: 2, color: '#583C66' },
-        { type: 'Property Damage', count: 1, color: '#A1A5B3' },
-        { type: 'Environmental Incident', count: 1, color: '#7BBE97' },
-        { type: 'Lost Time Injury', count: 1, color: '#E32B50' }
+        { type: 'Near Miss', count: 0, color: '#C07D10' },
+        { type: 'First Aid Injury', count: 0, color: '#583C66' },
+        { type: 'Medical Treatment Injury', count: 0, color: '#E8663A' },
+        { type: 'Environmental Incident', count: 0, color: '#2D9E5A' },
+        { type: 'Lost Time Injury', count: 0, color: '#E32B50' }
       );
     }
 
@@ -892,9 +979,15 @@ export default function IMDashboard() {
         if (!matchesBodyPart(r, selectedBodyPart)) return false;
       }
 
+      // Category filter
+      if (selectedCategory) {
+        const cat = resolveHeadsUpCategory(r.categories || r.category || r.classification || r.type);
+        if (cat !== selectedCategory) return false;
+      }
+
       return true;
     });
-  }, [displayedIncidents, stageFilter, selectedBodyPart]);
+  }, [displayedIncidents, stageFilter, selectedCategory, selectedBodyPart]);
 
   /* Generate and Download PDF Stats */
   const handleDownloadPdf = async () => {
@@ -1068,17 +1161,38 @@ export default function IMDashboard() {
             <span className="chip-badge">{agg.typesTotal} total</span>
           </div>
           <div className="panel-body">
-            {agg.types.map(x => (
-              <div className="nbar" key={x.type}>
-                <div className="nbar-top">
-                  <span className="nbar-label"><span className="hbar-sw" style={{ background: x.color }} />{x.type}</span>
-                  <span className="nbar-val" style={{ color: x.color }}>{x.count}</span>
+            {agg.types.map(x => {
+              const isSelected = selectedCategory === x.type;
+              return (
+                <div
+                  className={`nbar ${isSelected ? 'active' : ''}`}
+                  key={x.type}
+                  onClick={() => setSelectedCategory(prev => prev === x.type ? null : x.type)}
+                  style={{
+                    cursor: 'pointer',
+                    padding: '6px 8px',
+                    borderRadius: '8px',
+                    background: isSelected ? 'rgba(59, 130, 246, 0.08)' : 'transparent',
+                    border: isSelected ? '1px solid rgba(59, 130, 246, 0.3)' : '1px solid transparent',
+                    transition: 'all 0.15s ease'
+                  }}
+                  title={`Click to filter table by ${x.type}`}
+                >
+                  <div className="nbar-top">
+                    <span className="nbar-label">
+                      <span className="hbar-sw" style={{ background: x.color }} />
+                      <span style={{ fontWeight: isSelected ? 700 : 500, color: isSelected ? 'var(--accent-primary, #3b82f6)' : undefined }}>
+                        {x.type}
+                      </span>
+                    </span>
+                    <span className="nbar-val" style={{ color: x.color, fontWeight: 700 }}>{x.count}</span>
+                  </div>
+                  <div className="nbar-track">
+                    <div className="nbar-fill" style={{ width: `${(x.count / maxT) * 100}%`, background: x.color }} />
+                  </div>
                 </div>
-                <div className="nbar-track">
-                  <div className="nbar-fill" style={{ width: `${(x.count / maxT) * 100}%`, background: x.color }} />
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
         
@@ -1300,6 +1414,17 @@ export default function IMDashboard() {
             )}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {selectedCategory && (
+              <button 
+                type="button" 
+                className="btn btn-outline" 
+                style={{ borderColor: 'transparent', color: '#E8663A', padding: '6px 12px', background: 'rgba(232, 102, 58, 0.08)', height: '32px', fontSize: '12px', fontWeight: 600 }}
+                onClick={() => setSelectedCategory(null)}
+                title="Clear incident category filter"
+              >
+                Clear Type: {selectedCategory} ✕
+              </button>
+            )}
             {selectedBodyPart && (
               <button 
                 type="button" 
@@ -1364,7 +1489,7 @@ export default function IMDashboard() {
                     <tr key={r.id || Math.random()} style={{ cursor: 'pointer' }} onClick={() => navigate(`/incident-management/details/${r.id}`)}>
                       <td className="code">{r.caseNumber || (r.id ? `INC-2026-${String(r.id).padStart(4, '0')}` : '—')}</td>
                       <td style={{ whiteSpace: 'nowrap' }}>{formatDateStr(r.incidentDate || r.date || r.createdAt)}</td>
-                      <td>{r.categories?.[0] || r.category || r.classification || r.type || "—"}</td>
+                      <td>{resolveHeadsUpCategory(r.categories || r.category || r.classification || r.type)}</td>
                       <td>
                         {incidentParts && incidentParts.length > 0 ? (
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', maxWidth: '240px' }}>

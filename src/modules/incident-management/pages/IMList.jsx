@@ -6,6 +6,7 @@ import { getIncidents, getIncidentStats, deleteIncident } from "../../../service
 import { getBuildings, getContractors } from "../../../services/authService";
 import { formatToDenmark24Hour } from "../../../utils/dateUtils";
 import { getModuleUserContext } from "../../../utils/modulePermissions";
+import { resolveHeadsUpCategory } from "./IMDashboard";
 import "../../../styles/module-shared.css";
 import "./IMList.css";
 
@@ -280,16 +281,37 @@ const StatusTracker = ({ inc, pipeline, isPendingClosure: initialIsPendingClosur
     (typeof realReopenLogs === 'string' && realReopenLogs.length > 2 && realReopenLogs !== '[]')
   );
   const isCurrentlyReopened = !closed && hasReopen;
+  let reopenedStep = 2; // Default investigation
   if (isCurrentlyReopened) {
-    curIdx = 2;
+    let logs = [];
+    if (Array.isArray(realReopenLogs)) logs = realReopenLogs;
+    else if (typeof realReopenLogs === 'string') {
+      try { logs = JSON.parse(realReopenLogs); } catch (e) {}
+    }
+    const lastLog = logs.length > 0 ? logs[logs.length - 1] : null;
+    const stageReopenedTo = lastLog?.stageReopenedTo || normalizedPipeline || realStage;
+    if (stageReopenedTo === "HEADS_UP" || stageReopenedTo === "Heads-Up" || (realIsWaived && !realHasInitialReport)) {
+      reopenedStep = 0;
+    } else if (stageReopenedTo === "INITIAL_REPORT" || stageReopenedTo === "Initial" || (realIsWaived && !realHasInvestigation)) {
+      reopenedStep = 1;
+    } else {
+      reopenedStep = 2;
+    }
+    curIdx = reopenedStep;
   }
 
   const isOpenedState = !closed && curIdx === 2 && realIsPendingClosure;
   
+  const reopenedLabel = reopenedStep === 0
+    ? "Reopened (Heads-Up)"
+    : reopenedStep === 1
+      ? "Reopened (Initial Report)"
+      : "Reopened (Investigation)";
+
   const label = closed 
     ? (realIsWaived ? "Closed (Waived)" : "Closed") 
     : isCurrentlyReopened
-      ? "Reopened (Investigation)"
+      ? reopenedLabel
       : isOpenedState 
         ? (realIsWaived ? "Pending Closure (Waived)" : "Pending Closure") 
         : (steps[curIdx] ? steps[curIdx].title : pipeline);
@@ -324,12 +346,15 @@ const StatusTracker = ({ inc, pipeline, isPendingClosure: initialIsPendingClosur
       {steps.map((step, i) => {
         let state = "pending";
         if (i === 0) {
-          if (closed || isCurrentlyReopened || curIdx > 0) state = "done";
+          if (isCurrentlyReopened && reopenedStep === 0) state = "current";
+          else if (closed || isCurrentlyReopened || curIdx > 0) state = "done";
           else if (curIdx === 0) state = "current";
         } else if (i === 1) {
           if (realIsWaived && !realHasInitialReport) {
             state = "waived";
-          } else if (closed || isCurrentlyReopened || curIdx > 1) {
+          } else if (isCurrentlyReopened && reopenedStep === 1) {
+            state = "current";
+          } else if (closed || (isCurrentlyReopened && reopenedStep > 1) || curIdx > 1) {
             state = "done";
           } else if (curIdx === 1) {
             state = "current";
@@ -341,7 +366,9 @@ const StatusTracker = ({ inc, pipeline, isPendingClosure: initialIsPendingClosur
             state = "done";
           } else if (isOpenedState) {
             state = "opened";
-          } else if (curIdx === 2 || isCurrentlyReopened) {
+          } else if (isCurrentlyReopened && reopenedStep === 2) {
+            state = "current";
+          } else if (curIdx === 2) {
             state = "current";
           }
         }
@@ -585,19 +612,44 @@ function IMList() {
   ];
 
   // Classification 
-  const orderClass = ["Near Miss", "First Aid Injury", "Medical Treatment Injury", "Restricted Work Injury", "Lost Time Injury", "Property Damage", "Environmental Incident", "Personal Injury"];
-  const palClass = { "Near Miss": "var(--nne-brand-blue, #131E40)", "First Aid Injury": "#C07D10", "Medical Treatment Injury": "#E8663A", "Restricted Work Injury": "#8F1B32", "Lost Time Injury": "var(--nne-brand-red, #E32B50)", "Property Damage": "var(--nne-concrete, #c8c8c8)", "Environmental Incident": "var(--nne-copper, #c46d32)" };
+  const orderClass = [
+    "Medical Treatment Injury",
+    "First Aid Injury",
+    "Near Miss",
+    "Environmental Incident",
+    "Occupational Illness",
+    "Property Damage",
+    "Lost Time Injury",
+    "Restricted Work Injury",
+    "No Treatment Injury",
+    "Permanent Disability",
+    "Fatality"
+  ];
+  const palClass = {
+    "Medical Treatment Injury": "#E8663A",
+    "First Aid Injury": "#583C66",
+    "Near Miss": "#C07D10",
+    "Environmental Incident": "#2D9E5A",
+    "Occupational Illness": "#6366F1",
+    "Property Damage": "#A1A5B3",
+    "Lost Time Injury": "var(--nne-brand-red, #E32B50)",
+    "Loss Time Injury": "var(--nne-brand-red, #E32B50)",
+    "Restricted Work Injury": "#8F1B32",
+    "No Treatment Injury": "#64748B",
+    "Permanent Disability": "#991B1B",
+    "Fatality": "#450A0A"
+  };
   
   const classRows = orderClass.map(c => {
     let n = 0;
     if (stats?.types) {
-      const found = stats.types.find(t => t.type === c);
+      const found = stats.types.find(t => t.type === c || (c === "Lost Time Injury" && t.type === "Loss Time Injury"));
       n = found ? found.count : 0;
     } else {
-      n = filteredIncidents.filter(i => i.category === c || i.classification === c || (i.categories && i.categories.includes(c))).length;
+      n = filteredIncidents.filter(i => resolveHeadsUpCategory(i.categories || i.category || i.classification || i.type) === c).length;
     }
     return n > 0 ? { label: c, n, color: palClass[c] || "#A1A5B3" } : null;
-  }).filter(Boolean);
+  }).filter(Boolean).sort((a, b) => b.n - a.n);
   if (!classRows.length) classRows.push({ label: "No incidents", n: 0, color: "#A1A5B3" });
   const maxClass = Math.max(...classRows.map(r => r.n), 1);
 
@@ -700,15 +752,33 @@ function IMList() {
         <div className="mod-card">
           <div className="mod-card-header"><span className="mod-card-title">By Classification</span></div>
           <div className="mod-card-body">
-            {classRows.map(r => (
-              <div key={r.label} className="stat-bar">
-                <span className="stat-bar-label">{r.label}</span>
-                <div className="stat-bar-track">
-                  <div className="stat-bar-fill" style={{ width: `${r.n / maxClass * 100}%`, background: r.color }}></div>
+            {classRows.map(r => {
+              const isSelected = filters.category === r.label;
+              return (
+                <div
+                  key={r.label}
+                  className={`stat-bar ${isSelected ? "active" : ""}`}
+                  onClick={() => handleFilterChange('category', isSelected ? '' : r.label)}
+                  style={{
+                    cursor: 'pointer',
+                    padding: '4px 6px',
+                    borderRadius: '6px',
+                    background: isSelected ? 'rgba(59, 130, 246, 0.08)' : 'transparent',
+                    border: isSelected ? '1px solid rgba(59, 130, 246, 0.3)' : '1px solid transparent',
+                    transition: 'all 0.15s ease'
+                  }}
+                  title={`Click to filter by ${r.label}`}
+                >
+                  <span className="stat-bar-label" style={{ fontWeight: isSelected ? 700 : 500, color: isSelected ? 'var(--accent-primary, #3b82f6)' : undefined }}>
+                    {r.label}
+                  </span>
+                  <div className="stat-bar-track">
+                    <div className="stat-bar-fill" style={{ width: `${r.n / maxClass * 100}%`, background: r.color }}></div>
+                  </div>
+                  <span className="stat-bar-value" style={{ fontWeight: isSelected ? 700 : 500 }}>{r.n}</span>
                 </div>
-                <span className="stat-bar-value">{r.n}</span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
         <div className="mod-card">
@@ -728,12 +798,32 @@ function IMList() {
       </div>
 
       {/* Filter Bar */}
-      <div className="filter-bar">
+      <div className="filter-bar" style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
         {["all", "open", "closed"].map(f => (
           <span key={f} className={`filter-chip ${filters.statusChip === f ? "active" : ""}`} onClick={() => handleFilterChange('statusChip', f)}>
             {f === "all" ? "All" : f === "open" ? "Open" : "Closed"}
           </span>
         ))}
+        {filters.category && (
+          <span
+            className="filter-chip active"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              background: "rgba(59, 130, 246, 0.12)",
+              color: "#2563EB",
+              borderColor: "rgba(59, 130, 246, 0.4)",
+              fontWeight: 600,
+              cursor: "pointer"
+            }}
+            onClick={() => handleFilterChange('category', '')}
+            title="Click to clear classification filter"
+          >
+            Category: {filters.category}
+            <span style={{ fontSize: "14px", marginLeft: "2px", lineHeight: 1 }}>&times;</span>
+          </span>
+        )}
       </div>
 
       {/* Table */}
@@ -840,7 +930,7 @@ function IMList() {
                   <td style={{ whiteSpace: "nowrap" }}>{inc.incidentDate || inc.date || "—"}</td>
                   <td style={{ whiteSpace: "nowrap", fontSize: "12px" }}>{inc.createdTime || inc.createdAt ? formatToDenmark24Hour(inc.createdTime || inc.createdAt) : "—"}</td>
                   <td style={{ whiteSpace: "nowrap", fontSize: "12px" }}>{inc.updatedTime || inc.editedAt ? formatToDenmark24Hour(inc.updatedTime || inc.editedAt) : "—"}</td>
-                  <td style={{ whiteSpace: "nowrap" }}>{inc.categories?.[0] || inc.category || "—"}</td>
+                  <td style={{ whiteSpace: "nowrap" }}>{resolveHeadsUpCategory(inc.categories || inc.category || "—")}</td>
                   <td>{inc.buildingName || inc.building || "—"}</td>
                   <td><SevPill level={inc.actualSeverity} /></td>
                   <td><SevPill level={inc.potentialSeverity} /></td>

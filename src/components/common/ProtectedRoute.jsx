@@ -21,7 +21,21 @@ const ProtectedRoute = ({ children, allowedRoles, requiredModule }) => {
   const location = useLocation();
 
   if (!isTokenValid()) {
-    return <Navigate to="/login" replace />;
+    const redirectUrl = location.pathname + location.search + location.hash;
+    if (redirectUrl && redirectUrl !== "/login" && redirectUrl !== "/" && redirectUrl !== "/modules") {
+      try {
+        sessionStorage.setItem("post_login_redirect", redirectUrl);
+      } catch (e) {
+        // Fallback for private browsing
+      }
+    }
+    return (
+      <Navigate
+        to={`/login${redirectUrl ? `?redirect=${encodeURIComponent(redirectUrl)}` : ""}`}
+        state={{ from: location }}
+        replace
+      />
+    );
   }
 
   try {

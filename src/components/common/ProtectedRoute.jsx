@@ -17,18 +17,14 @@ const ROUTE_MODULE_MAP = [
   { prefix: "/spot-checks",         moduleId: "spot-checks",         name: "Spot Checks" },
 ];
 
+import { setPostLoginRedirect } from "../../config/basePath";
+
 const ProtectedRoute = ({ children, allowedRoles, requiredModule }) => {
   const location = useLocation();
 
   if (!isTokenValid()) {
     const redirectUrl = location.pathname + location.search + location.hash;
-    if (redirectUrl && redirectUrl !== "/login" && redirectUrl !== "/" && redirectUrl !== "/modules") {
-      try {
-        sessionStorage.setItem("post_login_redirect", redirectUrl);
-      } catch (e) {
-        // Fallback for private browsing
-      }
-    }
+    setPostLoginRedirect(redirectUrl);
     return (
       <Navigate
         to={`/login${redirectUrl ? `?redirect=${encodeURIComponent(redirectUrl)}` : ""}`}

@@ -122,9 +122,10 @@ function renderApp() {
         const currentPath = window.location.pathname.replace(/\/$/, '');
         let targetRoute = currentPath.includes('/dashboard') ? currentPath : `${currentPath}/dashboard`;
         try {
-          const savedRedirect = sessionStorage.getItem('post_login_redirect');
+          const savedRedirect = sessionStorage.getItem('post_login_redirect') || localStorage.getItem('post_login_redirect');
           if (savedRedirect && savedRedirect.startsWith('/')) {
             sessionStorage.removeItem('post_login_redirect');
+            localStorage.removeItem('post_login_redirect');
             targetRoute = savedRedirect.startsWith('/development/m3south')
               ? savedRedirect
               : `/development/m3south${savedRedirect}`;

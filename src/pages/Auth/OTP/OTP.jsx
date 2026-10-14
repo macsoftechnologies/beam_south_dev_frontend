@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Navigate } from "react-router-dom";
 import { verifyOtp, login } from "../../../services/authService";
 import { showSuccess, showError } from "../../../components/common/Toast/Toast";
-import { navigateTo } from "../../../config/basePath";
+import { navigateTo, getPostLoginRedirect, clearPostLoginRedirect } from "../../../config/basePath";
 import { isTokenValid } from "../../../components/common/PublicRoute";
 import "./OTP.css";
 
@@ -38,19 +38,12 @@ const formatTimer = (totalSeconds) => {
 };
 
 export default function OTP() {
-  const getPostLoginTarget = () => {
-    try {
-      const saved = sessionStorage.getItem("post_login_redirect");
-      if (saved && saved.startsWith("/") && saved !== "/login" && saved !== "/") {
-        sessionStorage.removeItem("post_login_redirect");
-        return saved;
-      }
-    } catch (e) {}
-    return "/modules";
-  };
+  const redirectTarget = getPostLoginRedirect();
 
   if (isTokenValid()) {
-    return <Navigate to={getPostLoginTarget()} replace />;
+    const target = redirectTarget || "/modules";
+    clearPostLoginRedirect();
+    return <Navigate to={target} replace />;
   }
 
   const tempUserStr = localStorage.getItem("tempUser");
@@ -61,14 +54,18 @@ export default function OTP() {
   useEffect(() => {
     const handleCheck = () => {
       if (isTokenValid()) {
-        navigateTo(getPostLoginTarget(), true);
+        const target = getPostLoginRedirect() || "/modules";
+        clearPostLoginRedirect();
+        navigateTo(target, true);
       } else if (!localStorage.getItem("tempUser")) {
         navigateTo("/login", true);
       }
     };
 
     if (isTokenValid()) {
-      navigateTo(getPostLoginTarget(), true);
+      const target = getPostLoginRedirect() || "/modules";
+      clearPostLoginRedirect();
+      navigateTo(target, true);
       return;
     }
     if (!localStorage.getItem("tempUser")) {
@@ -166,6 +163,9 @@ export default function OTP() {
       return;
     }
 
+    // Resolve target route before state/token changes or re-renders
+    const targetRoute = getPostLoginRedirect() || "/modules";
+
     setLoading(true);
     setError("");
 
@@ -218,15 +218,16 @@ export default function OTP() {
         localStorage.setItem("UserType", activeUser.role);
         localStorage.setItem("primaryUserType", activeUser.role);
 
-        // Clean up tempUser
+        // Clean up tempUser & redirect
         localStorage.removeItem("tempUser");
+        clearPostLoginRedirect();
 
         showSuccess("Authentication successful!");
 
         setTimeout(() => {
           setLoading(false);
-          navigateTo(getPostLoginTarget(), true);
-        }, 1200);
+          navigateTo(targetRoute, true);
+        }, 1000);
       } else if (tempUser && tempUser.user_id) {
         // Fallback for development server: allow any random OTP to authenticate
         const tokenVal = tempUser.access_token || tempUser.auth_token;
@@ -253,15 +254,16 @@ export default function OTP() {
         localStorage.setItem("UserType", activeUser.role);
         localStorage.setItem("primaryUserType", activeUser.role);
 
-        // Clean up tempUser
+        // Clean up tempUser & redirect
         localStorage.removeItem("tempUser");
+        clearPostLoginRedirect();
 
         showSuccess("Authentication successful!");
 
         setTimeout(() => {
           setLoading(false);
-          navigateTo(getPostLoginTarget(), true);
-        }, 1200);
+          navigateTo(targetRoute, true);
+        }, 1000);
       } else {
         setLoading(false);
         const errMsg = response?.message || "Invalid OTP code";

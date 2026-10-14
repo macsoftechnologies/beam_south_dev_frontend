@@ -53,16 +53,12 @@ export const isTokenValid = () => {
   return false;
 };
 
+import { getPostLoginRedirect, clearPostLoginRedirect } from "../../config/basePath";
+
 const PublicRoute = ({ children }) => {
   if (isTokenValid()) {
-    let target = "/modules";
-    try {
-      const saved = sessionStorage.getItem("post_login_redirect");
-      if (saved && saved.startsWith("/") && saved !== "/login" && saved !== "/") {
-        sessionStorage.removeItem("post_login_redirect");
-        target = saved;
-      }
-    } catch (e) {}
+    const target = getPostLoginRedirect() || "/modules";
+    clearPostLoginRedirect();
     return <Navigate to={target} replace />;
   }
 

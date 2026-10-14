@@ -2,45 +2,38 @@ import { useState, useEffect } from "react";
 import { Navigate, Link } from "react-router-dom";
 import { login } from "../../../services/authService";
 import { showSuccess, showError } from "../../../components/common/Toast/Toast";
-import { navigateTo } from "../../../config/basePath";
+import { navigateTo, getPostLoginRedirect, setPostLoginRedirect, clearPostLoginRedirect } from "../../../config/basePath";
 import { isTokenValid } from "../../../components/common/PublicRoute";
 import "./Login.css";
 
 export default function Login() {
-  const getPostLoginTarget = () => {
-    try {
-      const saved = sessionStorage.getItem("post_login_redirect");
-      if (saved && saved.startsWith("/") && saved !== "/login" && saved !== "/") {
-        sessionStorage.removeItem("post_login_redirect");
-        return saved;
-      }
-    } catch (e) {}
-    return "/modules";
-  };
-
   useEffect(() => {
-    try {
-      const params = new URLSearchParams(window.location.search);
-      const redirectParam = params.get("redirect");
-      if (redirectParam && redirectParam.startsWith("/") && redirectParam !== "/login" && redirectParam !== "/") {
-        sessionStorage.setItem("post_login_redirect", redirectParam);
-      }
-    } catch (e) {}
+    const redirect = getPostLoginRedirect();
+    if (redirect) {
+      setPostLoginRedirect(redirect);
+    }
   }, []);
 
   if (isTokenValid()) {
-    return <Navigate to={getPostLoginTarget()} replace />;
+    const target = getPostLoginRedirect() || "/modules";
+    clearPostLoginRedirect();
+    return <Navigate to={target} replace />;
   }
 
   useEffect(() => {
     const handleCheck = () => {
       if (isTokenValid()) {
-        navigateTo(getPostLoginTarget(), true);
+        const target = getPostLoginRedirect() || "/modules";
+        clearPostLoginRedirect();
+        navigateTo(target, true);
       }
     };
 
     if (isTokenValid()) {
-      navigateTo(getPostLoginTarget(), true);
+      const target = getPostLoginRedirect() || "/modules";
+      clearPostLoginRedirect();
+      navigateTo(target, true);
+      return;
     }
 
     window.addEventListener("pageshow", handleCheck);
@@ -101,9 +94,10 @@ export default function Login() {
 
         showSuccess(response.message || "Login successful. OTP sent.");
 
+        const pendingRedirect = getPostLoginRedirect();
         setTimeout(() => {
           setLoading(false);
-          navigateTo("/otp", true);
+          navigateTo(`/otp${pendingRedirect ? `?redirect=${encodeURIComponent(pendingRedirect)}` : ""}`, true);
         }, 1500);
       } else {
         setLoading(false);

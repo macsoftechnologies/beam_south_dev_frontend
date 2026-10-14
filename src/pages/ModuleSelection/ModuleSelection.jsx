@@ -7,6 +7,7 @@ import {
   getUserTypeLabel,
   USER_TYPE_LABELS,
 } from "../../utils/modulePermissions";
+import { getPostLoginRedirect, clearPostLoginRedirect } from "../../config/basePath";
 import "./ModuleSelection.css";
 
 const modules = [
@@ -133,13 +134,11 @@ function ModuleSelection() {
 
   // Forward user if they arrived from an incident notification link before logging in
   useEffect(() => {
-    try {
-      const savedRedirect = sessionStorage.getItem("post_login_redirect");
-      if (savedRedirect && savedRedirect.startsWith("/") && savedRedirect !== "/modules" && savedRedirect !== "/login") {
-        sessionStorage.removeItem("post_login_redirect");
-        navigate(savedRedirect, { replace: true });
-      }
-    } catch (e) {}
+    const redirect = getPostLoginRedirect();
+    if (redirect && redirect !== "/modules") {
+      clearPostLoginRedirect();
+      navigate(redirect, { replace: true });
+    }
   }, [navigate]);
 
   const rawRole = (localStorage.getItem("UserType") || user?.role || user?.userType || user?.user_type || "").toUpperCase();

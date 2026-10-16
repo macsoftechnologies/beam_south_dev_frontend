@@ -213,6 +213,15 @@ export function hasUserModuleAccess(moduleId, user = null) {
     }
   }
 
+  // Safety Inspection does not allow contractor access
+  if (moduleId === "safety-inspection") {
+    const effRole = getEffectiveRoleForModule("safety-inspection", user);
+    const effLower = String(effRole || "").toLowerCase();
+    if (effLower.includes("contractor") || effLower.includes("subcontractor")) {
+      return false;
+    }
+  }
+
   const parsedMap = parseModuleAccess(user?.moduleAccess);
   const keys = Object.keys(parsedMap).map((k) => k.toLowerCase());
   return keys.includes(String(moduleId).toLowerCase());
@@ -358,7 +367,7 @@ export function getModuleUserContext(moduleId, user = null) {
     isDepartment,
     isAdmin,
     isDeptOrAdmin: (isAdmin || isDepartment) && !isContractor && !isObserver,
-    isReadOnly: isObserver,
+    isReadOnly: isObserver || (moduleId === "spot-checks" && isContractor),
     contractorId,
     departmentId,
     observerId,

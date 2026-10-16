@@ -396,8 +396,22 @@ export const soNavigationMenu = [
 
 // ── Role resolver ────────────────────────────────────────
 export function getMenuByRole(role) {
-    const activeType = localStorage.getItem("UserType");
-    const targetRole = activeType || role;
+    let targetRole = localStorage.getItem("UserType") || role;
+    try {
+        const storedUser = localStorage.getItem("user");
+        if (storedUser) {
+            const parsed = JSON.parse(storedUser);
+            const ptwRole = parsed?.modules?.find?.(m => 
+                m.moduleId === 'permit-to-work' || m.code === 'permit-to-work' || m.name === 'Permit to Work'
+            )?.userType;
+            if (ptwRole) {
+                targetRole = ptwRole;
+            }
+        }
+    } catch (e) {
+        // ignore
+    }
+
     let roles = [];
     if (typeof targetRole === 'string') {
         roles = targetRole.split(',').map(r => r.trim());
@@ -408,11 +422,11 @@ export function getMenuByRole(role) {
     }
     const has = (r) => roles.some(x => String(x).toLowerCase() === String(r).toLowerCase());
 
-    if (has("Observer"))      return ObservericonMenu;
     if (has("Admin") || has("SuperAdmin")) return AdminiconMenu;
     if (has("Department1") || has("Operator1") || has("C&Q") || has("COMM")) return Operator1iconMenu;
     if (has("Department") || has("Operator") || has("ConM") || has("HSE")) return OperatoriconMenu;
     if (has("Subcontractor") || has("Contractor")) return UsericonMenu;
+    if (has("Observer"))      return ObservericonMenu;
 
     return [];
 }

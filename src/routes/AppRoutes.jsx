@@ -285,7 +285,7 @@ function AppRoutes() {
           <Route
             path="/safety-inspection/dashboard"
             element={
-              <ProtectedRoute allowedRoles={["Admin", "admin", "SuperAdmin", "superadmin", "Department", "department", "Department1", "department1", "Operator", "operator", "Site_HSE", "site_hse", "HSE", "hse", "Safety", "safety", "Contractor", "contractor", "Subcontractor", "subcontractor", "Observer", "observer"]}>
+              <ProtectedRoute allowedRoles={["Admin", "admin", "SuperAdmin", "superadmin", "Department", "department", "Department1", "department1", "Operator", "operator", "Site_HSE", "site_hse", "HSE", "hse", "Safety", "safety", "Observer", "observer"]}>
                 <SIDashboard />
               </ProtectedRoute>
             }
@@ -293,7 +293,7 @@ function AppRoutes() {
           <Route
             path="/safety-inspection/list"
             element={
-              <ProtectedRoute allowedRoles={["Admin", "admin", "SuperAdmin", "superadmin", "Department", "department", "Department1", "department1", "Operator", "operator", "Site_HSE", "site_hse", "HSE", "hse", "Safety", "safety", "Contractor", "contractor", "Subcontractor", "subcontractor", "Observer", "observer"]}>
+              <ProtectedRoute allowedRoles={["Admin", "admin", "SuperAdmin", "superadmin", "Department", "department", "Department1", "department1", "Operator", "operator", "Site_HSE", "site_hse", "HSE", "hse", "Safety", "safety", "Observer", "observer"]}>
                 <SIList />
               </ProtectedRoute>
             }
@@ -317,7 +317,7 @@ function AppRoutes() {
           <Route
             path="/safety-inspection/:id"
             element={
-              <ProtectedRoute allowedRoles={["Admin", "admin", "SuperAdmin", "superadmin", "Department", "department", "Department1", "department1", "Operator", "operator", "Site_HSE", "site_hse", "HSE", "hse", "Safety", "safety", "Contractor", "contractor", "Subcontractor", "subcontractor", "Observer", "observer"]}>
+              <ProtectedRoute allowedRoles={["Admin", "admin", "SuperAdmin", "superadmin", "Department", "department", "Department1", "department1", "Operator", "operator", "Site_HSE", "site_hse", "HSE", "hse", "Safety", "safety", "Observer", "observer"]}>
                 <SIView />
               </ProtectedRoute>
             }

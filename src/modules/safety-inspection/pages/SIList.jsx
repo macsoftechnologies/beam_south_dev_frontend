@@ -47,6 +47,12 @@ export default function SIList() {
   const isAdmin = siCtx.isAdmin;
 
   useEffect(() => {
+    if (siCtx.isContractor) {
+      navigate("/modules", { replace: true });
+    }
+  }, [siCtx.isContractor, navigate]);
+
+  useEffect(() => {
     const loadSelectors = async () => {
       try {
         const [bRes, fRes, rRes] = await Promise.all([

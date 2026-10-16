@@ -88,11 +88,11 @@ export default function SICreate() {
   const siCtx = React.useMemo(() => getModuleUserContext("safety-inspection", currentUser), [currentUser]);
 
   useEffect(() => {
-    if (siCtx.isObserver) {
-      showError("Observers have read-only access and cannot create or edit inspections.");
-      navigate("/safety-inspection/list");
+    if (siCtx.isContractor || siCtx.isObserver) {
+      showError(siCtx.isContractor ? "Contractors are not permitted to access Safety Inspection." : "Observers have read-only access and cannot create or edit inspections.");
+      navigate(siCtx.isContractor ? "/modules" : "/safety-inspection/list", { replace: true });
     }
-  }, [siCtx.isObserver, navigate]);
+  }, [siCtx.isContractor, siCtx.isObserver, navigate]);
 
   const loggedInUserName = React.useMemo(() => {
     const name = currentUser.name || `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || currentUser.username || "Superadmin";
@@ -321,7 +321,7 @@ export default function SICreate() {
   const handleFileChange = async (e) => {
     const files = e.target.files;
     if (!files || files.length === 0 || activeUploadIdx === null) return;
-    
+
     const localFiles = Array.from(files).map(file => ({
       file,
       previewUrl: URL.createObjectURL(file),
@@ -1028,17 +1028,17 @@ export default function SICreate() {
                     {itemPhotos[idx].map((photoObj, pIdx) => {
                       const urlToRender = typeof photoObj === 'string' ? photoObj : (photoObj.previewUrl || photoObj.serverUrl);
                       const isPdf = urlToRender.toLowerCase().endsWith('.pdf') || (photoObj.file && photoObj.file.type === 'application/pdf');
-                      
+
                       const getFullImageUrl = (u) => {
                         if (!u) return '';
                         if (u.startsWith('http://') || u.startsWith('https://') || u.startsWith('blob:') || u.startsWith('data:')) return u;
-                        const base = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'https://api.beam.safesiteworks.com/development/m3south').replace(/\/+$/, '');
+                        const base = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'https://api.beam.safesiteworks.com/m3south').replace(/\/+$/, '');
                         const filename = u.split('/').pop()?.split('\\').pop()?.split('?')[0] || u;
                         return `${base}/safety-inspections/photo-preview?file=${encodeURIComponent(filename)}`;
                       };
-                      
+
                       const fullUrl = getFullImageUrl(urlToRender);
-                      
+
                       return (
                         <div key={pIdx} style={{ position: "relative", width: "64px", height: "64px", borderRadius: "6px", overflow: "hidden", border: "1px solid #e2e8f0", backgroundColor: "#fff" }}>
                           {isPdf ? (
@@ -1052,7 +1052,7 @@ export default function SICreate() {
                               style={{ width: "100%", height: "100%", objectFit: "cover" }}
                               onError={(e) => {
                                 const current = e.currentTarget.src || '';
-                                const base = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'https://api.beam.safesiteworks.com/development/m3south').replace(/\/+$/, '');
+                                const base = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'https://api.beam.safesiteworks.com/m3south').replace(/\/+$/, '');
                                 const fname = current.split('/').pop()?.split('\\').pop()?.split('?')[0] || '';
                                 if (current.includes('/photo-preview')) {
                                   e.currentTarget.src = `${base}/observations/${fname}`;

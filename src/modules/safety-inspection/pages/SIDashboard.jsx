@@ -114,6 +114,12 @@ export default function SIDashboard() {
   const isObserver = siCtx.isObserver;
   const isReadOnly = isObserver;
 
+  useEffect(() => {
+    if (siCtx.isContractor) {
+      navigate("/modules", { replace: true });
+    }
+  }, [siCtx.isContractor, navigate]);
+
   return (
     <div className="si-dashboard-container">
       {/* ── Hero ── */}

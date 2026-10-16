@@ -11,6 +11,7 @@ import { spotCheckService } from "../../../services/spotCheckService";
 import { observationService } from "../../../services/observationService";
 import SafetyIssueModal from "../../../components/common/SafetyIssueModal/SafetyIssueModal";
 import { showSuccess, showError } from "../../../components/common/Toast/Toast";
+import { getModuleUserContext } from "../../../utils/modulePermissions";
 import "../../../styles/module-shared.css";
 import "./SCDashboard.css";
 import "./SCCreate.css";
@@ -145,7 +146,22 @@ export default function SCCreate() {
   const [tempBriefingTime, setTempBriefingTime] = useState("");
   const [showSafetyModal, setShowSafetyModal] = useState(false);
 
-  const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
+  const currentUser = React.useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem("user") || "{}");
+    } catch {
+      return {};
+    }
+  }, []);
+  const scCtx = React.useMemo(() => getModuleUserContext("spot-checks", currentUser), [currentUser]);
+
+  useEffect(() => {
+    if (scCtx.isContractor || scCtx.isObserver) {
+      showError(scCtx.isContractor ? "Contractors cannot create spot checks." : "Observers cannot create spot checks.");
+      navigate("/spot-checks/list", { replace: true });
+    }
+  }, [scCtx.isContractor, scCtx.isObserver, navigate]);
+
   const currentUserName = currentUser.name || currentUser.username || (currentUser.firstName ? `${currentUser.firstName} ${currentUser.lastName || ""}`.trim() : "") || "";
 
   const getDenmarkTodayDate = () => {

@@ -172,7 +172,7 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
   // Automatically default companyName if Department selected and no Contractor selected
   useEffect(() => {
     if (hasDepartment && !hasContractor && !companyName) {
-      setCompanyName("M3 South");
+      setCompanyName("NNE");
     }
   }, [hasDepartment, hasContractor, companyName]);
 
@@ -333,7 +333,7 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
       otpNotificationType,
       roleId: roleId ? Number(roleId) : 4,
       userType: activeEmployeeTypes.join(","),
-      companyName: companyName || (hasDepartment && !hasContractor ? "M3 South" : ""),
+      companyName: companyName || (hasDepartment && !hasContractor ? "NNE" : ""),
       subContId: shouldShowContractor && subContId ? Number(subContId) : null,
       departId: shouldShowDepartment && departId ? Number(departId) : null,
       obserId: hasObserver && resolvedObserId ? Number(resolvedObserId) : null,
@@ -529,7 +529,7 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
                 Select access and assign specific user type per module
               </span>
             </div>
-            
+
             <div className="df-modules-grid">
               {MODULE_OPTIONS.map((mod) => {
                 const isChecked = selectedModules.includes(mod.id);
@@ -571,21 +571,20 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
                               currentRole === "Observer"
                                 ? "rgba(99, 102, 241, 0.15)"
                                 : currentRole === "Subcontractor"
-                                ? "rgba(245, 158, 11, 0.15)"
-                                : "rgba(16, 185, 129, 0.15)",
+                                  ? "rgba(245, 158, 11, 0.15)"
+                                  : "rgba(16, 185, 129, 0.15)",
                             color:
                               currentRole === "Observer"
                                 ? "#4f46e5"
                                 : currentRole === "Subcontractor"
-                                ? "#d97706"
-                                : "#059669",
-                            border: `1px solid ${
-                              currentRole === "Observer"
+                                  ? "#d97706"
+                                  : "#059669",
+                            border: `1px solid ${currentRole === "Observer"
                                 ? "rgba(99, 102, 241, 0.35)"
                                 : currentRole === "Subcontractor"
-                                ? "rgba(245, 158, 11, 0.35)"
-                                : "rgba(16, 185, 129, 0.35)"
-                            }`,
+                                  ? "rgba(245, 158, 11, 0.35)"
+                                  : "rgba(16, 185, 129, 0.35)"
+                              }`,
                           }}
                         >
                           {getUserTypeLabel(currentRole, mod.id)}

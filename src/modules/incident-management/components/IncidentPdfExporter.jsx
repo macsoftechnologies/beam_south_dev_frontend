@@ -966,8 +966,8 @@ export function IncidentPdfExporter({ incident, onClose, targetForm = "all" }) {
                       </tr>
                     </thead>
                     <tbody>
-                      {(Array.isArray(inv.investigationTeam) && inv.investigationTeam.length > 0) ? (
-                        inv.investigationTeam.map((m, idx) => (
+                      {((Array.isArray(inv.investigationTeam) && inv.investigationTeam.length > 0) || (Array.isArray(inv.team) && inv.team.length > 0)) ? (
+                        (inv.investigationTeam?.length ? inv.investigationTeam : inv.team).map((m, idx) => (
                           <tr key={idx}>
                             <td style={{ padding: 6, border: "1px solid #cbd5e1", fontWeight: 600 }}>{m.name || "—"}</td>
                             <td style={{ padding: 6, border: "1px solid #cbd5e1" }}>{m.role || m.designation || "Investigator"}</td>

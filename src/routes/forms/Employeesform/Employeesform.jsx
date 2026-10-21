@@ -172,7 +172,7 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
   // Automatically default companyName if Department selected and no Contractor selected
   useEffect(() => {
     if (hasDepartment && !hasContractor && !companyName) {
-      setCompanyName("M3 South");
+      setCompanyName("NNE");
     }
   }, [hasDepartment, hasContractor, companyName]);
 
@@ -333,7 +333,7 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
       otpNotificationType,
       roleId: roleId ? Number(roleId) : 4,
       userType: activeEmployeeTypes.join(","),
-      companyName: companyName || (hasDepartment && !hasContractor ? "M3 South" : ""),
+      companyName: companyName || (hasDepartment && !hasContractor ? "NNE" : ""),
       subContId: shouldShowContractor && subContId ? Number(subContId) : null,
       departId: shouldShowDepartment && departId ? Number(departId) : null,
       obserId: hasObserver && resolvedObserId ? Number(resolvedObserId) : null,

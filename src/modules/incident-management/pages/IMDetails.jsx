@@ -35,27 +35,34 @@ const getAttachmentUrl = (url) => {
 
 const INCIDENT_CATEGORIES = [
   "Near Miss",
+  "No Treatment Injury",
   "First Aid Injury",
   "Medical Treatment Injury",
   "Restricted Work Injury",
   "Lost Time Injury",
-  "Property Damage",
+  "Permanent Disability",
+  "Fatality",
+  "Occupational Illness",
   "Environmental Incident",
-  "Personal Injury",
+  "Property Damage",
   "Other"
 ];
 
 const normalizeToStandardCategory = (c) => {
   if (!c) return c;
-  if (typeof c === "string" && (c === "Other" || c.startsWith("Other:") || c.toLowerCase().startsWith("other:"))) return "Other";
+  if (typeof c === "string" && (c.toLowerCase() === "other" || c.toLowerCase() === "others" || c.toLowerCase().startsWith("other:") || c.toLowerCase().startsWith("others:"))) return "Other";
   const norm = String(c).toLowerCase().replace(/[^a-z0-9]/g, "");
   for (const std of INCIDENT_CATEGORIES) {
     const stdNorm = std.toLowerCase().replace(/[^a-z0-9]/g, "");
     if (stdNorm === norm) return std;
+    if (stdNorm === "notreatmentinjury" && (norm.includes("notreatment") || norm === "notreatmentinjury")) return std;
     if (stdNorm === "medicaltreatmentinjury" && (norm.includes("medicaltreatment") || norm === "medical")) return std;
     if (stdNorm === "firstaidinjury" && (norm.includes("firstaid") || norm === "firstaidtreatment")) return std;
     if (stdNorm === "restrictedworkinjury" && (norm.includes("restrictedwork") || norm === "rwi")) return std;
     if (stdNorm === "losttimeinjury" && (norm.includes("losttime") || norm.includes("losstime") || norm === "lti")) return std;
+    if (stdNorm === "permanentdisability" && (norm.includes("permanentdisability") || norm.includes("disability"))) return std;
+    if (stdNorm === "fatality" && (norm.includes("fatality") || norm.includes("fatal"))) return std;
+    if (stdNorm === "occupationalillness" && (norm.includes("occupationalillness") || norm.includes("illness"))) return std;
     if (stdNorm === "nearmiss" && norm.includes("nearmiss")) return std;
     if (stdNorm === "propertydamage" && norm.includes("property")) return std;
     if (stdNorm === "environmentalincident" && norm.includes("environ")) return std;
@@ -811,7 +818,7 @@ export default function IMDetails() {
   const [invEditReason, setInvEditReason] = useState("");
   const [invEditorSignature, setInvEditorSignature] = useState(false);
 
-  const [invTeam, setInvTeam] = useState([]);
+  const [invTeam, setInvTeam] = useState([{ name: "", role: "", company: "" }]);
   const [invDetails, setInvDetails] = useState("");
   const [invWitnesses, setInvWitnesses] = useState([]);
 
@@ -1451,6 +1458,7 @@ export default function IMDetails() {
           initialCats = [...ir.categories];
         } else if (ir.treatmentProvided && Array.isArray(ir.treatmentProvided) && ir.treatmentProvided.length > 0) {
           ir.treatmentProvided.forEach(t => {
+            if (t === "No Treatment" && !initialCats.includes("No Treatment Injury")) initialCats.push("No Treatment Injury");
             if (t === "Medical Treatment" && !initialCats.includes("Medical Treatment Injury")) initialCats.push("Medical Treatment Injury");
             if (t === "First Aid" && !initialCats.includes("First Aid Injury")) initialCats.push("First Aid Injury");
             if (t === "Hospitalization" && !initialCats.includes("Lost Time Injury")) initialCats.push("Lost Time Injury");
@@ -1683,6 +1691,10 @@ export default function IMDetails() {
           setInvTeam(inv.team);
         } else if (inv.investigationTeam && Array.isArray(inv.investigationTeam) && inv.investigationTeam.length > 0) {
           setInvTeam(inv.investigationTeam);
+        } else if (investigationSubmitted) {
+          setInvTeam([]);
+        } else {
+          setInvTeam([{ name: "", role: "", company: "" }]);
         }
 
         if (inv.witnesses && Array.isArray(inv.witnesses) && inv.witnesses.length > 0) {
@@ -2240,6 +2252,7 @@ export default function IMDetails() {
   // Helper functions for Investigation arrays
   const addInvTeamMember = () => {
     setInvTeam([...invTeam, { name: "", role: "", company: "" }]);
+    if (invErrors.invTeam) setInvErrors(prev => ({ ...prev, invTeam: null }));
     setTimeout(() => document.getElementById(`invTeam-name-${invTeam.length}`)?.focus(), 10);
   };
   const updateInvTeamMember = (idx, field, val) => {
@@ -2247,7 +2260,16 @@ export default function IMDetails() {
     newTeam[idx][field] = val;
     setInvTeam(newTeam);
   };
-  const removeInvTeamMember = (idx) => setInvTeam(invTeam.filter((_, i) => i !== idx));
+  const removeInvTeamMember = (idx) => {
+    setInvTeam(invTeam.filter((_, i) => i !== idx));
+    setInvErrors(prev => {
+      const updated = { ...prev };
+      delete updated[`inv_team_${idx}_name`];
+      delete updated[`inv_team_${idx}_role`];
+      delete updated[`inv_team_${idx}_company`];
+      return updated;
+    });
+  };
 
   const addInvWitness = () => {
     setInvWitnesses([...invWitnesses, { name: "", badge: "", employer: "", occupation: "", desc: "" }]);
@@ -2318,7 +2340,20 @@ export default function IMDetails() {
   // Form arrays from the mockup
   const SEVERITY_RATINGS = ["1 - Insignificant", "2 - Minor", "3 - Moderate", "4 - Critical", "5 - Catastrophic"];
   const TREATMENT_PROVIDED = ["No Treatment", "First Aid", "Medical Treatment", "Restricted Work", "Lost Time"];
-  const INCIDENT_CATEGORIES = ["Near Miss", "First Aid Injury", "Medical Treatment Injury", "Restricted Work Injury", "Lost Time Injury", "Property Damage", "Environmental Incident", "Personal Injury", "Other"];
+  const INCIDENT_CATEGORIES = [
+    "Near Miss",
+    "No Treatment Injury",
+    "First Aid Injury",
+    "Medical Treatment Injury",
+    "Restricted Work Injury",
+    "Lost Time Injury",
+    "Permanent Disability",
+    "Fatality",
+    "Occupational Illness",
+    "Environmental Incident",
+    "Property Damage",
+    "Other"
+  ];
   const ACCIDENT_TYPE_CATEGORIES = [
     "Contact with an object or equipment", "Electrocution – electrical injury", "Malfunctioning/Defective tools and equipment",
     "Tool accidents", "Scaffolding accidents", "Asphyxiation – Confined space",
@@ -5313,7 +5348,7 @@ export default function IMDetails() {
                         );
                       })}
                     </div>
-                    {irCategories.some(c => String(c).toLowerCase() === 'other' || String(c).startsWith('Other:')) && (
+                    {irCategories.some(c => String(c).toLowerCase() === 'other' || String(c).toLowerCase() === 'others' || String(c).startsWith('Other:') || String(c).startsWith('Others:')) && (
                       <div className="mod-form-group" style={{ marginTop: 12 }}>
                         <label className="mod-form-label">Other Category</label>
                         <input className="mod-form-input" placeholder="Specify other incident category..." value={irCategoriesOther} onChange={e => setIrCategoriesOther(e.target.value)} />
@@ -5515,7 +5550,7 @@ export default function IMDetails() {
                   {/* G, H, I, J Conditional on Injury Categories */}
                   {(() => {
                     const activeIncidentCats = (irCategories.length > 0 ? irCategories : (incident?.categories || [])).map(c => String(c).toLowerCase());
-                    const INJURY_CATS = ["first aid injury", "medical treatment injury", "lost time injury", "personal injury"];
+                    const INJURY_CATS = ["no treatment injury", "first aid injury", "medical treatment injury", "restricted work injury", "lost time injury", "permanent disability", "fatality", "occupational illness", "personal injury"];
                     const isInjuryIncident = activeIncidentCats.some(c => INJURY_CATS.includes(c));
 
                     if (!isInjuryIncident) return null;
@@ -5971,7 +6006,7 @@ export default function IMDetails() {
                         <button className="mod-btn-primary im-btn-primary" disabled={!headsUpApproved} title={!headsUpApproved ? "Stage 1 Heads-Up Notification must be approved first" : ""} onClick={async () => {
                           try {
                             const activeIncidentCats = (irCategories.length > 0 ? irCategories : (incident?.categories || [])).map(c => String(c).toLowerCase());
-                            const INJURY_CATS = ["first aid injury", "medical treatment injury", "lost time injury", "personal injury"];
+                            const INJURY_CATS = ["no treatment injury", "first aid injury", "medical treatment injury", "restricted work injury", "lost time injury", "permanent disability", "fatality", "occupational illness", "personal injury"];
                             const isInjuryIncident = activeIncidentCats.some(c => INJURY_CATS.includes(c));
 
                             const isEnvIncident = activeIncidentCats.some(c => c.includes("environment") || c.includes("environ"));
@@ -6077,7 +6112,7 @@ export default function IMDetails() {
                             }
 
                             // 6. Categories & Body Parts
-                            const finalCategories = irCategories.map(c => c === "Other" && irCategoriesOther ? `Other: ${irCategoriesOther}` : c);
+                            const finalCategories = irCategories.map(c => (c === "Other" || c === "Others") && irCategoriesOther ? `Other: ${irCategoriesOther}` : c);
                             formData.append("categories", JSON.stringify(finalCategories));
                             formData.append("accidentCategories", JSON.stringify(irAccidentCategories));
                             formData.append("injuryTypes", JSON.stringify(irInjuryTypes));
@@ -6536,14 +6571,15 @@ export default function IMDetails() {
                   </div>
 
                   {/* 1. Investigation Team */}
-                  <div className="fsec"><div className="fsec-title" style={{ justifyContent: "space-between", display: "flex" }}>
-                    <span>1. Investigation Team</span>
+                  <div className="fsec" id="investigation-team-section"><div className="fsec-title" style={{ justifyContent: "space-between", display: "flex" }}>
+                    <span>1. Investigation Team <span style={{ color: "#DC2626", marginLeft: 4 }}>*</span></span>
                     {(!investigationSubmitted || isEditingInvestigation) && (
-                      <button className="mod-btn-outline" style={{ padding: "4px 12px", fontSize: "12px" }} onClick={addInvTeamMember}>+ Add Member</button>
+                      <button className="mod-btn-outline" style={{ padding: "4px 12px", fontSize: "12px" }} onClick={() => { addInvTeamMember(); if (invErrors.invTeam) setInvErrors(prev => ({ ...prev, invTeam: null })); }}>+ Add Member</button>
                     )}
                   </div>
+                    {invErrors.invTeam && <div style={{ fontSize: "0.8rem", color: "#DC2626", marginBottom: 8, fontWeight: 600 }}>{invErrors.invTeam}</div>}
                     {invTeam.length === 0 ? <div className="muted-empty" style={{ fontStyle: "italic", fontSize: 13, color: "var(--text-muted)", padding: "8px 0" }}>No team members added yet.</div> : invTeam.map((m, i) => (
-                      <div key={i} className="subcard" style={{ border: "1px solid var(--border-color)", padding: 16, borderRadius: 8, marginBottom: 12 }}>
+                      <div key={i} className="subcard" style={{ border: (invErrors[`inv_team_${i}_name`] || invErrors[`inv_team_${i}_role`] || invErrors[`inv_team_${i}_company`]) ? "1px solid #DC2626" : "1px solid var(--border-color)", padding: 16, borderRadius: 8, marginBottom: 12 }}>
                         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12, alignItems: "center" }}>
                           <span style={{ fontWeight: 700, fontSize: 13 }}>Member {i + 1}</span>
                           {(!investigationSubmitted || isEditingInvestigation) && (
@@ -6560,7 +6596,7 @@ export default function IMDetails() {
                                 <button 
                                   type="button"
                                   style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "32px", height: "32px", borderRadius: "6px", border: "1px solid #86efac", background: "#dcfce7", color: "#16a34a", cursor: "pointer", transition: "all 0.2s" }} 
-                                  onClick={() => addInvTeamMember()}
+                                  onClick={() => { addInvTeamMember(); if (invErrors.invTeam) setInvErrors(prev => ({ ...prev, invTeam: null })); }}
                                   title="Add Member"
                                 >
                                   <i className="ti ti-check" style={{ fontSize: "16px", fontWeight: "bold" }}></i>
@@ -6571,19 +6607,44 @@ export default function IMDetails() {
                         </div>
                         <div className="grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                           <div className="mod-form-group">
-                            <label className="mod-form-label">Name</label>
-                            <input id={`invTeam-name-${i}`} className={`mod-form-input ${m.name.trim() ? 'success-styled' : ''}`} value={m.name} onChange={e => updateInvTeamMember(i, 'name', e.target.value)} onKeyDown={e => e.key === 'Enter' && addInvTeamMember()} />
+                            <label className="mod-form-label">Name <span style={{ color: "#DC2626" }}>*</span></label>
+                            <input 
+                              id={`invTeam-name-${i}`} 
+                              className={`mod-form-input ${m.name.trim() ? 'success-styled' : ''}`} 
+                              style={invErrors[`inv_team_${i}_name`] ? { borderColor: "#DC2626" } : undefined}
+                              value={m.name} 
+                              onChange={e => {
+                                updateInvTeamMember(i, 'name', e.target.value);
+                                if (invErrors[`inv_team_${i}_name`]) setInvErrors(prev => ({ ...prev, [`inv_team_${i}_name`]: null, invTeam: null }));
+                              }} 
+                              onKeyDown={e => e.key === 'Enter' && addInvTeamMember()} 
+                            />
+                            {invErrors[`inv_team_${i}_name`] && <div style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: 4 }}>{invErrors[`inv_team_${i}_name`]}</div>}
                           </div>
                           <div className="mod-form-group">
-                            <label className="mod-form-label">Position / Role</label>
-                            <input className={`mod-form-input ${m.role.trim() ? 'success-styled' : ''}`} value={m.role} onChange={e => updateInvTeamMember(i, 'role', e.target.value)} onKeyDown={e => e.key === 'Enter' && addInvTeamMember()} />
+                            <label className="mod-form-label">Position / Role <span style={{ color: "#DC2626" }}>*</span></label>
+                            <input 
+                              className={`mod-form-input ${m.role.trim() ? 'success-styled' : ''}`} 
+                              style={invErrors[`inv_team_${i}_role`] ? { borderColor: "#DC2626" } : undefined}
+                              value={m.role} 
+                              onChange={e => {
+                                updateInvTeamMember(i, 'role', e.target.value);
+                                if (invErrors[`inv_team_${i}_role`]) setInvErrors(prev => ({ ...prev, [`inv_team_${i}_role`]: null, invTeam: null }));
+                              }} 
+                              onKeyDown={e => e.key === 'Enter' && addInvTeamMember()} 
+                            />
+                            {invErrors[`inv_team_${i}_role`] && <div style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: 4 }}>{invErrors[`inv_team_${i}_role`]}</div>}
                           </div>
                           <div className="mod-form-group">
-                            <label className="mod-form-label">Company</label>
+                            <label className="mod-form-label">Company <span style={{ color: "#DC2626" }}>*</span></label>
                             <select 
                               className={`mod-form-select ${m.company ? 'success-styled' : ''}`} 
+                              style={invErrors[`inv_team_${i}_company`] ? { borderColor: "#DC2626" } : undefined}
                               value={m.company} 
-                              onChange={e => updateInvTeamMember(i, 'company', e.target.value)} 
+                              onChange={e => {
+                                updateInvTeamMember(i, 'company', e.target.value);
+                                if (invErrors[`inv_team_${i}_company`]) setInvErrors(prev => ({ ...prev, [`inv_team_${i}_company`]: null, invTeam: null }));
+                              }} 
                             >
                               <option value="">Select Company / Contractor...</option>
                               {contractorsList && contractorsList.length > 0 && contractorsList.map(c => {
@@ -6598,6 +6659,7 @@ export default function IMDetails() {
                                 <option value={m.company}>{m.company}</option>
                               )}
                             </select>
+                            {invErrors[`inv_team_${i}_company`] && <div style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: 4 }}>{invErrors[`inv_team_${i}_company`]}</div>}
                           </div>
                         </div>
                       </div>
@@ -7478,6 +7540,17 @@ export default function IMDetails() {
                           let hasError = false;
                           const newErrors = {};
 
+                          if (!invTeam || invTeam.length === 0) {
+                            newErrors.invTeam = "At least one member is required in the Investigation Team.";
+                            hasError = true;
+                          } else {
+                            invTeam.forEach((m, i) => {
+                              if (!m.name || !m.name.trim()) { newErrors[`inv_team_${i}_name`] = "Name is required."; hasError = true; }
+                              if (!m.role || !m.role.trim()) { newErrors[`inv_team_${i}_role`] = "Position / Role is required."; hasError = true; }
+                              if (!m.company || !m.company.trim()) { newErrors[`inv_team_${i}_company`] = "Company is required."; hasError = true; }
+                            });
+                          }
+
                           if (!invDetails || !invDetails.trim()) { newErrors.invDetails = "Investigation Details are required."; hasError = true; }
                           if (!invEffect || !invEffect.trim()) { newErrors.invEffect = "Incident/Effect description is required."; hasError = true; }
                           if (!invProblem || !invProblem.trim()) { newErrors.invProblem = "Problem Statement is required."; hasError = true; }
@@ -7516,7 +7589,10 @@ export default function IMDetails() {
 
                           if (hasError) {
                             setInvErrors(newErrors);
-                            showError("Please complete all mandatory fields, including the explanation for missing attachments.");
+                            showError("Please complete all mandatory fields, including the investigation team and explanation for missing attachments.");
+                            if (newErrors.invTeam || Object.keys(newErrors).some(k => k.startsWith("inv_team_"))) {
+                              document.getElementById("investigation-team-section")?.scrollIntoView({ behavior: "smooth", block: "center" });
+                            }
                             return;
                           }
                           setInvErrors({});
@@ -8556,6 +8632,7 @@ export default function IMDetails() {
             investigation: hasInvestigationData ? {
               ...(rawIncident?.investigation || {}),
               team: invTeam?.length ? invTeam : rawIncident?.investigation?.team,
+              investigationTeam: invTeam?.length ? invTeam : (rawIncident?.investigation?.investigationTeam || rawIncident?.investigation?.team),
               problemStatement: invProblem || rawIncident?.investigation?.problemStatement,
               investigationDetails: invDetails || rawIncident?.investigation?.investigationDetails,
               fishboneData: fishbone || rawIncident?.investigation?.fishboneData,

@@ -353,7 +353,7 @@ export default function IMNotificationGroups() {
         title="Incident Notification Groups"
         subtitle={
           activeGroup === "GROUP_1"
-            ? "Notification Group 1: Manage who receives alerts on Heads-Up submissions and return to revision"
+            ? "Notification Group 1: Manage who receives alerts on submissions, return to revision, and incident reopenings"
             : "Notification Group 2: Manage who receives alerts when Step 1 (Heads-Up) is reviewed & approved"
         }
         icon={<BellGroupIcon />}
@@ -409,7 +409,7 @@ export default function IMNotificationGroups() {
             <div style={{ textAlign: "left" }}>
               <div style={{ fontSize: "15px", fontWeight: 700 }}>Notification Group 1</div>
               <div style={{ fontSize: "12px", fontWeight: 400, color: "var(--text-muted, #64748B)", marginTop: "2px" }}>
-                Step 1, 2, 3 Submissions &amp; Return-to-Revision
+                Step 1, 2, 3 Submissions, Return-to-Revision &amp; Reopenings
               </div>
             </div>
           </button>
@@ -599,7 +599,7 @@ export default function IMNotificationGroups() {
                       </div>
                       <div style={{ fontSize: "13px", marginTop: "4px", maxWidth: "460px", margin: "4px auto 16px auto" }}>
                         {activeGroup === "GROUP_1"
-                          ? "Add users to receive instant notifications when contractors submit a Heads-Up incident report or when it is returned for revision."
+                          ? "Add users to receive instant notifications when reports are submitted, returned for revision, or when an incident is reopened."
                           : "Add users to receive notifications when Step 1 (Heads-Up) is reviewed & approved and proceeds to investigation."}
                       </div>
                       <button
@@ -773,7 +773,7 @@ export default function IMNotificationGroups() {
                 </h3>
                 <p className="im-notif-modal-subtitle">
                   {activeGroup === "GROUP_1"
-                    ? "Select users to receive notifications on Heads-Up submissions and return to revision."
+                    ? "Select users to receive notifications on submissions, return to revision, and incident reopenings."
                     : "Select users to receive notifications when Step 1 (Heads-Up) is reviewed & approved."}
                 </p>
               </div>

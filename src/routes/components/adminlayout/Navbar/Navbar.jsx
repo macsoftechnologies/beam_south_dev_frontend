@@ -179,6 +179,9 @@ const getNotificationStyleInfo = (title = "", message = "", notificationType = "
   }
 
   if (nType.includes("incident") || tTitle.includes("incident") || t.includes("incident")) {
+    if (nType.includes("reopen") || tTitle.includes("reopen") || t.includes("reopened")) {
+      return { typeClass: "notif-type-revision", badgeText: "INCIDENT REOPENED" };
+    }
     if (nType.includes("approv") || tTitle.includes("approv") || t.includes("approved")) {
       return { typeClass: "notif-type-approved", badgeText: "INCIDENT APPROVED" };
     }

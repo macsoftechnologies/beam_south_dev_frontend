@@ -323,7 +323,7 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
     });
     const moduleAccessPayload = access ? activeModuleRoles.join(",") : "";
 
-    const resolvedObserId = obserId || (hasObserver ? departId : null);
+    const resolvedObserId = obserId || (hasObserver ? (departId || 1) : null);
 
     const payload = {
       badgeId: employeeBadgeId,
@@ -336,7 +336,7 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
       companyName: companyName || (hasDepartment && !hasContractor ? "NNE" : ""),
       subContId: shouldShowContractor && subContId ? Number(subContId) : null,
       departId: shouldShowDepartment && departId ? Number(departId) : null,
-      obserId: hasObserver && resolvedObserId ? Number(resolvedObserId) : null,
+      obserId: hasObserver ? Number(resolvedObserId || 1) : null,
       access: access ? "1" : "0",
       moduleAccess: moduleAccessPayload,
       email,

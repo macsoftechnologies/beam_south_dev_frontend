@@ -1961,6 +1961,7 @@ function NewRequest() {
 
   const handleSubmit = async (e, status) => {
     if (e && e.preventDefault) e.preventDefault();
+    if (isSubmittingPermit) return;
 
     if (!building) {
       showError("Please select a building.");
@@ -5455,6 +5456,7 @@ function NewRequest() {
                   <button
                     type="button"
                     className="nr-btn nr-btn--ghost"
+                    disabled={isSubmittingPermit}
                     onClick={() => navigate("/list-request")}
                   >
                     Cancel
@@ -5462,17 +5464,20 @@ function NewRequest() {
                   <button
                     type="button"
                     className="nr-btn nr-btn--ghost"
-                    style={{ background: "#2563eb", color: "#fff", borderColor: "#2563eb", boxShadow: "0 0 18px rgba(37, 99, 235, 0.2)" }}
-                    onClick={(e) => { if (validateHoldFields()) handleSubmit(e, "Hold"); }}
+                    style={{ background: "#2563eb", color: "#fff", borderColor: "#2563eb", boxShadow: "0 0 18px rgba(37, 99, 235, 0.2)", opacity: isSubmittingPermit ? 0.6 : 1 }}
+                    disabled={isSubmittingPermit}
+                    onClick={(e) => { if (!isSubmittingPermit && validateHoldFields()) handleSubmit(e, "Hold"); }}
                   >
-                    Change to Hold
+                    {isSubmittingPermit ? "Processing..." : "Change to Hold"}
                   </button>
                   <button
                     type="button"
                     className="nr-btn nr-btn--primary"
-                    onClick={(e) => handleSubmit(e, "Draft")}
+                    disabled={isSubmittingPermit}
+                    style={{ opacity: isSubmittingPermit ? 0.6 : 1 }}
+                    onClick={(e) => { if (!isSubmittingPermit) handleSubmit(e, "Draft"); }}
                   >
-                    Save as Draft
+                    {isSubmittingPermit ? "Saving..." : "Save as Draft"}
                   </button>
                 </>
               ) : (
@@ -5480,6 +5485,7 @@ function NewRequest() {
                   <button
                     type="button"
                     className="nr-btn nr-btn--ghost"
+                    disabled={isSubmittingPermit}
                     onClick={() => navigate("/list-request")}
                   >
                     Cancel
@@ -5487,9 +5493,17 @@ function NewRequest() {
                   <button
                     type="button"
                     className="nr-btn nr-btn--primary"
-                    onClick={(e) => handleSubmit(e, editRequest?.Request_status || "Draft")}
+                    disabled={isSubmittingPermit}
+                    style={{ opacity: isSubmittingPermit ? 0.6 : 1 }}
+                    onClick={(e) => {
+                      if (isSubmittingPermit) return;
+                      if (editRequest?.Request_status !== "Draft" && !validateHoldFields()) {
+                        return;
+                      }
+                      handleSubmit(e, editRequest?.Request_status || "Draft");
+                    }}
                   >
-                    Update
+                    {isSubmittingPermit ? "Updating..." : "Update"}
                   </button>
                 </>
               )
@@ -5498,6 +5512,7 @@ function NewRequest() {
                 <button
                   type="button"
                   className="nr-btn nr-btn--ghost"
+                  disabled={isSubmittingPermit}
                   onClick={() => setIsnewrequestcreated(false)}
                 >
                   Cancel
@@ -5505,21 +5520,25 @@ function NewRequest() {
                 <button
                   type="button"
                   className="nr-btn nr-btn--ghost"
-                  style={{ background: "#2563eb", color: "#fff", borderColor: "#2563eb", boxShadow: "0 0 18px rgba(37, 99, 235, 0.2)" }}
+                  style={{ background: "#2563eb", color: "#fff", borderColor: "#2563eb", boxShadow: "0 0 18px rgba(37, 99, 235, 0.2)", opacity: isSubmittingPermit ? 0.6 : 1 }}
+                  disabled={isSubmittingPermit}
                   onClick={(e) => {
+                    if (isSubmittingPermit) return;
                     if (validateHoldFields()) {
                       setShowRamsHoldModal(true);
                     }
                   }}
                 >
-                  Change to Hold
+                  {isSubmittingPermit ? "Processing..." : "Change to Hold"}
                 </button>
                 <button
                   type="button"
                   className="nr-btn nr-btn--primary"
-                  onClick={(e) => handleSubmit(e, "Draft")}
+                  disabled={isSubmittingPermit}
+                  style={{ opacity: isSubmittingPermit ? 0.6 : 1 }}
+                  onClick={(e) => { if (!isSubmittingPermit) handleSubmit(e, "Draft"); }}
                 >
-                  Save
+                  {isSubmittingPermit ? "Saving..." : "Save"}
                 </button>
               </>
             )}
@@ -5528,7 +5547,7 @@ function NewRequest() {
 
         <Modal
           open={showRamsHoldModal}
-          onClose={() => setShowRamsHoldModal(false)}
+          onClose={() => !isSubmittingPermit && setShowRamsHoldModal(false)}
           title="RAMS Confirmation"
           size="sm"
           centered={true}
@@ -5541,19 +5560,23 @@ function NewRequest() {
               <button
                 type="button"
                 className="nr-btn nr-btn--primary"
-                style={{ padding: "8px 24px" }}
+                style={{ padding: "8px 24px", opacity: isSubmittingPermit ? 0.6 : 1 }}
+                disabled={isSubmittingPermit}
                 onClick={(e) => {
+                  if (isSubmittingPermit) return;
                   setShowRamsHoldModal(false);
                   handleSubmit(e, "Hold");
                 }}
               >
-                Yes
+                {isSubmittingPermit ? "Processing..." : "Yes"}
               </button>
               <button
                 type="button"
                 className="nr-btn nr-btn--ghost"
-                style={{ padding: "8px 24px" }}
+                style={{ padding: "8px 24px", opacity: isSubmittingPermit ? 0.6 : 1 }}
+                disabled={isSubmittingPermit}
                 onClick={(e) => {
+                  if (isSubmittingPermit) return;
                   setShowRamsHoldModal(false);
                   handleSubmit(e, "Draft");
                 }}

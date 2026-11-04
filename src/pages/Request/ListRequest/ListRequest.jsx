@@ -2084,7 +2084,7 @@ const getInitialPage = () => {
       const isUnderConstTypeComm = (permitUnder === "Construction" && permitType === "Commissioning");
       const isUnderCommTypeConst = (permitUnder === "Commissioning" && permitType === "Construction");
 
-      if (!isAdmin) {
+      if (!isAdmin && !isMultiDept) {
         if (isBothConstruction && !isDept) {
           return showError("Only CONM role can reject Construction-only permits.");
         }
@@ -2107,7 +2107,7 @@ const getInitialPage = () => {
     if (!modalTarget) return;
 
     let nextStatus = submitStatusOverride || modalStatus;
-    if (modalStatus === "Pre-Approved" && approveActionType === "Reject") {
+    if ((modalStatus === "Pre-Approved" || modalStatus === "Approved") && approveActionType === "Reject") {
       nextStatus = "Rejected";
     }
     if (modalStatus === "Opened" && openActionType === "Cancel") {
@@ -2124,7 +2124,7 @@ const getInitialPage = () => {
       if (!rejectReason.trim()) return showError("Please specify rejection reason.");
       payload.reject_reason = rejectReason.trim();
 
-      if (!isAdmin) {
+      if (!isAdmin && !isMultiDept) {
         const permitType = modalTarget.permit_type || "";
         const permitUnder = modalTarget.permit_under || "";
         const isBothConstruction = (permitUnder === "Construction" && permitType === "Construction");
@@ -2133,7 +2133,7 @@ const getInitialPage = () => {
         const isUnderCommTypeConst = (permitUnder === "Commissioning" && permitType === "Construction");
 
         const curStatus = modalTarget?.Request_status || modalTarget?.request_status || "";
-        if (curStatus === "Approved" || curStatus === "Pre-Approved") {
+        if (curStatus === "Approved" || curStatus === "Pre-Approved" || curStatus === "Hold") {
           if (isBothConstruction && !isDept) {
             return showError("Only CONM role can reject Construction-only permits.");
           }
@@ -2285,7 +2285,7 @@ const getInitialPage = () => {
     if (status === "Rejected" && !isAdmin) {
       for (const r of targetRequests) {
         const curStatus = (r.Request_status || r.request_status || "");
-        if (curStatus === "Approved" || curStatus === "Pre-Approved") {
+        if (curStatus === "Approved" || curStatus === "Pre-Approved" || curStatus === "Hold") {
           const pType = r.permit_type || "";
           const pUnder = r.permit_under || "";
           const isBothConst = (pUnder === "Construction" && pType === "Construction");
@@ -3705,7 +3705,10 @@ const getInitialPage = () => {
                   <select
                     className="df-select"
                     value={approveActionType}
-                    onChange={(e) => setApproveActionType(e.target.value)}
+                    onChange={(e) => {
+                      setApproveActionType(e.target.value);
+                      setSubmitStatusOverride(null);
+                    }}
                   >
                     {canUserApprove(modalTarget, modalStatus) && (
                       <option value="Approve">

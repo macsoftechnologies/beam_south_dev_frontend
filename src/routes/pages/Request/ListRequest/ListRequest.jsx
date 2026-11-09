@@ -901,6 +901,443 @@ const MultiSelectDropdown = ({ options, selectedValues, onChange, placeholder, d
   );
 };
 
+// ─── Electrical Works Dropdown with Panel & System Numbers Filtering ─────────
+const ElectricalWorksDropdown = ({
+  options = [],
+  selectedValues = [],
+  onChange,
+  placeholder = "Select Electrical Works",
+  disabled = false,
+  searchPlaceholder = "Search panel or system number..."
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all"); // "all" | "panel" | "system"
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (containerRef.current && !containerRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleToggle = () => {
+    if (!disabled) {
+      setIsOpen(!isOpen);
+    }
+  };
+
+  const handleCheckboxChange = (val, checked) => {
+    let newSelected = (selectedValues || []).filter(v => v !== "none");
+    if (checked) {
+      if (!newSelected.includes(val)) {
+        newSelected = [...newSelected, val];
+      }
+    } else {
+      newSelected = newSelected.filter(v => v !== val);
+    }
+    onChange(newSelected);
+  };
+
+  const isPanel = useCallback((item) => {
+    const m = (item?.module || item?.moduleNumber || "").trim().toLowerCase();
+    return m.includes("panel");
+  }, []);
+
+  const isSystem = useCallback((item) => {
+    const m = (item?.module || item?.moduleNumber || "").trim().toLowerCase();
+    return m.includes("system");
+  }, []);
+
+  const panelItems = useMemo(() => options.filter(isPanel), [options, isPanel]);
+  const systemItems = useMemo(() => options.filter(isSystem), [options, isSystem]);
+  const otherItems = useMemo(() => options.filter(item => !isPanel(item) && !isSystem(item)), [options, isPanel, isSystem]);
+
+  const filterBySearch = useCallback((items) => {
+    if (!searchQuery.trim()) return items;
+    const q = searchQuery.toLowerCase().trim();
+    return items.filter(item => {
+      const label = item.electrical_works || item.electricalWork || item.name || `Work ${item.id}`;
+      return String(label).toLowerCase().includes(q);
+    });
+  }, [searchQuery]);
+
+  const filteredPanels = useMemo(() => filterBySearch(panelItems), [filterBySearch, panelItems]);
+  const filteredSystems = useMemo(() => filterBySearch(systemItems), [filterBySearch, systemItems]);
+  const filteredOthers = useMemo(() => filterBySearch(otherItems), [filterBySearch, otherItems]);
+
+  const totalFilteredCount = useMemo(() => {
+    if (categoryFilter === "panel") return filteredPanels.length;
+    if (categoryFilter === "system") return filteredSystems.length;
+    return filteredPanels.length + filteredSystems.length + filteredOthers.length;
+  }, [categoryFilter, filteredPanels, filteredSystems, filteredOthers]);
+
+  // Selected counts
+  const selectedPanelCount = useMemo(() => {
+    return panelItems.filter(item => (selectedValues || []).includes(String(item.id))).length;
+  }, [panelItems, selectedValues]);
+
+  const selectedSystemCount = useMemo(() => {
+    return systemItems.filter(item => (selectedValues || []).includes(String(item.id))).length;
+  }, [systemItems, selectedValues]);
+
+  // Display text
+  let displayText = placeholder;
+  if (selectedValues && selectedValues.length > 0) {
+    const names = selectedValues.map(val => {
+      const item = options.find(o => String(o.id) === String(val));
+      return item ? (item.electrical_works || item.electricalWork || item.name || `ID ${val}`) : val;
+    }).filter(Boolean);
+
+    if (names.length > 0) {
+      displayText = names.join(", ");
+    }
+  }
+
+  const renderItem = (item) => {
+    const val = String(item.id);
+    const label = item.electrical_works || item.electricalWork || item.name || `Work ${item.id}`;
+    const isChecked = (selectedValues || []).includes(val);
+    const itemIsPanel = isPanel(item);
+    const itemIsSystem = isSystem(item);
+
+    return (
+      <label
+        key={item.id}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "12px",
+          padding: "10px 16px",
+          cursor: "pointer",
+          transition: "background-color 0.2s",
+          color: "var(--text-main, #f9fafb)",
+          backgroundColor: isChecked ? "rgba(255, 255, 255, 0.05)" : "transparent",
+          fontSize: "14px",
+          userSelect: "none"
+        }}
+        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.08)"}
+        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = isChecked ? "rgba(255, 255, 255, 0.05)" : "transparent"}
+      >
+        <input
+          type="checkbox"
+          checked={isChecked}
+          onChange={(e) => handleCheckboxChange(val, e.target.checked)}
+          style={{
+            width: "16px",
+            height: "16px",
+            cursor: "pointer",
+            accentColor: "var(--accent, #00e5a0)",
+            borderRadius: "4px"
+          }}
+        />
+        <span style={{ flex: 1 }}>{label}</span>
+        <span
+          style={{
+            fontSize: "11px",
+            padding: "2px 8px",
+            borderRadius: "4px",
+            backgroundColor: itemIsPanel ? "rgba(59, 130, 246, 0.15)" : itemIsSystem ? "rgba(16, 185, 129, 0.15)" : "rgba(255, 255, 255, 0.08)",
+            color: itemIsPanel ? "#60a5fa" : itemIsSystem ? "#34d399" : "var(--text-muted, #9ca3af)",
+            fontWeight: 500
+          }}
+        >
+          {itemIsPanel ? "Panel" : itemIsSystem ? "System" : (item.module || "Other")}
+        </span>
+      </label>
+    );
+  };
+
+  return (
+    <div ref={containerRef} className="custom-multiselect-container" style={{ position: "relative", width: "100%" }}>
+      {/* Trigger Button */}
+      <div
+        className="df-input"
+        onClick={handleToggle}
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          cursor: disabled ? "not-allowed" : "pointer",
+          userSelect: "none",
+          paddingRight: "14px",
+          opacity: disabled ? 0.6 : 1,
+          color: displayText === placeholder ? "var(--text-muted, #9ca3af)" : "var(--text-main, #f9fafb)"
+        }}
+      >
+        <span style={{
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+          maxWidth: "calc(100% - 24px)"
+        }}>
+          {displayText}
+        </span>
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="#9CA3AF"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          style={{
+            transform: isOpen ? "rotate(180deg)" : "rotate(0deg)",
+            transition: "transform 0.2s ease"
+          }}
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </div>
+
+      {/* Dropdown Menu */}
+      {isOpen && (
+        <div
+          className="custom-multiselect-dropdown"
+          style={{
+            position: "absolute",
+            top: "calc(100% + 6px)",
+            left: 0,
+            width: "100%",
+            maxHeight: "340px",
+            overflowY: "auto",
+            backgroundColor: "var(--bg-card, #111827)",
+            border: "1.5px solid var(--border-color, #374151)",
+            borderRadius: "12px",
+            zIndex: 9999,
+            boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5)",
+            padding: "6px 0"
+          }}
+        >
+          {/* Search & Category Filter Header inside dropdown */}
+          <div style={{ padding: "8px 12px", borderBottom: "1px solid var(--border-color, #374151)", position: "sticky", top: 0, backgroundColor: "var(--bg-card, #111827)", zIndex: 10 }}>
+            <div style={{ display: "flex", gap: "6px", marginBottom: "8px" }}>
+              <input
+                type="text"
+                placeholder={categoryFilter === "panel" ? "Search panel numbers..." : categoryFilter === "system" ? "Search system numbers..." : searchPlaceholder}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  flex: 1,
+                  padding: "6px 10px",
+                  fontSize: "13px",
+                  borderRadius: "6px",
+                  border: "1px solid var(--border-color, #374151)",
+                  backgroundColor: "rgba(255, 255, 255, 0.05)",
+                  color: "var(--text-main, #f9fafb)",
+                  outline: "none"
+                }}
+              />
+              <button
+                type="button"
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  padding: "6px 10px",
+                  backgroundColor: "var(--primary-color, #3b82f6)",
+                  border: "none",
+                  borderRadius: "6px",
+                  color: "#fff",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center"
+                }}
+              >
+                <FaSearch size={12} />
+              </button>
+            </div>
+
+            {/* Category Filter Tabs: All | Panel Numbers | System Numbers */}
+            <div style={{ display: "flex", gap: "6px" }}>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setCategoryFilter("all"); }}
+                style={{
+                  flex: 1,
+                  padding: "5px 8px",
+                  fontSize: "12px",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  border: categoryFilter === "all" ? "1px solid #3b82f6" : "1px solid var(--border-color, #374151)",
+                  backgroundColor: categoryFilter === "all" ? "rgba(59, 130, 246, 0.2)" : "rgba(255, 255, 255, 0.04)",
+                  color: categoryFilter === "all" ? "#60a5fa" : "var(--text-muted, #9ca3af)",
+                  fontWeight: categoryFilter === "all" ? 600 : 400,
+                  transition: "all 0.15s ease",
+                  textAlign: "center"
+                }}
+              >
+                All ({options.length})
+              </button>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setCategoryFilter("panel"); }}
+                style={{
+                  flex: 1,
+                  padding: "5px 8px",
+                  fontSize: "12px",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  border: categoryFilter === "panel" ? "1px solid #3b82f6" : "1px solid var(--border-color, #374151)",
+                  backgroundColor: categoryFilter === "panel" ? "rgba(59, 130, 246, 0.2)" : "rgba(255, 255, 255, 0.04)",
+                  color: categoryFilter === "panel" ? "#60a5fa" : "var(--text-muted, #9ca3af)",
+                  fontWeight: categoryFilter === "panel" ? 600 : 400,
+                  transition: "all 0.15s ease",
+                  textAlign: "center"
+                }}
+              >
+                Panel Numbers {selectedPanelCount > 0 ? `(${selectedPanelCount}/${panelItems.length})` : `(${panelItems.length})`}
+              </button>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setCategoryFilter("system"); }}
+                style={{
+                  flex: 1,
+                  padding: "5px 8px",
+                  fontSize: "12px",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  border: categoryFilter === "system" ? "1px solid #10b981" : "1px solid var(--border-color, #374151)",
+                  backgroundColor: categoryFilter === "system" ? "rgba(16, 185, 129, 0.2)" : "rgba(255, 255, 255, 0.04)",
+                  color: categoryFilter === "system" ? "#34d399" : "var(--text-muted, #9ca3af)",
+                  fontWeight: categoryFilter === "system" ? 600 : 400,
+                  transition: "all 0.15s ease",
+                  textAlign: "center"
+                }}
+              >
+                System Numbers {selectedSystemCount > 0 ? `(${selectedSystemCount}/${systemItems.length})` : `(${systemItems.length})`}
+              </button>
+            </div>
+
+            {/* Quick action bar */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "6px", paddingTop: "6px", borderTop: "1px dashed var(--border-color, #374151)", fontSize: "11px" }}>
+              <span style={{ color: "var(--text-muted, #9ca3af)" }}>
+                {categoryFilter === "panel" ? "Showing Panel Numbers" : categoryFilter === "system" ? "Showing System Numbers" : "Showing All Categories"}
+              </span>
+              <div style={{ display: "flex", gap: "8px" }}>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const currentItems = categoryFilter === "panel" ? filteredPanels : categoryFilter === "system" ? filteredSystems : [...filteredPanels, ...filteredSystems, ...filteredOthers];
+                    const currentIds = currentItems.map(x => String(x.id));
+                    const newSelected = Array.from(new Set([...(selectedValues || []), ...currentIds]));
+                    onChange(newSelected);
+                  }}
+                  style={{ background: "none", border: "none", color: "#60a5fa", cursor: "pointer", padding: 0, fontSize: "11px", fontWeight: 600 }}
+                >
+                  Select All
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const currentItems = categoryFilter === "panel" ? filteredPanels : categoryFilter === "system" ? filteredSystems : [...filteredPanels, ...filteredSystems, ...filteredOthers];
+                    const currentIds = currentItems.map(x => String(x.id));
+                    const newSelected = (selectedValues || []).filter(v => !currentIds.includes(String(v)));
+                    onChange(newSelected);
+                  }}
+                  style={{ background: "none", border: "none", color: "#f87171", cursor: "pointer", padding: 0, fontSize: "11px", fontWeight: 600 }}
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Items List */}
+          {totalFilteredCount === 0 ? (
+            <div style={{ padding: "16px", textAlign: "center", color: "var(--text-muted, #9ca3af)", fontSize: "13px" }}>
+              No electrical works found
+            </div>
+          ) : (
+            <>
+              {/* If "panel" filter is selected */}
+              {categoryFilter === "panel" && filteredPanels.map(renderItem)}
+
+              {/* If "system" filter is selected */}
+              {categoryFilter === "system" && filteredSystems.map(renderItem)}
+
+              {/* If "all" filter is selected: show grouped sections */}
+              {categoryFilter === "all" && (
+                <>
+                  {filteredPanels.length > 0 && (
+                    <div>
+                      <div style={{
+                        padding: "8px 16px 4px 16px",
+                        color: "var(--text-muted, #9ca3af)",
+                        fontSize: "11px",
+                        fontWeight: 700,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
+                        backgroundColor: "rgba(255, 255, 255, 0.02)",
+                        display: "flex",
+                        justifyContent: "space-between"
+                      }}>
+                        <span>Panel Numbers</span>
+                        <span>{filteredPanels.length}</span>
+                      </div>
+                      {filteredPanels.map(renderItem)}
+                    </div>
+                  )}
+
+                  {filteredSystems.length > 0 && (
+                    <div>
+                      <div style={{
+                        padding: "8px 16px 4px 16px",
+                        color: "var(--text-muted, #9ca3af)",
+                        fontSize: "11px",
+                        fontWeight: 700,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
+                        backgroundColor: "rgba(255, 255, 255, 0.02)",
+                        borderTop: filteredPanels.length > 0 ? "1px solid var(--border-color, #374151)" : "none",
+                        display: "flex",
+                        justifyContent: "space-between"
+                      }}>
+                        <span>System Numbers</span>
+                        <span>{filteredSystems.length}</span>
+                      </div>
+                      {filteredSystems.map(renderItem)}
+                    </div>
+                  )}
+
+                  {filteredOthers.length > 0 && (
+                    <div>
+                      <div style={{
+                        padding: "8px 16px 4px 16px",
+                        color: "var(--text-muted, #9ca3af)",
+                        fontSize: "11px",
+                        fontWeight: 700,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
+                        backgroundColor: "rgba(255, 255, 255, 0.02)",
+                        borderTop: "1px solid var(--border-color, #374151)",
+                        display: "flex",
+                        justifyContent: "space-between"
+                      }}>
+                        <span>Other Electrical Works</span>
+                        <span>{filteredOthers.length}</span>
+                      </div>
+                      {filteredOthers.map(renderItem)}
+                    </div>
+                  )}
+                </>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const isTodayDate = (dateVal) => {
   if (!dateVal) return false;
 
@@ -1131,6 +1568,9 @@ const getInitialSearchFilters = () => {
           hras: [],
           permitType: "",
           permitUnder: "",
+          panelNumbers: [],
+          systemNumbers: [],
+          otherElectricalWorks: [],
           electricalWorks: [],
           mechanicalWorks: [],
           fromDate: "",
@@ -1142,6 +1582,9 @@ const getInitialSearchFilters = () => {
           newEndTime: "",
           typeOfActivityId: "",
           ...parsed,
+          panelNumbers: parsed.panelNumbers || [],
+          systemNumbers: parsed.systemNumbers || [],
+          otherElectricalWorks: parsed.otherElectricalWorks || [],
           electricalWorks: parsed.electricalWorks || [],
           mechanicalWorks: parsed.mechanicalWorks || [],
         };
@@ -1162,6 +1605,9 @@ const getInitialSearchFilters = () => {
     hras: [],
     permitType: "",
     permitUnder: "",
+    panelNumbers: [],
+    systemNumbers: [],
+    otherElectricalWorks: [],
     electricalWorks: [],
     mechanicalWorks: [],
     fromDate: "",
@@ -1592,6 +2038,28 @@ const getInitialPage = () => {
     }));
   }, [roomsList, zonesList, floorsList, searchFilters.buildings, searchFilters.levels, searchFilters.zones]);
 
+  // Migration for any legacy saved filters with panelNumbers or systemNumbers into unified electricalWorks
+  useEffect(() => {
+    if (
+      (searchFilters.panelNumbers && searchFilters.panelNumbers.length > 0) ||
+      (searchFilters.systemNumbers && searchFilters.systemNumbers.length > 0) ||
+      (searchFilters.otherElectricalWorks && searchFilters.otherElectricalWorks.length > 0)
+    ) {
+      setSearchFilters(prev => ({
+        ...prev,
+        electricalWorks: Array.from(new Set([
+          ...(prev.electricalWorks || []),
+          ...(prev.panelNumbers || []),
+          ...(prev.systemNumbers || []),
+          ...(prev.otherElectricalWorks || [])
+        ])),
+        panelNumbers: [],
+        systemNumbers: [],
+        otherElectricalWorks: []
+      }));
+    }
+  }, []);
+
   const electricalWorksOptions = useMemo(() => {
     return electricalWorksList.map(item => ({
       value: String(item.id),
@@ -1625,6 +2093,13 @@ const getInitialPage = () => {
 
     setIsLoading(true);
     try {
+      const combinedElectricalWorks = Array.from(new Set([
+        ...(searchFilters.panelNumbers || []),
+        ...(searchFilters.systemNumbers || []),
+        ...(searchFilters.otherElectricalWorks || []),
+        ...(searchFilters.electricalWorks || [])
+      ])).filter(Boolean);
+
       const payload = {
         Activity: searchFilters.keyword || null,
         PermitNo: searchFilters.permitNo || null,
@@ -1639,7 +2114,7 @@ const getInitialPage = () => {
         zone: searchFilters.zones && searchFilters.zones.length > 0 ? searchFilters.zones.join(",") : null,
         permit_type: searchFilters.permitType || "",
         permit_under: searchFilters.permitUnder || "",
-        electrical_works: (isAdmin || isDept1 || isMultiDept) && searchFilters.electricalWorks && searchFilters.electricalWorks.length > 0 ? searchFilters.electricalWorks.join(",") : null,
+        electrical_works: (isAdmin || isDept1 || isMultiDept) && combinedElectricalWorks.length > 0 ? combinedElectricalWorks.join(",") : null,
         mechanical_works: (isAdmin || isDept1 || isMultiDept) && searchFilters.mechanicalWorks && searchFilters.mechanicalWorks.length > 0 ? searchFilters.mechanicalWorks.join(",") : null,
         night_shift: searchFilters.nightShift || "",
         new_date: searchFilters.newDate || "",
@@ -1737,6 +2212,9 @@ const getInitialPage = () => {
       hras: [],
       permitType: "",
       permitUnder: "",
+      panelNumbers: [],
+      systemNumbers: [],
+      otherElectricalWorks: [],
       electricalWorks: [],
       mechanicalWorks: [],
       fromDate: "",
@@ -3324,12 +3802,12 @@ const getInitialPage = () => {
                 <>
                   <div className="df-field">
                     <label className="df-label">Electrical Works</label>
-                    <MultiSelectDropdown
-                      placeholder="Select Electrical Works"
-                      searchPlaceholder="Search electrical work..."
-                      options={electricalWorksOptions}
+                    <ElectricalWorksDropdown
+                      options={electricalWorksList}
                       selectedValues={searchFilters.electricalWorks || []}
                       onChange={(vals) => setSearchFilters(prev => ({ ...prev, electricalWorks: vals }))}
+                      placeholder="Select Electrical Works"
+                      searchPlaceholder="Search panel or system number..."
                     />
                   </div>
 

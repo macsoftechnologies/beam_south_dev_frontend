@@ -318,10 +318,10 @@
 }
 
 .sc-attachment-grid {
-  display: grid;
-  grid-template-columns: 1.8fr 1.2fr auto auto;
-  gap: 14px;
+  display: flex;
   align-items: flex-end;
+  gap: 28px;
+  flex-wrap: wrap;
 }
 
 .sc-attachment-controls {

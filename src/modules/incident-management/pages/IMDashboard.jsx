@@ -9,14 +9,14 @@ import BodyMap from "../../../components/BodyMap/BodyMap";
 
 /* ── Icons ── */
 const Icons = {
-  alert: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>,
-  activity: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>,
-  todo: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="5" width="6" height="6" rx="1"/><path d="m3 17 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/></svg>,
-  zap: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></svg>,
-  check: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>,
-  filter: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>,
-  export: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>,
-  download: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
+  alert: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" /><path d="M12 9v4" /><path d="M12 17h.01" /></svg>,
+  activity: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2" /></svg>,
+  todo: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="5" width="6" height="6" rx="1" /><path d="m3 17 2 2 4-4" /><path d="M13 6h8" /><path d="M13 12h8" /><path d="M13 18h8" /></svg>,
+  zap: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z" /></svg>,
+  check: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>,
+  filter: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" /></svg>,
+  export: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" x2="12" y1="15" y2="3" /></svg>,
+  download: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>,
 };
 
 /* ── Utils ── */
@@ -169,8 +169,8 @@ const findContractorLogo = (contractorName, contractorsList = []) => {
   const match = (contractorsList || []).find(c => {
     const cName = c.company_name || c.companyName || c.subContractorName || c.subcontractor_name || c.name || '';
     return cName.toLowerCase().trim() === String(contractorName).toLowerCase().trim() ||
-           cName.toLowerCase().includes(String(contractorName).toLowerCase().trim()) ||
-           String(contractorName).toLowerCase().includes(cName.toLowerCase().trim());
+      cName.toLowerCase().includes(String(contractorName).toLowerCase().trim()) ||
+      String(contractorName).toLowerCase().includes(cName.toLowerCase().trim());
   });
   return match?.logo || match?.logo_url || match?.company_logo || match?.logoFile || null;
 };
@@ -413,7 +413,7 @@ const MultiSelectFilter = ({
                     <input
                       type="checkbox"
                       checked={isChecked}
-                      onChange={() => {}}
+                      onChange={() => { }}
                       className="im-multi-select-checkbox"
                     />
                     {showLogos && (
@@ -572,7 +572,7 @@ export default function IMDashboard() {
   const navigate = useNavigate();
   const [incidents, setIncidents] = useState([]);
   const [loading, setLoading] = useState(true);
-  
+
   // Filter States
   const [stageFilter, setStageFilter] = useState('all');
   const [selectedCategory, setSelectedCategory] = useState(null);
@@ -636,7 +636,7 @@ export default function IMDashboard() {
   const myContractor = useMemo(() => {
     if (!isContractor) return null;
     return (
-      contractorsList.find(c => 
+      contractorsList.find(c =>
         (contractorId && (String(c.id) === String(contractorId) || String(c.subcontractor_id) === String(contractorId))) ||
         (currentUser?.subContractorName && (c.subContractorName === currentUser.subContractorName || c.company_name === currentUser.subContractorName)) ||
         (currentUser?.contractorName && (c.subContractorName === currentUser.contractorName || c.company_name === currentUser.contractorName)) ||
@@ -645,13 +645,13 @@ export default function IMDashboard() {
     );
   }, [isContractor, contractorsList, contractorId, currentUser?.subContractorName, currentUser?.contractorName, currentUser?.username]);
 
-  const myContractorName = 
-    myContractor?.subContractorName || 
-    myContractor?.company_name || 
-    myContractor?.name || 
-    currentUser?.subContractorName || 
-    currentUser?.contractorName || 
-    (contractorsList.some(c => c.subContractorName === currentUser?.companyName || c.company_name === currentUser?.companyName) ? (currentUser?.companyName || currentUser?.company_name) : "") || 
+  const myContractorName =
+    myContractor?.subContractorName ||
+    myContractor?.company_name ||
+    myContractor?.name ||
+    currentUser?.subContractorName ||
+    currentUser?.contractorName ||
+    (contractorsList.some(c => c.subContractorName === currentUser?.companyName || c.company_name === currentUser?.companyName) ? (currentUser?.companyName || currentUser?.company_name) : "") ||
     "";
 
   // Fetch Master Data (Buildings & Contractors API)
@@ -679,7 +679,7 @@ export default function IMDashboard() {
   const buildingOptions = useMemo(() => {
     const names = new Set();
     (buildingsList || []).forEach((b, idx) => {
-      const bName = b?.name || b?.buildingName || b?.building_name || (typeof b === 'string' ? b : `Building #${idx+1}`);
+      const bName = b?.name || b?.buildingName || b?.building_name || (typeof b === 'string' ? b : `Building #${idx + 1}`);
       if (bName && String(bName).trim()) {
         names.add(String(bName).trim());
       }
@@ -690,7 +690,7 @@ export default function IMDashboard() {
   const contractorOptions = useMemo(() => {
     const map = new Map();
     (contractorsList || []).forEach((c, idx) => {
-      const cName = c?.company_name || c?.companyName || c?.subContractorName || c?.subcontractor_name || c?.name || (typeof c === 'string' ? c : `Contractor #${idx+1}`);
+      const cName = c?.company_name || c?.companyName || c?.subContractorName || c?.subcontractor_name || c?.name || (typeof c === 'string' ? c : `Contractor #${idx + 1}`);
       const trimmed = String(cName || '').trim();
       if (trimmed && !map.has(trimmed)) {
         map.set(trimmed, {
@@ -775,7 +775,7 @@ export default function IMDashboard() {
       const today = new Date();
       const diffTime = Math.abs(today - ltiDate);
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      
+
       const formattedDate = ltiDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
       return {
         current: diffDays,
@@ -809,10 +809,10 @@ export default function IMDashboard() {
       const ty = resolveHeadsUpCategory(r.categories || r.category || r.classification || r.type);
       if (/Lost Time|Loss Time|LTI/i.test(ty)) lti++;
       if (!isClosed) needsAction++;
-      
+
       sevCount[getSev(r)]++;
       typeCountMap[ty] = (typeCountMap[ty] || 0) + 1;
-      
+
       let pk = r.pipeline || r.stage || 'HEADS_UP';
       if (pk === 'INITIAL_REPORT' || pk === 'Initial') pk = 'Initial';
       else if (pk === 'INVESTIGATION' || pk === 'Investigation') pk = 'Investigation';
@@ -1083,27 +1083,27 @@ export default function IMDashboard() {
         </select>
 
         <span className="dfl">From</span>
-        <input 
-          type="date" 
-          className="dash-filter-date" 
-          value={startDate} 
-          onChange={e => handleStartDateChange(e.target.value)} 
+        <input
+          type="date"
+          className="dash-filter-date"
+          value={startDate}
+          onChange={e => handleStartDateChange(e.target.value)}
           title="From Date"
         />
 
         <span className="dfl">To</span>
-        <input 
-          type="date" 
-          className="dash-filter-date" 
-          value={endDate} 
-          onChange={e => handleEndDateChange(e.target.value)} 
+        <input
+          type="date"
+          className="dash-filter-date"
+          value={endDate}
+          onChange={e => handleEndDateChange(e.target.value)}
           title="To Date"
         />
 
         {(selectedBuildings.length > 0 || selectedContractors.length > 0 || selectedBodyPart || (selectedDateRange && selectedDateRange !== '13m') || (selectedDateRange === 'custom' && (startDate || endDate))) && (
-          <button 
-            type="button" 
-            className="btn btn-outline" 
+          <button
+            type="button"
+            className="btn btn-outline"
             style={{ borderColor: 'transparent', color: '#E32B50', padding: '6px 12px', background: 'rgba(227, 43, 80, 0.05)' }}
             onClick={() => {
               setSelectedBuildings([]);
@@ -1153,11 +1153,11 @@ export default function IMDashboard() {
         </div>
       </div>
 
-      {/* ── Incident Types & Severity Breakdown ── */}
+      {/* ── Incident Categories & Severity Breakdown ── */}
       <div className="dash-row c2-wide">
         <div className="panel">
           <div className="panel-head">
-            <span className="panel-title">Incident Types</span>
+            <span className="panel-title">Incident Categories</span>
             <span className="chip-badge">{agg.typesTotal} total</span>
           </div>
           <div className="panel-body">
@@ -1195,7 +1195,7 @@ export default function IMDashboard() {
             })}
           </div>
         </div>
-        
+
         <div className="panel">
           <div className="panel-head"><span className="panel-title">Severity Breakdown</span></div>
           <div className="panel-body">
@@ -1216,7 +1216,7 @@ export default function IMDashboard() {
         <div className="bp-header">
           <div className="bp-title-group">
             <span className="bp-icon">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
             </span>
             <div>
               <h2 className="bp-title">Body Parts – Incident Summary</h2>
@@ -1258,7 +1258,7 @@ export default function IMDashboard() {
           <div className="bp-card">
             <div className="bp-card-head">
               <span style={{ display: 'inline-flex', gap: '8px', alignItems: 'center', color: '#3B82F6', fontWeight: 600 }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
                 Front View
               </span>
             </div>
@@ -1301,9 +1301,9 @@ export default function IMDashboard() {
               </div>
             </div>
             <div className="bp-legend-dots">
-              <span><span className="dot" style={{ background: '#7BBE97' }}/> 1 - 2 <small>Low</small></span>
-              <span><span className="dot" style={{ background: '#C07D10' }}/> 3 - 4 <small>Medium</small></span>
-              <span><span className="dot" style={{ background: '#E32B50' }}/> 5 or more <small>High</small></span>
+              <span><span className="dot" style={{ background: '#7BBE97' }} /> 1 - 2 <small>Low</small></span>
+              <span><span className="dot" style={{ background: '#C07D10' }} /> 3 - 4 <small>Medium</small></span>
+              <span><span className="dot" style={{ background: '#E32B50' }} /> 5 or more <small>High</small></span>
             </div>
           </div>
 
@@ -1311,7 +1311,7 @@ export default function IMDashboard() {
           <div className="bp-card">
             <div className="bp-card-head">
               <span style={{ display: 'inline-flex', gap: '8px', alignItems: 'center', color: '#3B82F6', fontWeight: 600 }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
                 Back View
               </span>
             </div>
@@ -1354,43 +1354,43 @@ export default function IMDashboard() {
               </div>
             </div>
             <div className="bp-legend-dots">
-              <span><span className="dot" style={{ background: '#7BBE97' }}/> 1 - 2 <small>Low</small></span>
-              <span><span className="dot" style={{ background: '#C07D10' }}/> 3 - 4 <small>Medium</small></span>
-              <span><span className="dot" style={{ background: '#E32B50' }}/> 5 or more <small>High</small></span>
+              <span><span className="dot" style={{ background: '#7BBE97' }} /> 1 - 2 <small>Low</small></span>
+              <span><span className="dot" style={{ background: '#C07D10' }} /> 3 - 4 <small>Medium</small></span>
+              <span><span className="dot" style={{ background: '#E32B50' }} /> 5 or more <small>High</small></span>
             </div>
           </div>
         </div>
 
         {/* Summary Row */}
         <div className="bp-summary-row">
-           <div className="bp-sum-card bp-sum-main">
-              <div className="bp-sum-icon"><Icons.todo /></div>
-              <div>
-                 <div className="bp-sum-lbl">Total Affected Body Parts</div>
-                 <div className="bp-sum-val" style={{ color: '#3B82F6' }}>{bodyPartsSummary.totalPartsCount}</div>
-              </div>
-           </div>
-           <div className="bp-sum-card">
-              <div className="bp-sum-dot"><span style={{ background: '#E32B50' }}/></div>
-              <div>
-                 <div className="bp-sum-lbl" style={{ color: '#E32B50' }}>High (5 or more)</div>
-                 <div className="bp-sum-val" style={{ color: '#E32B50' }}>{bodyPartsSummary.highCount}</div>
-              </div>
-           </div>
-           <div className="bp-sum-card">
-              <div className="bp-sum-dot"><span style={{ background: '#C07D10' }}/></div>
-              <div>
-                 <div className="bp-sum-lbl" style={{ color: '#C07D10' }}>Medium (3 - 4)</div>
-                 <div className="bp-sum-val" style={{ color: '#C07D10' }}>{bodyPartsSummary.medCount}</div>
-              </div>
-           </div>
-           <div className="bp-sum-card">
-              <div className="bp-sum-dot"><span style={{ background: '#7BBE97' }}/></div>
-              <div>
-                 <div className="bp-sum-lbl" style={{ color: '#7BBE97' }}>Low (1 - 2)</div>
-                 <div className="bp-sum-val" style={{ color: '#7BBE97' }}>{bodyPartsSummary.lowCount}</div>
-              </div>
-           </div>
+          <div className="bp-sum-card bp-sum-main">
+            <div className="bp-sum-icon"><Icons.todo /></div>
+            <div>
+              <div className="bp-sum-lbl">Total Affected Body Parts</div>
+              <div className="bp-sum-val" style={{ color: '#3B82F6' }}>{bodyPartsSummary.totalPartsCount}</div>
+            </div>
+          </div>
+          <div className="bp-sum-card">
+            <div className="bp-sum-dot"><span style={{ background: '#E32B50' }} /></div>
+            <div>
+              <div className="bp-sum-lbl" style={{ color: '#E32B50' }}>High (5 or more)</div>
+              <div className="bp-sum-val" style={{ color: '#E32B50' }}>{bodyPartsSummary.highCount}</div>
+            </div>
+          </div>
+          <div className="bp-sum-card">
+            <div className="bp-sum-dot"><span style={{ background: '#C07D10' }} /></div>
+            <div>
+              <div className="bp-sum-lbl" style={{ color: '#C07D10' }}>Medium (3 - 4)</div>
+              <div className="bp-sum-val" style={{ color: '#C07D10' }}>{bodyPartsSummary.medCount}</div>
+            </div>
+          </div>
+          <div className="bp-sum-card">
+            <div className="bp-sum-dot"><span style={{ background: '#7BBE97' }} /></div>
+            <div>
+              <div className="bp-sum-lbl" style={{ color: '#7BBE97' }}>Low (1 - 2)</div>
+              <div className="bp-sum-val" style={{ color: '#7BBE97' }}>{bodyPartsSummary.lowCount}</div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1415,20 +1415,20 @@ export default function IMDashboard() {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             {selectedCategory && (
-              <button 
-                type="button" 
-                className="btn btn-outline" 
+              <button
+                type="button"
+                className="btn btn-outline"
                 style={{ borderColor: 'transparent', color: '#E8663A', padding: '6px 12px', background: 'rgba(232, 102, 58, 0.08)', height: '32px', fontSize: '12px', fontWeight: 600 }}
                 onClick={() => setSelectedCategory(null)}
                 title="Clear incident category filter"
               >
-                Clear Type: {selectedCategory} ✕
+                Clear Category: {selectedCategory} ✕
               </button>
             )}
             {selectedBodyPart && (
-              <button 
-                type="button" 
-                className="btn btn-outline" 
+              <button
+                type="button"
+                className="btn btn-outline"
                 style={{ borderColor: 'transparent', color: '#3B82F6', padding: '6px 12px', background: 'rgba(59, 130, 246, 0.08)', height: '32px', fontSize: '12px' }}
                 onClick={() => setSelectedBodyPart(null)}
                 title="Clear body part filter"
@@ -1437,9 +1437,9 @@ export default function IMDashboard() {
               </button>
             )}
             {stageFilter !== 'all' && (
-              <button 
-                type="button" 
-                className="btn btn-outline" 
+              <button
+                type="button"
+                className="btn btn-outline"
                 style={{ borderColor: 'transparent', color: '#E32B50', padding: '6px 12px', background: 'rgba(227, 43, 80, 0.05)', height: '32px' }}
                 onClick={() => setStageFilter('all')}
                 title="Clear stage filter"
@@ -1464,9 +1464,9 @@ export default function IMDashboard() {
             <table>
               <thead>
                 <tr>
-                  <th>Code</th>
+                  <th>Ref.No</th>
                   <th>Date</th>
-                  <th>Type</th>
+                  <th>Incident Category</th>
                   <th>Injured Body Parts</th>
                   <th>Severity</th>
                   <th>Stage</th>

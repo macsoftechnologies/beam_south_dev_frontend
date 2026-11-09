@@ -11,6 +11,8 @@ import { ZONE_MAPPING } from "../../../data/zones";
 import { BUILDINGS } from "../../../data/buildings";
 import { getBuildings, getRooms, getFloors, getContractors } from "../../../services/authService";
 import IncidentCategoryDropdown from "../components/IncidentCategoryDropdown";
+import IncidentCategoryReferenceTable from "../components/IncidentCategoryReferenceTable";
+import SeverityDropdown, { getCategorySeverityConfig } from "../components/SeverityDropdown";
 import { getModuleUserContext } from "../../../utils/modulePermissions";
 
 export const AnalogTimePicker = ({ initialTime, onSave, onCancel }) => {
@@ -282,6 +284,15 @@ const getLoggedInUser = () => {
   }
 };
 
+const getLoggedInUserObj = () => {
+  try {
+    const u = localStorage.getItem("user");
+    return u ? JSON.parse(u) : {};
+  } catch {
+    return {};
+  }
+};
+
 const initialForm = {
   project: "M3 South", title: "", date: "", time: "", location: "", floor: "", specificLocation: "", contractor: "",
   categories: [], actual: "", potential: "", description: "", consequence: "",
@@ -289,6 +300,7 @@ const initialForm = {
   immActions: [],
   gatekeeperInformed: null, gatekeeperName: "",
   noFurtherInvestigation: false,
+  lateSubmissionReason: "",
   submitterName: getLoggedInUser(), signature: false
 };
 
@@ -301,6 +313,11 @@ function IMCreate() {
   const [tempTime, setTempTime] = useState("");
   const [showActionTimePicker, setShowActionTimePicker] = useState(null);
   const [tempActionTime, setTempActionTime] = useState("");
+  const [showDateHelp, setShowDateHelp] = useState(false);
+  const [showTimeHelp, setShowTimeHelp] = useState(false);
+  const [showConsequenceHelp, setShowConsequenceHelp] = useState(false);
+  const [showImmActionsHelp, setShowImmActionsHelp] = useState(false);
+  const [showCategoryReferenceTable, setShowCategoryReferenceTable] = useState(false);
 
   // Location Selection States
   const [building, setBuilding] = useState("");
@@ -344,14 +361,36 @@ function IMCreate() {
     );
   }, [isContractor, contractorsList, contractorId, currentUser]);
 
-  const myContractorName = 
-    myContractor?.subContractorName || 
-    myContractor?.company_name || 
-    myContractor?.name || 
-    currentUser?.subContractorName || 
-    currentUser?.contractorName || 
-    (contractorsList.some(c => c.subContractorName === currentUser?.companyName || c.company_name === currentUser?.companyName) ? (currentUser?.companyName || currentUser?.company_name) : "") || 
+  const myContractorName =
+    myContractor?.subContractorName ||
+    myContractor?.company_name ||
+    myContractor?.name ||
+    currentUser?.subContractorName ||
+    currentUser?.contractorName ||
+    (contractorsList.some(c => c.subContractorName === currentUser?.companyName || c.company_name === currentUser?.companyName) ? (currentUser?.companyName || currentUser?.company_name) : "") ||
     "";
+
+  const getHeadsUpSlaInfo = () => {
+    if (!form.date) return { isLate: false, deadline: null, deadlineStr: "" };
+    const timeStr = form.time || "00:00";
+    const incDt = new Date(`${form.date}T${timeStr}:00`);
+    if (isNaN(incDt.getTime())) return { isLate: false, deadline: null, deadlineStr: "" };
+    const deadline = new Date(incDt.getTime() + 2 * 60 * 60 * 1000);
+    const deadlineStr = deadline.toLocaleString("en-GB", {
+      timeZone: "Europe/Copenhagen",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false
+    }).replace(",", "");
+    return {
+      isLate: new Date().getTime() > deadline.getTime(),
+      deadline,
+      deadlineStr
+    };
+  };
 
   // Auto-set and lock contractor for contractor logins
   useEffect(() => {
@@ -469,11 +508,20 @@ function IMCreate() {
     const errs = {};
     required.forEach(f => { if (!form[f]) errs[f] = "This field is required"; });
     if (form.categories.length === 0) errs.categories = "Select at least one category";
-    if (!form.actual && !form.categories.includes("Near Miss")) errs.actual = "Actual severity is required";
-    if (!form.potential) errs.potential = "Potential severity is required";
+    const currentCat = form.categories[0] || "";
+    const sevConfig = getCategorySeverityConfig(currentCat, form.actual);
+    const effActual = sevConfig.isActualFixed ? sevConfig.actualValue : form.actual;
+    const effPotential = sevConfig.isPotentialFixed ? "N/A" : form.potential;
+
+    if (!sevConfig.isActualNA && (!effActual || effActual === "N/A")) errs.actual = "Actual severity is required";
+    if (!sevConfig.isPotentialFixed && (!effPotential || effPotential === "N/A")) errs.potential = "Potential severity is required";
     if (!form.description?.trim()) errs.description = "Description is required";
     if (!form.consequence?.trim()) errs.consequence = "Consequence is required";
-    if (!form.signature) errs.signature = "Signature is required";
+
+    const sla = getHeadsUpSlaInfo();
+    if (sla.isLate && !form.lateSubmissionReason?.trim()) {
+      errs.lateSubmissionReason = "Reason for late submission is required because the 2-hour deadline has passed.";
+    }
 
     form.immActions.forEach((act, idx) => {
       if (!act.action?.trim() || !act.responsible?.trim() || !act.date || !act.time) {
@@ -558,6 +606,12 @@ function IMCreate() {
 
     setIsLoadingSelectors(true); // Reusing for loading indicator
     try {
+      const loggedUser = getLoggedInUserObj();
+      const sla = getHeadsUpSlaInfo();
+      const submitCat = form.categories[0] || "";
+      const submitSevConfig = getCategorySeverityConfig(submitCat, form.actual);
+      const finalActual = submitSevConfig.isActualFixed ? submitSevConfig.actualValue : form.actual;
+      const finalPotential = submitSevConfig.isPotentialFixed ? "N/A" : form.potential;
       const payload = {
         title: form.title,
         projectName: form.project,
@@ -571,9 +625,9 @@ function IMCreate() {
         specificLocation: form.specificLocation,
         contractorsInvolved: isContractor ? (myContractorName || form.contractor) : form.contractor,
         categories: form.categories,
-        actualSeverity: form.actual ? Number(form.actual) : undefined,
-        potentialSeverity: form.potential ? Number(form.potential) : undefined,
-        isHipo: Number(form.potential) >= 4 || Number(form.actual) >= 4,
+        actualSeverity: finalActual && finalActual !== "N/A" ? Number(finalActual) : undefined,
+        potentialSeverity: finalPotential && finalPotential !== "N/A" ? Number(finalPotential) : undefined,
+        isHipo: Number(finalPotential) >= 4 || Number(finalActual) >= 4,
         descriptionWhatHappened: form.description,
         descriptionConsequence: form.consequence,
         isEnvironmental: isEnv,
@@ -592,7 +646,10 @@ function IMCreate() {
         gatekeeperName: form.gatekeeperName,
         noFurtherInvestigation: form.noFurtherInvestigation || false,
         submittedBy: form.submitterName || getLoggedInUser() || "User",
-        signature: form.signature,
+        submittedById: loggedUser?.id || undefined,
+        submittedByEmail: loggedUser?.email || undefined,
+        lateSubmissionReason: sla.isLate ? form.lateSubmissionReason?.trim() : undefined,
+        signature: null,
         locationMapImage: locationMapImage || undefined
       };
 
@@ -668,15 +725,84 @@ function IMCreate() {
                     {errors.title && <span style={{ fontSize: "0.75rem", color: "#DC2626" }}>{errors.title}</span>}
                   </div>
                   <div className="mod-form-group">
-                    <label className="mod-form-label">Date (YYYY-MM-DD) <span style={{ color: "#DC2626" }}>*</span></label>
+                    <label className="mod-form-label" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      <span>DATE OF INCIDENT / OCCURRENCE (YYYY-MM-DD) <span style={{ color: "#DC2626" }}>*</span></span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setShowDateHelp(prev => !prev);
+                        }}
+                        title={showDateHelp ? "Hide date guidance" : "Click to view date guidance"}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          background: "transparent",
+                          border: "none",
+                          color: showDateHelp ? "#2563eb" : "#64748b",
+                          cursor: "pointer",
+                          padding: 0,
+                          flexShrink: 0,
+                          transition: "color 0.15s ease"
+                        }}
+                        aria-label="Date guidance"
+                      >
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill={showDateHelp ? "rgba(37, 99, 235, 0.1)" : "none"} stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="10" />
+                          <line x1="12" y1="16" x2="12" y2="12" />
+                          <line x1="12" y1="8" x2="12.01" y2="8" />
+                        </svg>
+                      </button>
+                    </label>
+                    {showDateHelp && (
+                      <div style={{ fontSize: "11px", color: "var(--text-muted)", marginBottom: "6px", lineHeight: "1.4" }}>
+                        Enter the date when the incident <strong style={{ color: "var(--text-main)" }}>actually occurred</strong>, not the date when the incident report is being created or registered in the system.
+                      </div>
+                    )}
                     <input name="date" type="date" className="mod-form-input" value={form.date} onChange={handleChange} placeholder="Select date" />
                     {errors.date && <span style={{ fontSize: "0.75rem", color: "#DC2626" }}>{errors.date}</span>}
                   </div>
                   <div className="mod-form-group">
-                    <label className="mod-form-label">Time (24hr) <span style={{ color: "#DC2626" }}>*</span></label>
+                    <label className="mod-form-label" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      <span>TIME OF INCIDENT / OCCURRENCE (24HR) <span style={{ color: "#DC2626" }}>*</span></span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setShowTimeHelp(prev => !prev);
+                        }}
+                        title={showTimeHelp ? "Hide time guidance" : "Click to view time guidance"}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          background: "transparent",
+                          border: "none",
+                          color: showTimeHelp ? "#2563eb" : "#64748b",
+                          cursor: "pointer",
+                          padding: 0,
+                          flexShrink: 0,
+                          transition: "color 0.15s ease"
+                        }}
+                        aria-label="Time guidance"
+                      >
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill={showTimeHelp ? "rgba(37, 99, 235, 0.1)" : "none"} stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="10" />
+                          <line x1="12" y1="16" x2="12" y2="12" />
+                          <line x1="12" y1="8" x2="12.01" y2="8" />
+                        </svg>
+                      </button>
+                    </label>
+                    {showTimeHelp && (
+                      <div style={{ fontSize: "11px", color: "var(--text-muted)", marginBottom: "6px", lineHeight: "1.4" }}>
+                        Enter the time when the incident <strong style={{ color: "var(--text-main)" }}>actually occurred</strong>, not the time when the incident report is being created or registered in the system.
+                      </div>
+                    )}
                     <input name="time" type="text" readOnly className="mod-form-input" value={form.time} onClick={() => { setTempTime(form.time || "12:00"); setShowTimePicker(true); }} placeholder="Select time" style={{ cursor: "pointer" }} />
                     {errors.time && <span style={{ fontSize: "0.75rem", color: "#DC2626" }}>{errors.time}</span>}
                   </div>
+
                   <div className="mod-form-group">
                     <label className="mod-form-label">Location/Building <span style={{ color: "#DC2626" }}>*</span></label>
                     <select
@@ -773,22 +899,94 @@ function IMCreate() {
 
               {/* 2. Incident Records */}
               <div>
-                <div style={{ fontSize: "14px", fontWeight: 700, color: "var(--text-main)", borderBottom: "1px solid var(--border-color)", paddingBottom: "8px", marginBottom: "16px" }}>
-                  2. Incident Records <span style={{ color: "#DC2626" }}>*</span>
+                <div style={{ fontSize: "14px", fontWeight: 700, color: "var(--text-main)", borderBottom: "1px solid var(--border-color)", paddingBottom: "8px", marginBottom: "16px", display: "flex", alignItems: "center", gap: "8px" }}>
+                  <span>2. Incident Records <span style={{ color: "#DC2626" }}>*</span></span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setShowCategoryReferenceTable(prev => !prev);
+                    }}
+                    title={showCategoryReferenceTable ? "Hide Incident Category definitions" : "Click to view Incident Management Practice definitions table"}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      background: "transparent",
+                      border: "none",
+                      color: showCategoryReferenceTable ? "#2563eb" : "#64748b",
+                      cursor: "pointer",
+                      padding: 0,
+                      flexShrink: 0,
+                      transition: "color 0.15s ease"
+                    }}
+                    aria-label="Incident Management Practice definitions"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill={showCategoryReferenceTable ? "rgba(37, 99, 235, 0.1)" : "none"} stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="12" y1="16" x2="12" y2="12" />
+                      <line x1="12" y1="8" x2="12.01" y2="8" />
+                    </svg>
+                  </button>
                 </div>
+
+                {showCategoryReferenceTable && (
+                  <IncidentCategoryReferenceTable onClose={() => setShowCategoryReferenceTable(false)} />
+                )}
+
                 <div className="mod-form-group">
-                  <label className="mod-form-label">Incident Category <span style={{ color: "#DC2626" }}>*</span></label>
+                  <label className="mod-form-label" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span>Incident Category <span style={{ color: "#DC2626" }}>*</span></span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setShowCategoryReferenceTable(prev => !prev);
+                      }}
+                      title={showCategoryReferenceTable ? "Hide Incident Category definitions" : "Click to view Incident Management Practice definitions table"}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        background: "transparent",
+                        border: "none",
+                        color: showCategoryReferenceTable ? "#2563eb" : "#64748b",
+                        cursor: "pointer",
+                        padding: 0,
+                        flexShrink: 0,
+                        transition: "color 0.15s ease"
+                      }}
+                      aria-label="Incident Management Practice definitions"
+                    >
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill={showCategoryReferenceTable ? "rgba(37, 99, 235, 0.1)" : "none"} stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="12" y1="16" x2="12" y2="12" />
+                        <line x1="12" y1="8" x2="12.01" y2="8" />
+                      </svg>
+                    </button>
+                  </label>
                   <div style={{ fontSize: "11px", color: "var(--text-muted)", marginBottom: "8px" }}>The categorisation may change following the incident investigation or if the incident develops further over time.</div>
                   <IncidentCategoryDropdown
                     options={incidentCategories}
                     value={form.categories[0] || ""}
                     onChange={(val) => {
-                      setForm(prev => ({
-                        ...prev,
-                        categories: val ? [val] : [],
-                        ...(val === "Near Miss" ? { actual: "" } : {})
-                      }));
+                      const config = getCategorySeverityConfig(val, form.actual);
+                      setForm(prev => {
+                        let nextActual = config.isActualFixed ? config.actualValue : (prev.actual === "N/A" ? "" : prev.actual);
+                        let nextPotential = config.isPotentialFixed ? "N/A" : (prev.potential === "N/A" ? "" : prev.potential);
+                        if (nextPotential && nextPotential !== "N/A" && !config.allowedPotentialLevels.includes(Number(nextPotential))) {
+                          nextPotential = "";
+                        }
+                        return {
+                          ...prev,
+                          categories: val ? [val] : [],
+                          actual: nextActual,
+                          potential: nextPotential
+                        };
+                      });
                       if (errors.categories) setErrors(prev => ({ ...prev, categories: null }));
+                      if (errors.actual) setErrors(prev => ({ ...prev, actual: null }));
+                      if (errors.potential) setErrors(prev => ({ ...prev, potential: null }));
                     }}
                     placeholder="Select Incident Category..."
                     hasError={!!errors.categories}
@@ -796,26 +994,74 @@ function IMCreate() {
                   {errors.categories && <span style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: "4px" }}>{errors.categories}</span>}
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginTop: "16px" }}>
-                  <div className="mod-form-group">
-                    <label className="mod-form-label">Actual severity level & rating <span style={{ color: "#DC2626" }}>*</span></label>
-                    <select name="actual" className="mod-form-select" value={form.actual} onChange={handleChange} disabled={form.categories.includes("Near Miss")}>
-                      <option value="">Use the severity table from Risk Matrix...</option>
-                      {severityOptions.map(s => <option key={s.level} value={s.level}>{s.label}</option>)}
-                    </select>
-                    <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "4px" }}>N/A for Near Miss</div>
-                    {errors.actual && <span style={{ fontSize: "0.75rem", color: "#DC2626" }}>{errors.actual}</span>}
-                  </div>
-                  <div className="mod-form-group">
-                    <label className="mod-form-label">Potential severity level & rating <span style={{ color: "#DC2626" }}>*</span></label>
-                    <select name="potential" className="mod-form-select" value={form.potential} onChange={handleChange}>
-                      <option value="">What could realistically have happened...</option>
-                      {severityOptions.map(s => <option key={s.level} value={s.level}>{s.label}</option>)}
-                    </select>
-                    <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "4px" }}>Ask what could realistically have happened if conditions were slightly different?</div>
-                    {errors.potential && <span style={{ fontSize: "0.75rem", color: "#DC2626" }}>{errors.potential}</span>}
-                  </div>
-                </div>
+                {(() => {
+                  const currentCat = form.categories[0] || "";
+                  const sevConfig = getCategorySeverityConfig(currentCat, form.actual);
+                  const effectiveActual = sevConfig.isActualFixed ? sevConfig.actualValue : form.actual;
+                  const effectivePotential = sevConfig.isPotentialFixed ? "N/A" : form.potential;
+
+                  return (
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginTop: "16px" }}>
+                      <div className="mod-form-group">
+                        <label className="mod-form-label">Actual severity level & rating <span style={{ color: "#DC2626" }}>*</span></label>
+                        <SeverityDropdown
+                          id="actual-severity-dropdown"
+                          value={effectiveActual}
+                          onChange={(val) => {
+                            const newConfig = getCategorySeverityConfig(currentCat, val);
+                            setForm(prev => {
+                              let nextPot = newConfig.isPotentialFixed ? "N/A" : (prev.potential === "N/A" ? "" : prev.potential);
+                              if (nextPot && nextPot !== "N/A" && !newConfig.allowedPotentialLevels.includes(Number(nextPot))) {
+                                nextPot = "";
+                              }
+                              return {
+                                ...prev,
+                                actual: val,
+                                potential: nextPot
+                              };
+                            });
+                            if (errors.actual) setErrors(prev => ({ ...prev, actual: null }));
+                            if (newConfig.isPotentialFixed && errors.potential) setErrors(prev => ({ ...prev, potential: null }));
+                          }}
+                          disabled={sevConfig.isActualFixed}
+                          allowedLevels={sevConfig.allowedActualLevels}
+                          placeholder="Use the severity table from Risk Matrix..."
+                          hasError={!!errors.actual}
+                        />
+                        <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "4px" }}>
+                          what actually happened
+                          {sevConfig.noteActual && (
+                            <span style={{ color: "#DC2626", fontWeight: 600, marginLeft: "6px" }}>• {sevConfig.noteActual}</span>
+                          )}
+                        </div>
+                        {errors.actual && <span style={{ fontSize: "0.75rem", color: "#DC2626" }}>{errors.actual}</span>}
+                      </div>
+
+                      <div className="mod-form-group">
+                        <label className="mod-form-label">Potential severity level & rating <span style={{ color: "#DC2626" }}>*</span></label>
+                        <SeverityDropdown
+                          id="potential-severity-dropdown"
+                          value={effectivePotential}
+                          onChange={(val) => {
+                            setForm(prev => ({ ...prev, potential: val }));
+                            if (errors.potential) setErrors(prev => ({ ...prev, potential: null }));
+                          }}
+                          disabled={sevConfig.isPotentialFixed}
+                          allowedLevels={sevConfig.allowedPotentialLevels}
+                          placeholder="What could realistically have happened..."
+                          hasError={!!errors.potential}
+                        />
+                        <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "4px" }}>
+                          what could realistically have happened under slightly different circumstances
+                          {sevConfig.notePotential && (
+                            <span style={{ color: "#DC2626", fontWeight: 600, marginLeft: "6px" }}>• {sevConfig.notePotential}</span>
+                          )}
+                        </div>
+                        {errors.potential && <span style={{ fontSize: "0.75rem", color: "#DC2626" }}>{errors.potential}</span>}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* 3. Incident Description */}
@@ -829,8 +1075,42 @@ function IMCreate() {
                   {errors.description && <span style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: "4px" }}>{errors.description}</span>}
                 </div>
                 <div className="mod-form-group full-width">
-                  <label className="mod-form-label">What is the consequence of this incident? <span style={{ color: "#DC2626" }}>*</span></label>
-                  <textarea name="consequence" className="mod-form-textarea" value={form.consequence} onChange={handleChange} rows={3} placeholder="What was the consequence?"></textarea>
+                  <label className="mod-form-label" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span>What is the consequence of this incident? <span style={{ color: "#DC2626" }}>*</span></span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setShowConsequenceHelp(prev => !prev);
+                      }}
+                      title={showConsequenceHelp ? "Hide consequence guidance" : "Click to view consequence guidance"}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        background: "transparent",
+                        border: "none",
+                        color: showConsequenceHelp ? "#2563eb" : "#64748b",
+                        cursor: "pointer",
+                        padding: 0,
+                        flexShrink: 0,
+                        transition: "color 0.15s ease"
+                      }}
+                      aria-label="Consequence guidance"
+                    >
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill={showConsequenceHelp ? "rgba(37, 99, 235, 0.1)" : "none"} stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="12" y1="16" x2="12" y2="12" />
+                        <line x1="12" y1="8" x2="12.01" y2="8" />
+                      </svg>
+                    </button>
+                  </label>
+                  {showConsequenceHelp && (
+                    <div style={{ fontSize: "11px", color: "var(--text-muted)", marginBottom: "6px", lineHeight: "1.4" }}>
+                      write the consequence that best reflects what <strong style={{ color: "var(--text-main)" }}>actually happened</strong>, considering the actual injury/health, environmental, property/equipment, or operational impact. Do not consider what could have happened, as this is assessed separately under Potential Severity.
+                    </div>
+                  )}
+                  <textarea name="consequence" className="mod-form-textarea" value={form.consequence} onChange={handleChange} rows={3}></textarea>
                   {errors.consequence && <span style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: "4px" }}>{errors.consequence}</span>}
                 </div>
               </div>
@@ -921,9 +1201,43 @@ function IMCreate() {
               {/* 5. Immediate Actions Taken */}
               <div>
                 <div style={{ fontSize: "14px", fontWeight: 700, color: "var(--text-main)", borderBottom: "1px solid var(--border-color)", paddingBottom: "8px", marginBottom: "16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span>{isEnv ? "5" : "4"}. Immediate Actions Taken <span style={{ color: "#DC2626" }}>*</span></span>
+                  <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span>{isEnv ? "5" : "4"}. Immediate Actions Taken <span style={{ color: "#DC2626" }}>*</span></span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setShowImmActionsHelp(prev => !prev);
+                      }}
+                      title={showImmActionsHelp ? "Hide immediate actions guidance" : "Click to view immediate actions guidance"}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        background: "transparent",
+                        border: "none",
+                        color: showImmActionsHelp ? "#2563eb" : "#64748b",
+                        cursor: "pointer",
+                        padding: 0,
+                        flexShrink: 0,
+                        transition: "color 0.15s ease"
+                      }}
+                      aria-label="Immediate actions guidance"
+                    >
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill={showImmActionsHelp ? "rgba(37, 99, 235, 0.1)" : "none"} stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="12" y1="16" x2="12" y2="12" />
+                        <line x1="12" y1="8" x2="12.01" y2="8" />
+                      </svg>
+                    </button>
+                  </span>
                   <button type="button" className="mod-btn-outline" onClick={addAction} style={{ padding: "4px 12px", fontSize: "12px", fontWeight: 600 }}>+ Add Action</button>
                 </div>
+                {showImmActionsHelp && (
+                  <div style={{ fontSize: "11px", color: "var(--text-muted)", marginBottom: "12px", lineHeight: "1.4" }}>
+                    Describe the <strong style={{ color: "var(--text-main)" }}>immediate actions taken after the incident</strong> to control the situation, make the area safe, and prevent further consequences, such as stopping work, providing first aid, isolating the area/equipment, or containing a spill. Do not include long-term corrective or preventive actions identified during the investigation.
+                  </div>
+                )}
 
                 {form.immActions.length === 0 ? (
                   <div style={{ fontStyle: "italic", color: "var(--text-muted)", padding: "12px", background: "#f8fafc", borderRadius: "6px" }}>No immediate actions added.</div>
@@ -962,21 +1276,58 @@ function IMCreate() {
                 )}
               </div>
 
-              {/* 6. Signatures */}
+              {/* 6. Submitted By */}
               <div>
                 <div style={{ fontSize: "14px", fontWeight: 700, color: "var(--text-main)", borderBottom: "1px solid var(--border-color)", paddingBottom: "8px", marginBottom: "16px" }}>
-                  {isEnv ? "6" : "5"}. Signatures
+                  {isEnv ? "6" : "5"}. Submitted By
                 </div>
                 <div className="mod-form-group full-width" style={{ marginBottom: "16px" }}>
                   <label className="mod-form-label">Submitted By (Name) <span style={{ color: "#DC2626" }}>*</span></label>
                   <input name="submitterName" type="text" className="mod-form-input" value={form.submitterName} onChange={handleChange} placeholder="Enter your full name" readOnly style={{ backgroundColor: "var(--bg-dark)", cursor: "not-allowed", color: "var(--text-muted)", opacity: 0.8 }} />
                 </div>
-                <div className="mod-form-group full-width">
-                  <label className="mod-form-label">Signature <span style={{ color: "#DC2626" }}>*</span></label>
-                  <SignaturePad value={form.signature} onChange={val => setForm(prev => ({ ...prev, signature: val }))} onClear={() => setForm(prev => ({ ...prev, signature: false }))} />
-                  {errors.signature && <span style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: "4px", display: "block" }}>{errors.signature}</span>}
-                </div>
               </div>
+
+              {/* Late Submission Reason (Displayed if 2-hour deadline is exceeded) */}
+              {getHeadsUpSlaInfo().isLate && (
+                <div style={{
+                  marginTop: 20,
+                  background: "#fff1f2",
+                  border: "1px solid #fecdd3",
+                  borderLeft: "4px solid #e11d48",
+                  borderRadius: "8px",
+                  padding: "16px 20px"
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#9f1239", fontWeight: 700, fontSize: "14px", marginBottom: "6px" }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                    <span>2-Hour Deadline Exceeded (Deadline was {getHeadsUpSlaInfo().deadlineStr})</span>
+                  </div>
+                  <div style={{ fontSize: "13px", color: "#475569", marginBottom: "12px" }}>
+                    This Heads-Up Notification is being submitted after the required 2-hour SLA deadline. Please provide a mandatory reason for filling out the form late. An email will also be sent to the user who submits the incident.
+                  </div>
+                  <div className="mod-form-group full-width" style={{ marginBottom: 0 }}>
+                    <label className="mod-form-label" style={{ fontWeight: 600, color: "#1e293b" }}>
+                      Reason for Late Submission <span style={{ color: "#DC2626" }}>*</span>
+                    </label>
+                    <textarea
+                      name="lateSubmissionReason"
+                      rows="3"
+                      className="mod-form-textarea"
+                      placeholder="Please specify why this Heads-Up Notification is being submitted after the 2-hour deadline..."
+                      value={form.lateSubmissionReason || ""}
+                      onChange={(e) => {
+                        setForm(prev => ({ ...prev, lateSubmissionReason: e.target.value }));
+                        if (errors.lateSubmissionReason) setErrors(prev => ({ ...prev, lateSubmissionReason: null }));
+                      }}
+                      style={errors.lateSubmissionReason ? { borderColor: "#DC2626" } : {}}
+                    />
+                    {errors.lateSubmissionReason && (
+                      <span style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: "4px", display: "block" }}>
+                        {errors.lateSubmissionReason}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
 
               <div className="mod-form-actions" style={{ marginTop: 24, paddingTop: 16, borderTop: "1px solid var(--border-color)", display: "flex", justifyContent: "flex-end", gap: "12px" }}>
                 <button type="button" className="mod-btn-outline" onClick={() => navigate("/incident-management/list")}>Cancel</button>

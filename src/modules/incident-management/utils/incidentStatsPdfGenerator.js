@@ -189,7 +189,7 @@ function renderBodyMapSvg(data = [], view = "front", width = 85, height = 175) {
 
 /**
  * Generates and downloads a clean, unhurried, executive 2-Page PDF report:
- * - Page 1: Executive KPI Overview, Investigation Pipeline, Incident Types & Severity Classification.
+ * - Page 1: Executive KPI Overview, Investigation Pipeline, Incident Categories & Severity Breakdown.
  * - Page 2: Dedicated Body Parts & Injury Analysis with full-size humanoid figures and summary cards.
  * - Top logos are swapped (Project Logo on Left, NNE Logo on Right).
  */
@@ -322,7 +322,7 @@ export async function generateIncidentStatsPdf({
   page1.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 
   page1.innerHTML = `
-    ${renderHeader("Executive Operational Summary &bull; Pipeline &amp; Classification")}
+    ${renderHeader("Executive Operational Summary &bull; Pipeline &amp; Incident Categories")}
     ${renderFilterBar()}
 
     <!-- 4 KPI Cards -->
@@ -415,12 +415,12 @@ export async function generateIncidentStatsPdf({
         <td style="width: 52%; vertical-align: top; padding-right: 10px;">
           <div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 8px; padding: 14px 18px; box-sizing: border-box; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
             <div style="font-size: 13px; font-weight: 700; color: #0F172A; margin-bottom: 12px; border-bottom: 1px solid #F1F5F9; padding-bottom: 8px;">
-              Incident Types
+              Incident Categories
               <span style="font-size: 10.5px; font-weight: 700; background: #F1F5F9; color: #0F172A; padding: 3px 8px; border-radius: 12px; float: right;">
                 ${totalTypeCount} total
               </span>
             </div>
-            ${types.length === 0 ? '<div style="color: #94A3B8; font-size: 11px; padding: 12px 0;">No incident types recorded.</div>' : types.map((t) => {
+            ${types.length === 0 ? '<div style="color: #94A3B8; font-size: 11px; padding: 12px 0;">No incident categories recorded.</div>' : types.map((t) => {
               const barWidth = Math.max(Math.round((t.count / maxType) * 100), 4);
               const color = t.color || '#131E40';
               return `

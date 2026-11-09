@@ -342,11 +342,10 @@ export function IncidentPdfExporter({ incident, onClose, targetForm = "all" }) {
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 9 }}>
           <thead>
             <tr style={{ background: "#0f172a", color: "#fff" }}>
-              <th style={{ padding: "5px 6px", border: "1px solid #0f172a", textAlign: "left", width: "16%" }}>Action / Stage</th>
-              <th style={{ padding: "5px 6px", border: "1px solid #0f172a", textAlign: "left", width: "20%" }}>Performed By / Role</th>
-              <th style={{ padding: "5px 6px", border: "1px solid #0f172a", textAlign: "left", width: "16%" }}>Date & Time</th>
-              <th style={{ padding: "5px 6px", border: "1px solid #0f172a", textAlign: "left", width: "34%" }}>Reason / Closure Remarks</th>
-              <th style={{ padding: "5px 6px", border: "1px solid #0f172a", textAlign: "left", width: "14%" }}>Signature</th>
+              <th style={{ padding: "5px 6px", border: "1px solid #0f172a", textAlign: "left", width: "18%" }}>Action / Stage</th>
+              <th style={{ padding: "5px 6px", border: "1px solid #0f172a", textAlign: "left", width: "22%" }}>Performed By / Role</th>
+              <th style={{ padding: "5px 6px", border: "1px solid #0f172a", textAlign: "left", width: "18%" }}>Date & Time</th>
+              <th style={{ padding: "5px 6px", border: "1px solid #0f172a", textAlign: "left", width: "42%" }}>Reason / Closure Remarks</th>
             </tr>
           </thead>
           <tbody>
@@ -374,21 +373,6 @@ export function IncidentPdfExporter({ incident, onClose, targetForm = "all" }) {
                 </td>
                 <td style={{ padding: "5px 6px", border: "1px solid #cbd5e1", whiteSpace: "pre-wrap" }}>
                   {ev.remarks}
-                </td>
-                <td style={{ padding: "5px 6px", border: "1px solid #cbd5e1" }}>
-                  {ev.eventType === 'REOPENED' ? (
-                    ev.signature ? (
-                      typeof ev.signature === 'string' && ev.signature.startsWith('data:image') ? (
-                        <img src={ev.signature} alt="sig" style={{ maxHeight: 22, maxWidth: 80, display: "block" }} />
-                      ) : (
-                        <span style={{ fontStyle: "italic", fontSize: 8.5 }}>Signed by {ev.userName}</span>
-                      )
-                    ) : (
-                      <span style={{ color: "#94a3b8", fontSize: 8 }}>No signature</span>
-                    )
-                  ) : (
-                    <span style={{ color: "#94a3b8", fontSize: 8 }}>—</span>
-                  )}
                 </td>
               </tr>
             ))}
@@ -642,6 +626,13 @@ export function IncidentPdfExporter({ incident, onClose, targetForm = "all" }) {
                     The following template must be completed within 2 hours of the incident occurrence.
                   </div>
 
+                  {(hu.lateSubmissionReason || incident.lateSubmissionReason) && (
+                    <div style={{ background: "#fff1f2", border: "1px solid #fecdd3", borderLeft: "4px solid #e11d48", padding: "8px 12px", borderRadius: 4, marginBottom: 12, fontSize: 10 }}>
+                      <strong style={{ color: "#9f1239" }}>⚠️ SLA DEADLINE EXCEEDED (2hr Heads-Up Notification) — Reason for Late Submission:</strong>
+                      <div style={{ color: "#881337", marginTop: 4, fontStyle: "normal" }}>{hu.lateSubmissionReason || incident.lateSubmissionReason}</div>
+                    </div>
+                  )}
+
                   {/* Project Details */}
                   <div style={{ fontSize: 12, fontWeight: 800, color: "#0f172a", marginBottom: 6 }}>Project Details</div>
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 10, marginBottom: 16 }}>
@@ -657,9 +648,9 @@ export function IncidentPdfExporter({ incident, onClose, targetForm = "all" }) {
                         <td colSpan="3" style={{ padding: 6, border: "1px solid #cbd5e1", fontWeight: 600 }}>{incident.title || hu.title || "—"}</td>
                       </tr>
                       <tr>
-                        <td style={{ background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Date (YYYY-MM-DD)</td>
+                        <td style={{ background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Date of Incident / Occurrence (YYYY-MM-DD):</td>
                         <td style={{ padding: 6, border: "1px solid #cbd5e1" }}>{incident.date || hu.date || incident.createdTime?.split('T')[0] || "—"}</td>
-                        <td style={{ background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Time (24hr):</td>
+                        <td style={{ background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Time of Incident / Occurrence (24hr):</td>
                         <td style={{ padding: 6, border: "1px solid #cbd5e1" }}>{incident.time || hu.time || "07:30"}</td>
                       </tr>
                       <tr>
@@ -763,15 +754,11 @@ export function IncidentPdfExporter({ incident, onClose, targetForm = "all" }) {
                     <tbody>
                       <tr>
                         <td style={{ width: "25%", background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Submitted By:</td>
-                        <td style={{ width: "35%", padding: 6, border: "1px solid #cbd5e1", fontWeight: 600 }}>{hu.submittedBy || incident.reportedBy || "Superadmin"}</td>
-                        <td style={{ width: "15%", background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Signature:</td>
-                        <td style={{ width: "25%", padding: 6, border: "1px solid #cbd5e1", fontStyle: "italic", fontFamily: "cursive" }}>Signed by {hu.submittedBy || incident.reportedBy || "Superadmin"}</td>
+                        <td style={{ width: "75%", padding: 6, border: "1px solid #cbd5e1", fontWeight: 600 }}>{hu.submittedBy || incident.reportedBy || "Superadmin"}</td>
                       </tr>
                       <tr>
                         <td style={{ background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Approved By:</td>
                         <td style={{ padding: 6, border: "1px solid #cbd5e1", fontWeight: 600 }}>{hu.reviewedBy || incident.approvedBy || "Superadmin"}</td>
-                        <td style={{ background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Approver Sig:</td>
-                        <td style={{ padding: 6, border: "1px solid #cbd5e1", fontStyle: "italic", fontFamily: "cursive" }}>Signed by {hu.reviewedBy || incident.approvedBy || "Superadmin"}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -791,6 +778,13 @@ export function IncidentPdfExporter({ incident, onClose, targetForm = "all" }) {
                     The following template must be completed as soon as possible and within 24 hours of the incident occurrence.
                   </div>
 
+                  {ir.lateSubmissionReason && (
+                    <div style={{ background: "#fff1f2", border: "1px solid #fecdd3", borderLeft: "4px solid #e11d48", padding: "8px 12px", borderRadius: 4, marginBottom: 12, fontSize: 10 }}>
+                      <strong style={{ color: "#9f1239" }}>⚠️ SLA DEADLINE EXCEEDED (24hr Initial Incident Report) — Reason for Late Submission:</strong>
+                      <div style={{ color: "#881337", marginTop: 4, fontStyle: "normal" }}>{ir.lateSubmissionReason}</div>
+                    </div>
+                  )}
+
                   {/* Project Details */}
                   <div style={{ fontSize: 12, fontWeight: 800, color: "#0f172a", marginBottom: 6 }}>Project Details</div>
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 10, marginBottom: 16 }}>
@@ -806,9 +800,9 @@ export function IncidentPdfExporter({ incident, onClose, targetForm = "all" }) {
                         <td colSpan="3" style={{ padding: 6, border: "1px solid #cbd5e1", fontWeight: 600 }}>{incident.title || hu.title || "—"}</td>
                       </tr>
                       <tr>
-                        <td style={{ background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Date (YYYY-MM-DD):</td>
+                        <td style={{ background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Date of Incident / Occurrence (YYYY-MM-DD):</td>
                         <td style={{ padding: 6, border: "1px solid #cbd5e1" }}>{incident.date || hu.date || incident.createdTime?.split('T')[0] || "—"}</td>
-                        <td style={{ background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Time (24hr):</td>
+                        <td style={{ background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Time of Incident / Occurrence (24hr):</td>
                         <td style={{ padding: 6, border: "1px solid #cbd5e1" }}>{incident.time || hu.time || "07:30"}</td>
                       </tr>
                       <tr>
@@ -899,20 +893,16 @@ export function IncidentPdfExporter({ incident, onClose, targetForm = "all" }) {
                     </tbody>
                   </table>
 
-                  {/* 5 Signatures */}
+                  {/* 5 Submitter & Approver */}
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 9.5, marginBottom: 14 }}>
                     <tbody>
                       <tr>
                         <td style={{ width: "25%", background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Submitted By:</td>
-                        <td style={{ width: "35%", padding: 6, border: "1px solid #cbd5e1", fontWeight: 600 }}>{ir.submittedBy || "Site HSE Lead"}</td>
-                        <td style={{ width: "15%", background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Signature:</td>
-                        <td style={{ width: "25%", padding: 6, border: "1px solid #cbd5e1", fontStyle: "italic", fontFamily: "cursive" }}>Signed by {ir.submittedBy || "Site HSE Lead"}</td>
+                        <td style={{ width: "75%", padding: 6, border: "1px solid #cbd5e1", fontWeight: 600 }}>{ir.submittedBy || "Site HSE Lead"}</td>
                       </tr>
                       <tr>
                         <td style={{ background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Approved By:</td>
                         <td style={{ padding: 6, border: "1px solid #cbd5e1", fontWeight: 600 }}>{ir.approvedBy || "HSE Director"}</td>
-                        <td style={{ background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Approver Sig:</td>
-                        <td style={{ padding: 6, border: "1px solid #cbd5e1", fontStyle: "italic", fontFamily: "cursive" }}>Signed by {ir.approvedBy || "HSE Director"}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -931,6 +921,13 @@ export function IncidentPdfExporter({ incident, onClose, targetForm = "all" }) {
                   <div style={{ fontSize: 10, fontStyle: "italic", color: "#475569", marginBottom: 12 }}>
                     The following template must be completed as soon as possible and within 7 days of the incident occurrence.
                   </div>
+
+                  {inv.lateSubmissionReason && (
+                    <div style={{ background: "#fff1f2", border: "1px solid #fecdd3", borderLeft: "4px solid #e11d48", padding: "8px 12px", borderRadius: 4, marginBottom: 12, fontSize: 10 }}>
+                      <strong style={{ color: "#9f1239" }}>⚠️ SLA DEADLINE EXCEEDED (7-Day Incident Investigation Report) — Reason for Late Submission:</strong>
+                      <div style={{ color: "#881337", marginTop: 4, fontStyle: "normal" }}>{inv.lateSubmissionReason}</div>
+                    </div>
+                  )}
 
                   {/* Project Details */}
                   <div style={{ fontSize: 12, fontWeight: 800, color: "#0f172a", marginBottom: 6 }}>Project & Incident Overview</div>
@@ -1088,20 +1085,16 @@ export function IncidentPdfExporter({ incident, onClose, targetForm = "all" }) {
                     </tbody>
                   </table>
 
-                  {/* 7 Signatures */}
+                  {/* 7 Investigator & Approver */}
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 9.5, marginBottom: 14 }}>
                     <tbody>
                       <tr>
                         <td style={{ width: "25%", background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Investigator:</td>
-                        <td style={{ width: "35%", padding: 6, border: "1px solid #cbd5e1", fontWeight: 600 }}>{inv.leadInvestigator || "HSE Investigator"}</td>
-                        <td style={{ width: "15%", background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Signature:</td>
-                        <td style={{ width: "25%", padding: 6, border: "1px solid #cbd5e1", fontStyle: "italic", fontFamily: "cursive" }}>Signed by {inv.leadInvestigator || "HSE Investigator"}</td>
+                        <td style={{ width: "75%", padding: 6, border: "1px solid #cbd5e1", fontWeight: 600 }}>{inv.leadInvestigator || "HSE Investigator"}</td>
                       </tr>
                       <tr>
                         <td style={{ background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Reviewed & Approved:</td>
                         <td style={{ padding: 6, border: "1px solid #cbd5e1", fontWeight: 600 }}>{inv.approvedBy || "HSE Director"}</td>
-                        <td style={{ background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Approver Sig:</td>
-                        <td style={{ padding: 6, border: "1px solid #cbd5e1", fontStyle: "italic", fontFamily: "cursive" }}>Signed by {inv.approvedBy || "HSE Director"}</td>
                       </tr>
                     </tbody>
                   </table>

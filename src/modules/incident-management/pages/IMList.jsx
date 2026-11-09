@@ -12,27 +12,34 @@ import "./IMList.css";
 
 const ListIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-    <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+    <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
   </svg>
 );
 
 const severityMeta = (level) => {
   const meta = {
-    1: { level: 1, label: "Insignificant", color: "#2D9E5A" },
-    2: { level: 2, label: "Minor", color: "#C07D10" },
-    3: { level: 3, label: "Moderate", color: "#D97706" },
-    4: { level: 4, label: "Critical", color: "#E32B50" },
-    5: { level: 5, label: "Catastrophic", color: "#8F1B32" }
+    1: { level: 1, label: "Insignificant", bg: "#C0C0C0", color: "#000000", border: "#A6A6A6" },
+    2: { level: 2, label: "Minor", bg: "#92D050", color: "#000000", border: "#7BB33B" },
+    3: { level: 3, label: "Moderate", bg: "#FFFF00", color: "#000000", border: "#D6D600" },
+    4: { level: 4, label: "Critical", bg: "#FF0000", color: "#FFFFFF", border: "#CC0000" },
+    5: { level: 5, label: "Catastrophic", bg: "#C00000", color: "#FFFFFF", border: "#8B0000" }
   };
-  return meta[level] || { level: level || 1, label: "", color: "#A1A5B3" };
+  return meta[level] || { level: level || 1, label: "", bg: "#E2E8F0", color: "#475569", border: "#CBD5E1" };
 };
 
 const SevPill = ({ level }) => {
+  if (!level || String(level).toUpperCase() === "N/A") {
+    return (
+      <span className="badge" style={{ background: "#F1F5F9", color: "#64748B", border: "1px solid #CBD5E1", fontWeight: 600, padding: "2px 8px", borderRadius: "4px" }}>
+        N/A
+      </span>
+    );
+  }
   const m = severityMeta(level);
   return (
-    <span className="badge" style={{ background: `${m.color}22`, color: m.color, fontWeight: 700 }}>
-      {m.level} {m.label}
+    <span className="badge" style={{ background: m.bg, color: m.color, border: `1px solid ${m.border}`, fontWeight: 700, padding: "2px 8px", borderRadius: "4px" }}>
+      {m.level} {m.label ? `· ${m.label}` : ""}
     </span>
   );
 };
@@ -49,8 +56,8 @@ const findContractorLogo = (contractorName, contractorsList = []) => {
   const match = (contractorsList || []).find(c => {
     const cName = c.company_name || c.companyName || c.subContractorName || c.subcontractor_name || c.name || '';
     return cName.toLowerCase().trim() === String(contractorName).toLowerCase().trim() ||
-           cName.toLowerCase().includes(String(contractorName).toLowerCase().trim()) ||
-           String(contractorName).toLowerCase().includes(cName.toLowerCase().trim());
+      cName.toLowerCase().includes(String(contractorName).toLowerCase().trim()) ||
+      String(contractorName).toLowerCase().includes(cName.toLowerCase().trim());
   });
   return match?.logo || match?.logo_url || match?.company_logo || match?.logoFile || null;
 };
@@ -170,23 +177,23 @@ const StatusTracker = ({ inc, pipeline, isPendingClosure: initialIsPendingClosur
         if (!isMounted) return;
         const data = res?.data || res;
         if (!data) return;
-        
+
         let latestStage = data.stage ? String(data.stage).toUpperCase() : realStage;
-        
+
         // Backend doesn't reliably update the stage property, so we infer from nested approval signatures
         if (data.initialReport?.approvedBy) {
-           latestStage = "INVESTIGATION";
+          latestStage = "INVESTIGATION";
         } else if (data.headsUp?.approvedBy) {
-           if (latestStage === "HEADS_UP" || latestStage === "HEADS-UP") {
-               latestStage = "INITIAL_REPORT";
-           }
+          if (latestStage === "HEADS_UP" || latestStage === "HEADS-UP") {
+            latestStage = "INITIAL_REPORT";
+          }
         }
-        
+
         const isPending = typeof data.investigation === 'object' && !!(data.investigation?.reviewedBy || data.investigation?.approvedBy);
         if (isPending !== realIsPendingClosure) {
-            setRealIsPendingClosure(isPending);
+          setRealIsPendingClosure(isPending);
         }
-        
+
         if (latestStage !== realStage) {
           setRealStage(latestStage);
         }
@@ -234,29 +241,29 @@ const StatusTracker = ({ inc, pipeline, isPendingClosure: initialIsPendingClosur
         console.error("StatusTracker fetch failed", err);
       }
     };
-    
+
     // Fetch if the list says it's in an early stage or if waived to ensure accurate stage dots
     if (
-      realStage === "HEADS_UP" || 
-      realStage === "INITIAL_REPORT" || 
-      realStage === "INITIAL" || 
+      realStage === "HEADS_UP" ||
+      realStage === "INITIAL_REPORT" ||
+      realStage === "INITIAL" ||
       realStage === "INVESTIGATION" ||
       initialIsWaived
     ) {
       checkRealStatus();
     }
-    
+
     return () => { isMounted = false; };
   }, [inc.id, pipeline, realIsPendingClosure, realStage, initialIsWaived]);
 
   let normalizedPipeline = realStage;
   if (normalizedPipeline === "INITIAL") normalizedPipeline = "INITIAL_REPORT";
-  
+
   // In case the list API gave us clear signals, we still use them
   if (typeof inc?.investigation === 'object' && Object.keys(inc.investigation).length > 0) {
-      if (normalizedPipeline === "INITIAL_REPORT" || normalizedPipeline === "HEADS_UP") {
-          normalizedPipeline = "INVESTIGATION";
-      }
+    if (normalizedPipeline === "INITIAL_REPORT" || normalizedPipeline === "HEADS_UP") {
+      normalizedPipeline = "INVESTIGATION";
+    }
   }
 
   const steps = [
@@ -264,11 +271,11 @@ const StatusTracker = ({ inc, pipeline, isPendingClosure: initialIsPendingClosur
     { key: "Initial", title: "Initial Incident Report" },
     { key: "Investigation", title: "Investigation Report" }
   ];
-  const order = { 
-    "HEADS_UP": 0, "Heads-Up": 0, 
-    "INITIAL_REPORT": 1, "Initial": 1, 
-    "INVESTIGATION": 2, "Investigation": 2, 
-    "CLOSED": 3, "Closed": 3 
+  const order = {
+    "HEADS_UP": 0, "Heads-Up": 0,
+    "INITIAL_REPORT": 1, "Initial": 1,
+    "INVESTIGATION": 2, "Investigation": 2,
+    "CLOSED": 3, "Closed": 3
   };
   let curIdx = 0;
   if (order.hasOwnProperty(normalizedPipeline)) curIdx = order[normalizedPipeline];
@@ -286,7 +293,7 @@ const StatusTracker = ({ inc, pipeline, isPendingClosure: initialIsPendingClosur
     let logs = [];
     if (Array.isArray(realReopenLogs)) logs = realReopenLogs;
     else if (typeof realReopenLogs === 'string') {
-      try { logs = JSON.parse(realReopenLogs); } catch (e) {}
+      try { logs = JSON.parse(realReopenLogs); } catch (e) { }
     }
     const lastLog = logs.length > 0 ? logs[logs.length - 1] : null;
     const stageReopenedTo = lastLog?.stageReopenedTo || normalizedPipeline || realStage;
@@ -301,19 +308,19 @@ const StatusTracker = ({ inc, pipeline, isPendingClosure: initialIsPendingClosur
   }
 
   const isOpenedState = !closed && curIdx === 2 && realIsPendingClosure;
-  
+
   const reopenedLabel = reopenedStep === 0
     ? "Reopened (Heads-Up)"
     : reopenedStep === 1
       ? "Reopened (Initial Report)"
       : "Reopened (Investigation)";
 
-  const label = closed 
-    ? (realIsWaived ? "Closed (Waived)" : "Closed") 
+  const label = closed
+    ? (realIsWaived ? "Closed (Waived)" : "Closed")
     : isCurrentlyReopened
       ? reopenedLabel
-      : isOpenedState 
-        ? (realIsWaived ? "Pending Closure (Waived)" : "Pending Closure") 
+      : isOpenedState
+        ? (realIsWaived ? "Pending Closure (Waived)" : "Pending Closure")
         : (steps[curIdx] ? steps[curIdx].title : pipeline);
 
   const getStageColor = () => {
@@ -374,13 +381,13 @@ const StatusTracker = ({ inc, pipeline, isPendingClosure: initialIsPendingClosur
         }
 
         const isWaivedStep = state === "waived";
-        const dotStyle = (state === "current" || state === "opened") 
-          ? { background: activeColor, boxShadow: `0 0 0 3px ${activeColor}33` } 
+        const dotStyle = (state === "current" || state === "opened")
+          ? { background: activeColor, boxShadow: `0 0 0 3px ${activeColor}33` }
           : isWaivedStep
             ? { background: "#64748b", color: "#fff", border: "1.5px solid #475569" }
             : {};
 
-        const lineClass = isWaivedStep 
+        const lineClass = isWaivedStep
           ? "st-line on-waived"
           : (i <= curIdx || closed)
             ? "st-line on"
@@ -389,9 +396,9 @@ const StatusTracker = ({ inc, pipeline, isPendingClosure: initialIsPendingClosur
         return (
           <React.Fragment key={step.key}>
             <span className={lineClass} style={i === 0 ? { visibility: "hidden" } : {}}></span>
-            <span 
-              className={`st-dot st-${state}`} 
-              title={isWaivedStep ? `${step.title} (Waived)` : step.title} 
+            <span
+              className={`st-dot st-${state}`}
+              title={isWaivedStep ? `${step.title} (Waived)` : step.title}
               style={dotStyle}
             >
               {state === "done" ? checkS : isWaivedStep ? waivedS : (i + 1)}
@@ -399,14 +406,14 @@ const StatusTracker = ({ inc, pipeline, isPendingClosure: initialIsPendingClosur
           </React.Fragment>
         );
       })}
-      <span className="st-label" style={{ 
-        color: activeColor, 
-        background: (closed && realIsWaived) ? "rgba(100, 116, 139, 0.12)" : `${activeColor}1A`, 
+      <span className="st-label" style={{
+        color: activeColor,
+        background: (closed && realIsWaived) ? "rgba(100, 116, 139, 0.12)" : `${activeColor}1A`,
         border: (closed && realIsWaived) ? "1px solid rgba(100, 116, 139, 0.28)" : "none",
-        padding: "4px 10px", 
-        borderRadius: "12px", 
-        fontWeight: 700, 
-        fontSize: "12px", 
+        padding: "4px 10px",
+        borderRadius: "12px",
+        fontWeight: 700,
+        fontSize: "12px",
         display: "inline-block",
         lineHeight: 1
       }}>
@@ -476,7 +483,7 @@ function IMList() {
   const myContractor = useMemo(() => {
     if (!isContractor) return null;
     return (
-      contractors.find(c => 
+      contractors.find(c =>
         (contractorId && (String(c.id) === String(contractorId) || String(c.subcontractor_id) === String(contractorId))) ||
         (currentUser?.subContractorName && (c.subContractorName === currentUser.subContractorName || c.company_name === currentUser.subContractorName)) ||
         (currentUser?.contractorName && (c.subContractorName === currentUser.contractorName || c.company_name === currentUser.contractorName)) ||
@@ -485,13 +492,13 @@ function IMList() {
     );
   }, [isContractor, contractors, contractorId, currentUser?.subContractorName, currentUser?.contractorName, currentUser?.username]);
 
-  const myContractorName = 
-    myContractor?.subContractorName || 
-    myContractor?.company_name || 
-    myContractor?.name || 
-    currentUser?.subContractorName || 
-    currentUser?.contractorName || 
-    (contractors.some(c => c.subContractorName === currentUser?.companyName || c.company_name === currentUser?.companyName) ? (currentUser?.companyName || currentUser?.company_name) : "") || 
+  const myContractorName =
+    myContractor?.subContractorName ||
+    myContractor?.company_name ||
+    myContractor?.name ||
+    currentUser?.subContractorName ||
+    currentUser?.contractorName ||
+    (contractors.some(c => c.subContractorName === currentUser?.companyName || c.company_name === currentUser?.companyName) ? (currentUser?.companyName || currentUser?.company_name) : "") ||
     "";
 
   const fetchIncidents = async () => {
@@ -514,15 +521,17 @@ function IMList() {
       if (filters.building) apiFilters.building = filters.building;
       if (filters.actualSeverity) apiFilters.actualSeverity = filters.actualSeverity;
       if (filters.potentialSeverity) apiFilters.potentialSeverity = filters.potentialSeverity;
-      
-      if (filters.statusChip && filters.statusChip !== "all") apiFilters.statusChip = filters.statusChip;
-      
+
+      if (filters.statusChip && filters.statusChip !== "all" && !filters.stage) {
+        apiFilters.statusChip = filters.statusChip;
+      }
+
       if (filters.investigationLevel) apiFilters.investigationLevel = filters.investigationLevel;
       if (filters.stage) apiFilters.stage = filters.stage;
       if (filters.origin) apiFilters.origin = filters.origin;
 
       const response = await getIncidents(apiFilters);
-      
+
       if (response && response.data && Array.isArray(response.data)) {
         setIncidents(response.data);
         const tot = response.total !== undefined ? response.total : response.data.length;
@@ -639,7 +648,7 @@ function IMList() {
     "Permanent Disability": "#991B1B",
     "Fatality": "#450A0A"
   };
-  
+
   const classRows = orderClass.map(c => {
     let n = 0;
     if (stats?.types) {
@@ -671,24 +680,24 @@ function IMList() {
     <div className="mod-page">
       {/* ── Breadcrumbs ── */}
       <div style={{ marginBottom: "12px", color: "var(--text-muted)", fontSize: "0.75rem", fontWeight: 600, display: 'flex', gap: '6px', alignItems: 'center' }}>
-         <span style={{ cursor: 'pointer' }} onClick={() => navigate("/")}>Home</span> &rsaquo; 
-         <span style={{ cursor: 'pointer' }} onClick={() => navigate("/incident-management/dashboard")}>Incident Management</span> &rsaquo; 
-         <span style={{ color: 'var(--text-main)' }}>Incidents</span>
+        <span style={{ cursor: 'pointer' }} onClick={() => navigate("/")}>Home</span> &rsaquo;
+        <span style={{ cursor: 'pointer' }} onClick={() => navigate("/incident-management/dashboard")}>Incident Management</span> &rsaquo;
+        <span style={{ color: 'var(--text-main)' }}>Incidents</span>
       </div>
 
       {/* ── Hero ── */}
-      <div style={{ 
+      <div style={{
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         background: 'var(--bg-card)', borderRadius: '8px', padding: '12px 16px',
         border: '1px solid var(--border-color)', boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
         marginBottom: '20px'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ 
+          <div style={{
             width: '36px', height: '36px', borderRadius: '8px', background: 'rgba(59, 130, 246, 0.1)',
-            color: '#3B82F6', display: 'flex', alignItems: 'center', justifyContent: 'center' 
+            color: '#3B82F6', display: 'flex', alignItems: 'center', justifyContent: 'center'
           }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
           </div>
           <div>
             <h1 style={{ margin: '0 0 2px 0', fontSize: '1rem', fontWeight: 700, color: 'var(--text-main)' }}>Incidents</h1>
@@ -733,8 +742,30 @@ function IMList() {
                 n = filteredIncidents.filter(i => s.match.includes(i.stage) || s.match.includes(i.pipeline)).length;
               }
               const pct = Math.round(n / Math.max(total, 1) * 100);
+              const isCardActive = filters.stage === s.key;
               return (
-                <div key={s.key} style={{ flex: 1, minWidth: 150, textAlign: "center", padding: "16px", borderRadius: "8px", background: s.bg }}>
+                <div
+                  key={s.key}
+                  style={{
+                    flex: 1,
+                    minWidth: 150,
+                    textAlign: "center",
+                    padding: "16px",
+                    borderRadius: "8px",
+                    background: s.bg,
+                    cursor: "pointer",
+                    border: isCardActive ? `2px solid ${s.color}` : "2px solid transparent",
+                    boxShadow: isCardActive ? "0 2px 8px rgba(0,0,0,0.08)" : "none",
+                    transition: "all 0.2s ease"
+                  }}
+                  onClick={() => {
+                    setCurrentPage(1);
+                    const newStage = filters.stage === s.key ? "" : s.key;
+                    const newChip = newStage === "CLOSED" ? "closed" : newStage ? "open" : "all";
+                    setFilters(prev => ({ ...prev, stage: newStage, statusChip: newChip }));
+                  }}
+                  title={`Click to filter by ${s.label}`}
+                >
                   <div style={{ fontSize: "28px", fontWeight: 700, color: s.color }}>{n}</div>
                   <div style={{ fontSize: "12px", color: "var(--text-muted)", fontWeight: 600 }}>{s.label}</div>
                   <div className="progress-bar" style={{ marginTop: 16 }}>
@@ -747,10 +778,10 @@ function IMList() {
         </div>
       </div>
 
-      {/* Classifications & Severity */}
+      {/* Incident Categories & Severity */}
       <div className="grid-2 mb-6">
         <div className="mod-card">
-          <div className="mod-card-header"><span className="mod-card-title">By Classification</span></div>
+          <div className="mod-card-header"><span className="mod-card-title">By Incident Category</span></div>
           <div className="mod-card-body">
             {classRows.map(r => {
               const isSelected = filters.category === r.label;
@@ -800,10 +831,46 @@ function IMList() {
       {/* Filter Bar */}
       <div className="filter-bar" style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
         {["all", "open", "closed"].map(f => (
-          <span key={f} className={`filter-chip ${filters.statusChip === f ? "active" : ""}`} onClick={() => handleFilterChange('statusChip', f)}>
+          <span
+            key={f}
+            className={`filter-chip ${filters.statusChip === f && (!filters.stage || (f === "open" && filters.stage === "OPEN") || (f === "closed" && filters.stage === "CLOSED")) ? "active" : ""}`}
+            onClick={() => {
+              setCurrentPage(1);
+              const stageVal = f === "open" ? "OPEN" : f === "closed" ? "CLOSED" : "";
+              setFilters(prev => ({ ...prev, statusChip: f, stage: stageVal }));
+            }}
+          >
             {f === "all" ? "All" : f === "open" ? "Open" : "Closed"}
           </span>
         ))}
+        {filters.stage && filters.stage !== "OPEN" && filters.stage !== "CLOSED" && (
+          <span
+            className="filter-chip active"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              background: "rgba(59, 130, 246, 0.12)",
+              color: "#2563EB",
+              borderColor: "rgba(59, 130, 246, 0.4)",
+              fontWeight: 600,
+              cursor: "pointer"
+            }}
+            onClick={() => {
+              setCurrentPage(1);
+              setFilters(prev => ({ ...prev, stage: "", statusChip: "all" }));
+            }}
+            title="Click to clear stage filter"
+          >
+            Status: {
+              filters.stage === "HEADS_UP" ? "Heads-Up (2h)" :
+                filters.stage === "INITIAL_REPORT" ? "Initial Report (24h)" :
+                  filters.stage === "INVESTIGATION" ? "Investigation (7d)" :
+                    filters.stage === "REOPENED" ? "Reopened" : filters.stage
+            }
+            <span style={{ fontSize: "14px", marginLeft: "2px", lineHeight: 1 }}>&times;</span>
+          </span>
+        )}
         {filters.category && (
           <span
             className="filter-chip active"
@@ -818,9 +885,9 @@ function IMList() {
               cursor: "pointer"
             }}
             onClick={() => handleFilterChange('category', '')}
-            title="Click to clear classification filter"
+            title="Click to clear incident category filter"
           >
-            Category: {filters.category}
+            Incident Category: {filters.category}
             <span style={{ fontSize: "14px", marginLeft: "2px", lineHeight: 1 }}>&times;</span>
           </span>
         )}
@@ -832,11 +899,11 @@ function IMList() {
           <table className="mod-table">
             <thead>
               <tr>
-                <th className="ith">TITLE</th>
+                <th className="ith">Ref.No</th>
                 <th className="ith">OCCURRED</th>
                 <th className="ith">DATE CREATED</th>
                 <th className="ith">LAST EDITED</th>
-                <th className="ith">CLASSIFICATION</th>
+                <th className="ith">INCIDENT CATEGORY</th>
                 <th className="ith">BUILDING</th>
                 <th className="ith">ACTUAL</th>
                 <th className="ith">POTENTIAL</th>
@@ -913,7 +980,32 @@ function IMList() {
                     <option value="Observation">Observation</option>
                   </select>
                 </th>
-                <th style={{ position: "sticky", right: isAdmin ? 60 : 0, zIndex: 3, background: "var(--bg-card, #fff)" }}></th>
+                <th style={{ position: "sticky", right: isAdmin ? 60 : 0, zIndex: 3, background: "var(--bg-card, #fff)" }}>
+                  <select
+                    className="mod-form-select"
+                    style={{ padding: "4px 24px 4px 8px", fontSize: "11px", height: "auto", width: "100%", minWidth: "130px" }}
+                    value={filters.stage}
+                    onChange={e => {
+                      const val = e.target.value;
+                      let newChip = "all";
+                      if (val === "OPEN" || val === "HEADS_UP" || val === "INITIAL_REPORT" || val === "INVESTIGATION" || val === "REOPENED") {
+                        newChip = "open";
+                      } else if (val === "CLOSED") {
+                        newChip = "closed";
+                      }
+                      setCurrentPage(1);
+                      setFilters(prev => ({ ...prev, stage: val, statusChip: newChip }));
+                    }}
+                  >
+                    <option value="">All</option>
+                    <option value="OPEN">Open</option>
+                    <option value="HEADS_UP">Heads-Up (2h)</option>
+                    <option value="INITIAL_REPORT">Initial Report (24h)</option>
+                    <option value="INVESTIGATION">Investigation (7d)</option>
+                    <option value="CLOSED">Closed</option>
+                    <option value="REOPENED">Reopened</option>
+                  </select>
+                </th>
                 {isAdmin && (
                   <th style={{ position: "sticky", right: 0, zIndex: 3, background: "var(--bg-card, #fff)" }}></th>
                 )}
@@ -943,16 +1035,16 @@ function IMList() {
                   </td>
                   <td>
                     {inc.contractorsInvolved || inc.contractor ? (
-                       <div style={{ display: "flex", alignItems: "center", gap: 8, whiteSpace: "nowrap" }}>
-                         <ContractorLogo
-                           logoVal={findContractorLogo(inc.contractorsInvolved || inc.contractor, contractors)}
-                           name={inc.contractorsInvolved || inc.contractor}
-                           size={24}
-                         />
-                         <span>{inc.contractorsInvolved || inc.contractor}</span>
-                       </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, whiteSpace: "nowrap" }}>
+                        <ContractorLogo
+                          logoVal={findContractorLogo(inc.contractorsInvolved || inc.contractor, contractors)}
+                          name={inc.contractorsInvolved || inc.contractor}
+                          size={24}
+                        />
+                        <span>{inc.contractorsInvolved || inc.contractor}</span>
+                      </div>
                     ) : (
-                       <span style={{ color: "var(--text-muted)" }}>—</span>
+                      <span style={{ color: "var(--text-muted)" }}>—</span>
                     )}
                   </td>
                   <td><span style={{ whiteSpace: "nowrap" }}>{inc.origin || "Direct"}</span></td>
@@ -994,7 +1086,7 @@ function IMList() {
             </tbody>
           </table>
         </div>
-        
+
         {/* ── Pagination ── */}
         {!loading && totalItems > 0 && (
           <div className="beam-pagination" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px", borderTop: "1px solid var(--border-color)", flexWrap: "wrap", gap: "12px" }}>

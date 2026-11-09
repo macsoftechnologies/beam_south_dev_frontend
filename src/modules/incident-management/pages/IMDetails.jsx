@@ -14,6 +14,8 @@ import nneLogo from "../../../assets/images/nne_logo.png";
 import novoLogo from "../../../assets/images/Logo.jpeg";
 import { IncidentPdfExporter } from "../components/IncidentPdfExporter";
 import IncidentCategoryDropdown from "../components/IncidentCategoryDropdown";
+import IncidentCategoryReferenceTable, { INCIDENT_CATEGORY_MAP } from "../components/IncidentCategoryReferenceTable";
+import SeverityDropdown, { getCategorySeverityConfig } from "../components/SeverityDropdown";
 import { getDenmarkDateString, parseUTCToDate, formatToDenmark24Hour, formatToDenmark24HourObj } from "../../../utils/dateUtils";
 import "../../../styles/module-shared.css";
 import "./IMDetails.css";
@@ -73,22 +75,37 @@ const normalizeToStandardCategory = (c) => {
 
 const severityMeta = (level) => {
   const meta = {
-    1: { level: 1, label: "Low", color: "#FBBF24" },
-    2: { level: 2, label: "Minor", color: "#C07D10" },
-    3: { level: 3, label: "Moderate", color: "#D97706" },
-    4: { level: 4, label: "Critical", color: "#E32B50" },
-    5: { level: 5, label: "Catastrophic", color: "#8F1B32" }
+    1: { level: 1, label: "Insignificant", bg: "#C0C0C0", color: "#000000", border: "#A6A6A6" },
+    2: { level: 2, label: "Minor", bg: "#92D050", color: "#000000", border: "#7BB33B" },
+    3: { level: 3, label: "Moderate", bg: "#FFFF00", color: "#000000", border: "#D6D600" },
+    4: { level: 4, label: "Critical", bg: "#FF0000", color: "#FFFFFF", border: "#CC0000" },
+    5: { level: 5, label: "Catastrophic", bg: "#C00000", color: "#FFFFFF", border: "#8B0000" }
   };
-  return meta[level] || { level: level || 1, label: "", color: "#A1A5B3" };
+  return meta[level] || { level: level || 1, label: "", bg: "#E2E8F0", color: "#475569", border: "#CBD5E1" };
 };
 
 const SevPill = ({ level }) => {
+  if (!level || String(level).toUpperCase() === "N/A") {
+    return (
+      <span className="badge" style={{ background: "#F1F5F9", color: "#64748B", border: "1px solid #CBD5E1", fontWeight: 600, padding: "2px 8px", borderRadius: "4px" }}>
+        N/A
+      </span>
+    );
+  }
   const m = severityMeta(level);
   return (
-    <span className="badge" style={{ background: `${m.color}22`, color: m.color, fontWeight: 700 }}>
+    <span className="badge" style={{ background: m.bg, color: m.color, border: `1px solid ${m.border}`, fontWeight: 700, padding: "2px 8px", borderRadius: "4px" }}>
       {m.level} {m.label ? `· ${m.label}` : ""}
     </span>
   );
+};
+
+export const FISHBONE_SCORE_CONFIG = {
+  1: { level: 1, label: "Very low risk", bg: "#C0C0C0", color: "#000000", border: "#A6A6A6" },
+  2: { level: 2, label: "Low risk", bg: "#92D050", color: "#000000", border: "#7BB33B" },
+  3: { level: 3, label: "Moderate risk", bg: "#FFFF00", color: "#000000", border: "#D6D600" },
+  4: { level: 4, label: "High risk", bg: "#FF0000", color: "#FFFFFF", border: "#CC0000" },
+  5: { level: 5, label: "Very high risk", bg: "#C00000", color: "#FFFFFF", border: "#8B0000" }
 };
 
 const getLogoUrl = (logoVal) => {
@@ -309,6 +326,15 @@ const getLoggedInUser = () => {
     return parsed.name || parsed.username || parsed.email || parsed.userName || parsed.firstName || u;
   } catch (e) {
     return localStorage.getItem("user") || "";
+  }
+};
+
+const getLoggedInUserObj = () => {
+  try {
+    const u = localStorage.getItem("user");
+    return u ? JSON.parse(u) : {};
+  } catch (e) {
+    return {};
   }
 };
 
@@ -722,6 +748,13 @@ export default function IMDetails() {
   const [huEditReason, setHuEditReason] = useState("");
   const [huEditorSignature, setHuEditorSignature] = useState(false);
   const [huLocationMapImage, setHuLocationMapImage] = useState(null);
+  const [showHuDateHelp, setShowHuDateHelp] = useState(false);
+  const [showHuTimeHelp, setShowHuTimeHelp] = useState(false);
+  const [showHuConsequenceHelp, setShowHuConsequenceHelp] = useState(false);
+  const [showHuImmActionsHelp, setShowHuImmActionsHelp] = useState(false);
+  const [showHuCategoryReferenceTable, setShowHuCategoryReferenceTable] = useState(false);
+  const [showIrCategoryReferenceTable, setShowIrCategoryReferenceTable] = useState(false);
+  const [showIrRootCauseHelp, setShowIrRootCauseHelp] = useState(false);
 
   const [showHuTimePicker, setShowHuTimePicker] = useState(false);
   const [tempHuTime, setTempHuTime] = useState("");
@@ -771,6 +804,7 @@ export default function IMDetails() {
   const [irNatureOfInjury, setIrNatureOfInjury] = useState("");
   const [irTreatmentProvided, setIrTreatmentProvided] = useState("");
   const [irAnticipatedAbsence, setIrAnticipatedAbsence] = useState("");
+  const [irEasyCode, setIrEasyCode] = useState("");
   const [irMedicalTreatmentClass, setIrMedicalTreatmentClass] = useState("");
 
   const [irAccidentCategories, setIrAccidentCategories] = useState([]);
@@ -845,6 +879,11 @@ export default function IMDetails() {
 
   const [invPreSev, setInvPreSev] = useState(null);
   const [invPostSev, setInvPostSev] = useState(null);
+
+  // Late Submission Reason states
+  const [huLateReason, setHuLateReason] = useState("");
+  const [irLateReason, setIrLateReason] = useState("");
+  const [invLateReason, setInvLateReason] = useState("");
 
   // --- Return for Revision Inline State & Handler ---
   const [huReviewComments, setHuReviewComments] = useState("");
@@ -1021,11 +1060,11 @@ export default function IMDetails() {
     }
   };
   const SEVERITY_SCALE = [
-    { level: 1, label: "Insignificant", color: "#2D9E5A" },
-    { level: 2, label: "Minor", color: "#C07D10" },
-    { level: 3, label: "Moderate", color: "#D97706" },
-    { level: 4, label: "Critical", color: "#E32B50" },
-    { level: 5, label: "Catastrophic", color: "#8F1B32" }
+    { level: 1, label: "Insignificant", riskLabel: "Very low risk", bg: "#C0C0C0", color: "#000000", border: "#A6A6A6" },
+    { level: 2, label: "Minor", riskLabel: "Low risk", bg: "#92D050", color: "#000000", border: "#7BB33B" },
+    { level: 3, label: "Moderate", riskLabel: "Moderate risk", bg: "#FFFF00", color: "#000000", border: "#D6D600" },
+    { level: 4, label: "Critical", riskLabel: "High risk", bg: "#FF0000", color: "#FFFFFF", border: "#CC0000" },
+    { level: 5, label: "Catastrophic", riskLabel: "Very high risk", bg: "#C00000", color: "#FFFFFF", border: "#8B0000" }
   ];
 
   const incidentCategories = [
@@ -1045,11 +1084,43 @@ export default function IMDetails() {
   const [invCorrective, setInvCorrective] = useState([]);
   const [invLessons, setInvLessons] = useState("");
   const [invPrevention, setInvPrevention] = useState("");
+  const [invEasyCode, setInvEasyCode] = useState("");
 
   const [huNoFurtherInvestigation, setHuNoFurtherInvestigation] = useState(false);
   const [irNoFurtherInvestigation, setIrNoFurtherInvestigation] = useState(false);
 
   const [invPhotos, setInvPhotos] = useState([]);
+
+  // Helper to strictly deduplicate photos based on filename or data URL content
+  const deduplicatePhotoList = (list) => {
+    const seen = new Set();
+    const result = [];
+    (list || []).forEach(p => {
+      if (!p || typeof p !== "string") return;
+      const trimmed = p.trim();
+      if (!trimmed) return;
+      let key = trimmed;
+      if (trimmed.startsWith("data:image")) {
+        key = `data_${trimmed.length}_${trimmed.substring(0, 100)}`;
+      } else {
+        const clean = trimmed.split("?")[0].replace(/\\/g, "/");
+        const filename = clean.split("/").filter(Boolean).pop() || clean;
+        key = filename.toLowerCase();
+      }
+      if (!seen.has(key)) {
+        seen.add(key);
+        result.push(trimmed);
+      }
+    });
+    return result;
+  };
+
+  // Automatically inherit photos from Initial Incident Report into Final Investigation Form
+  useEffect(() => {
+    if (photos && photos.length > 0) {
+      setInvPhotos(prev => deduplicatePhotoList([...photos, ...prev]));
+    }
+  }, [photos]);
   const [isInvCameraActive, setIsInvCameraActive] = useState(false);
   const invVideoRef = useRef(null);
   const invCanvasRef = useRef(null);
@@ -1063,7 +1134,13 @@ export default function IMDetails() {
     { key: "permitsToWork", label: "Permit to Work (PTW)" },
     { key: "safePlanOfAction", label: "Safe Plan of Action (SPA)" },
     { key: "evidenceForActionsTaken", label: "Evidence for Actions Taken" },
-    { key: "wasteDisposalInvoice", label: "Waste Disposal Invoice (if applicable)" }
+    { key: "equipmentDataSheets", label: "Equipment data sheets (when applicable)" },
+    { key: "easyDocument", label: "EASY Document / EASY Code", isEasy: true },
+    { key: "otherRelevantDocumentation", label: "Other relevant documentation (when applicable)" },
+    { key: "wasteDisposalInvoice", label: "Waste Disposal Invoice (when applicable)" },
+    { key: "safetyDataSheet", label: "Safety Data Sheet (SDS) (when applicable)" },
+    { key: "soilAnalysisReports", label: "Soil analysis reports (when applicable)" },
+    { key: "waterAnalysisReports", label: "Water analysis reports (when applicable)" }
   ];
   const [invAttachments, setInvAttachments] = useState(() =>
     INV_MANDATORY_ATTACHMENTS.map(item => ({
@@ -1121,7 +1198,22 @@ export default function IMDetails() {
   const actionsPerPage = 5;
 
   const handleHuCategoryToggle = (cat) => {
-    setHuCategories([cat]);
+    setHuCategories(cat ? [cat] : []);
+    const config = getCategorySeverityConfig(cat, huActualSeverity);
+    let nextActual = config.isActualFixed ? config.actualValue : (huActualSeverity === "N/A" ? "" : huActualSeverity);
+    let nextPotential = config.isPotentialFixed ? "N/A" : (huPotentialSeverity === "N/A" ? "" : huPotentialSeverity);
+    if (nextPotential && nextPotential !== "N/A" && !config.allowedPotentialLevels.includes(Number(nextPotential))) {
+      nextPotential = "";
+    }
+    setHuActualSeverity(nextActual);
+    setHuPotentialSeverity(nextPotential);
+  };
+
+  const handleIrCategoryToggle = (cat) => {
+    setIrCategories(cat ? [cat] : []);
+    if (irErrors?.irCategories) {
+      setIrErrors(prev => ({ ...prev, irCategories: null }));
+    }
   };
 
   const handleHuEnvToggle = (field, val) => {
@@ -1153,6 +1245,20 @@ export default function IMDetails() {
       showError("Contractor(s) Involved is required");
       return;
     }
+    const currentHuCat = huCategories[0] || "";
+    const huConfig = getCategorySeverityConfig(currentHuCat, huActualSeverity);
+    const finalActual = huConfig.isActualFixed ? huConfig.actualValue : huActualSeverity;
+    const finalPotential = huConfig.isPotentialFixed ? "N/A" : huPotentialSeverity;
+
+    if (!huConfig.isActualNA && (!finalActual || finalActual === "N/A")) {
+      showError("Actual severity is required");
+      return;
+    }
+    if (!huConfig.isPotentialFixed && (!finalPotential || finalPotential === "N/A")) {
+      showError("Potential severity is required");
+      return;
+    }
+
     try {
       const selectedB = buildingsList.find(b => String(b.build_id || b.id) === String(huBuildingId));
       const payload = {
@@ -1166,9 +1272,9 @@ export default function IMDetails() {
         specificLocation: huSpecificLocation,
         contractorsInvolved: huContractor,
         categories: huCategories,
-        actualSeverity: huActualSeverity ? Number(huActualSeverity) : undefined,
-        potentialSeverity: huPotentialSeverity ? Number(huPotentialSeverity) : undefined,
-        isHipo: Number(huActualSeverity) >= 4 || Number(huPotentialSeverity) >= 4,
+        actualSeverity: finalActual && finalActual !== "N/A" ? Number(finalActual) : undefined,
+        potentialSeverity: finalPotential && finalPotential !== "N/A" ? Number(finalPotential) : undefined,
+        isHipo: Number(finalActual) >= 4 || Number(finalPotential) >= 4,
         descriptionWhatHappened: huDescription,
         descriptionConsequence: huConsequence,
         isEnvironmental: huCategories.some(c => c && c.toLowerCase().includes("environment")),
@@ -1383,8 +1489,13 @@ export default function IMDetails() {
       setHuContractor(inc.contractorsInvolved || hu.contractorsInvolved || "");
       const huCatList = hu.categories && Array.isArray(hu.categories) && hu.categories.length > 0 ? hu.categories : (inc.categories || []);
       setHuCategories(huCatList);
-      setHuActualSeverity(extractSevNum(hu.actualSeverity || inc.actualSeverity || ""));
-      setHuPotentialSeverity(extractSevNum(hu.potentialSeverity || inc.potentialSeverity || ""));
+      const loadedAct = extractSevNum(hu.actualSeverity || inc.actualSeverity || "");
+      const config = getCategorySeverityConfig(huCatList[0] || "", loadedAct);
+      const finalAct = config.isActualFixed ? config.actualValue : (loadedAct || "");
+      setHuActualSeverity(finalAct);
+      const loadedPot = extractSevNum(hu.potentialSeverity || inc.potentialSeverity || "");
+      const finalPot = config.isPotentialFixed ? "N/A" : (loadedPot || "");
+      setHuPotentialSeverity(finalPot);
       setHuDescription(hu.descriptionWhatHappened || hu.whatHappened || inc.description || "");
       setHuConsequence(hu.descriptionConsequence || "");
 
@@ -1418,6 +1529,7 @@ export default function IMDetails() {
       setHuSubmitterName(hu.submittedBy || inc.reportedBy || "");
       setHuSignature(hu.signature || false);
       setHuSubmittedTime(hu.submittedTime || inc.createdTime || "");
+      if (hu.lateSubmissionReason) setHuLateReason(hu.lateSubmissionReason);
       const noFurther = Boolean(rawIncident?.incident?.noFurtherInvestigation || rawIncident?.noFurtherInvestigation || inc?.noFurtherInvestigation || hu?.noFurtherInvestigation || ir?.noFurtherInvestigation);
       setHuNoFurtherInvestigation(Boolean(hu.noFurtherInvestigation || noFurther));
       setIrNoFurtherInvestigation(Boolean(ir.noFurtherInvestigation || noFurther));
@@ -1582,6 +1694,10 @@ export default function IMDetails() {
         if (ir.natureOfInjury) setIrNatureOfInjury(ir.natureOfInjury);
         if (ir.treatmentProvided) setIrTreatmentProvided(ir.treatmentProvided);
         if (ir.anticipatedAbsence) setIrAnticipatedAbsence(ir.anticipatedAbsence);
+        if (ir.easyCode) {
+          setIrEasyCode(ir.easyCode);
+          setInvEasyCode(prev => prev || ir.easyCode);
+        }
         if (ir.medicalTreatmentClass) setIrMedicalTreatmentClass(ir.medicalTreatmentClass);
         if (ir.initialRootCause) setIrInitialRootCause(ir.initialRootCause);
         if (ir.environmentalConditions) setIrEnvironmentalConditions(ir.environmentalConditions);
@@ -1635,6 +1751,7 @@ export default function IMDetails() {
         if (ir.description) setIrDescription(ir.description);
         if (ir.submittedBy) setIrSubmittedBy(ir.submittedBy);
         if (ir.signature) setIrSubSignature(ir.signature);
+        if (ir.lateSubmissionReason) setIrLateReason(ir.lateSubmissionReason);
         if (ir.photos) {
           let pArr = [];
           if (Array.isArray(ir.photos)) pArr = ir.photos;
@@ -1646,7 +1763,7 @@ export default function IMDetails() {
               pArr = [ir.photos];
             }
           }
-          setPhotos(pArr.filter(Boolean));
+          setPhotos(deduplicatePhotoList(pArr));
         } else if (rawIncident.photos) {
           let pArr = [];
           if (Array.isArray(rawIncident.photos)) pArr = rawIncident.photos;
@@ -1658,15 +1775,17 @@ export default function IMDetails() {
               pArr = [rawIncident.photos];
             }
           }
-          setPhotos(pArr.filter(Boolean));
+          setPhotos(deduplicatePhotoList(pArr));
         }
       }
 
       // 8. Load saved Investigation data if present
       const inv = rawIncident.investigation || rawIncident.incident_investigation || {};
+      const fallbackDesc = (ir && ir.description) || primaryDesc || (hu && (hu.descriptionWhatHappened || hu.whatHappened)) || "";
       if (inv && typeof inv === "object" && Object.keys(inv).length > 0) {
         if (inv.investigationDetails) setInvDetails(inv.investigationDetails);
         else if (inv.details) setInvDetails(inv.details);
+        else if (fallbackDesc) setInvDetails(fallbackDesc);
 
         if (inv.problemStatement) setInvProblem(inv.problemStatement);
         else if (inv.problem) setInvProblem(inv.problem);
@@ -1676,6 +1795,7 @@ export default function IMDetails() {
 
         if (inv.lessonsLearned) setInvLessons(inv.lessonsLearned);
         if (inv.preventativeMeasures) setInvPrevention(inv.preventativeMeasures);
+        if (inv.lateSubmissionReason) setInvLateReason(inv.lateSubmissionReason);
 
         if (inv.preSeverity || inv.pre_severity || inv.severityBefore || inv.severity_before) {
           setInvPreSev(Number(inv.preSeverity || inv.pre_severity || inv.severityBefore || inv.severity_before));
@@ -1760,44 +1880,35 @@ export default function IMDetails() {
           setInvFactors(inv.contributingFactors);
         }
 
-        let invPhotoArr = [];
-        if (inv.photos) {
-          if (Array.isArray(inv.photos)) invPhotoArr = inv.photos;
-          else if (typeof inv.photos === "string") {
+        // Robust extraction of initial report photos and investigation photos
+        const extractPhotoList = (src) => {
+          if (!src) return [];
+          if (Array.isArray(src)) return src.filter(Boolean);
+          if (typeof src === "string") {
             try {
-              const parsed = JSON.parse(inv.photos);
-              invPhotoArr = Array.isArray(parsed) ? parsed : [parsed];
+              const parsed = JSON.parse(src);
+              return (Array.isArray(parsed) ? parsed : [parsed]).filter(Boolean);
             } catch {
-              invPhotoArr = [inv.photos];
+              return [src].filter(Boolean);
             }
           }
-        }
-        if (invPhotoArr.filter(Boolean).length > 0) {
-          setInvPhotos(invPhotoArr.filter(Boolean));
-        } else if (ir && ir.photos) {
-          let irP = [];
-          if (Array.isArray(ir.photos)) irP = ir.photos;
-          else if (typeof ir.photos === "string") {
-            try {
-              const parsed = JSON.parse(ir.photos);
-              irP = Array.isArray(parsed) ? parsed : [parsed];
-            } catch {
-              irP = [ir.photos];
-            }
-          }
-          if (irP.filter(Boolean).length > 0) setInvPhotos(irP.filter(Boolean));
-        } else if (rawIncident.photos) {
-          let incP = [];
-          if (Array.isArray(rawIncident.photos)) incP = rawIncident.photos;
-          else if (typeof rawIncident.photos === "string") {
-            try {
-              const parsed = JSON.parse(rawIncident.photos);
-              incP = Array.isArray(parsed) ? parsed : [parsed];
-            } catch {
-              incP = [rawIncident.photos];
-            }
-          }
-          if (incP.filter(Boolean).length > 0) setInvPhotos(incP.filter(Boolean));
+          return [];
+        };
+
+        const initialReportPhotos = [
+          ...extractPhotoList(ir?.photos),
+          ...extractPhotoList(rawIncident?.photos),
+          ...extractPhotoList(inc?.photos),
+          ...extractPhotoList(hu?.photos),
+          ...extractPhotoList(photos)
+        ];
+        const uniqueInitialPhotos = deduplicatePhotoList(initialReportPhotos);
+        const invPhotoArr = extractPhotoList(inv?.photos);
+
+        // Always show initial report photos plus any additional investigation photos without duplication
+        const combinedInvPhotos = deduplicatePhotoList([...uniqueInitialPhotos, ...invPhotoArr]);
+        if (combinedInvPhotos.length > 0) {
+          setInvPhotos(combinedInvPhotos);
         }
 
         if (inv.environmentalDetails) {
@@ -1820,9 +1931,15 @@ export default function IMDetails() {
         } else {
           setInvInvDate(getDenmarkDateString());
         }
+        if (inv.easyCode) {
+          setInvEasyCode(inv.easyCode);
+        }
         if (inv.mandatoryAttachments) {
           const mAtt = typeof inv.mandatoryAttachments === "string" ? JSON.parse(inv.mandatoryAttachments) : inv.mandatoryAttachments;
           const itemsFromDb = Array.isArray(mAtt.items) ? mAtt.items : [];
+          if (mAtt.easyCode && !inv.easyCode) {
+            setInvEasyCode(mAtt.easyCode);
+          }
 
           setInvAttachments(INV_MANDATORY_ATTACHMENTS.map((defItem) => {
             const aliasMap = {
@@ -1834,7 +1951,13 @@ export default function IMDetails() {
               safePlanOfAction: ["safePlanOfAction", "spa", "tsti", "preTaskBriefing"],
               photos: ["photos", "incidentPhotos", "locationPhotos"],
               evidenceForActionsTaken: ["evidenceForActionsTaken", "evidenceActions"],
-              wasteDisposalInvoice: ["wasteDisposalInvoice", "wasteDisposal", "wasteInvoice"]
+              equipmentDataSheets: ["equipmentDataSheets", "equipmentSheets", "equipmentData"],
+              easyDocument: ["easyDocument", "easyCodeDocument", "easyReport", "easyCodeNumbering"],
+              otherRelevantDocumentation: ["otherRelevantDocumentation", "otherDocumentation", "otherDocuments"],
+              wasteDisposalInvoice: ["wasteDisposalInvoice", "wasteDisposal", "wasteInvoice"],
+              safetyDataSheet: ["safetyDataSheet", "sds", "safetyDataSheets"],
+              soilAnalysisReports: ["soilAnalysisReports", "soilAnalysis", "soilReports"],
+              waterAnalysisReports: ["waterAnalysisReports", "waterAnalysis", "waterReports"]
             };
             const aliases = aliasMap[defItem.key] || [defItem.key];
 
@@ -1909,6 +2032,34 @@ export default function IMDetails() {
             priority: c.priority || "Medium",
             status: c.status || "PENDING"
           })));
+        }
+      } else {
+        if (fallbackDesc) setInvDetails(fallbackDesc);
+
+        const extractPhotoList = (src) => {
+          if (!src) return [];
+          if (Array.isArray(src)) return src.filter(Boolean);
+          if (typeof src === "string") {
+            try {
+              const parsed = JSON.parse(src);
+              return (Array.isArray(parsed) ? parsed : [parsed]).filter(Boolean);
+            } catch {
+              return [src].filter(Boolean);
+            }
+          }
+          return [];
+        };
+
+        const initialReportPhotos = [
+          ...extractPhotoList(ir?.photos),
+          ...extractPhotoList(rawIncident?.photos),
+          ...extractPhotoList(inc?.photos),
+          ...extractPhotoList(hu?.photos),
+          ...extractPhotoList(photos)
+        ];
+        const uniqueInitialPhotos = deduplicatePhotoList(initialReportPhotos);
+        if (uniqueInitialPhotos.length > 0) {
+          setInvPhotos(uniqueInitialPhotos);
         }
       }
     }
@@ -2046,6 +2197,15 @@ export default function IMDetails() {
       loadActions();
     }
   }, [id]);
+
+  useEffect(() => {
+    if (activeTab === "investigation" && !invDetails) {
+      const existingDesc = irDescription || huDescription || rawIncident?.initialReport?.description || rawIncident?.incident?.description || "";
+      if (existingDesc) {
+        setInvDetails(existingDesc);
+      }
+    }
+  }, [activeTab, irDescription, huDescription, rawIncident, invDetails]);
 
   const toggleActionExpand = (actionId) => {
     setExpandedActionIds(prev => ({
@@ -2300,7 +2460,7 @@ export default function IMDetails() {
   };
   const setFishboneScore = (cat, idx, score) => {
     const newFb = { ...fishbone };
-    newFb[cat][idx].score = score;
+    newFb[cat][idx].score = newFb[cat][idx].score === score ? null : score;
     setFishbone(newFb);
   };
 
@@ -2659,7 +2819,8 @@ export default function IMDetails() {
                   const t = (i + 1) / 6; // evenly space up to 5 causes
                   const tx = endX + (baseX - endX) * t;
                   const ty = endY + (spineY - endY) * t;
-                  const txt = cause.text + (cause.score ? ` [${cause.score}]` : '');
+                  const sc = cause.score ? FISHBONE_SCORE_CONFIG[cause.score] : null;
+                  const tooltipText = `${cause.text}${sc ? ` (Score: ${cause.score} · ${sc.label})` : ''}${cause.probable ? ' [Selected for 5 Whys]' : ''}`;
 
                   // Tick mark (horizontal line pointing to the cause)
                   const tickLen = 70;
@@ -2668,15 +2829,28 @@ export default function IMDetails() {
 
                   return (
                     <g key={i} style={{ cursor: "pointer" }}
-                      onMouseEnter={(e) => setFbTooltip({ text: txt, x: e.clientX, y: e.clientY })}
-                      onMouseMove={(e) => setFbTooltip({ text: txt, x: e.clientX, y: e.clientY })}
+                      onMouseEnter={(e) => setFbTooltip({ text: tooltipText, x: e.clientX, y: e.clientY })}
+                      onMouseMove={(e) => setFbTooltip({ text: tooltipText, x: e.clientX, y: e.clientY })}
                       onMouseLeave={() => setFbTooltip(null)}
                     >
                       <line x1={tx} y1={ty} x2={tickX2} y2={ty} stroke="#0f172a" strokeWidth="2.5" />
                       <text x={tickX2 - 6} y={ty + 4} fill="#1e293b" fontSize="12" fontWeight="600" textAnchor="end">
-                        {txt.length > 15 ? txt.substring(0, 15) + '...' : txt}
+                        {cause.text.length > 15 ? cause.text.substring(0, 15) + '...' : cause.text}
                       </text>
-                      {cause.probable && <circle cx={tx} cy={ty} r="8" fill="#fee2e2" stroke="#dc2626" strokeWidth="2.5" strokeDasharray="4,2" />}
+                      {/* Connection node on bone */}
+                      {sc ? (
+                        <g>
+                          <circle cx={tx} cy={ty} r="8.5" fill={sc.bg} stroke={sc.border} strokeWidth="1.5" />
+                          <text x={tx} y={ty + 3.5} fill={sc.color} fontSize="9" fontWeight="800" textAnchor="middle">
+                            {cause.score}
+                          </text>
+                        </g>
+                      ) : (
+                        <circle cx={tx} cy={ty} r="3.5" fill="#0f172a" />
+                      )}
+                      {cause.probable && (
+                        <circle cx={tx} cy={ty} r={sc ? "12" : "8"} fill="none" stroke="#dc2626" strokeWidth="2.5" strokeDasharray="4,2" />
+                      )}
                     </g>
                   );
                 })}
@@ -2719,15 +2893,9 @@ export default function IMDetails() {
     return probable;
   };
 
-  const renderTimeline = () => {
+  const getDeadlines = () => {
     const incDateStr = huDate || incident?.incidentDate || incident?.date || "";
     const incTimeStr = huTime || incident?.incidentTime || incident?.time || "00:00";
-
-    let huDeadline = "-";
-    let irDeadline = "-";
-    let invDeadline = "-";
-
-    // Prioritize system creation time for SLA deadlines, fallback to incident date/time
     const createdStr = incident?.createdAt || rawIncident?.createdAt || incident?.createdTime || rawIncident?.createdTime;
     let baseDate = null;
 
@@ -2738,9 +2906,15 @@ export default function IMDetails() {
     }
 
     if (baseDate && !isNaN(baseDate.getTime())) {
-      const dHu = new Date(baseDate.getTime() + 2 * 60 * 60 * 1000);
-      const dIr = new Date(baseDate.getTime() + 24 * 60 * 60 * 1000);
-      const dInv = new Date(baseDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+      const dHu = incident?.slaHeadsUpDue
+        ? (parseUTCToDate(incident.slaHeadsUpDue) || new Date(incident.slaHeadsUpDue))
+        : new Date(baseDate.getTime() + 2 * 60 * 60 * 1000);
+      const dIr = incident?.slaInitialDue
+        ? (parseUTCToDate(incident.slaInitialDue) || new Date(incident.slaInitialDue))
+        : new Date(baseDate.getTime() + 24 * 60 * 60 * 1000);
+      const dInv = incident?.slaInvestigationDue
+        ? (parseUTCToDate(incident.slaInvestigationDue) || new Date(incident.slaInvestigationDue))
+        : new Date(baseDate.getTime() + 7 * 24 * 60 * 60 * 1000);
 
       const formatDt = (d) => {
         if (!d || isNaN(d.getTime())) return "-";
@@ -2755,19 +2929,45 @@ export default function IMDetails() {
         }).replace(",", "");
       };
 
-      huDeadline = formatDt(dHu);
-      irDeadline = formatDt(dIr);
-      invDeadline = formatDt(dInv);
+      return {
+        baseDate,
+        dHu,
+        dIr,
+        dInv,
+        huDeadline: formatDt(dHu),
+        irDeadline: formatDt(dIr),
+        invDeadline: formatDt(dInv),
+        formatDt
+      };
     }
+
+    return {
+      baseDate: null,
+      dHu: null,
+      dIr: null,
+      dInv: null,
+      huDeadline: "-",
+      irDeadline: "-",
+      invDeadline: "-",
+      formatDt: () => "-"
+    };
+  };
+
+  const renderTimeline = () => {
+    const { huDeadline, irDeadline, invDeadline } = getDeadlines();
 
     const huStatus = getStepStatusInfo("headsUp");
     const irStatus = getStepStatusInfo("initialReport");
     const invStatus = getStepStatusInfo("investigation");
 
+    const huIsLate = Boolean(headsUpData?.lateSubmissionReason);
+    const irIsLate = Boolean(initialReportData?.lateSubmissionReason);
+    const invIsLate = Boolean(investigationData?.lateSubmissionReason);
+
     const s = [
-      { key: "headsUp", num: 1, st: stages.headsUp, state: huStatus.state, statusLabel: huStatus.label, dueLabel: huDeadline },
-      { key: "initialReport", num: 2, st: stages.initialReport, state: irStatus.state, statusLabel: irStatus.label, dueLabel: irDeadline },
-      { key: "investigation", num: 3, st: stages.investigation, state: invStatus.state, statusLabel: invStatus.label, dueLabel: invDeadline }
+      { key: "headsUp", num: 1, st: stages.headsUp, state: huStatus.state, statusLabel: huStatus.label, dueLabel: huDeadline, isLate: huIsLate },
+      { key: "initialReport", num: 2, st: stages.initialReport, state: irStatus.state, statusLabel: irStatus.label, dueLabel: irDeadline, isLate: irIsLate },
+      { key: "investigation", num: 3, st: stages.investigation, state: invStatus.state, statusLabel: invStatus.label, dueLabel: invDeadline, isLate: invIsLate }
     ];
 
     return (
@@ -2882,10 +3082,20 @@ export default function IMDetails() {
                             PENDING
                           </span>
                         )}
+                        {stg.isLate && (
+                          <span style={{ background: "#fee2e2", color: "#991b1b", border: "1px solid #fecdd3", padding: "2px 8px", borderRadius: "999px", fontSize: "10.5px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em" }}>
+                            LATE
+                          </span>
+                        )}
                       </div>
 
                       <div style={{ fontSize: "12px", color: "#64748b", marginTop: "6px" }}>
                         Deadline: {stg.dueLabel}
+                        {stg.isLate && (
+                          <span style={{ marginLeft: "8px", color: "#dc2626", fontWeight: 600 }}>
+                            &bull; Submitted past deadline
+                          </span>
+                        )}
                         {isWaived && (
                           <span style={{ marginLeft: "8px", color: "#94a3b8", fontStyle: "italic", fontWeight: 500 }}>
                             &bull; Waived from investigation workflow
@@ -3091,26 +3301,8 @@ export default function IMDetails() {
           {initials}
         </div>
         <div style={{ flex: 1, borderLeft: "1px solid var(--border-color)", paddingLeft: 16, display: "flex", flexDirection: "column" }}>
-          <div style={{ height: 50, display: "flex", alignItems: "center", marginBottom: 4 }}>
-            {sigUrl ? (
-              <img
-                className="signature-img"
-                src={sigUrl}
-                alt="Signature"
-                style={{ maxHeight: "100%", maxWidth: "200px", objectFit: "contain" }}
-                onError={(e) => {
-                  e.target.onerror = null;
-                  e.target.style.display = "none";
-                }}
-              />
-            ) : (
-              <div style={{ fontFamily: "'Brush Script MT', cursive, sans-serif", fontSize: 18, color: "var(--text-main)", fontWeight: 700 }}>
-                {user}
-              </div>
-            )}
-          </div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-main)" }}>{user}</div>
-          <div style={{ fontSize: 11, color: "var(--text-muted)" }}>({role})</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-main)", marginBottom: 2 }}>{user}</div>
+          <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{role}</div>
         </div>
       </div>
     );
@@ -3545,66 +3737,41 @@ export default function IMDetails() {
       {renderTimeline()}
 
       {/* Tabs */}
-      <div className="inc-tabs">
+      <div
+        className="inc-tabs"
+        style={{
+          display: "flex",
+          gap: "4px",
+          borderBottom: "1px solid var(--border-color, #e2e8f0)",
+          marginBottom: "20px",
+          flexWrap: "wrap",
+          alignItems: "center",
+          paddingBottom: "0px"
+        }}
+      >
         {[
-          {
-            id: "overview",
-            label: "Overview",
-            icon: (
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 3h7v9H3z" />
-                <path d="M14 3h7v5h-7z" />
-                <path d="M14 12h7v9h-7z" />
-                <path d="M3 16h7v5H3z" />
-              </svg>
-            )
-          },
+          { id: "overview", label: "Overview" },
           {
             id: "headsUp",
             label: "Step 1: Heads-Up (2hr)",
-            icon: (
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10" />
-                <polyline points="12 6 12 12 16 14" />
-              </svg>
-            ),
             tabBadge: getStepStatusInfo("headsUp").label,
             tabBadgeClass: getStepStatusInfo("headsUp").chipClass
           },
           {
             id: "initialReport",
             label: "Step 2: Initial Report (24hr)",
-            icon: (
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                <polyline points="14 2 14 8 20 8" />
-                <line x1="16" y1="13" x2="8" y2="13" />
-                <line x1="16" y1="17" x2="8" y2="17" />
-              </svg>
-            ),
             tabBadge: getStepStatusInfo("initialReport").label,
             tabBadgeClass: getStepStatusInfo("initialReport").chipClass
           },
           {
             id: "investigation",
             label: "Step 3: Investigation Report (7 days)",
-            icon: (
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="11" cy="11" r="8" />
-                <line x1="21" y1="21" x2="16.65" y2="16.65" />
-              </svg>
-            ),
             tabBadge: getStepStatusInfo("investigation").label,
             tabBadgeClass: getStepStatusInfo("investigation").chipClass
           },
           {
             id: "immediateActions",
             label: "Immediate Actions",
-            icon: (
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
-                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-              </svg>
-            ),
             tabBadge: (() => {
               const list = [];
               (huImmActions || []).forEach(a => {
@@ -3631,48 +3798,96 @@ export default function IMDetails() {
           {
             id: "actions",
             label: "Corrective Actions",
-            icon: (
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9 11l3 3L22 4" />
-                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-              </svg>
-            ),
             tabBadge: (actionsList && actionsList.length > 0) ? `${actionsList.length}` : undefined,
             tabBadgeClass: "chip-approved"
           }
-        ].map(t => (
-          <button
-            key={t.id}
-            className={`inc-tab ${activeTab === t.id ? "active" : ""}`}
-            onClick={() => {
-              setActiveTab(t.id);
-              if (!isContractorUser() && (t.tabBadge === "IN REVIEW" || t.tabBadge === "REVISION REQUIRED" || t.tabBadge === "Pending NNE Review")) {
-                scrollToReviewSection(t.id);
-              }
-            }}
-          >
-            <span className="inc-tab-icon">{t.icon}</span>
-            <span className="inc-tab-label">{t.label}</span>
-            {t.tabBadge && (
-              <span
-                className={`inv-chip ${t.tabBadgeClass}`}
-                style={{
-                  cursor: (!isContractorUser() && (t.tabBadge === "IN REVIEW" || t.tabBadge === "REVISION REQUIRED" || t.tabBadge === "Pending NNE Review")) ? "pointer" : "inherit"
-                }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setActiveTab(t.id);
-                  if (!isContractorUser()) {
-                    scrollToReviewSection(t.id);
-                  }
-                }}
-                title={!isContractorUser() && (t.tabBadge === "IN REVIEW" || t.tabBadge === "REVISION REQUIRED") ? "Click to scroll to Review Section" : undefined}
-              >
-                {t.tabBadge}
-              </span>
-            )}
-          </button>
-        ))}
+        ].map(t => {
+          const isActive = activeTab === t.id;
+          const getBadgeStyle = (bText, bClass) => {
+            const b = String(bText || "").toUpperCase();
+            if (b === "COMPLETED" || bClass === "chip-done" || bClass === "chip-approved" || !isNaN(Number(b))) {
+              return { background: "#d1fae5", color: "#065f46", border: "1px solid #a7f3d0" };
+            }
+            if (b === "IN REVIEW") {
+              return { background: "#fee2e2", color: "#991b1b", border: "1px solid #fecaca" };
+            }
+            if (b === "REVISION REQUIRED") {
+              return { background: "#fef3c7", color: "#92400e", border: "1px solid #fcd34d" };
+            }
+            if (b === "PENDING CLOSURE" || b === "REOPENED") {
+              return { background: "#ffedd5", color: "#c2410c", border: "1px solid #fed7aa" };
+            }
+            if (b === "WAIVED") {
+              return { background: "#f1f5f9", color: "#475569", border: "1px solid #cbd5e1" };
+            }
+            return { background: "#f1f5f9", color: "#64748b", border: "1px solid #cbd5e1" };
+          };
+
+          return (
+            <button
+              key={t.id}
+              type="button"
+              className={`inc-tab ${isActive ? "active" : ""}`}
+              onClick={() => {
+                setActiveTab(t.id);
+                if (!isContractorUser() && (t.tabBadge === "IN REVIEW" || t.tabBadge === "REVISION REQUIRED" || t.tabBadge === "Pending NNE Review")) {
+                  scrollToReviewSection(t.id);
+                }
+              }}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "8px",
+                padding: "10px 16px",
+                fontSize: "13.5px",
+                fontWeight: isActive ? 700 : 500,
+                background: "none",
+                backgroundColor: "transparent",
+                border: "none",
+                borderBottom: isActive ? "2px solid var(--accent-primary, #2563eb)" : "2px solid transparent",
+                color: isActive ? "var(--accent-primary, #2563eb)" : "var(--text-muted, #64748b)",
+                cursor: "pointer",
+                outline: "none",
+                appearance: "none",
+                WebkitAppearance: "none",
+                transition: "all 0.15s ease",
+                whiteSpace: "nowrap",
+                marginBottom: "-1px"
+              }}
+            >
+              <span>{t.label}</span>
+              {t.tabBadge && (
+                <span
+                  className={`inv-chip ${t.tabBadgeClass}`}
+                  style={{
+                    marginLeft: "6px",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    padding: "2px 8px",
+                    borderRadius: "999px",
+                    fontSize: "10.5px",
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.03em",
+                    lineHeight: 1.3,
+                    ...getBadgeStyle(t.tabBadge, t.tabBadgeClass),
+                    cursor: (!isContractorUser() && (t.tabBadge === "IN REVIEW" || t.tabBadge === "REVISION REQUIRED" || t.tabBadge === "Pending NNE Review")) ? "pointer" : "inherit"
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActiveTab(t.id);
+                    if (!isContractorUser()) {
+                      scrollToReviewSection(t.id);
+                    }
+                  }}
+                  title={!isContractorUser() && (t.tabBadge === "IN REVIEW" || t.tabBadge === "REVISION REQUIRED") ? "Click to scroll to Review Section" : undefined}
+                >
+                  {t.tabBadge}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       <div id="inc-panels">
@@ -3694,7 +3909,7 @@ export default function IMDetails() {
                     </div>
                   )}
                   <div>
-                    <dt style={{ color: "var(--text-muted)", fontSize: "11px", fontWeight: 700, letterSpacing: "0.5px", textTransform: "uppercase", marginBottom: "4px" }}>Classification</dt>
+                    <dt style={{ color: "var(--text-muted)", fontSize: "11px", fontWeight: 700, letterSpacing: "0.5px", textTransform: "uppercase", marginBottom: "4px" }}>Incident Category</dt>
                     <dd style={{ fontWeight: 500, fontSize: "14px", color: "var(--text-main)" }}>{incident.categories ? (Array.isArray(incident.categories) ? incident.categories.join(", ") : incident.categories) : incident.category || "—"}</dd>
                   </div>
                   <div>
@@ -3807,6 +4022,12 @@ export default function IMDetails() {
                     <dt style={{ color: "var(--text-muted)", fontSize: "11px", fontWeight: 700, letterSpacing: "0.5px", textTransform: "uppercase", marginBottom: "4px" }}>Description</dt>
                     <dd style={{ fontWeight: 500, fontSize: "14px", color: "var(--text-main)" }}>{headsUpData?.descriptionWhatHappened || headsUpData?.whatHappened || headsUpData?.descriptionConsequence || incident.description || incident.details || "—"}</dd>
                   </div>
+                  {headsUpData?.lateSubmissionReason && (
+                    <div style={{ gridColumn: "1 / -1", marginTop: 8, padding: "10px 14px", background: "#fff1f2", border: "1px solid #fecdd3", borderLeft: "4px solid #e11d48", borderRadius: "6px" }}>
+                      <div style={{ fontSize: "11px", fontWeight: 700, color: "#9f1239", textTransform: "uppercase", letterSpacing: "0.5px" }}>⚠️ Reason for Late Submission (2-Hour Deadline Exceeded)</div>
+                      <div style={{ fontSize: "13.5px", fontWeight: 600, color: "#881337", marginTop: "4px" }}>{headsUpData.lateSubmissionReason}</div>
+                    </div>
+                  )}
                 </div>
               </dl>
             </div>
@@ -4218,11 +4439,79 @@ export default function IMDetails() {
                     <input type="text" className="mod-form-input" placeholder="e.g. Scaffolding pipe drop during dismantling" value={huTitle} onChange={(e) => setHuTitle(e.target.value)} />
                   </div>
                   <div className="mod-form-group">
-                    <label className="mod-form-label">Incident Date *</label>
+                    <label className="mod-form-label" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      <span>DATE OF INCIDENT / OCCURRENCE (YYYY-MM-DD) <span style={{ color: "#DC2626" }}>*</span></span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setShowHuDateHelp(prev => !prev);
+                        }}
+                        title={showHuDateHelp ? "Hide date guidance" : "Click to view date guidance"}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          background: "transparent",
+                          border: "none",
+                          color: showHuDateHelp ? "#2563eb" : "#64748b",
+                          cursor: "pointer",
+                          padding: 0,
+                          flexShrink: 0,
+                          transition: "color 0.15s ease"
+                        }}
+                        aria-label="Date guidance"
+                      >
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill={showHuDateHelp ? "rgba(37, 99, 235, 0.1)" : "none"} stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="10" />
+                          <line x1="12" y1="16" x2="12" y2="12" />
+                          <line x1="12" y1="8" x2="12.01" y2="8" />
+                        </svg>
+                      </button>
+                    </label>
+                    {showHuDateHelp && (
+                      <div style={{ fontSize: "11px", color: "var(--text-muted)", marginBottom: "6px", lineHeight: "1.4" }}>
+                        Enter the date when the incident <strong style={{ color: "var(--text-main)" }}>actually occurred</strong>, not the date when the incident report is being created or registered in the system.
+                      </div>
+                    )}
                     <input type="date" className="mod-form-input" value={huDate} onChange={(e) => setHuDate(e.target.value)} />
                   </div>
                   <div className="mod-form-group">
-                    <label className="mod-form-label">Incident Time *</label>
+                    <label className="mod-form-label" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      <span>TIME OF INCIDENT / OCCURRENCE (24HR) <span style={{ color: "#DC2626" }}>*</span></span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setShowHuTimeHelp(prev => !prev);
+                        }}
+                        title={showHuTimeHelp ? "Hide time guidance" : "Click to view time guidance"}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          background: "transparent",
+                          border: "none",
+                          color: showHuTimeHelp ? "#2563eb" : "#64748b",
+                          cursor: "pointer",
+                          padding: 0,
+                          flexShrink: 0,
+                          transition: "color 0.15s ease"
+                        }}
+                        aria-label="Time guidance"
+                      >
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill={showHuTimeHelp ? "rgba(37, 99, 235, 0.1)" : "none"} stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="10" />
+                          <line x1="12" y1="16" x2="12" y2="12" />
+                          <line x1="12" y1="8" x2="12.01" y2="8" />
+                        </svg>
+                      </button>
+                    </label>
+                    {showHuTimeHelp && (
+                      <div style={{ fontSize: "11px", color: "var(--text-muted)", marginBottom: "6px", lineHeight: "1.4" }}>
+                        Enter the time when the incident <strong style={{ color: "var(--text-main)" }}>actually occurred</strong>, not the time when the incident report is being created or registered in the system.
+                      </div>
+                    )}
                     <input
                       type="text"
                       className="mod-form-input"
@@ -4236,6 +4525,7 @@ export default function IMDetails() {
                       style={{ cursor: "pointer", background: "var(--input-bg, #fff)" }}
                     />
                   </div>
+
                   <div className="mod-form-group">
                     <label className="mod-form-label">Location / Building *</label>
                     <select
@@ -4337,44 +4627,148 @@ export default function IMDetails() {
                 {/* 2. Incident Records */}
                 <div className="form-section-title" style={{ fontWeight: 700, fontSize: "15px", marginBottom: "16px", color: "var(--text-main)", display: "flex", alignItems: "center", gap: "8px" }}>
                   <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, borderRadius: "50%", background: "rgba(59, 130, 246, 0.1)", color: "#3b82f6", fontSize: "12px", fontWeight: 700 }}>2</span>
-                  Incident Records & Classification
+                  <span>Incident Records</span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setShowHuCategoryReferenceTable(prev => !prev);
+                    }}
+                    title={showHuCategoryReferenceTable ? "Hide Incident Category definitions" : "Click to view Incident Management Practice definitions table"}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      background: "transparent",
+                      border: "none",
+                      color: showHuCategoryReferenceTable ? "#2563eb" : "#64748b",
+                      cursor: "pointer",
+                      padding: 0,
+                      flexShrink: 0,
+                      transition: "color 0.15s ease"
+                    }}
+                    aria-label="Incident Management Practice definitions"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill={showHuCategoryReferenceTable ? "rgba(37, 99, 235, 0.1)" : "none"} stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="12" y1="16" x2="12" y2="12" />
+                      <line x1="12" y1="8" x2="12.01" y2="8" />
+                    </svg>
+                  </button>
                 </div>
+
+                {showHuCategoryReferenceTable && (
+                  <IncidentCategoryReferenceTable onClose={() => setShowHuCategoryReferenceTable(false)} />
+                )}
+
                 <div className="grid-3" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px" }}>
                   <div className="mod-form-group">
-                    <label className="mod-form-label">Incident Category *</label>
+                    <label className="mod-form-label" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      <span>Incident Category *</span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setShowHuCategoryReferenceTable(prev => !prev);
+                        }}
+                        title={showHuCategoryReferenceTable ? "Hide Incident Category definitions" : "Click to view Incident Management Practice definitions table"}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          background: "transparent",
+                          border: "none",
+                          color: showHuCategoryReferenceTable ? "#2563eb" : "#64748b",
+                          cursor: "pointer",
+                          padding: 0,
+                          flexShrink: 0,
+                          transition: "color 0.15s ease"
+                        }}
+                        aria-label="Incident Management Practice definitions"
+                      >
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill={showHuCategoryReferenceTable ? "rgba(37, 99, 235, 0.1)" : "none"} stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="10" />
+                          <line x1="12" y1="16" x2="12" y2="12" />
+                          <line x1="12" y1="8" x2="12.01" y2="8" />
+                        </svg>
+                      </button>
+                    </label>
                     <IncidentCategoryDropdown
                       options={incidentCategories}
                       value={huCategories[0] || ""}
                       onChange={(cat) => handleHuCategoryToggle(cat)}
-                      placeholder="Select Category"
+                      placeholder="Select Incident Category..."
                     />
                   </div>
-                  <div className="mod-form-group">
-                    <label className="mod-form-label">Actual Severity Assessment *</label>
-                    <select className="mod-form-select" value={huActualSeverity} onChange={(e) => setHuActualSeverity(e.target.value)}>
-                      <option value="">Select Actual Severity</option>
-                      {severityOptions.map(s => (
-                        <option key={s.level} value={s.level}>{s.label} ({s.desc})</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="mod-form-group">
-                    <label className="mod-form-label">Potential Severity Assessment *</label>
-                    <select className="mod-form-select" value={huPotentialSeverity} onChange={(e) => setHuPotentialSeverity(e.target.value)}>
-                      <option value="">Select Potential Severity</option>
-                      {severityOptions.map(s => (
-                        <option key={s.level} value={s.level}>{s.label} ({s.desc})</option>
-                      ))}
-                    </select>
-                  </div>
+                  {(() => {
+                    const currentHuCat = huCategories[0] || "";
+                    const huSevConfig = getCategorySeverityConfig(currentHuCat, huActualSeverity);
+                    const effActual = huSevConfig.isActualFixed ? huSevConfig.actualValue : huActualSeverity;
+                    const effPotential = huSevConfig.isPotentialFixed ? "N/A" : huPotentialSeverity;
+
+                    return (
+                      <>
+                        <div className="mod-form-group">
+                          <label className="mod-form-label">Actual Severity Assessment *</label>
+                          <SeverityDropdown
+                            id="hu-actual-severity-dropdown"
+                            value={effActual}
+                            onChange={(val) => {
+                              const newConfig = getCategorySeverityConfig(currentHuCat, val);
+                              setHuActualSeverity(val);
+                              if (newConfig.isPotentialFixed) {
+                                setHuPotentialSeverity("N/A");
+                              } else if (huPotentialSeverity === "N/A" || !newConfig.allowedPotentialLevels.includes(Number(huPotentialSeverity))) {
+                                setHuPotentialSeverity("");
+                              }
+                            }}
+                            placeholder="Select Actual Severity"
+                            disabled={huSevConfig.isActualFixed}
+                            allowedLevels={huSevConfig.allowedActualLevels}
+                          />
+                          <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "4px" }}>
+                            what actually happened
+                            {huSevConfig.noteActual && (
+                              <span style={{ color: "#DC2626", fontWeight: 600, marginLeft: "6px" }}>• {huSevConfig.noteActual}</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="mod-form-group">
+                          <label className="mod-form-label">Potential Severity Assessment *</label>
+                          <SeverityDropdown
+                            id="hu-potential-severity-dropdown"
+                            value={effPotential}
+                            onChange={(val) => setHuPotentialSeverity(val)}
+                            placeholder="Select Potential Severity"
+                            disabled={huSevConfig.isPotentialFixed}
+                            allowedLevels={huSevConfig.allowedPotentialLevels}
+                          />
+                          <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "4px" }}>
+                            what could realistically have happened under slightly different circumstances
+                            {huSevConfig.notePotential && (
+                              <span style={{ color: "#DC2626", fontWeight: 600, marginLeft: "6px" }}>• {huSevConfig.notePotential}</span>
+                            )}
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
 
-                {(Number(huActualSeverity) >= 4 || Number(huPotentialSeverity) >= 4) && (
-                  <div style={{ marginTop: "12px", padding: "10px 14px", background: "rgba(227, 43, 80, 0.1)", border: "1px solid rgba(227, 43, 80, 0.3)", borderRadius: "6px", color: "#E32B50", fontSize: "13px", fontWeight: 600, display: "flex", alignItems: "center", gap: "8px" }}>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
-                    Critical Incident — Level 3 / Escalated Investigation Protocol Applies.
-                  </div>
-                )}
+                {(() => {
+                  const currentHuCat = huCategories[0] || "";
+                  const huSevConfig = getCategorySeverityConfig(currentHuCat, huActualSeverity);
+                  const effActual = huSevConfig.isActualFixed ? huSevConfig.actualValue : huActualSeverity;
+                  const effPotential = huSevConfig.isPotentialFixed ? "N/A" : huPotentialSeverity;
+                  const isHipo = Number(effActual) >= 4 || Number(effPotential) >= 4;
+
+                  return isHipo ? (
+                    <div style={{ marginTop: "12px", padding: "10px 14px", background: "rgba(227, 43, 80, 0.1)", border: "1px solid rgba(227, 43, 80, 0.3)", borderRadius: "6px", color: "#E32B50", fontSize: "13px", fontWeight: 600, display: "flex", alignItems: "center", gap: "8px" }}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
+                      Critical Incident — Level 3 / Escalated Investigation Protocol Applies.
+                    </div>
+                  ) : null;
+                })()}
 
                 <hr style={{ margin: "24px 0", borderColor: "var(--border-color)", borderStyle: "dashed" }} />
 
@@ -4388,8 +4782,42 @@ export default function IMDetails() {
                   <textarea className="mod-form-textarea" rows="3" placeholder="Provide a concise and objective description of the event..." value={huDescription} onChange={(e) => setHuDescription(e.target.value)}></textarea>
                 </div>
                 <div className="mod-form-group" style={{ marginTop: "16px" }}>
-                  <label className="mod-form-label">What is the consequence of this incident?</label>
-                  <textarea className="mod-form-textarea" rows="2" placeholder="e.g. Temporary work stoppage, minor abrasion treated with first aid, no structural damage..." value={huConsequence} onChange={(e) => setHuConsequence(e.target.value)}></textarea>
+                  <label className="mod-form-label" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span>What is the consequence of this incident?</span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setShowHuConsequenceHelp(prev => !prev);
+                      }}
+                      title={showHuConsequenceHelp ? "Hide consequence guidance" : "Click to view consequence guidance"}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        background: "transparent",
+                        border: "none",
+                        color: showHuConsequenceHelp ? "#2563eb" : "#64748b",
+                        cursor: "pointer",
+                        padding: 0,
+                        flexShrink: 0,
+                        transition: "color 0.15s ease"
+                      }}
+                      aria-label="Consequence guidance"
+                    >
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill={showHuConsequenceHelp ? "rgba(37, 99, 235, 0.1)" : "none"} stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="12" y1="16" x2="12" y2="12" />
+                        <line x1="12" y1="8" x2="12.01" y2="8" />
+                      </svg>
+                    </button>
+                  </label>
+                  {showHuConsequenceHelp && (
+                    <div style={{ fontSize: "11px", color: "var(--text-muted)", marginBottom: "6px", lineHeight: "1.4" }}>
+                      write the consequence that best reflects what <strong style={{ color: "var(--text-main)" }}>actually happened</strong>, considering the actual injury/health, environmental, property/equipment, or operational impact. Do not consider what could have happened, as this is assessed separately under Potential Severity.
+                    </div>
+                  )}
+                  <textarea className="mod-form-textarea" rows="2" value={huConsequence} onChange={(e) => setHuConsequence(e.target.value)}></textarea>
                 </div>
 
                 {/* 4. Environmental Incident Details if applicable */}
@@ -4487,12 +4915,44 @@ export default function IMDetails() {
                     <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, borderRadius: "50%", background: "rgba(59, 130, 246, 0.1)", color: "#3b82f6", fontSize: "12px", fontWeight: 700 }}>
                       {(huCategories.some(c => c && c.toLowerCase().includes("environment")) || headsUpData?.isEnvironmental) ? "5" : "4"}
                     </span>
-                    Immediate Actions Taken
+                    <span>Immediate Actions Taken</span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setShowHuImmActionsHelp(prev => !prev);
+                      }}
+                      title={showHuImmActionsHelp ? "Hide immediate actions guidance" : "Click to view immediate actions guidance"}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        background: "transparent",
+                        border: "none",
+                        color: showHuImmActionsHelp ? "#2563eb" : "#64748b",
+                        cursor: "pointer",
+                        padding: 0,
+                        flexShrink: 0,
+                        transition: "color 0.15s ease"
+                      }}
+                      aria-label="Immediate actions guidance"
+                    >
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill={showHuImmActionsHelp ? "rgba(37, 99, 235, 0.1)" : "none"} stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="12" y1="16" x2="12" y2="12" />
+                        <line x1="12" y1="8" x2="12.01" y2="8" />
+                      </svg>
+                    </button>
                   </span>
                   <button type="button" className="mod-btn-outline" style={{ padding: "4px 10px", fontSize: "12px" }} onClick={addHuAction}>
                     + Add Action
                   </button>
                 </div>
+                {showHuImmActionsHelp && (
+                  <div style={{ fontSize: "11px", color: "var(--text-muted)", marginBottom: "12px", lineHeight: "1.4" }}>
+                    Describe the <strong style={{ color: "var(--text-main)" }}>immediate actions taken after the incident</strong> to control the situation, make the area safe, and prevent further consequences, such as stopping work, providing first aid, isolating the area/equipment, or containing a spill. Do not include long-term corrective or preventive actions identified during the investigation.
+                  </div>
+                )}
                 {huImmActions.length === 0 ? (
                   <div style={{ padding: "12px", background: "var(--bg-dark, #f8fafc)", borderRadius: "6px", fontSize: "13px", color: "var(--text-muted)", fontStyle: "italic", textAlign: "center" }}>
                     No immediate actions added yet. Click "+ Add Action" to record immediate corrective measures.
@@ -4584,10 +5044,6 @@ export default function IMDetails() {
                 <div className="mod-form-group" style={{ marginTop: "14px" }}>
                   <label className="mod-form-label">Reason for Revision / Change Summary *</label>
                   <textarea className="mod-form-textarea" rows="2" placeholder="Describe the corrections or updates made to this Heads-Up report..." value={huEditReason} onChange={(e) => setHuEditReason(e.target.value)}></textarea>
-                </div>
-                <div className="mod-form-group" style={{ marginTop: "14px" }}>
-                  <label className="mod-form-label">Editor Digital Signature</label>
-                  <SignaturePad value={huEditorSignature} onChange={setHuEditorSignature} onClear={() => setHuEditorSignature(false)} />
                 </div>
                 <div style={{ marginTop: 14, padding: "10px 14px", background: huNoFurtherInvestigation ? "rgba(16, 185, 129, 0.08)" : "var(--bg-dark, #f8fafc)", borderRadius: "8px", border: huNoFurtherInvestigation ? "1px solid rgba(16, 185, 129, 0.3)" : "1px solid var(--border-color)", display: "flex", alignItems: "center", gap: 10 }}>
                   <input
@@ -4733,7 +5189,7 @@ export default function IMDetails() {
                 <div className="grid-2" style={{ rowGap: "14px" }}>
                   <div className="mod-form-group"><label className="mod-form-label">Project Name</label><div className="readonly-box">{huProject || incident.projectName || "M3 South"}</div></div>
                   <div className="mod-form-group"><label className="mod-form-label">Incident Title</label><div className="readonly-box">{huTitle || incident.title || "—"}</div></div>
-                  <div className="mod-form-group"><label className="mod-form-label">Date / Time</label><div className="readonly-box">{huDate || incident.incidentDate || "—"} {huTime || incident.incidentTime || ""}</div></div>
+                  <div className="mod-form-group"><label className="mod-form-label">Date / Time of Incident Occurrence</label><div className="readonly-box">{huDate || incident.incidentDate || "—"} {huTime || incident.incidentTime || ""}</div></div>
                   <div className="mod-form-group"><label className="mod-form-label">Location / Building</label><div className="readonly-box">{huBuildingName || incident.buildingName || incident.building || "—"}</div></div>
                   <div className="mod-form-group"><label className="mod-form-label">Floor / Level</label><div className="readonly-box">{huFloorLevel || incident.floorLevel || "—"}</div></div>
                   <div className="mod-form-group"><label className="mod-form-label">Specific Location</label><div className="readonly-box">{huSpecificLocation || incident.specificLocation || "—"}</div></div>
@@ -4762,19 +5218,7 @@ export default function IMDetails() {
                       {(() => {
                         const level = huActualSeverity || incident.actualSeverity || incident.severity;
                         if (!level) return <span style={{ color: "var(--text-muted)" }}>—</span>;
-                        const meta = {
-                          1: { label: "Insignificant", color: "#2D9E5A" },
-                          2: { label: "Minor", color: "#C07D10" },
-                          3: { label: "Moderate", color: "#D97706" },
-                          4: { label: "Critical", color: "#E32B50" },
-                          5: { label: "Catastrophic", color: "#8F1B32" }
-                        };
-                        const m = meta[level] || { label: "", color: "#A1A5B3" };
-                        return (
-                          <span className="badge" style={{ background: `${m.color}22`, color: m.color, fontWeight: 700 }}>
-                            {level} - {m.label}
-                          </span>
-                        );
+                        return <SevPill level={level} />;
                       })()}
                     </div>
                   </div>
@@ -4784,19 +5228,7 @@ export default function IMDetails() {
                       {(() => {
                         const level = huPotentialSeverity || incident.potentialSeverity;
                         if (!level) return <span style={{ color: "var(--text-muted)" }}>—</span>;
-                        const meta = {
-                          1: { label: "Insignificant", color: "#2D9E5A" },
-                          2: { label: "Minor", color: "#C07D10" },
-                          3: { label: "Moderate", color: "#D97706" },
-                          4: { label: "Critical", color: "#E32B50" },
-                          5: { label: "Catastrophic", color: "#8F1B32" }
-                        };
-                        const m = meta[level] || { label: "", color: "#A1A5B3" };
-                        return (
-                          <span className="badge" style={{ background: `${m.color}22`, color: m.color, fontWeight: 700 }}>
-                            {level} - {m.label}
-                          </span>
-                        );
+                        return <SevPill level={level} />;
                       })()}
                     </div>
                   </div>
@@ -4882,28 +5314,16 @@ export default function IMDetails() {
 
                 <hr style={{ margin: "20px 0", borderColor: "var(--border-color)", borderStyle: "dashed" }} />
 
-                {/* Submitter & Signatures */}
+                {/* Submitter Details */}
                 <div className="form-section-title" style={{ fontWeight: 700, fontSize: "14px", marginBottom: "14px", color: "var(--text-main)", display: "flex", alignItems: "center", gap: "8px" }}>
                   <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 22, height: 22, borderRadius: "50%", background: "rgba(59, 130, 246, 0.1)", color: "#3b82f6", fontSize: "11px", fontWeight: 700 }}>
                     {(huCategories.some(c => c && c.toLowerCase().includes("environment")) || headsUpData?.isEnvironmental) ? "6" : "5"}
                   </span>
-                  Submitter Information & Signature
+                  Submitter Information
                 </div>
-                <div className="grid-2">
-                  <div className="mod-form-group"><label className="mod-form-label">Submitted By</label><div className="readonly-box">{huSubmitterName || incident.reportedBy || "User"}</div></div>
-                  <div className="mod-form-group"><label className="mod-form-label">Digital Signature</label>
-                    <div className="readonly-box" style={{ display: "flex", alignItems: "center", minHeight: "45px", overflowX: "auto" }}>
-                      {huSignature ? (
-                        typeof huSignature === "string" && (huSignature.startsWith("http") || huSignature.startsWith("data:") || huSignature.startsWith("/")) ? (
-                          <img src={getAttachmentUrl(huSignature)} alt="Submitter Signature" style={{ maxHeight: "35px", maxWidth: "150px" }} />
-                        ) : (
-                          <span style={{ fontStyle: "italic", fontFamily: "cursive", color: "var(--accent-primary, #3b82f6)" }}>✓ Signed Digitally ({huSubmitterName})</span>
-                        )
-                      ) : (
-                        <span style={{ color: "var(--text-muted)" }}>—</span>
-                      )}
-                    </div>
-                  </div>
+                <div className="mod-form-group">
+                  <label className="mod-form-label">Submitted By</label>
+                  <div className="readonly-box">{huSubmitterName || incident.reportedBy || "User"}</div>
                 </div>
               </div>
             </div>
@@ -5029,11 +5449,7 @@ export default function IMDetails() {
                     </span>
                   )}
                 </div>
-                <div className="mod-form-group" style={{ marginTop: 16 }}>
-                  <label className="mod-form-label" style={{ textTransform: "uppercase" }}>Digital Signature</label>
-                  <SignaturePad value={signature} onChange={setSignature} onClear={() => setSignature(false)} />
-                </div>
-                <div className="markok" onClick={() => setMarkedOk(!markedOk)} style={{ borderColor: markedOk ? "var(--color-safe)" : "var(--border-color)", opacity: markedOk ? 1 : 0.7 }}>
+                <div className="markok" onClick={() => setMarkedOk(!markedOk)} style={{ borderColor: markedOk ? "var(--color-safe)" : "var(--border-color)", opacity: markedOk ? 1 : 0.7, marginTop: 16 }}>
                   <input type="checkbox" checked={markedOk} onChange={() => { }} />
                   <div>
                     <div className="mk-t">Marked OK</div>
@@ -5079,10 +5495,6 @@ export default function IMDetails() {
                         showError("Approver Initials are required");
                         return;
                       }
-                      if (!signature) {
-                        showError("Digital signature is required");
-                        return;
-                      }
                       if (!markedOk) {
                         showError("Please confirm by checking Marked OK");
                         return;
@@ -5093,7 +5505,7 @@ export default function IMDetails() {
                         await approveHeadsUp(id, {
                           approvedBy: userName,
                           approverRole: reviewerRole.trim(),
-                          signature: signature,
+                          signature: null,
                           noFurtherInvestigation: huNoFurtherInvestigation
                         });
                         showSuccess("Heads-Up Notification Approved!");
@@ -5210,6 +5622,11 @@ export default function IMDetails() {
                   ) : (
                     <span className="inv-chip chip-upcoming">In Progress</span>
                   )}
+                  {initialReportData?.lateSubmissionReason && (
+                    <span style={{ background: "#fee2e2", color: "#991b1b", border: "1px solid #fecdd3", padding: "2px 8px", borderRadius: "999px", fontSize: "10.5px", fontWeight: 700, textTransform: "uppercase" }}>
+                      Late Submission
+                    </span>
+                  )}
                 </div>
                 {(initialReportApproved || initialReportSubmitted) && (
                   <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
@@ -5293,6 +5710,12 @@ export default function IMDetails() {
                   </div>
                 )}
               </div>
+              {initialReportData?.lateSubmissionReason && (
+                <div style={{ margin: "16px 20px 0", padding: "12px 16px", background: "#fff1f2", border: "1px solid #fecdd3", borderLeft: "4px solid #e11d48", borderRadius: "6px" }}>
+                  <div style={{ fontSize: "11px", fontWeight: 700, color: "#9f1239", textTransform: "uppercase", letterSpacing: "0.5px" }}>⚠️ Reason for Late Submission (24-Hour Deadline Exceeded)</div>
+                  <div style={{ fontSize: "13.5px", fontWeight: 600, color: "#881337", marginTop: "4px" }}>{initialReportData.lateSubmissionReason}</div>
+                </div>
+              )}
               <div className="mod-card-body">
                 {isReopenedToStep2 && (
                   <div style={{ marginBottom: 16, padding: "12px 16px", borderRadius: 8, background: "#fffbeb", border: "1px solid #fde68a", color: "#92400e", fontSize: 13, display: "flex", alignItems: "center", gap: 10 }}>
@@ -5306,50 +5729,117 @@ export default function IMDetails() {
                   {/* A. Heads-Up Summary */}
                   <div className="fsec"><div className="fsec-title">A. Heads-Up Summary</div>
                     <div className="readonly-box">
-                      <div><b>Type:</b> {incident.categories?.[0] || incident.category || "—"}</div>
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        <b>Incident Category:</b> {incident.categories?.[0] || incident.category || "—"}
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setShowIrCategoryReferenceTable(prev => !prev);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              setShowIrCategoryReferenceTable(prev => !prev);
+                            }
+                          }}
+                          title={showIrCategoryReferenceTable ? "Hide Incident Category definitions" : "Click to view Incident Management Practice definitions table"}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            background: showIrCategoryReferenceTable ? "rgba(37, 99, 235, 0.1)" : "transparent",
+                            borderRadius: "50%",
+                            border: "none",
+                            color: showIrCategoryReferenceTable ? "#2563eb" : "#64748b",
+                            cursor: "pointer",
+                            padding: "2px",
+                            flexShrink: 0,
+                            pointerEvents: "auto",
+                            transition: "all 0.15s ease"
+                          }}
+                          aria-label="Incident Management Practice definitions"
+                        >
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill={showIrCategoryReferenceTable ? "rgba(37, 99, 235, 0.15)" : "none"} stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                            <circle cx="12" cy="12" r="10" />
+                            <line x1="12" y1="16" x2="12" y2="12" />
+                            <line x1="12" y1="8" x2="12.01" y2="8" />
+                          </svg>
+                        </span>
+                      </div>
                       <div><b>Severity:</b> {incident.actualSeverity || incident.severity || "—"}</div>
                       <div><b>Location:</b> {incident.buildingName ? `${incident.buildingName}${incident.floorLevel ? ' - ' + incident.floorLevel : ''}` : (incident.building || incident.location || "—")}</div>
                       <div><b>Description:</b> {headsUpData?.descriptionWhatHappened || headsUpData?.whatHappened || headsUpData?.descriptionConsequence || incident.description || incident.details || "—"}</div>
                     </div>
                   </div>
 
-                  <div className="fsec"><div className="fsec-title">B. Incident Category <span style={{ color: "#DC2626" }}>*</span></div>
-                    <div className="fsec-note">Select all that apply. The categorisation may change following the incident investigation.</div>
-                    {irErrors.irCategories && <span style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: "4px", marginBottom: "8px", display: "block" }}>{irErrors.irCategories}</span>}
-                    <div className="chk-grid-2">
-                      {INCIDENT_CATEGORIES.map(cat => {
-                        const normCat = cat.toLowerCase().replace(/[^a-z0-9]/g, "");
-                        const isChecked = irCategories.some(c => {
-                          const normC = String(c).toLowerCase().replace(/[^a-z0-9]/g, "");
-                          return normC === normCat || c === cat;
-                        });
-
-                        return (
-                          <label className="chk" key={cat}>
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              onChange={e => {
-                                if (irErrors.irCategories) setIrErrors({ ...irErrors, irCategories: null });
-                                if (e.target.checked) {
-                                  if (!isChecked) {
-                                    setIrCategories([...irCategories, cat]);
-                                  }
-                                } else {
-                                  setIrCategories(irCategories.filter(c => {
-                                    const normC = String(c).toLowerCase().replace(/[^a-z0-9]/g, "");
-                                    return normC !== normCat && c !== cat;
-                                  }));
-                                }
-                              }}
-                            />
-                            <span>{cat}</span>
-                          </label>
-                        );
-                      })}
+                  <div className="fsec">
+                    <div className="fsec-title" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <span>B. Incident Category <span style={{ color: "#DC2626" }}>*</span></span>
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setShowIrCategoryReferenceTable(prev => !prev);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            setShowIrCategoryReferenceTable(prev => !prev);
+                          }
+                        }}
+                        title={showIrCategoryReferenceTable ? "Hide Incident Category definitions" : "Click to view Incident Management Practice definitions table"}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          background: showIrCategoryReferenceTable ? "rgba(37, 99, 235, 0.1)" : "transparent",
+                          borderRadius: "50%",
+                          border: "none",
+                          color: showIrCategoryReferenceTable ? "#2563eb" : "#64748b",
+                          cursor: "pointer",
+                          padding: "2px",
+                          flexShrink: 0,
+                          pointerEvents: "auto",
+                          transition: "all 0.15s ease"
+                        }}
+                        aria-label="Incident Management Practice definitions"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill={showIrCategoryReferenceTable ? "rgba(37, 99, 235, 0.15)" : "none"} stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="10" />
+                          <line x1="12" y1="16" x2="12" y2="12" />
+                          <line x1="12" y1="8" x2="12.01" y2="8" />
+                        </svg>
+                      </span>
                     </div>
+
+                    {showIrCategoryReferenceTable && (
+                      <div style={{ pointerEvents: "auto", marginTop: "12px", marginBottom: "16px" }}>
+                        <IncidentCategoryReferenceTable onClose={() => setShowIrCategoryReferenceTable(false)} />
+                      </div>
+                    )}
+
+                    <div className="fsec-note">The categorisation may change following the incident investigation.</div>
+                    {irErrors.irCategories && <span style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: "4px", marginBottom: "8px", display: "block" }}>{irErrors.irCategories}</span>}
+
+                    <div style={{ maxWidth: "480px", marginTop: "10px" }}>
+                      <IncidentCategoryDropdown
+                        options={incidentCategories}
+                        value={irCategories[0] || ""}
+                        onChange={(cat) => handleIrCategoryToggle(cat)}
+                        placeholder="Select Incident Category..."
+                        hasError={Boolean(irErrors.irCategories)}
+                        disabled={(!isEditingInitialReport && initialReportSubmitted) || (isReopenedToStep2 && isContractorUser())}
+                        id="ir-incident-category-dropdown"
+                      />
+                    </div>
+
                     {irCategories.some(c => String(c).toLowerCase() === 'other' || String(c).toLowerCase() === 'others' || String(c).startsWith('Other:') || String(c).startsWith('Others:')) && (
-                      <div className="mod-form-group" style={{ marginTop: 12 }}>
+                      <div className="mod-form-group" style={{ marginTop: 12, maxWidth: "480px" }}>
                         <label className="mod-form-label">Other Category</label>
                         <input className="mod-form-input" placeholder="Specify other incident category..." value={irCategoriesOther} onChange={e => setIrCategoriesOther(e.target.value)} />
                       </div>
@@ -5578,6 +6068,24 @@ export default function IMDetails() {
                               </div>
                             )}
                           </div>
+                          {irTreatmentProvided === "Lost Time" && (
+                            <div className="mod-form-group" style={{ marginTop: "12px" }}>
+                              <label className="mod-form-label">EASY Code / EASY Number</label>
+                              <input
+                                type="text"
+                                className="mod-form-input"
+                                placeholder="e.g. EASY-2026-XXXX..."
+                                value={irEasyCode}
+                                onChange={e => {
+                                  setIrEasyCode(e.target.value);
+                                  setInvEasyCode(e.target.value);
+                                }}
+                              />
+                              <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "4px" }}>
+                                Note: Detailed EASY documentation containing personal or health information must not be attached. Only the relevant EASY code/number may be reported.
+                              </div>
+                            </div>
+                          )}
                         </div>
 
                         {/* H. Type of Accident Categories */}
@@ -5851,7 +6359,54 @@ export default function IMDetails() {
                   </div>
 
                   {/* L. Initial Root Cause Assessment */}
-                  <div className="fsec"><div className="fsec-title">L. Initial Root Cause Assessment <span style={{ color: "#DC2626" }}>*</span></div>
+                  <div className="fsec">
+                    <div className="fsec-title" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <span>L. Initial Root Cause Assessment <span style={{ color: "#DC2626" }}>*</span></span>
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setShowIrRootCauseHelp(prev => !prev);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            setShowIrRootCauseHelp(prev => !prev);
+                          }
+                        }}
+                        title={showIrRootCauseHelp ? "Hide initial root cause guidance" : "Click to view initial root cause guidance"}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          background: showIrRootCauseHelp ? "rgba(37, 99, 235, 0.1)" : "transparent",
+                          borderRadius: "50%",
+                          border: "none",
+                          color: showIrRootCauseHelp ? "#2563eb" : "#64748b",
+                          cursor: "pointer",
+                          padding: "2px",
+                          flexShrink: 0,
+                          pointerEvents: "auto",
+                          transition: "all 0.15s ease"
+                        }}
+                        aria-label="Initial root cause guidance"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill={showIrRootCauseHelp ? "rgba(37, 99, 235, 0.15)" : "none"} stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="10" />
+                          <line x1="12" y1="16" x2="12" y2="12" />
+                          <line x1="12" y1="8" x2="12.01" y2="8" />
+                        </svg>
+                      </span>
+                    </div>
+
+                    {showIrRootCauseHelp && (
+                      <div style={{ fontSize: "11px", color: "var(--text-muted)", marginBottom: "8px", lineHeight: "1.4", pointerEvents: "auto" }}>
+                        Based on the information currently available, describe the <strong style={{ color: "var(--text-main)" }}>likely causes and contributing factors</strong> of the incident. These may be updated or confirmed during the full investigation.
+                      </div>
+                    )}
+
                     <div className="mod-form-group">
                       <textarea className="mod-form-textarea" style={{ borderColor: irErrors.irInitialRootCause ? "#DC2626" : undefined }} placeholder="Initial view on why the incident occurred..." value={irInitialRootCause} onChange={e => { setIrInitialRootCause(e.target.value); if (irErrors.irInitialRootCause) setIrErrors({ ...irErrors, irInitialRootCause: null }) }}></textarea>
                       {irErrors.irInitialRootCause && <span style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: "4px", display: "block" }}>{irErrors.irInitialRootCause}</span>}
@@ -5878,12 +6433,12 @@ export default function IMDetails() {
                     )}
                   </div>
 
-                  {/* M. Report Submitter / Editor & Revision Signature */}
+                  {/* M. Report Submitter / Editor & Revision Details */}
                   {(isEditingInitialReport && initialReportSubmitted) ? (
                     <div className="fsec" style={{ marginTop: 16, borderTop: "2px solid #f59e0b", paddingTop: 16 }}>
                       <div className="fsec-title" style={{ color: "#d97706", display: "flex", alignItems: "center", gap: 8 }}>
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
-                        M. Editor Information & Revision Signature
+                        M. Editor Information & Revision Details
                       </div>
                       <div className="mod-form-group">
                         <label className="mod-form-label" style={{ textTransform: "uppercase" }}>Edited By (Name) <span style={{ color: "#DC2626" }}>*</span></label>
@@ -5905,14 +6460,6 @@ export default function IMDetails() {
                           onChange={e => setIrEditReason(e.target.value)}
                         />
                       </div>
-                      <div className="mod-form-group" style={{ marginTop: 16 }}>
-                        <label className="mod-form-label" style={{ textTransform: "uppercase" }}>Editor Digital Signature <span style={{ color: "#DC2626" }}>*</span></label>
-                        <SignaturePad
-                          value={irEditorSignature}
-                          onChange={setIrEditorSignature}
-                          onClear={() => setIrEditorSignature(false)}
-                        />
-                      </div>
 
                       {/* Investigation waiver option for Department/Admin editor */}
                       {(isNneUser() || isAdminUser()) && !isContractorUser() && (
@@ -5932,27 +6479,11 @@ export default function IMDetails() {
                     </div>
                   ) : initialReportSubmitted ? (
                     <div className="fsec">
-                      <div className="fsec-title">M. Submitter Information & Digital Signature</div>
-                      <div className="grid-2">
-                        <div className="mod-form-group">
-                          <label className="mod-form-label" style={{ textTransform: "uppercase" }}>Submitted By</label>
-                          <div className="readonly-box">
-                            {irSubmittedBy || incident.reporterName || incident.reportedBy || "User"}
-                          </div>
-                        </div>
-                        <div className="mod-form-group">
-                          <label className="mod-form-label" style={{ textTransform: "uppercase" }}>Digital Signature</label>
-                          <div className="readonly-box" style={{ display: "flex", alignItems: "center", minHeight: "45px", overflowX: "auto" }}>
-                            {irSubSignature ? (
-                              typeof irSubSignature === "string" && (irSubSignature.startsWith("http") || irSubSignature.startsWith("data:") || irSubSignature.startsWith("/")) ? (
-                                <img src={getAttachmentUrl(irSubSignature)} alt="Submitter Signature" style={{ maxHeight: "35px", maxWidth: "150px" }} />
-                              ) : (
-                                <span style={{ fontStyle: "italic", fontFamily: "cursive", color: "var(--accent-primary, #3b82f6)" }}>✓ Signed Digitally ({irSubmittedBy || incident.reporterName || "User"})</span>
-                              )
-                            ) : (
-                              <span style={{ color: "var(--text-muted)" }}>—</span>
-                            )}
-                          </div>
+                      <div className="fsec-title">M. Submitter Information</div>
+                      <div className="mod-form-group">
+                        <label className="mod-form-label" style={{ textTransform: "uppercase" }}>Submitted By</label>
+                        <div className="readonly-box">
+                          {irSubmittedBy || incident.reporterName || incident.reportedBy || "User"}
                         </div>
                       </div>
 
@@ -5965,27 +6496,17 @@ export default function IMDetails() {
                     </div>
                   ) : (
                     <div className="fsec">
-                      <div className="fsec-title">M. Report Submitter & Digital Signature</div>
-                      <div className="grid-2">
-                        <div className="mod-form-group">
-                          <label className="mod-form-label" style={{ textTransform: "uppercase" }}>Submitted By (Name) <span style={{ color: "#DC2626" }}>*</span></label>
-                          <input
-                            type="text"
-                            className="mod-form-input"
-                            placeholder="Type your full name..."
-                            value={irSubmittedBy}
-                            onChange={e => setIrSubmittedBy(e.target.value)}
-                            readOnly
-                            style={{ backgroundColor: "var(--bg-dark)", cursor: "not-allowed", color: "var(--text-muted)", opacity: 0.8 }}
-                          />
-                        </div>
-                      </div>
-                      <div className="mod-form-group" style={{ marginTop: 16 }}>
-                        <label className="mod-form-label" style={{ textTransform: "uppercase" }}>Digital Signature <span style={{ color: "#DC2626" }}>*</span></label>
-                        <SignaturePad
-                          value={irSubSignature}
-                          onChange={setIrSubSignature}
-                          onClear={() => setIrSubSignature(false)}
+                      <div className="fsec-title">M. Report Submitter</div>
+                      <div className="mod-form-group">
+                        <label className="mod-form-label" style={{ textTransform: "uppercase" }}>Submitted By (Name) <span style={{ color: "#DC2626" }}>*</span></label>
+                        <input
+                          type="text"
+                          className="mod-form-input"
+                          placeholder="Type your full name..."
+                          value={irSubmittedBy}
+                          onChange={e => setIrSubmittedBy(e.target.value)}
+                          readOnly
+                          style={{ backgroundColor: "var(--bg-dark)", cursor: "not-allowed", color: "var(--text-muted)", opacity: 0.8 }}
                         />
                       </div>
                     </div>
@@ -6001,6 +6522,61 @@ export default function IMDetails() {
                         </div>
                       </div>
                     )}
+
+                    {/* SLA Warning Banner & Late Submission Reason Input */}
+                    {(() => {
+                      const { dIr, irDeadline } = getDeadlines();
+                      const isLate = dIr && new Date() > dIr && !initialReportSubmitted;
+                      if (!isLate) return null;
+                      return (
+                        <div style={{
+                          marginTop: "16px",
+                          marginBottom: "16px",
+                          padding: "16px",
+                          backgroundColor: "#fff1f2",
+                          border: "1px solid #fecdd3",
+                          borderLeft: "4px solid #e11d48",
+                          borderRadius: "8px"
+                        }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#be123c", fontWeight: "600", fontSize: "14px", marginBottom: "8px" }}>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <circle cx="12" cy="12" r="10" />
+                              <line x1="12" y1="8" x2="12" y2="12" />
+                              <line x1="12" y1="16" x2="12.01" y2="16" />
+                            </svg>
+                            <span>SLA Deadline Exceeded (24hr Initial Incident Report)</span>
+                          </div>
+                          <p style={{ margin: "0 0 10px 0", fontSize: "13px", color: "#4b5563" }}>
+                            The 24-hour deadline for submitting the Initial Incident Report passed on <strong>{irDeadline}</strong>. 
+                            Please provide the reason for submitting this report late. An email notification with this explanation will automatically be sent to the incident submitter.
+                          </p>
+                          <div className="mod-form-group" style={{ marginBottom: 0 }}>
+                            <label className="mod-form-label" style={{ fontWeight: 600, color: "#1f2937" }}>
+                              Reason for Late Submission <span style={{ color: "#e11d48" }}>*</span>
+                            </label>
+                            <textarea
+                              className={`mod-form-textarea ${irErrors?.irLateReason ? "mod-input-error" : ""}`}
+                              rows={3}
+                              placeholder="Explain why the Initial Incident Report is being submitted after the 24-hour deadline..."
+                              value={irLateReason}
+                              onChange={(e) => {
+                                setIrLateReason(e.target.value);
+                                if (irErrors?.irLateReason) {
+                                  setIrErrors(prev => ({ ...prev, irLateReason: null }));
+                                }
+                              }}
+                              style={{ width: "100%", borderRadius: "6px", borderColor: irErrors?.irLateReason ? "#e11d48" : "#cbd5e1" }}
+                            />
+                            {irErrors?.irLateReason && (
+                              <span style={{ color: "#e11d48", fontSize: "12px", display: "block", marginTop: "4px" }}>
+                                {irErrors.irLateReason}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
+
                     {(!initialReportSubmitted || isEditingInitialReport) && !isClosed && !(isReopenedToStep2 && isContractorUser()) && (
                       <div style={{ display: "flex", gap: "12px", marginTop: "16px" }}>
                         <button className="mod-btn-primary im-btn-primary" disabled={!headsUpApproved} title={!headsUpApproved ? "Stage 1 Heads-Up Notification must be approved first" : ""} onClick={async () => {
@@ -6013,6 +6589,12 @@ export default function IMDetails() {
                             const isPropDamageIncident = activeIncidentCats.some(c => c.includes("property"));
 
                             let newErrors = {};
+
+                            const { dIr: dlIr } = getDeadlines();
+                            if (dlIr && new Date() > dlIr && !initialReportSubmitted && !irLateReason?.trim()) {
+                              newErrors.irLateReason = "Reason for late submission is required because the 24-hour deadline has passed.";
+                            }
+
                             if (!isEnvIncident && !isPropDamageIncident && !irInjuryNotApplicable) {
                               if (!irInjuredName?.trim()) newErrors.irInjuredName = "Name of injured person is required";
                               if (!irInjuredCompany?.trim()) newErrors.irInjuredCompany = "Company is required";
@@ -6045,7 +6627,9 @@ export default function IMDetails() {
 
                             if (Object.keys(newErrors).length > 0) {
                               setIrErrors(newErrors);
-                              if (newErrors.photos && Object.keys(newErrors).length === 1) {
+                              if (newErrors.irLateReason) {
+                                showError(newErrors.irLateReason);
+                              } else if (newErrors.photos && Object.keys(newErrors).length === 1) {
                                 showError("Please ensure at least 2 photos are added.");
                               } else if (newErrors.photos) {
                                 showError("Please fill out all mandatory fields and ensure at least 2 photos are added.");
@@ -6057,6 +6641,17 @@ export default function IMDetails() {
 
                             const formData = new FormData();
                             const userName = irSubmittedBy || getLoggedInUser() || incident.reporterName || incident.reportedBy || "User";
+
+                            if (irLateReason?.trim()) {
+                              formData.append("lateSubmissionReason", irLateReason.trim());
+                            }
+                            const loggedInUserObj = getLoggedInUserObj();
+                            if (loggedInUserObj?.email) {
+                              formData.append("submittedByEmail", loggedInUserObj.email);
+                            }
+                            if (loggedInUserObj?.id) {
+                              formData.append("submittedById", String(loggedInUserObj.id));
+                            }
 
                             // 1. Photos
                             const existingPhotos = [];
@@ -6101,6 +6696,7 @@ export default function IMDetails() {
                             formData.append("treatmentPrescribed", irTreatmentProvided || "First aid");
                             formData.append("anticipatedAbsence", irAnticipatedAbsence || "0 days");
                             formData.append("treatmentProvided", JSON.stringify(irTreatmentProvided ? [irTreatmentProvided] : []));
+                            if (irEasyCode) formData.append("easyCode", irEasyCode);
                             if (irMedicalTreatmentClass) formData.append("medicalTreatmentClass", irMedicalTreatmentClass);
 
                             // 5. Initial Assessment & Root Cause
@@ -6236,11 +6832,7 @@ export default function IMDetails() {
                           </span>
                         )}
                       </div>
-                      <div className="mod-form-group" style={{ marginTop: 16 }}>
-                        <label className="mod-form-label" style={{ textTransform: "uppercase" }}>Digital Signature</label>
-                        <SignaturePad value={irSignature} onChange={setIrSignature} onClear={() => setIrSignature(false)} />
-                      </div>
-                      <div className="markok" onClick={() => setIrMarkedOk(!irMarkedOk)} style={{ borderColor: irMarkedOk ? "var(--color-safe)" : "var(--border-color)", opacity: irMarkedOk ? 1 : 0.7 }}>
+                      <div className="markok" onClick={() => setIrMarkedOk(!irMarkedOk)} style={{ borderColor: irMarkedOk ? "var(--color-safe)" : "var(--border-color)", opacity: irMarkedOk ? 1 : 0.7, marginTop: 16 }}>
                         <input type="checkbox" checked={irMarkedOk} onChange={() => { }} />
                         <div>
                           <div className="mk-t">Marked OK</div>
@@ -6286,10 +6878,6 @@ export default function IMDetails() {
                               showError("Approver Initials are required");
                               return;
                             }
-                            if (!irSignature) {
-                              showError("Digital signature is required");
-                              return;
-                            }
                             if (!irMarkedOk) {
                               showError("Please confirm by checking Marked OK");
                               return;
@@ -6298,7 +6886,7 @@ export default function IMDetails() {
                               setIsApprovingIr(true);
                               const userName = irReviewerName || getLoggedInUser();
                               await approveInitialReport(id, {
-                                signature: irSignature,
+                                signature: null,
                                 approvedBy: userName,
                                 approverRole: irReviewerRole.trim(),
                                 noFurtherInvestigation: irNoFurtherInvestigation
@@ -6478,6 +7066,11 @@ export default function IMDetails() {
                   ) : (
                     <span className="inv-chip chip-upcoming">In Progress</span>
                   )}
+                  {investigationData?.lateSubmissionReason && (
+                    <span style={{ background: "#fee2e2", color: "#991b1b", border: "1px solid #fecdd3", padding: "2px 8px", borderRadius: "999px", fontSize: "10.5px", fontWeight: 700, textTransform: "uppercase" }}>
+                      Late Submission
+                    </span>
+                  )}
                 </div>
                 {(investigationApproved || investigationSubmitted || isClosed) && (
                   <div style={{ display: "flex", gap: "8px" }}>
@@ -6545,6 +7138,12 @@ export default function IMDetails() {
                   </div>
                 )}
               </div>
+              {investigationData?.lateSubmissionReason && (
+                <div style={{ margin: "16px 20px 0", padding: "12px 16px", background: "#fff1f2", border: "1px solid #fecdd3", borderLeft: "4px solid #e11d48", borderRadius: "6px" }}>
+                  <div style={{ fontSize: "11px", fontWeight: 700, color: "#9f1239", textTransform: "uppercase", letterSpacing: "0.5px" }}>⚠️ Reason for Late Submission (7-Day Deadline Exceeded)</div>
+                  <div style={{ fontSize: "13.5px", fontWeight: 600, color: "#881337", marginTop: "4px" }}>{investigationData.lateSubmissionReason}</div>
+                </div>
+              )}
               <div className="mod-card-body">
                 {isCurrentlyReopened && isContractorUser() && (
                   <div style={{ marginBottom: 16, padding: "12px 16px", borderRadius: 8, background: "#fffbeb", border: "1px solid #fde68a", color: "#92400e", fontSize: 13, display: "flex", alignItems: "center", gap: 10 }}>
@@ -6555,20 +7154,6 @@ export default function IMDetails() {
                   </div>
                 )}
                 <fieldset disabled={(!isEditingInvestigation && investigationSubmitted) || (isCurrentlyReopened && isContractorUser())} style={{ border: "none", padding: 0, margin: 0, opacity: ((!isEditingInvestigation && investigationSubmitted) || (isCurrentlyReopened && isContractorUser())) ? 0.95 : 1 }}>
-
-                  {/* Incident Description (Carried over) */}
-                  <div className="fsec">
-                    <div className="fsec-title" style={{ textTransform: "uppercase" }}>INCIDENT DESCRIPTION</div>
-                    <div className="mod-form-group">
-                      <textarea
-                        className="mod-form-textarea"
-                        style={{ minHeight: 80, background: "#ffffff", color: "#0f172a" }}
-                        value={irDescription || huDescription || ""}
-                        onChange={(e) => setIrDescription(e.target.value)}
-                        placeholder="Update incident description..."
-                      />
-                    </div>
-                  </div>
 
                   {/* 1. Investigation Team */}
                   <div className="fsec" id="investigation-team-section"><div className="fsec-title" style={{ justifyContent: "space-between", display: "flex" }}>
@@ -6666,11 +7251,11 @@ export default function IMDetails() {
                     ))}
                   </div>
 
-                  {/* 2. Investigation Details */}
-                  <div className="fsec"><div className="fsec-title">2. Investigation Details <span style={{ color: "#DC2626" }}>*</span></div>
+                  {/* 2. Investigation Description */}
+                  <div className="fsec"><div className="fsec-title">2. Investigation Description <span style={{ color: "#DC2626" }}>*</span></div>
                     <div className="mod-form-group">
                       <label className="mod-form-label" style={{ textTransform: "none", letterSpacing: "normal" }}>Description of process, timelines, tools, parties involved, systems reviewed, equipment and findings.</label>
-                      <textarea className="mod-form-textarea" style={{ minHeight: 120, borderColor: invErrors.invDetails ? "#DC2626" : undefined }} placeholder="Describe the investigation process..." value={invDetails} onChange={e => { setInvDetails(e.target.value); if (invErrors.invDetails) setInvErrors({ ...invErrors, invDetails: null }); }}></textarea>
+                      <textarea className="mod-form-textarea" style={{ minHeight: 120, borderColor: invErrors.invDetails ? "#DC2626" : undefined }} placeholder="Describe the incident, investigation findings, and sequence of events..." value={invDetails} onChange={e => { setInvDetails(e.target.value); if (invErrors.invDetails) setInvErrors({ ...invErrors, invDetails: null }); }}></textarea>
                       {invErrors.invDetails && <span style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: "4px", display: "block" }}>{invErrors.invDetails}</span>}
                     </div>
                   </div>
@@ -6766,8 +7351,33 @@ export default function IMDetails() {
                   <div className="fsec"><div className="fsec-title">4. Fishbone Analysis – Cause and Effect</div>
                     <div className="fsec-note">Interactive Ishikawa diagram. Add causes under the six categories – People, Machine / Equipment, Method / Procedure, Materials, Environmental Conditions, Measurement.</div>
                     {renderFishboneSvg()}
-                    <div className="fsec-note" style={{ marginTop: 12, padding: "12px", background: "var(--bg-dark)", borderRadius: 8 }}>
-                      <b>Tick the box on any cause</b> – in whichever categories you choose – to carry it into the 5 Whys analysis below. Scoring (1 Low – 5 High) is optional.
+                    <div style={{ marginTop: 12, padding: "12px 16px", background: "var(--bg-card, #ffffff)", border: "1px solid var(--border-color, #e2e8f0)", borderRadius: 8, display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.03)" }}>
+                      <div style={{ fontSize: 13, color: "var(--text-main, #0f172a)", display: "flex", alignItems: "center", gap: 8 }}>
+                        <span>ℹ️</span>
+                        <span><b>Tick the box on any cause</b> to carry it into the 5 Whys analysis below. Scoring (1 Very Low – 5 Very High) prioritises identified causes by risk.</span>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted, #64748b)", textTransform: "uppercase", letterSpacing: "0.5px", marginRight: 4 }}>Risk Level:</span>
+                        {[1, 2, 3, 4, 5].map(lvl => {
+                          const sc = FISHBONE_SCORE_CONFIG[lvl];
+                          return (
+                            <span
+                              key={lvl}
+                              style={{
+                                padding: "2px 8px",
+                                borderRadius: 4,
+                                background: sc.bg,
+                                color: sc.color,
+                                border: `1px solid ${sc.border}`,
+                                fontSize: 11,
+                                fontWeight: 700
+                              }}
+                            >
+                              {lvl} · {sc.label}
+                            </span>
+                          );
+                        })}
+                      </div>
                     </div>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16, marginTop: 16 }}>
                       {FISHBONE_CATS.map(cat => (
@@ -6789,38 +7399,88 @@ export default function IMDetails() {
                               >+</button>
                             </div>
                           )}
-                          {fishbone[cat.key].map((cause, i) => (
-                            <div key={i} style={{ border: "1px solid var(--border-color)", padding: 12, borderRadius: 8, marginBottom: 10, background: cause.probable ? "var(--color-risk-bg, #fff1f2)" : "var(--bg-dark, #fff)", borderColor: cause.probable ? "var(--color-risk, #f43f5e)" : "var(--border-color, #e2e8f0)" }}>
-                              <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-                                <input type="checkbox" checked={cause.probable} onChange={() => toggleFishboneProbable(cat.key, i)} style={{ marginTop: 2, accentColor: "var(--color-risk, #e11d48)", width: 16, height: 16, cursor: "pointer" }} />
-                                <span style={{ flex: 1, fontSize: 13, color: "var(--text-main)", lineHeight: 1.4, wordBreak: "break-all" }}>{cause.text}</span>
-                                {(!investigationSubmitted || isEditingInvestigation) && (
-                                  <button style={{ background: "var(--color-gray-bg, #f1f5f9)", border: "none", color: "var(--text-muted, #64748b)", cursor: "pointer", width: 24, height: 24, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }} onClick={() => removeFishboneCause(cat.key, i)}>×</button>
+                          {fishbone[cat.key].map((cause, i) => {
+                            const causeSc = cause.score ? FISHBONE_SCORE_CONFIG[cause.score] : null;
+                            return (
+                              <div
+                                key={i}
+                                style={{
+                                  border: "1px solid var(--border-color)",
+                                  borderLeft: causeSc ? `5px solid ${causeSc.bg}` : (cause.probable ? "5px solid var(--color-risk, #f43f5e)" : "1px solid var(--border-color)"),
+                                  padding: 12,
+                                  borderRadius: 8,
+                                  marginBottom: 10,
+                                  background: cause.probable ? "var(--color-risk-bg, #fff1f2)" : "var(--bg-dark, #fff)",
+                                  borderColor: cause.probable ? "var(--color-risk, #f43f5e)" : "var(--border-color, #e2e8f0)",
+                                  boxShadow: causeSc ? "0 1px 3px rgba(0,0,0,0.04)" : "none"
+                                }}
+                              >
+                                <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                                  <input type="checkbox" checked={cause.probable} onChange={() => toggleFishboneProbable(cat.key, i)} style={{ marginTop: 2, accentColor: "var(--color-risk, #e11d48)", width: 16, height: 16, cursor: "pointer" }} />
+                                  <span style={{ flex: 1, fontSize: 13, color: "var(--text-main)", lineHeight: 1.4, wordBreak: "break-all" }}>{cause.text}</span>
+                                  {(!investigationSubmitted || isEditingInvestigation) && (
+                                    <button style={{ background: "var(--color-gray-bg, #f1f5f9)", border: "none", color: "var(--text-muted, #64748b)", cursor: "pointer", width: 24, height: 24, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }} onClick={() => removeFishboneCause(cat.key, i)}>×</button>
+                                  )}
+                                </div>
+                                <div style={{ display: "flex", gap: 6, marginTop: 12, alignItems: "center", flexWrap: "wrap" }}>
+                                  <span style={{ fontSize: 12, color: "var(--text-muted, #64748b)", fontWeight: 600, marginRight: 2 }}>Score:</span>
+                                  {[1, 2, 3, 4, 5].map(s => {
+                                    const sc = FISHBONE_SCORE_CONFIG[s];
+                                    const isSelected = cause.score === s;
+                                    return (
+                                      <button
+                                        key={s}
+                                        type="button"
+                                        title={`${s} - ${sc.label}`}
+                                        disabled={investigationSubmitted && !isEditingInvestigation}
+                                        style={{
+                                          width: 28,
+                                          height: 28,
+                                          padding: 0,
+                                          border: isSelected ? `2px solid ${sc.border}` : `1px solid ${sc.border}`,
+                                          background: isSelected ? sc.bg : "#ffffff",
+                                          color: isSelected ? sc.color : (sc.color === '#FFFFFF' ? sc.border : '#1e293b'),
+                                          borderRadius: 6,
+                                          cursor: (investigationSubmitted && !isEditingInvestigation) ? "default" : "pointer",
+                                          fontSize: 12,
+                                          fontWeight: isSelected ? 800 : 600,
+                                          boxShadow: isSelected ? "0 1px 3px rgba(0,0,0,0.25)" : "none",
+                                          transition: "all 0.15s ease",
+                                          display: "inline-flex",
+                                          alignItems: "center",
+                                          justifyContent: "center"
+                                        }}
+                                        onClick={() => setFishboneScore(cat.key, i, s)}
+                                      >
+                                        {s}
+                                      </button>
+                                    );
+                                  })}
+                                  {causeSc && (
+                                    <span
+                                      style={{
+                                        fontSize: 11,
+                                        fontWeight: 700,
+                                        padding: "2px 8px",
+                                        borderRadius: 4,
+                                        background: causeSc.bg,
+                                        color: causeSc.color,
+                                        border: `1px solid ${causeSc.border}`,
+                                        marginLeft: 4
+                                      }}
+                                    >
+                                      {causeSc.label}
+                                    </span>
+                                  )}
+                                </div>
+                                {cause.probable && (
+                                  <div style={{ marginTop: 12 }}>
+                                    <span style={{ fontSize: 10, fontWeight: 800, color: "#fff", background: "var(--color-risk, #e11d48)", padding: "4px 10px", borderRadius: 12, letterSpacing: "0.5px" }}>SELECTED FOR 5 WHYS</span>
+                                  </div>
                                 )}
                               </div>
-                              <div style={{ display: "flex", gap: 6, marginTop: 12, alignItems: "center" }}>
-                                <span style={{ fontSize: 12, color: "var(--text-muted)", marginRight: 4 }}>Score:</span>
-                                {[1, 2, 3, 4, 5].map(s => (
-                                  <button
-                                    key={s}
-                                    style={{
-                                      width: 26, height: 26, padding: 0,
-                                      border: `1px solid ${cause.score === s ? 'var(--accent-primary, #0f172a)' : 'var(--border-color, #e2e8f0)'}`,
-                                      background: cause.score === s ? 'var(--accent-primary, #0f172a)' : 'var(--bg-card, #fff)',
-                                      color: cause.score === s ? '#fff' : 'var(--text-muted, #64748b)',
-                                      borderRadius: 4, cursor: "pointer", fontSize: 12, fontWeight: 600
-                                    }}
-                                    onClick={() => setFishboneScore(cat.key, i, s)}
-                                  >{s}</button>
-                                ))}
-                              </div>
-                              {cause.probable && (
-                                <div style={{ marginTop: 12 }}>
-                                  <span style={{ fontSize: 10, fontWeight: 800, color: "#fff", background: "var(--color-risk, #e11d48)", padding: "4px 10px", borderRadius: 12, letterSpacing: "0.5px" }}>SELECTED FOR 5 WHYS</span>
-                                </div>
-                              )}
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       ))}
                     </div>
@@ -6843,9 +7503,45 @@ export default function IMDetails() {
                         <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 8 }}>No causes selected yet. Tick any cause above – in any category – to analyse it.</div>
                       ) : (
                         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
-                          {getProbableCauses().map(c => (
-                            <span key={c.id} style={{ display: "inline-flex", background: "var(--bg-card)", border: "1px solid var(--color-risk)", color: "var(--color-risk)", padding: "4px 12px", borderRadius: 999, fontSize: 12, fontWeight: 600 }}>{c.text} (Score: {c.score || '-'})</span>
-                          ))}
+                          {getProbableCauses().map(c => {
+                            const sc = c.score ? FISHBONE_SCORE_CONFIG[c.score] : null;
+                            return (
+                              <span
+                                key={c.id}
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: 6,
+                                  background: "var(--bg-card)",
+                                  border: "1px solid var(--color-risk)",
+                                  color: "var(--color-risk)",
+                                  padding: "4px 12px",
+                                  borderRadius: 999,
+                                  fontSize: 12,
+                                  fontWeight: 600
+                                }}
+                              >
+                                {c.text}
+                                {sc ? (
+                                  <span
+                                    style={{
+                                      background: sc.bg,
+                                      color: sc.color,
+                                      border: `1px solid ${sc.border}`,
+                                      padding: "1px 6px",
+                                      borderRadius: 4,
+                                      fontSize: 10,
+                                      fontWeight: 800
+                                    }}
+                                  >
+                                    Score: {c.score} · {sc.label}
+                                  </span>
+                                ) : (
+                                  <span style={{ color: "var(--text-muted)", fontSize: 11 }}>(No score)</span>
+                                )}
+                              </span>
+                            );
+                          })}
                         </div>
                       )}
                     </div>
@@ -6861,7 +7557,22 @@ export default function IMDetails() {
                           const whys = fiveWhys[c.id] || [];
                           return (
                             <div key={c.id} style={{ border: invErrors[`why_${c.id}`] ? "1px solid #DC2626" : "1px solid var(--border-color)", padding: 16, borderRadius: 8, background: "var(--bg-card)" }}>
-                              <div style={{ fontSize: 12, fontWeight: 800, color: "var(--text-main)", textTransform: "uppercase", borderBottom: "1px solid var(--border-color)", paddingBottom: 8, marginBottom: 12 }}>CAUSE: {c.text}</div>
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--border-color)", paddingBottom: 8, marginBottom: 12 }}>
+                                <span style={{ fontSize: 12, fontWeight: 800, color: "var(--text-main)", textTransform: "uppercase" }}>CAUSE: {c.text}</span>
+                                {c.score && (
+                                  <span style={{
+                                    fontSize: 10,
+                                    fontWeight: 800,
+                                    padding: "2px 6px",
+                                    borderRadius: 4,
+                                    background: FISHBONE_SCORE_CONFIG[c.score].bg,
+                                    color: FISHBONE_SCORE_CONFIG[c.score].color,
+                                    border: `1px solid ${FISHBONE_SCORE_CONFIG[c.score].border}`
+                                  }}>
+                                    Score {c.score} · {FISHBONE_SCORE_CONFIG[c.score].label}
+                                  </span>
+                                )}
+                              </div>
                               {invErrors[`why_${c.id}`] && <div style={{ fontSize: "0.75rem", color: "#DC2626", marginBottom: 12 }}>{invErrors[`why_${c.id}`]}</div>}
                               {[0, 1, 2, 3, 4].map(w => (
                                 <div key={w} className="mod-form-group" style={{ marginBottom: 12 }}>
@@ -7080,31 +7791,92 @@ export default function IMDetails() {
                       <div>
                         <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 12 }}>Severity Before Corrective Actions</div>
                         <div style={{ display: "flex", gap: 8 }}>
-                          {SEVERITY_SCALE.map(s => (
-                            <button key={s.level} style={{ flex: 1, padding: "12px 0", background: s.color, color: "#fff", border: `2px solid ${invPreSev === s.level ? '#131E40' : 'transparent'}`, borderRadius: 8, opacity: invPreSev && invPreSev !== s.level ? 0.5 : 1, cursor: "pointer", boxShadow: invPreSev === s.level ? "0 0 0 2px rgba(19,30,64,0.55)" : "none" }} onClick={() => setInvPreSev(s.level)}>
-                              <div style={{ fontSize: 18, fontWeight: 800, lineHeight: 1 }}>{s.level}</div>
-                              <div style={{ fontSize: 10.5, fontWeight: 700, marginTop: 4 }}>{s.label}</div>
-                            </button>
-                          ))}
+                          {SEVERITY_SCALE.map(s => {
+                            const isSelected = invPreSev === s.level;
+                            return (
+                              <button
+                                key={s.level}
+                                type="button"
+                                disabled={investigationSubmitted && !isEditingInvestigation}
+                                title={`${s.level} - ${s.label} (${s.riskLabel})`}
+                                style={{
+                                  flex: 1,
+                                  padding: "12px 4px",
+                                  background: s.bg,
+                                  color: s.color,
+                                  border: isSelected ? "3px solid #0f172a" : `1px solid ${s.border}`,
+                                  borderRadius: 8,
+                                  opacity: isSelected ? 1 : (invPreSev ? 0.45 : 0.85),
+                                  cursor: (investigationSubmitted && !isEditingInvestigation) ? "default" : "pointer",
+                                  boxShadow: isSelected ? "0 0 0 2px rgba(15, 23, 42, 0.4), 0 2px 4px rgba(0,0,0,0.15)" : "none",
+                                  transition: "all 0.15s ease",
+                                  transform: isSelected ? "scale(1.02)" : "scale(1)"
+                                }}
+                                onClick={() => setInvPreSev(s.level)}
+                              >
+                                <div style={{ fontSize: 18, fontWeight: 800, lineHeight: 1 }}>{s.level}</div>
+                                <div style={{ fontSize: 10.5, fontWeight: 700, marginTop: 4 }}>{s.label}</div>
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
                       <div>
                         <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 12 }}>Severity After Corrective Actions</div>
                         <div style={{ display: "flex", gap: 8 }}>
-                          {SEVERITY_SCALE.map(s => (
-                            <button key={s.level} style={{ flex: 1, padding: "12px 0", background: s.color, color: "#fff", border: `2px solid ${invPostSev === s.level ? '#131E40' : 'transparent'}`, borderRadius: 8, opacity: invPostSev && invPostSev !== s.level ? 0.5 : 1, cursor: "pointer", boxShadow: invPostSev === s.level ? "0 0 0 2px rgba(19,30,64,0.55)" : "none" }} onClick={() => setInvPostSev(s.level)}>
-                              <div style={{ fontSize: 18, fontWeight: 800, lineHeight: 1 }}>{s.level}</div>
-                              <div style={{ fontSize: 10.5, fontWeight: 700, marginTop: 4 }}>{s.label}</div>
-                            </button>
-                          ))}
+                          {SEVERITY_SCALE.map(s => {
+                            const isSelected = invPostSev === s.level;
+                            return (
+                              <button
+                                key={s.level}
+                                type="button"
+                                disabled={investigationSubmitted && !isEditingInvestigation}
+                                title={`${s.level} - ${s.label} (${s.riskLabel})`}
+                                style={{
+                                  flex: 1,
+                                  padding: "12px 4px",
+                                  background: s.bg,
+                                  color: s.color,
+                                  border: isSelected ? "3px solid #0f172a" : `1px solid ${s.border}`,
+                                  borderRadius: 8,
+                                  opacity: isSelected ? 1 : (invPostSev ? 0.45 : 0.85),
+                                  cursor: (investigationSubmitted && !isEditingInvestigation) ? "default" : "pointer",
+                                  boxShadow: isSelected ? "0 0 0 2px rgba(15, 23, 42, 0.4), 0 2px 4px rgba(0,0,0,0.15)" : "none",
+                                  transition: "all 0.15s ease",
+                                  transform: isSelected ? "scale(1.02)" : "scale(1)"
+                                }}
+                                onClick={() => setInvPostSev(s.level)}
+                              >
+                                <div style={{ fontSize: 18, fontWeight: 800, lineHeight: 1 }}>{s.level}</div>
+                                <div style={{ fontSize: 10.5, fontWeight: 700, marginTop: 4 }}>{s.label}</div>
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
                     </div>
-                    {invPreSev && invPostSev && (
-                      <div style={{ marginTop: 16, background: "var(--color-safe-bg, rgba(123,190,151,0.1))", border: "1px solid var(--color-safe, rgba(123,190,151,0.5))", padding: 12, borderRadius: 8, color: "var(--color-safe, #2D7A4F)", fontWeight: 700 }}>
-                        Severity Reduction: {invPreSev} ({SEVERITY_SCALE.find(s => s.level === invPreSev)?.label}) → {invPostSev} ({SEVERITY_SCALE.find(s => s.level === invPostSev)?.label})
-                      </div>
-                    )}
+                    {invPreSev && invPostSev && (() => {
+                      const pre = SEVERITY_SCALE.find(s => s.level === invPreSev);
+                      const post = SEVERITY_SCALE.find(s => s.level === invPostSev);
+                      return (
+                        <div style={{ marginTop: 16, background: "var(--color-safe-bg, rgba(123,190,151,0.1))", border: "1px solid var(--color-safe, rgba(123,190,151,0.5))", padding: "12px 16px", borderRadius: 8, color: "var(--color-safe, #2D7A4F)", fontWeight: 700, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                          <span>Severity Reduction:</span>
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                            {pre && (
+                              <span style={{ padding: "2px 8px", borderRadius: 4, background: pre.bg, color: pre.color, border: `1px solid ${pre.border}`, fontSize: 11, fontWeight: 800 }}>
+                                {pre.level} ({pre.label})
+                              </span>
+                            )}
+                            <span style={{ fontWeight: 800 }}>→</span>
+                            {post && (
+                              <span style={{ padding: "2px 8px", borderRadius: 4, background: post.bg, color: post.color, border: `1px solid ${post.border}`, fontSize: 11, fontWeight: 800 }}>
+                                {post.level} ({post.label})
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {/* Investigation Env / Property Damage Section */}
@@ -7175,7 +7947,7 @@ export default function IMDetails() {
 
                   {/* 13. Photos */}
                   <div className="fsec"><div className="fsec-title">13. Photos from the incident location</div>
-                    <div className="fsec-note">Minimum of 2 photos. For environmental incidents, include one photo before the spill is contained/treated and one after.</div>
+                    <div className="fsec-note">Photos from initial incident report are automatically included. You may add additional photos if available (optional). For environmental incidents, include one photo before the spill is contained/treated and one after.</div>
                     {(!investigationSubmitted || isEditingInvestigation) && (
                       <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
                         <button type="button" className="mod-btn-outline" style={{ fontSize: 13 }} onClick={startInvCamera}>Take Photo</button>
@@ -7219,7 +7991,14 @@ export default function IMDetails() {
                         <canvas ref={invCanvasRef} style={{ display: "none" }}></canvas>
                       </div>
                     )}
-                    <div className="photo-count" style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 8 }}>{invPhotos.length}/20 photos</div>
+                    <div className="photo-count" style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 8, display: "flex", alignItems: "center", gap: 10 }}>
+                      <span>{invPhotos.length}/20 photos</span>
+                      {invPhotos.length > 0 && (
+                        <span style={{ fontSize: 11, background: "#ecfdf5", color: "#059669", padding: "2px 8px", borderRadius: 4, fontWeight: 600, border: "1px solid #a7f3d0" }}>
+                          ✓ Incident photos included
+                        </span>
+                      )}
+                    </div>
                     {invPhotos.length > 0 ? (
                       <div className="photo-grid" style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 12 }}>
                         {invPhotos.map((p, i) => (
@@ -7316,6 +8095,35 @@ export default function IMDetails() {
                               )}
                             </div>
 
+                            {/* Special EASY code numbering input & Note 1 */}
+                            {item.key === "easyDocument" && (
+                              <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px dashed #e2e8f0" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
+                                  <label style={{ fontSize: 13, fontWeight: 600, color: "var(--text-main)" }}>EASY Code / Number:</label>
+                                  <input
+                                    type="text"
+                                    className="mod-form-input"
+                                    style={{ maxWidth: 280, height: 34, fontSize: 13, padding: "4px 10px" }}
+                                    placeholder="e.g. EASY-2026-XXXX"
+                                    value={invEasyCode}
+                                    disabled={!isEditable}
+                                    onChange={e => {
+                                      const val = e.target.value;
+                                      setInvEasyCode(val);
+                                      if (val && !item.checked) {
+                                        const updated = [...invAttachments];
+                                        updated[i] = { ...updated[i], checked: true };
+                                        setInvAttachments(updated);
+                                      }
+                                    }}
+                                  />
+                                </div>
+                                <div style={{ fontSize: "0.78rem", color: "#b45309", background: "#fef3c7", border: "1px solid #fde68a", padding: "6px 10px", borderRadius: 6, lineHeight: 1.4 }}>
+                                  <strong>Note 1:</strong> Detailed EASY documentation containing personal or health information <strong>must not be attached</strong>, unless specifically required, and must be handled in accordance with applicable confidentiality and data protection requirements. Only the relevant EASY code/number may be reported.
+                                </div>
+                              </div>
+                            )}
+
                             {/* File Selection / Upload Box when Checked and Editable */}
                             {item.checked && isEditable && (
                               <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px dashed #e2e8f0", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
@@ -7407,7 +8215,7 @@ export default function IMDetails() {
 
                     {investigationData?.signatures && Array.isArray(investigationData.signatures) && investigationData.signatures.length > 0 && (
                       <div style={{ marginBottom: 20 }}>
-                        <div style={{ fontWeight: 700, fontSize: 13, color: "var(--text-main)", marginBottom: 12 }}>Submitted Investigation Signatures ({investigationData.signatures.length})</div>
+                        <div style={{ fontWeight: 700, fontSize: 13, color: "var(--text-main)", marginBottom: 12 }}>Submitted Investigation Sign-Offs ({investigationData.signatures.length})</div>
                         <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
                           {investigationData.signatures.map((sig, idx) => {
                             const sigUrl = getSignatureUrl(sig.signature);
@@ -7417,24 +8225,6 @@ export default function IMDetails() {
                                   {sig.name ? sig.name.substring(0, 2).toUpperCase() : "SIG"}
                                 </div>
                                 <div style={{ flex: 1, borderLeft: "1px solid var(--border-color)", paddingLeft: 16, display: "flex", flexDirection: "column" }}>
-                                  <div style={{ height: 50, display: "flex", alignItems: "center", marginBottom: 4 }}>
-                                    {sigUrl ? (
-                                      <img
-                                        className="signature-img"
-                                        src={sigUrl}
-                                        alt="Signature"
-                                        style={{ maxHeight: "100%", maxWidth: "220px", objectFit: "contain" }}
-                                        onError={(e) => {
-                                          e.target.onerror = null;
-                                          e.target.style.display = "none";
-                                        }}
-                                      />
-                                    ) : (
-                                      <div style={{ fontFamily: "'Brush Script MT', cursive, sans-serif", fontSize: 18, color: "var(--text-main)", fontWeight: 700 }}>
-                                        {sig.name || "Signed"}
-                                      </div>
-                                    )}
-                                  </div>
                                   <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-main)" }}>{sig.name}</div>
                                   <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{sig.role} {sig.date ? `• ${sig.date}` : ""}</div>
                                 </div>
@@ -7449,19 +8239,15 @@ export default function IMDetails() {
                       <div style={{ border: "1px dashed #f59e0b", borderRadius: 8, padding: "16px", background: "var(--bg-dark)", maxWidth: 540, marginTop: 16 }}>
                         <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12, color: "#d97706", display: "flex", alignItems: "center", gap: 8 }}>
                           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
-                          Editor Information & Revision Signature
+                          Editor Information & Revision Details
                         </div>
                         <div className="mod-form-group" style={{ marginBottom: 12 }}>
                           <label className="mod-form-label">Edited By (Name) *</label>
                           <input className="mod-form-input" value={invEditorName || getLoggedInUser() || ""} onChange={e => setInvEditorName(e.target.value)} />
                         </div>
-                        <div className="mod-form-group" style={{ marginBottom: 12 }}>
+                        <div className="mod-form-group">
                           <label className="mod-form-label">Reason for Revision / What was edited *</label>
                           <textarea className="mod-form-textarea" rows="2" placeholder="Briefly state what details were modified in this revision..." value={invEditReason} onChange={e => setInvEditReason(e.target.value)} />
-                        </div>
-                        <div className="mod-form-group">
-                          <label className="mod-form-label">Editor Digital Signature *</label>
-                          <SignaturePad value={invEditorSignature} onChange={setInvEditorSignature} onClear={() => setInvEditorSignature(false)} />
                         </div>
                       </div>
                     ) : investigationSubmitted ? (
@@ -7478,20 +8264,6 @@ export default function IMDetails() {
                           <div className="mod-form-group">
                             <label className="mod-form-label">Date</label>
                             <div className="readonly-box">{invInvDate || "—"}</div>
-                          </div>
-                          <div className="mod-form-group">
-                            <label className="mod-form-label">Investigator Signature</label>
-                            <div className="readonly-box" style={{ display: "flex", alignItems: "center", minHeight: "45px", overflowX: "auto" }}>
-                              {invInvSignature ? (
-                                typeof invInvSignature === "string" && (invInvSignature.startsWith("http") || invInvSignature.startsWith("data:") || invInvSignature.startsWith("/")) ? (
-                                  <img src={getAttachmentUrl(invInvSignature)} alt="Investigator Signature" style={{ maxHeight: "35px", maxWidth: "150px" }} />
-                                ) : (
-                                  <span style={{ fontStyle: "italic", fontFamily: "cursive", color: "var(--accent-primary, #3b82f6)" }}>✓ Signed Digitally ({invInvName || "Investigator"})</span>
-                                )
-                              ) : (
-                                <span style={{ color: "var(--text-muted)" }}>—</span>
-                              )}
-                            </div>
                           </div>
                         </div>
                         {invInvMarkedOk && (
@@ -7517,10 +8289,6 @@ export default function IMDetails() {
                             style={{ backgroundColor: "var(--bg-dark)", cursor: "not-allowed", color: "var(--text-muted)", opacity: 0.8 }}
                           />
                         </div>
-                        <div className="mod-form-group">
-                          <label className="mod-form-label">Investigator Signature</label>
-                          <SignaturePad value={invInvSignature} onChange={setInvInvSignature} onClear={() => setInvInvSignature(false)} />
-                        </div>
                         <div className="markok" onClick={() => setInvInvMarkedOk(!invInvMarkedOk)} style={{ borderColor: invInvMarkedOk ? "var(--color-safe)" : "var(--border-color)", opacity: invInvMarkedOk ? 1 : 0.7, marginTop: 16 }}>
                           <input type="checkbox" checked={invInvMarkedOk} onChange={() => { }} />
                           <div>
@@ -7534,11 +8302,71 @@ export default function IMDetails() {
 
                   {/* Footer */}
                   <div className="fsec">
+                    {/* SLA Warning Banner & Late Submission Reason Input */}
+                    {(() => {
+                      const { dInv, invDeadline } = getDeadlines();
+                      const isLate = dInv && new Date() > dInv && !investigationSubmitted;
+                      if (!isLate) return null;
+                      return (
+                        <div style={{
+                          marginTop: "16px",
+                          marginBottom: "16px",
+                          padding: "16px",
+                          backgroundColor: "#fff1f2",
+                          border: "1px solid #fecdd3",
+                          borderLeft: "4px solid #e11d48",
+                          borderRadius: "8px"
+                        }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#be123c", fontWeight: "600", fontSize: "14px", marginBottom: "8px" }}>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <circle cx="12" cy="12" r="10" />
+                              <line x1="12" y1="8" x2="12" y2="12" />
+                              <line x1="12" y1="16" x2="12.01" y2="16" />
+                            </svg>
+                            <span>SLA Deadline Exceeded (7-Day Incident Investigation Report)</span>
+                          </div>
+                          <p style={{ margin: "0 0 10px 0", fontSize: "13px", color: "#4b5563" }}>
+                            The 7-day deadline for submitting the Incident Investigation Report passed on <strong>{invDeadline}</strong>. 
+                            Please provide the reason for submitting this report late. An email notification with this explanation will automatically be sent to the incident submitter.
+                          </p>
+                          <div className="mod-form-group" style={{ marginBottom: 0 }}>
+                            <label className="mod-form-label" style={{ fontWeight: 600, color: "#1f2937" }}>
+                              Reason for Late Submission <span style={{ color: "#e11d48" }}>*</span>
+                            </label>
+                            <textarea
+                              className={`mod-form-textarea ${invErrors?.invLateReason ? "mod-input-error" : ""}`}
+                              rows={3}
+                              placeholder="Explain why the Incident Investigation Report is being submitted after the 7-day deadline..."
+                              value={invLateReason}
+                              onChange={(e) => {
+                                setInvLateReason(e.target.value);
+                                if (invErrors?.invLateReason) {
+                                  setInvErrors(prev => ({ ...prev, invLateReason: null }));
+                                }
+                              }}
+                              style={{ width: "100%", borderRadius: "6px", borderColor: invErrors?.invLateReason ? "#e11d48" : "#cbd5e1" }}
+                            />
+                            {invErrors?.invLateReason && (
+                              <span style={{ color: "#e11d48", fontSize: "12px", display: "block", marginTop: "4px" }}>
+                                {invErrors.invLateReason}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
+
                     {(!investigationSubmitted || isEditingInvestigation) && !isClosed && !(isCurrentlyReopened && isContractorUser()) && (
                       <div style={{ display: "flex", gap: "12px", marginTop: "16px" }}>
                         <button className="mod-btn-primary im-btn-primary" onClick={async () => {
                           let hasError = false;
                           const newErrors = {};
+
+                          const { dInv: dlInv } = getDeadlines();
+                          if (dlInv && new Date() > dlInv && !investigationSubmitted && !invLateReason?.trim()) {
+                            newErrors.invLateReason = "Reason for late submission is required because the 7-day deadline has passed.";
+                            hasError = true;
+                          }
 
                           if (!invTeam || invTeam.length === 0) {
                             newErrors.invTeam = "At least one member is required in the Investigation Team.";
@@ -7551,7 +8379,7 @@ export default function IMDetails() {
                             });
                           }
 
-                          if (!invDetails || !invDetails.trim()) { newErrors.invDetails = "Investigation Details are required."; hasError = true; }
+                          if (!invDetails || !invDetails.trim()) { newErrors.invDetails = "Investigation Description is required."; hasError = true; }
                           if (!invEffect || !invEffect.trim()) { newErrors.invEffect = "Incident/Effect description is required."; hasError = true; }
                           if (!invProblem || !invProblem.trim()) { newErrors.invProblem = "Problem Statement is required."; hasError = true; }
                           if (invRootCauses.length === 0 || !invRootCauses.some(rc => rc.trim())) { newErrors.invRootCauses = "At least one Root Cause is required."; hasError = true; }
@@ -7589,7 +8417,11 @@ export default function IMDetails() {
 
                           if (hasError) {
                             setInvErrors(newErrors);
-                            showError("Please complete all mandatory fields, including the investigation team and explanation for missing attachments.");
+                            if (newErrors.invLateReason) {
+                              showError(newErrors.invLateReason);
+                            } else {
+                              showError("Please complete all mandatory fields, including the investigation team and explanation for missing attachments.");
+                            }
                             if (newErrors.invTeam || Object.keys(newErrors).some(k => k.startsWith("inv_team_"))) {
                               document.getElementById("investigation-team-section")?.scrollIntoView({ behavior: "smooth", block: "center" });
                             }
@@ -7650,10 +8482,18 @@ export default function IMDetails() {
                                 safePlanOfAction: invAttachments.find(a => a.key === "safePlanOfAction") || { checked: false },
                                 photos: invAttachments.find(a => a.key === "photos") || { checked: false },
                                 evidenceForActionsTaken: invAttachments.find(a => a.key === "evidenceForActionsTaken") || { checked: false },
+                                equipmentDataSheets: invAttachments.find(a => a.key === "equipmentDataSheets") || { checked: false },
+                                easyDocument: invAttachments.find(a => a.key === "easyDocument") || { checked: false },
+                                otherRelevantDocumentation: invAttachments.find(a => a.key === "otherRelevantDocumentation") || { checked: false },
                                 wasteDisposalInvoice: invAttachments.find(a => a.key === "wasteDisposalInvoice") || { checked: false },
+                                safetyDataSheet: invAttachments.find(a => a.key === "safetyDataSheet") || { checked: false },
+                                soilAnalysisReports: invAttachments.find(a => a.key === "soilAnalysisReports") || { checked: false },
+                                waterAnalysisReports: invAttachments.find(a => a.key === "waterAnalysisReports") || { checked: false },
+                                easyCode: invEasyCode || irEasyCode || "",
                                 items: invAttachments.filter(a => a.checked || a.fileUrl),
                                 missingExplanation: invMissingExplain
                               },
+                              easyCode: invEasyCode || irEasyCode || "",
                               ...((isEditingInvestigation && investigationSubmitted) ? {
                                 editedBy: invEditorName || getLoggedInUser(),
                                 editorRole: invEditorRole || "HSE Investigator / Editor",
@@ -7694,7 +8534,10 @@ export default function IMDetails() {
                                 priority: c.priority || "Medium",
                                 status: c.status || "PENDING",
                                 actionType: "CORRECTIVE"
-                              }))
+                              })),
+                              ...(invLateReason?.trim() ? { lateSubmissionReason: invLateReason.trim() } : {}),
+                              ...(getLoggedInUserObj()?.email ? { submittedByEmail: getLoggedInUserObj().email } : {}),
+                              ...(getLoggedInUserObj()?.id ? { submittedById: Number(getLoggedInUserObj().id) } : {})
                             };
                             await saveInvestigation(id, payload);
                             await Swal.fire({ title: "Success!", text: (isEditingInvestigation && investigationSubmitted) ? "Investigation Report Updated Successfully!" : "Investigation Report Submitted!", icon: "success", confirmButtonColor: "#0f172a" });
@@ -7756,11 +8599,7 @@ export default function IMDetails() {
                           </span>
                         )}
                       </div>
-                      <div className="mod-form-group" style={{ marginTop: 16 }}>
-                        <label className="mod-form-label" style={{ textTransform: "uppercase" }}>Digital Signature</label>
-                        <SignaturePad value={invRevSignature} onChange={setInvRevSignature} onClear={() => setInvRevSignature(false)} />
-                      </div>
-                      <div className="markok" onClick={() => setInvRevMarkedOk(!invRevMarkedOk)} style={{ borderColor: invRevMarkedOk ? "var(--color-safe)" : "var(--border-color)", opacity: invRevMarkedOk ? 1 : 0.7 }}>
+                      <div className="markok" onClick={() => setInvRevMarkedOk(!invRevMarkedOk)} style={{ borderColor: invRevMarkedOk ? "var(--color-safe)" : "var(--border-color)", opacity: invRevMarkedOk ? 1 : 0.7, marginTop: 16 }}>
                         <input type="checkbox" checked={invRevMarkedOk} onChange={() => { }} />
                         <div>
                           <div className="mk-t">Marked OK</div>
@@ -7791,10 +8630,6 @@ export default function IMDetails() {
                               showError("Approver Initials are required");
                               return;
                             }
-                            if (!invRevSignature) {
-                              showError("Digital signature is required");
-                              return;
-                            }
                             if (!invRevMarkedOk) {
                               showError("Please confirm by checking Marked OK");
                               return;
@@ -7805,7 +8640,7 @@ export default function IMDetails() {
                               await reviewInvestigation(id, {
                                 approvedBy: userName,
                                 approverRole: invReviewerRole.trim(),
-                                signature: invRevSignature
+                                signature: null
                               });
                               showSuccess("Investigation Report Signed Off!");
                               navigate("/incident-management/list");
@@ -8069,6 +8904,13 @@ export default function IMDetails() {
                     style={{ background: "var(--color-risk)", padding: "6px 16px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}
                     onClick={async () => {
                       try {
+                        const cats = (irCategories.length > 0 ? irCategories : (incident?.categories || [])).map(c => String(c).toLowerCase());
+                        const isLostTime = irTreatmentProvided === "Lost Time" || cats.some(c => c.includes("lost time"));
+                        const hasEasy = Boolean((invEasyCode && invEasyCode.trim()) || (irEasyCode && irEasyCode.trim()) || (incident?.investigation?.easyCode && incident.investigation.easyCode.trim()) || (incident?.initialReport?.easyCode && incident.initialReport.easyCode.trim()));
+                        if (isLostTime && !hasEasy) {
+                          showError("Cannot close incident: Lost Time Injury requires an EASY report code/number to be entered before closure.");
+                          return;
+                        }
                         const userName = getLoggedInUser() || "Site HSE Admin";
                         await closeIncident(id, { closedBy: userName });
                         showSuccess("Incident Closed Successfully!");
@@ -8627,10 +9469,12 @@ export default function IMDetails() {
                 estimatedCost: irPropEstimatedCost || rawIncident?.initialReport?.propertyDamageDetails?.estimatedCost,
                 damageDescription: irPropDamageDesc || rawIncident?.initialReport?.propertyDamageDetails?.damageDescription,
                 immediateActionTaken: irPropImmediateAction || rawIncident?.initialReport?.propertyDamageDetails?.immediateActionTaken
-              }
+              },
+              photos: (photos && photos.length > 0) ? photos : (rawIncident?.initialReport?.photos || rawIncident?.incident?.photos || [])
             } : null,
             investigation: hasInvestigationData ? {
               ...(rawIncident?.investigation || {}),
+              photos: (invPhotos && invPhotos.length > 0) ? invPhotos : (rawIncident?.investigation?.photos || []),
               team: invTeam?.length ? invTeam : rawIncident?.investigation?.team,
               investigationTeam: invTeam?.length ? invTeam : (rawIncident?.investigation?.investigationTeam || rawIncident?.investigation?.team),
               problemStatement: invProblem || rawIncident?.investigation?.problemStatement,
@@ -9014,36 +9858,6 @@ export default function IMDetails() {
                     {reopenError}
                   </div>
                 )}
-              </div>
-
-              {/* Digital Signature */}
-              <div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-                  <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "11px", fontWeight: 700, color: "var(--text-muted, #64748b)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 19l7-7 3 3-7 7-3-3z"></path><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path><path d="M2 2l7.586 7.586"></path><circle cx="11" cy="11" r="2"></circle></svg>
-                    Digital Signature (Department Sign-off)
-                  </label>
-                  {reopenSignature && (
-                    <span style={{ fontSize: "11px", color: "#16a34a", fontWeight: 700, display: "flex", alignItems: "center", gap: "4px" }}>
-                      ✓ Signature Recorded
-                    </span>
-                  )}
-                </div>
-                <div
-                  style={{
-                    border: "1px solid var(--border-color, #cbd5e1)",
-                    borderRadius: "10px",
-                    padding: "8px",
-                    background: "var(--bg-dark, #f8fafc)"
-                  }}
-                >
-                  <SignaturePad
-                    value={reopenSignature}
-                    onChange={setReopenSignature}
-                    onClear={() => setReopenSignature(false)}
-                    height={140}
-                  />
-                </div>
               </div>
             </div>
 

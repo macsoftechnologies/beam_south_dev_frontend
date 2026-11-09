@@ -611,17 +611,17 @@ export default function SCView() {
           </div>
         </div>
 
-        {/* ── Section 5: Signatures & Verification ── */}
+        {/* ── Section 5: Sign-Off & Verification ── */}
         <div className="scview-card">
           <div className="sc-card-header">
             <div className="sc-card-header-left">
-              <i className="ti ti-signature"></i>
-              <span>5 | Signatures & Verification</span>
+              <i className="ti ti-circle-check"></i>
+              <span>5 | Sign-Off &amp; Verification</span>
             </div>
           </div>
           <div className="sc-card-body">
             <div className="grid-2-col">
-              {/* Foreman Signature */}
+              {/* Foreman Details */}
               <div className="sc-sig-card">
                 <div style={{ fontWeight: 600, fontSize: 13, color: "var(--text-main)", display: "flex", alignItems: "center", gap: 6 }}>
                   <i className="ti ti-user" style={{ color: "#0284c7" }}></i> Foreman / Contractor Lead
@@ -638,16 +638,13 @@ export default function SCView() {
                   <span className="sc-meta-label">Date:</span>
                   <span className="sc-meta-value">{formatDate(spotCheck.foremanDate)}</span>
                 </div>
-                <div className="sc-sig-canvas-box">
-                  {spotCheck.foremanSignature ? (
-                    <img src={spotCheck.foremanSignature} alt="Foreman Signature" />
-                  ) : (
-                    <span style={{ color: "var(--text-muted)", fontSize: 12 }}>No signature provided</span>
-                  )}
+                <div className="sc-meta-item" style={{ marginTop: 4 }}>
+                  <span className="sc-meta-label">Status:</span>
+                  <span className="sc-meta-value" style={{ color: "#16a34a", fontWeight: 600 }}>Acknowledged &amp; Signed Off</span>
                 </div>
               </div>
 
-              {/* Inspector Signature */}
+              {/* Inspector Details */}
               <div className="sc-sig-card">
                 <div style={{ fontWeight: 600, fontSize: 13, color: "var(--text-main)", display: "flex", alignItems: "center", gap: 6 }}>
                   <i className="ti ti-shield-check" style={{ color: "#059669" }}></i> Safety Inspector
@@ -664,12 +661,9 @@ export default function SCView() {
                   <span className="sc-meta-label">Date:</span>
                   <span className="sc-meta-value">{formatDate(spotCheck.inspectorDate || spotCheck.createdTime)}</span>
                 </div>
-                <div className="sc-sig-canvas-box">
-                  {spotCheck.inspectorSignature ? (
-                    <img src={spotCheck.inspectorSignature} alt="Inspector Signature" />
-                  ) : (
-                    <span style={{ color: "var(--text-muted)", fontSize: 12 }}>No signature provided</span>
-                  )}
+                <div className="sc-meta-item" style={{ marginTop: 4 }}>
+                  <span className="sc-meta-label">Status:</span>
+                  <span className="sc-meta-value" style={{ color: "#16a34a", fontWeight: 600 }}>Verified &amp; Signed Off</span>
                 </div>
               </div>
             </div>

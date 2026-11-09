@@ -488,17 +488,6 @@ export default function SCCreate() {
       return;
     }
 
-    // Signatures are mandatory
-    if (!form.foremanSignature) {
-      showError("Please provide the Foreman / Supervisor signature.");
-      return;
-    }
-
-    if (!form.inspectorSignature) {
-      showError("Please provide the Inspector signature.");
-      return;
-    }
-
     try {
       setIsSubmitting(true);
       let currentUser = {};
@@ -1058,9 +1047,9 @@ export default function SCCreate() {
           </div>
         </div>
 
-        {/* SUMMARY - SIGNATURES AND EVIDENCE */}
+        {/* SUMMARY - SIGN-OFF AND EVIDENCE */}
         <div className="mod-card-header" style={{ backgroundColor: "var(--bg-card)", borderTop: "1px solid var(--border-color)", borderBottom: "1px solid var(--border-color)", marginTop: "32px", borderLeft: "4px solid var(--primary-color, #F97316)" }}>
-          <h3 className="mod-card-title" style={{ margin: 0, color: "var(--text-main)", fontSize: "1.1rem", fontWeight: "700" }}>SUMMARY - SIGNATURES AND EVIDENCE</h3>
+          <h3 className="mod-card-title" style={{ margin: 0, color: "var(--text-main)", fontSize: "1.1rem", fontWeight: "700" }}>SUMMARY - SIGN-OFF AND EVIDENCE</h3>
         </div>
         <div className="mod-card-body" style={{ padding: "0" }}>
           <div style={{ padding: "12px 16px", backgroundColor: "var(--bg-card-hover)", color: "var(--text-main)", fontWeight: "600", fontSize: "0.9rem", borderBottom: "1px solid var(--border-color)" }}>
@@ -1093,16 +1082,6 @@ export default function SCCreate() {
                 <td className="sc-td-label">Date</td>
                 <td colSpan="3"><input type="date" className="mod-form-input" style={{ maxWidth: "200px" }} name="foremanDate" value={form.foremanDate} onChange={handleChange} /></td>
               </tr>
-              <tr>
-                <td className="sc-td-label" style={{ verticalAlign: "top", paddingTop: "16px" }}>Signature <span style={{ color: "#DC2626" }}>*</span></td>
-                <td colSpan="3">
-                  <SignaturePad
-                    value={form.foremanSignature}
-                    onChange={val => setForm(prev => ({ ...prev, foremanSignature: val }))}
-                    onClear={() => setForm(prev => ({ ...prev, foremanSignature: false }))}
-                  />
-                </td>
-              </tr>
             </tbody>
           </table>
 
@@ -1116,78 +1095,65 @@ export default function SCCreate() {
               <div key={idx} className="sc-attachment-item">
                 <div className="sc-attachment-grid">
                   <div className="sc-form-group">
-                    <label className="sc-form-label" style={{ fontSize: "0.78rem" }}>Description / Reference</label>
-                    <textarea
-                      className="sc-form-textarea"
-                      rows="2"
-                      placeholder="e.g. Scaffolding tag photo, Permit copy"
-                      value={att.desc || ""}
-                      onChange={(e) => handleAttachmentChange(idx, "desc", e.target.value)}
-                    ></textarea>
-                  </div>
-
-                  <div className="sc-attachment-controls">
-                    <div className="sc-form-group">
-                      <label className="sc-form-label" style={{ fontSize: "0.78rem" }}>Photograph / File</label>
-                      {!att.previewUrl ? (
-                        <label className="sc-upload-btn">
-                          <i className="ti ti-upload"></i> Choose File / Photo
-                          <input
-                            type="file"
-                            accept="image/*,.pdf,.doc,.docx"
-                            style={{ display: "none" }}
-                            onChange={(e) => handleAttachmentFileChange(idx, e)}
-                          />
-                        </label>
-                      ) : (
-                        <div className="sc-file-preview-pill">
-                          {att.fileType?.startsWith("image/") ? (
-                            <img src={att.previewUrl} alt="preview" style={{ width: "24px", height: "24px", objectFit: "cover", borderRadius: "4px" }} />
-                          ) : (
-                            <i className="ti ti-file-text" style={{ fontSize: "18px", color: "var(--primary-color, #F97316)" }}></i>
-                          )}
-                          <div style={{ maxWidth: "140px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "12px" }} title={att.fileName}>
-                            <b style={{ color: "var(--text-main)" }}>{att.fileName}</b>
-                            <span style={{ display: "block", fontSize: "10px", color: "var(--text-muted)" }}>{att.fileSize}</span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={(e) => handleRemoveAttachmentFile(idx, e)}
-                            style={{ background: "transparent", border: "none", color: "#ef4444", cursor: "pointer", padding: "2px 4px", fontSize: "14px" }}
-                            title="Remove file"
-                          >
-                            <i className="ti ti-x"></i>
-                          </button>
+                    <label className="sc-form-label" style={{ fontSize: "0.78rem" }}>Photograph / File</label>
+                    {!att.previewUrl ? (
+                      <label className="sc-upload-btn">
+                        <i className="ti ti-upload"></i> Choose File / Photo
+                        <input
+                          type="file"
+                          accept="image/*,.pdf,.doc,.docx"
+                          style={{ display: "none" }}
+                          onChange={(e) => handleAttachmentFileChange(idx, e)}
+                        />
+                      </label>
+                    ) : (
+                      <div className="sc-file-preview-pill">
+                        {att.fileType?.startsWith("image/") ? (
+                          <img src={att.previewUrl} alt="preview" style={{ width: "24px", height: "24px", objectFit: "cover", borderRadius: "4px" }} />
+                        ) : (
+                          <i className="ti ti-file-text" style={{ fontSize: "18px", color: "var(--primary-color, #F97316)" }}></i>
+                        )}
+                        <div style={{ maxWidth: "160px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "12px" }} title={att.fileName}>
+                          <b style={{ color: "var(--text-main)" }}>{att.fileName}</b>
+                          <span style={{ display: "block", fontSize: "10px", color: "var(--text-muted)" }}>{att.fileSize}</span>
                         </div>
-                      )}
-                    </div>
-
-                    <div className="sc-form-group" style={{ alignItems: "center" }}>
-                      <label className="sc-form-label" style={{ fontSize: "0.78rem" }}>Attached</label>
-                      <div style={{ display: "flex", gap: "8px", alignItems: "center", height: "36px" }}>
-                        <label style={{ display: "flex", alignItems: "center", gap: "4px", cursor: "pointer", fontSize: "12px" }}>
-                          <input type="radio" name={`att_${idx}`} value="Yes" onChange={() => handleAttachmentChange(idx, "attached", "Yes")} checked={att.attached === "Yes"} /> Yes
-                        </label>
-                        <label style={{ display: "flex", alignItems: "center", gap: "4px", cursor: "pointer", fontSize: "12px" }}>
-                          <input type="radio" name={`att_${idx}`} value="N/A" onChange={() => handleAttachmentChange(idx, "attached", "N/A")} checked={att.attached === "N/A"} /> N/A
-                        </label>
+                        <button
+                          type="button"
+                          onClick={(e) => handleRemoveAttachmentFile(idx, e)}
+                          style={{ background: "transparent", border: "none", color: "#ef4444", cursor: "pointer", padding: "2px 4px", fontSize: "14px" }}
+                          title="Remove file"
+                        >
+                          <i className="ti ti-x"></i>
+                        </button>
                       </div>
-                    </div>
-
-                    {form.attachments.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const atts = form.attachments.filter((_, i) => i !== idx);
-                          setForm(prev => ({ ...prev, attachments: atts }));
-                        }}
-                        style={{ background: "transparent", border: "none", color: "#94a3b8", cursor: "pointer", fontSize: "16px", padding: "6px" }}
-                        title="Remove row"
-                      >
-                        <i className="ti ti-trash"></i>
-                      </button>
                     )}
                   </div>
+
+                  <div className="sc-form-group" style={{ alignItems: "center" }}>
+                    <label className="sc-form-label" style={{ fontSize: "0.78rem" }}>Attached</label>
+                    <div style={{ display: "flex", gap: "8px", alignItems: "center", height: "36px" }}>
+                      <label style={{ display: "flex", alignItems: "center", gap: "4px", cursor: "pointer", fontSize: "12px" }}>
+                        <input type="radio" name={`att_${idx}`} value="Yes" onChange={() => handleAttachmentChange(idx, "attached", "Yes")} checked={att.attached === "Yes"} /> Yes
+                      </label>
+                      <label style={{ display: "flex", alignItems: "center", gap: "4px", cursor: "pointer", fontSize: "12px" }}>
+                        <input type="radio" name={`att_${idx}`} value="N/A" onChange={() => handleAttachmentChange(idx, "attached", "N/A")} checked={att.attached === "N/A"} /> N/A
+                      </label>
+                    </div>
+                  </div>
+
+                  {form.attachments.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const atts = form.attachments.filter((_, i) => i !== idx);
+                        setForm(prev => ({ ...prev, attachments: atts }));
+                      }}
+                      style={{ background: "transparent", border: "none", color: "#94a3b8", cursor: "pointer", fontSize: "16px", padding: "6px", marginBottom: "4px" }}
+                      title="Remove row"
+                    >
+                      <i className="ti ti-trash"></i>
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
@@ -1222,16 +1188,6 @@ export default function SCCreate() {
               <tr>
                 <td className="sc-td-label">Date</td>
                 <td colSpan="3"><input type="date" className="mod-form-input" style={{ maxWidth: "200px" }} name="inspectorDate" value={form.inspectorDate} onChange={handleChange} disabled /></td>
-              </tr>
-              <tr>
-                <td className="sc-td-label" style={{ verticalAlign: "top", paddingTop: "16px" }}>Signature <span style={{ color: "#DC2626" }}>*</span></td>
-                <td colSpan="3">
-                  <SignaturePad
-                    value={form.inspectorSignature}
-                    onChange={val => setForm(prev => ({ ...prev, inspectorSignature: val }))}
-                    onClear={() => setForm(prev => ({ ...prev, inspectorSignature: false }))}
-                  />
-                </td>
               </tr>
             </tbody>
           </table>

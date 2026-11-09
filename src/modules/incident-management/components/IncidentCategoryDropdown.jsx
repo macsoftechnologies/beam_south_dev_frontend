@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { INCIDENT_CATEGORY_MAP } from "./IncidentCategoryReferenceTable";
 
 /**
  * Custom single-select dropdown for Incident Category in Heads-Up form.
@@ -92,6 +93,7 @@ const IncidentCategoryDropdown = ({
                 aria-selected={isSelected}
                 className={`im-select-option ${isSelected ? "selected" : ""}`}
                 onClick={() => handleSelect(cat)}
+                title={INCIDENT_CATEGORY_MAP[cat] ? `${cat}: ${INCIDENT_CATEGORY_MAP[cat]}` : cat}
               >
                 {/* Left side checkbox for clear visual confirmation of selection */}
                 <div className="im-select-checkbox">

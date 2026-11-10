@@ -2383,7 +2383,7 @@ const getInitialPage = () => {
   };
 
   const canUserOpen = (row) => {
-    if (isAdmin || isMultiDept) return true;
+    if (isAdmin || isMultiDept || isSubcontractor) return true;
     if (!row) return false;
     const pType = (row.permit_type || row.permitType || "").trim().toLowerCase();
     const pUnder = (row.permit_under || row.permitUnder || "").trim().toLowerCase();
@@ -2441,7 +2441,7 @@ const getInitialPage = () => {
     const permitUnder = row.permit_under || "";
 
     // Role based validations for Pre-Approved, Approved, Opened, and Rejected transitions
-    if (!isAdmin && !isMultiDept) {
+    if (!isAdmin && !isMultiDept && !isSubcontractor) {
       if (status === "Pre-Approved" || status === "Approved") {
         const canApproveThis = canUserApprove(row, status);
         const canRejectThis = canUserReject(row, status);
@@ -2573,7 +2573,7 @@ const getInitialPage = () => {
       (pUnder === "construction" && pType === "commissioning") ||
       (pUnder === "commissioning" && pType === "construction");
 
-    if (!isAdmin && !isMultiDept) {
+    if (!isAdmin && !isMultiDept && !isSubcontractor) {
       if (isBothConstruction && !isDept) {
         return showError("Only CONM role can open or reject Construction-only permits.");
       }
@@ -2628,7 +2628,7 @@ const getInitialPage = () => {
       if (!rejectReason.trim()) return showError("Please specify rejection reason.");
       payload.reject_reason = rejectReason.trim();
 
-      if (!isAdmin && !isMultiDept) {
+      if (!isAdmin && !isMultiDept && !isSubcontractor) {
         const permitType = (modalTarget.permit_type || modalTarget.permitType || "").trim();
         const permitUnder = (modalTarget.permit_under || modalTarget.permitUnder || "").trim();
         const isBothConstruction = (permitUnder === "Construction" && permitType === "Construction");
@@ -2794,7 +2794,7 @@ const getInitialPage = () => {
         return showError("Status change to Opened is restricted for Approved permits when working date is not today.");
       }
 
-      if (!isAdmin && !isMultiDept) {
+      if (!isAdmin && !isMultiDept && !isSubcontractor) {
         for (const r of targetRequests) {
           if (!canUserOpen(r)) {
             return showError(`Permit #${r.PermitNo || r.id}: You do not have permission to open this permit.`);

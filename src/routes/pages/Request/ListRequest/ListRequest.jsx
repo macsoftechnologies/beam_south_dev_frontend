@@ -2382,6 +2382,25 @@ const getInitialPage = () => {
     return isDept || isDept1;
   };
 
+  const canUserOpen = (row) => {
+    if (isAdmin || isMultiDept) return true;
+    if (!row) return false;
+    const pType = (row.permit_type || row.permitType || "").trim().toLowerCase();
+    const pUnder = (row.permit_under || row.permitUnder || "").trim().toLowerCase();
+
+    const isBothConstruction = (pUnder === "construction" && pType === "construction");
+    const isBothCommissioning = (pUnder === "commissioning" && pType === "commissioning");
+    const isMixed =
+      (pUnder === "construction" && pType === "commissioning") ||
+      (pUnder === "commissioning" && pType === "construction");
+
+    if (isBothConstruction) return isDept;
+    if (isBothCommissioning) return isDept1;
+    if (isMixed) return isDept || isDept1;
+
+    return isDept || isDept1;
+  };
+
   const proceedWithStatusChange = (row, status) => {
     const currentStatus = row?.Request_status || row?.request_status || "";
     const workingDateVal = row?.Working_Date || row?.workingDate || row?.working_date || "";
@@ -2421,7 +2440,7 @@ const getInitialPage = () => {
     const permitType = row.permit_type || "";
     const permitUnder = row.permit_under || "";
 
-    // Role based validations for Pre-Approved and Approved transitions
+    // Role based validations for Pre-Approved, Approved, Opened, and Rejected transitions
     if (!isAdmin && !isMultiDept) {
       if (status === "Pre-Approved" || status === "Approved") {
         const canApproveThis = canUserApprove(row, status);
@@ -2434,6 +2453,34 @@ const getInitialPage = () => {
           if (status === "Approved") {
             return showError("You do not have permission to approve or reject this permit.");
           }
+        }
+      }
+
+      if (status === "Opened") {
+        if (!canUserOpen(row)) {
+          const pType = (row.permit_type || row.permitType || "").trim().toLowerCase();
+          const pUnder = (row.permit_under || row.permitUnder || "").trim().toLowerCase();
+          if (pUnder === "construction" && pType === "construction") {
+            return showError("Only CONM role can open Construction-only permits.");
+          }
+          if (pUnder === "commissioning" && pType === "commissioning") {
+            return showError("Only COMM role can open Commissioning-only permits.");
+          }
+          return showError("You do not have permission to open this permit.");
+        }
+      }
+
+      if (status === "Rejected") {
+        if (!canUserReject(row)) {
+          const pType = (row.permit_type || row.permitType || "").trim().toLowerCase();
+          const pUnder = (row.permit_under || row.permitUnder || "").trim().toLowerCase();
+          if (pUnder === "construction" && pType === "construction") {
+            return showError("Only CONM role can reject Construction-only permits.");
+          }
+          if (pUnder === "commissioning" && pType === "commissioning") {
+            return showError("Only COMM role can reject Commissioning-only permits.");
+          }
+          return showError("You do not have permission to reject this permit.");
         }
       }
     }
@@ -2518,6 +2565,26 @@ const getInitialPage = () => {
   };
 
   const promptApprovedAction = async (row) => {
+    const pType = (row.permit_type || row.permitType || "").trim().toLowerCase();
+    const pUnder = (row.permit_under || row.permitUnder || "").trim().toLowerCase();
+    const isBothConstruction = (pUnder === "construction" && pType === "construction");
+    const isBothCommissioning = (pUnder === "commissioning" && pType === "commissioning");
+    const isMixed =
+      (pUnder === "construction" && pType === "commissioning") ||
+      (pUnder === "commissioning" && pType === "construction");
+
+    if (!isAdmin && !isMultiDept) {
+      if (isBothConstruction && !isDept) {
+        return showError("Only CONM role can open or reject Construction-only permits.");
+      }
+      if (isBothCommissioning && !isDept1) {
+        return showError("Only COMM role can open or reject Commissioning-only permits.");
+      }
+      if (isMixed && !isDept && !isDept1) {
+        return showError("Only CONM or COMM role can open or reject this permit.");
+      }
+    }
+
     const result = await Swal.fire({
       title: "Approved Permit Action",
       text: `Select an action to perform on Permit ${row.PermitNo ? '#' + row.PermitNo : '#' + row.id}`,
@@ -2535,25 +2602,6 @@ const getInitialPage = () => {
     if (result.isConfirmed) {
       handleStatusTransition(row, "Opened");
     } else if (result.isDenied) {
-      const permitType = (row.permit_type || row.permitType || "").trim();
-      const permitUnder = (row.permit_under || row.permitUnder || "").trim();
-      const isBothConstruction = (permitUnder === "Construction" && permitType === "Construction");
-      const isBothCommissioning = (permitUnder === "Commissioning" && permitType === "Commissioning");
-      const isMixed =
-        (permitUnder === "Construction" && permitType === "Commissioning") ||
-        (permitUnder === "Commissioning" && permitType === "Construction");
-
-      if (!isAdmin && !isMultiDept) {
-        if (isBothConstruction && !isDept) {
-          return showError("Only CONM role can reject Construction-only permits.");
-        }
-        if (isBothCommissioning && !isDept1) {
-          return showError("Only COMM role can reject Commissioning-only permits.");
-        }
-        if (isMixed && !isDept && !isDept1) {
-          return showError("Only CONM or COMM role can reject this permit.");
-        }
-      }
       handleStatusTransition(row, "Rejected");
     }
   };
@@ -2606,6 +2654,17 @@ const getInitialPage = () => {
       if (!cancelReason.trim()) return showError("Please specify cancel reason.");
       payload.cancel_reason = cancelReason.trim();
     } else if (nextStatus === "Opened") {
+      if (!isAdmin && !isMultiDept && !canUserOpen(modalTarget)) {
+        const pType = (modalTarget.permit_type || modalTarget.permitType || "").trim().toLowerCase();
+        const pUnder = (modalTarget.permit_under || modalTarget.permitUnder || "").trim().toLowerCase();
+        if (pUnder === "construction" && pType === "construction") {
+          return showError("Only CONM role can open Construction-only permits.");
+        }
+        if (pUnder === "commissioning" && pType === "commissioning") {
+          return showError("Only COMM role can open Commissioning-only permits.");
+        }
+        return showError("You do not have permission to open this permit.");
+      }
       if (modalStatus === "Opened") {
         const workingDateVal = modalTarget?.Working_Date || modalTarget?.workingDate || modalTarget?.working_date || "";
         if (!isTodayDate(workingDateVal)) {
@@ -2733,6 +2792,14 @@ const getInitialPage = () => {
 
       if (invalidApproved) {
         return showError("Status change to Opened is restricted for Approved permits when working date is not today.");
+      }
+
+      if (!isAdmin && !isMultiDept) {
+        for (const r of targetRequests) {
+          if (!canUserOpen(r)) {
+            return showError(`Permit #${r.PermitNo || r.id}: You do not have permission to open this permit.`);
+          }
+        }
       }
     }
 

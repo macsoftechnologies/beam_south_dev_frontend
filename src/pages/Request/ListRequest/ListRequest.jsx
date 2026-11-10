@@ -1787,16 +1787,8 @@ const getInitialPage = () => {
 
     // 3. Mixed: Construction permit under Commissioning
     if (pUnder === "commissioning" && pType === "construction") {
-      // At Hold: ConM (Department) pre-approves/rejects
-      if (status === "hold") {
-        return !isDept;
-      }
-      // At Pre-Approved: COMM (Department1) performs final approval/rejection
-      if (status === "pre-approved") {
-        return !isDept1;
-      }
-      // At Approved or Opened: both departments have oversight / operational access
-      if (status === "approved" || status === "opened") {
+      // Both CoMM and ConM can reject at Hold, Pre-Approved, Approved, Opened (as per BEAM Rejection Flow)
+      if (status === "hold" || status === "pre-approved" || status === "approved" || status === "opened") {
         return !(isDept || isDept1);
       }
       return !(isDept || isDept1);
@@ -1804,16 +1796,8 @@ const getInitialPage = () => {
 
     // 4. Mixed: Commissioning permit under Construction
     if (pUnder === "construction" && pType === "commissioning") {
-      // At Hold: COMM (Department1) pre-approves/rejects
-      if (status === "hold") {
-        return !isDept1;
-      }
-      // At Pre-Approved: ConM (Department) performs final approval/rejection
-      if (status === "pre-approved") {
-        return !isDept;
-      }
-      // At Approved or Opened: both departments have oversight / operational access
-      if (status === "approved" || status === "opened") {
+      // Both CoMM and ConM can reject at Hold, Pre-Approved, Approved, Opened (as per BEAM Rejection Flow)
+      if (status === "hold" || status === "pre-approved" || status === "approved" || status === "opened") {
         return !(isDept || isDept1);
       }
       return !(isDept || isDept1);
@@ -2342,30 +2326,30 @@ const getInitialPage = () => {
   const canUserApprove = (row, status) => {
     if (isAdmin || isMultiDept) return true;
     if (!row) return false;
-    const permitType = row.permit_type || "";
-    const permitUnder = row.permit_under || "";
+    const pType = (row.permit_type || row.permitType || "").trim().toLowerCase();
+    const pUnder = (row.permit_under || row.permitUnder || "").trim().toLowerCase();
 
     if (status === "Pre-Approved") {
-      if (permitType === "Construction" && permitUnder === "Commissioning") {
+      if (pType === "construction" && pUnder === "commissioning") {
         return isDept;
       }
-      if (permitType === "Commissioning" && permitUnder === "Construction") {
+      if (pType === "commissioning" && pUnder === "construction") {
         return isDept1;
       }
       return false;
     }
 
     if (status === "Approved") {
-      if (permitType === "Commissioning" && permitUnder === "Commissioning") {
+      if (pType === "commissioning" && pUnder === "commissioning") {
         return isDept1;
       }
-      if (permitType === "Construction" && permitUnder === "Construction") {
+      if (pType === "construction" && pUnder === "construction") {
         return isDept;
       }
-      if (permitType === "Construction" && permitUnder === "Commissioning") {
+      if (pType === "construction" && pUnder === "commissioning") {
         return isDept1;
       }
-      if (permitType === "Commissioning" && permitUnder === "Construction") {
+      if (pType === "commissioning" && pUnder === "construction") {
         return isDept;
       }
       return false;
@@ -2377,27 +2361,23 @@ const getInitialPage = () => {
   const canUserReject = (row, targetStatus = modalStatus) => {
     if (isAdmin || isMultiDept) return true;
     if (!row) return false;
-    const permitType = row.permit_type || "";
-    const permitUnder = row.permit_under || "";
-    const currentStatus = row.Request_status || row.request_status || "";
+    const permitType = (row.permit_type || row.permitType || "").trim();
+    const permitUnder = (row.permit_under || row.permitUnder || "").trim();
 
-    if (permitUnder === "Construction" && permitType === "Construction") {
+    const isBothConstruction = (permitUnder === "Construction" && permitType === "Construction");
+    const isBothCommissioning = (permitUnder === "Commissioning" && permitType === "Commissioning");
+    const isMixed =
+      (permitUnder === "Construction" && permitType === "Commissioning") ||
+      (permitUnder === "Commissioning" && permitType === "Construction");
+
+    if (isBothConstruction) {
       return isDept;
     }
-    if (permitUnder === "Commissioning" && permitType === "Commissioning") {
+    if (isBothCommissioning) {
       return isDept1;
     }
-    if (permitType === "Construction" && permitUnder === "Commissioning") {
-      if (currentStatus === "Hold" || targetStatus === "Pre-Approved") {
-        return isDept;
-      }
-      return isDept1;
-    }
-    if (permitType === "Commissioning" && permitUnder === "Construction") {
-      if (currentStatus === "Hold" || targetStatus === "Pre-Approved") {
-        return isDept1;
-      }
-      return isDept;
+    if (isMixed) {
+      return isDept || isDept1;
     }
     return isDept || isDept1;
   };
@@ -2555,12 +2535,13 @@ const getInitialPage = () => {
     if (result.isConfirmed) {
       handleStatusTransition(row, "Opened");
     } else if (result.isDenied) {
-      const permitType = row.permit_type || "";
-      const permitUnder = row.permit_under || "";
+      const permitType = (row.permit_type || row.permitType || "").trim();
+      const permitUnder = (row.permit_under || row.permitUnder || "").trim();
       const isBothConstruction = (permitUnder === "Construction" && permitType === "Construction");
       const isBothCommissioning = (permitUnder === "Commissioning" && permitType === "Commissioning");
-      const isUnderConstTypeComm = (permitUnder === "Construction" && permitType === "Commissioning");
-      const isUnderCommTypeConst = (permitUnder === "Commissioning" && permitType === "Construction");
+      const isMixed =
+        (permitUnder === "Construction" && permitType === "Commissioning") ||
+        (permitUnder === "Commissioning" && permitType === "Construction");
 
       if (!isAdmin && !isMultiDept) {
         if (isBothConstruction && !isDept) {
@@ -2569,11 +2550,8 @@ const getInitialPage = () => {
         if (isBothCommissioning && !isDept1) {
           return showError("Only COMM role can reject Commissioning-only permits.");
         }
-        if (isUnderConstTypeComm && !isDept) {
-          return showError("Only CONM role can reject Construction permits under Commissioning.");
-        }
-        if (isUnderCommTypeConst && !isDept1) {
-          return showError("Only COMM role can reject Commissioning permits under Construction.");
+        if (isMixed && !isDept && !isDept1) {
+          return showError("Only CONM or COMM role can reject this permit.");
         }
       }
       handleStatusTransition(row, "Rejected");
@@ -2603,12 +2581,13 @@ const getInitialPage = () => {
       payload.reject_reason = rejectReason.trim();
 
       if (!isAdmin && !isMultiDept) {
-        const permitType = modalTarget.permit_type || "";
-        const permitUnder = modalTarget.permit_under || "";
+        const permitType = (modalTarget.permit_type || modalTarget.permitType || "").trim();
+        const permitUnder = (modalTarget.permit_under || modalTarget.permitUnder || "").trim();
         const isBothConstruction = (permitUnder === "Construction" && permitType === "Construction");
         const isBothCommissioning = (permitUnder === "Commissioning" && permitType === "Commissioning");
-        const isUnderConstTypeComm = (permitUnder === "Construction" && permitType === "Commissioning");
-        const isUnderCommTypeConst = (permitUnder === "Commissioning" && permitType === "Construction");
+        const isMixed =
+          (permitUnder === "Construction" && permitType === "Commissioning") ||
+          (permitUnder === "Commissioning" && permitType === "Construction");
 
         const curStatus = modalTarget?.Request_status || modalTarget?.request_status || "";
         if (curStatus === "Approved" || curStatus === "Pre-Approved" || curStatus === "Hold") {
@@ -2618,11 +2597,8 @@ const getInitialPage = () => {
           if (isBothCommissioning && !isDept1) {
             return showError("Only COMM role can reject Commissioning-only permits.");
           }
-          if (isUnderConstTypeComm && !isDept) {
-            return showError("Only CONM role can reject Construction permits under Commissioning.");
-          }
-          if (isUnderCommTypeConst && !isDept1) {
-            return showError("Only COMM role can reject Commissioning permits under Construction.");
+          if (isMixed && !isDept && !isDept1) {
+            return showError("Only CONM or COMM role can reject this permit.");
           }
         }
       }
@@ -2760,16 +2736,25 @@ const getInitialPage = () => {
       }
     }
 
+    if ((status === "Pre-Approved" || status === "Approved") && !isAdmin && !isMultiDept) {
+      for (const r of targetRequests) {
+        if (!canUserApprove(r, status)) {
+          return showError(`Permit #${r.PermitNo || r.id}: You do not have permission to ${status === "Pre-Approved" ? "pre-approve" : "approve"} this permit.`);
+        }
+      }
+    }
+
     if (status === "Rejected" && !isAdmin) {
       for (const r of targetRequests) {
         const curStatus = (r.Request_status || r.request_status || "");
         if (curStatus === "Approved" || curStatus === "Pre-Approved" || curStatus === "Hold") {
-          const pType = r.permit_type || "";
-          const pUnder = r.permit_under || "";
+          const pType = (r.permit_type || r.permitType || "").trim();
+          const pUnder = (r.permit_under || r.permitUnder || "").trim();
           const isBothConst = (pUnder === "Construction" && pType === "Construction");
           const isBothComm = (pUnder === "Commissioning" && pType === "Commissioning");
-          const isConstUnderComm = (pUnder === "Construction" && pType === "Commissioning");
-          const isCommUnderConst = (pUnder === "Commissioning" && pType === "Construction");
+          const isMixed =
+            (pUnder === "Construction" && pType === "Commissioning") ||
+            (pUnder === "Commissioning" && pType === "Construction");
 
           if (isBothConst && !isDept) {
             return showError(`Permit #${r.PermitNo || r.id}: Only CONM role can reject Construction-only permits.`);
@@ -2777,11 +2762,8 @@ const getInitialPage = () => {
           if (isBothComm && !isDept1) {
             return showError(`Permit #${r.PermitNo || r.id}: Only COMM role can reject Commissioning-only permits.`);
           }
-          if (isConstUnderComm && !isDept) {
-            return showError(`Permit #${r.PermitNo || r.id}: Only CONM role can reject Construction permits under Commissioning.`);
-          }
-          if (isCommUnderConst && !isDept1) {
-            return showError(`Permit #${r.PermitNo || r.id}: Only COMM role can reject Commissioning permits under Construction.`);
+          if (isMixed && !isDept && !isDept1) {
+            return showError(`Permit #${r.PermitNo || r.id}: Only CONM or COMM role can reject this permit.`);
           }
         }
       }

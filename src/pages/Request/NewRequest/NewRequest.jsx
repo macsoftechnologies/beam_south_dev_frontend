@@ -1427,8 +1427,22 @@ function NewRequest() {
   };
 
   const selectedZones = useMemo(() => {
-    return getZonesForLevel(level);
-  }, [level, selectedBuildingName]);
+    const rawZones = getZonesForLevel(level);
+    if (!rawZones || rawZones.length === 0) return [];
+    return rawZones.map(z => {
+      const zNameClean = (z.name || "").toLowerCase().trim();
+      const dbZone = zonesList.find(dbZ => {
+        const dbZNameClean = (dbZ.zone || "").toLowerCase().trim();
+        const bMatch = building ? String(dbZ.building_id) === String(building) : true;
+        return bMatch && dbZNameClean === zNameClean;
+      });
+      return {
+        ...z,
+        status: dbZone?.status || z.status || "UC",
+        zone_id: dbZone?.id || z.id,
+      };
+    });
+  }, [level, selectedBuildingName, zonesList, building]);
 
   const allMultiLevelZones = useMemo(() => {
     const selectedLevelNames = Array.from(new Set(selectedRooms.map(r => parseRoomToken(r, level).level))).filter(Boolean);
@@ -1473,7 +1487,14 @@ function NewRequest() {
     if (!targetLevel || !zoneName || !roomName) return;
 
     const activeStatus = getActiveStatus(selectedRooms);
-    const newRoomStatus = (roomStatusMap && roomStatusMap[roomName.toLowerCase().trim()]) || null;
+    const cleanZone = zoneName.toLowerCase().trim();
+    const cleanRoom = roomName.toLowerCase().trim();
+    const zoneObj = zonesList.find(z => {
+      const zMatch = (z.zone || "").toLowerCase().trim() === cleanZone;
+      const bMatch = building ? String(z.building_id) === String(building) : true;
+      return zMatch && bMatch;
+    });
+    const newRoomStatus = (zoneObj && zoneObj.status) || (roomStatusMap && (roomStatusMap[`${cleanZone}:::${cleanRoom}`] || roomStatusMap[cleanRoom])) || null;
 
     setSelectedRooms(prev => {
       const isCurrentlySelected = prev.some(token => {
@@ -1630,7 +1651,18 @@ function NewRequest() {
       if (building && String(r.building_id) !== String(building)) return;
       const zoneObj = zonesList.find(z => String(z.id) === String(r.zone_id));
       if (zoneObj && r.room_name) {
-        mapping[r.room_name.toLowerCase().trim()] = zoneObj.status;
+        const cleanRoom = r.room_name.toLowerCase().trim();
+        const cleanZone = (zoneObj.zone || "").toLowerCase().trim();
+        if (cleanZone) {
+          mapping[`${cleanZone}:::${cleanRoom}`] = zoneObj.status;
+        }
+        if (r.zone_id) {
+          mapping[`${r.zone_id}:::${cleanRoom}`] = zoneObj.status;
+        }
+        // Fallback: prioritize Commissioning ('C') so Construction doesn't overwrite it
+        if (!mapping[cleanRoom] || zoneObj.status === "C") {
+          mapping[cleanRoom] = zoneObj.status;
+        }
       }
     });
     return mapping;
@@ -1640,8 +1672,20 @@ function NewRequest() {
     if (!roomsArray || roomsArray.length === 0) return null;
     for (const item of roomsArray) {
       const parsed = parseRoomToken(item);
-      const rName = parsed.roomName || String(item);
-      const st = roomStatusMap ? roomStatusMap[rName.toLowerCase().trim()] : null;
+      const cleanZone = (parsed.zone || "").toLowerCase().trim();
+      const cleanRoom = (parsed.roomName || String(item)).toLowerCase().trim();
+      if (cleanZone) {
+        const zoneObj = zonesList.find(z => {
+          const zMatch = (z.zone || "").toLowerCase().trim() === cleanZone;
+          const bMatch = building ? String(z.building_id) === String(building) : true;
+          return zMatch && bMatch;
+        });
+        if (zoneObj && zoneObj.status) return zoneObj.status;
+        if (roomStatusMap && roomStatusMap[`${cleanZone}:::${cleanRoom}`]) {
+          return roomStatusMap[`${cleanZone}:::${cleanRoom}`];
+        }
+      }
+      const st = roomStatusMap ? roomStatusMap[cleanRoom] : null;
       if (st) return st;
     }
     return null;
@@ -1654,7 +1698,14 @@ function NewRequest() {
 
     if (rooms && rooms.length > 0) {
       const activeStatus = getActiveStatus(selectedRooms);
-      const newZoneStatus = zone.status || (roomStatusMap ? roomStatusMap[String(typeof rooms[0] === "object" ? rooms[0].name : rooms[0]).toLowerCase().trim()] : null);
+      const cleanZone = currentZoneClean.toLowerCase();
+      const zoneObj = zonesList.find(z => {
+        const zMatch = (z.zone || "").toLowerCase().trim() === cleanZone;
+        const bMatch = building ? String(z.building_id) === String(building) : true;
+        return zMatch && bMatch;
+      });
+      const firstRoomName = String(typeof rooms[0] === "object" ? rooms[0].name : rooms[0]).toLowerCase().trim();
+      const newZoneStatus = (zoneObj && zoneObj.status) || zone.status || (roomStatusMap ? (roomStatusMap[`${cleanZone}:::${firstRoomName}`] || roomStatusMap[firstRoomName]) : null);
 
       if (activeStatus && newZoneStatus && activeStatus !== newZoneStatus) {
         const statusLabelMap = { UC: "Construction", C: "Commissioning", HO: "Hand Over" };
@@ -1985,7 +2036,24 @@ function NewRequest() {
     const statusesFound = new Set();
     selectedRooms.forEach(token => {
       const parsed = parseRoomToken(token, level);
-      const st = roomStatusMap ? roomStatusMap[(parsed.roomName || "").toLowerCase().trim()] : null;
+      const cleanZone = (parsed.zone || "").toLowerCase().trim();
+      const cleanRoom = (parsed.roomName || "").toLowerCase().trim();
+      let st = null;
+      if (cleanZone) {
+        const zoneObj = zonesList.find(z => {
+          const zMatch = (z.zone || "").toLowerCase().trim() === cleanZone;
+          const bMatch = building ? String(z.building_id) === String(building) : true;
+          return zMatch && bMatch;
+        });
+        if (zoneObj && zoneObj.status) {
+          st = zoneObj.status;
+        } else if (roomStatusMap && roomStatusMap[`${cleanZone}:::${cleanRoom}`]) {
+          st = roomStatusMap[`${cleanZone}:::${cleanRoom}`];
+        }
+      }
+      if (!st && roomStatusMap) {
+        st = roomStatusMap[cleanRoom] || null;
+      }
       if (st) statusesFound.add(st);
     });
     if (statusesFound.size > 1) {

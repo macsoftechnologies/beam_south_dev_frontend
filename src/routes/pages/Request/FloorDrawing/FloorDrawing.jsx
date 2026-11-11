@@ -54,14 +54,28 @@ function FloorDrawing({
       const activeStatus = selectedRooms.reduce((status, item) => {
         if (status) return status;
         let rName = "";
+        let zName = "";
         if (typeof item === "object") {
           rName = item.name || item.room_name || "";
+          zName = item.zone || "";
         } else {
           const str = String(item);
           const parts = str.split(":::");
-          rName = parts[parts.length - 1];
+          if (parts.length === 3) {
+            zName = parts[1];
+            rName = parts[2];
+          } else if (parts.length === 2) {
+            zName = parts[0];
+            rName = parts[1];
+          } else {
+            rName = parts[0];
+          }
         }
+        const cleanZone = (zName || "").toLowerCase().trim();
         const cleanKey = rName.toLowerCase().trim();
+        if (cleanZone && roomStatusMap && roomStatusMap[`${cleanZone}:::${cleanKey}`]) {
+          return roomStatusMap[`${cleanZone}:::${cleanKey}`];
+        }
         return roomStatusMap ? roomStatusMap[cleanKey] : null;
       }, null);
 

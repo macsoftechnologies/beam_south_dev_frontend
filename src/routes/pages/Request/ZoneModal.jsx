@@ -28,19 +28,37 @@ function ZoneModal({
 
   const getRoomStatusFromMap = (item) => {
     if (!item) return null;
+    // Authoritative status: all rooms inside this ZoneModal belong to this zone
+    if (zone && zone.status) return zone.status;
+
     let rName = "";
+    let zName = "";
     if (typeof item === "object") {
       rName = item.name || item.room_name || "";
+      zName = item.zone || (zone ? zone.name : "");
     } else {
       const str = String(item);
       const parts = str.split(":::");
-      rName = parts[parts.length - 1];
+      if (parts.length === 3) {
+        zName = parts[1];
+        rName = parts[2];
+      } else if (parts.length === 2) {
+        zName = parts[0];
+        rName = parts[1];
+      } else {
+        rName = parts[0];
+        zName = zone ? zone.name : "";
+      }
     }
+    const cleanZone = (zName || (zone ? zone.name : "") || "").toLowerCase().trim();
     const cleanKey = rName.toLowerCase().trim();
+
+    if (cleanZone && roomStatusMap && roomStatusMap[`${cleanZone}:::${cleanKey}`]) {
+      return roomStatusMap[`${cleanZone}:::${cleanKey}`];
+    }
     if (roomStatusMap && roomStatusMap[cleanKey]) {
       return roomStatusMap[cleanKey];
     }
-    if (zone && zone.status) return zone.status;
     return null;
   };
 

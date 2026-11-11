@@ -100,6 +100,114 @@ const SevPill = ({ level }) => {
   );
 };
 
+/**
+ * Automatically determines which default tab to open when viewing an incident based on its stage/status:
+ * 1. Closed -> "overview"
+ * 2. Pending Closure -> "actions" (Corrective Actions)
+ * 3. Step 3 (Investigation) in progress / in review / not filled yet -> "investigation"
+ * 4. Step 2 (Initial Report) in progress / in review / not filled yet -> "initialReport"
+ * 5. Step 1 (Heads-Up) in review / revision / pending -> "headsUp"
+ */
+export const determineIncidentDefaultTab = (resData) => {
+  if (!resData) return "headsUp";
+
+  const incObj = resData?.incident || resData || {};
+  const stage = String(incObj?.stage || resData?.stage || "").toUpperCase();
+
+  // 1. Closed -> Overview tab
+  const isClosedInc = Boolean(
+    incObj?.closedBy ||
+    incObj?.status === 2 ||
+    stage === "CLOSED" ||
+    resData?.closedBy ||
+    resData?.status === 2
+  );
+  if (isClosedInc) {
+    return "overview";
+  }
+
+  // Check if incident is currently reopened
+  const reopenLogs = Array.isArray(incObj?.reopenLogs)
+    ? incObj.reopenLogs
+    : Array.isArray(resData?.incident?.reopenLogs)
+      ? resData.incident.reopenLogs
+      : Array.isArray(resData?.reopenLogs)
+        ? resData.reopenLogs
+        : [];
+  const isReopenedInc = reopenLogs.length > 0 && !isClosedInc;
+  if (isReopenedInc) {
+    const lastReopenLog = reopenLogs[reopenLogs.length - 1];
+    const stageReopenedTo = String(lastReopenLog?.stageReopenedTo || "").toUpperCase();
+    if (stageReopenedTo === "HEADS_UP") return "headsUp";
+    if (stageReopenedTo === "INITIAL_REPORT") return "initialReport";
+    if (stageReopenedTo === "INVESTIGATION") return "investigation";
+  }
+
+  const isNoFurther = Boolean(
+    incObj?.noFurtherInvestigation ||
+    resData?.headsUp?.noFurtherInvestigation ||
+    resData?.initialReport?.noFurtherInvestigation ||
+    resData?.noFurtherInvestigation
+  );
+
+  // Heads-Up status
+  const huData = resData?.headsUp || resData?.headsup || {};
+  const isHuApproved = Boolean(huData?.approvedBy);
+
+  // Initial Report status
+  const irData = resData?.initialReport || resData?.initial_report || {};
+  const hasIrData = Boolean(
+    (irData.submittedBy && irData.submittedBy !== "User") ||
+    irData.signature ||
+    irData.submittedTime ||
+    irData.injuredPersonName ||
+    irData.description
+  );
+  const isIrApproved = Boolean(irData.approvedBy);
+  const isIrWaived = Boolean(isNoFurther && !hasIrData);
+
+  // Investigation status
+  const invData = resData?.investigation || {};
+  const hasInvData = Boolean(
+    (invData.signatures && Array.isArray(invData.signatures) && invData.signatures.length > 0) ||
+    (invData.problemStatement && invData.problemStatement.trim().length > 0) ||
+    (invData.investigationDetails && invData.investigationDetails.trim().length > 0) ||
+    (invData.submittedBy && invData.submittedBy !== "User" && invData.submittedBy !== "Investigator")
+  );
+  const isInvApproved = Boolean(invData.reviewedBy || invData.approvedBy);
+  const isInvWaived = Boolean(isNoFurther && !hasInvData);
+
+  // 2. Pending Closure -> Corrective Actions tab ("actions")
+  // Occurs when all required investigation steps are completed/approved/waived and awaiting final closure
+  const isPendingClosure = Boolean(
+    stage === "PENDING_CLOSURE" ||
+    (isHuApproved && (isIrApproved || isIrWaived) && isInvApproved) ||
+    (isHuApproved && isIrApproved && isInvWaived)
+  );
+
+  if (isPendingClosure) {
+    return "actions";
+  }
+
+  // 3. Step 1: Heads-Up in review / pending approval -> Step 1 tab ("headsUp")
+  if (!isHuApproved) {
+    return "headsUp";
+  }
+
+  // 4. Step 2: Heads-Up completed, but Step 2 not filled yet OR filled and in review -> Step 2 tab ("initialReport")
+  if (!isIrWaived && !isIrApproved) {
+    return "initialReport";
+  }
+
+  // 5. Step 3: Step 2 completed/waived, but Step 3 not filled yet OR filled and in review -> Step 3 tab ("investigation")
+  if (!isInvWaived && !isInvApproved) {
+    return "investigation";
+  }
+
+  // Fallback for pending closure / actions
+  return "actions";
+};
+
 export const FISHBONE_SCORE_CONFIG = {
   1: { level: 1, label: "Very low risk", bg: "#C0C0C0", color: "#000000", border: "#A6A6A6" },
   2: { level: 2, label: "Low risk", bg: "#92D050", color: "#000000", border: "#7BB33B" },
@@ -807,6 +915,27 @@ export default function IMDetails() {
   const [irEasyCode, setIrEasyCode] = useState("");
   const [irMedicalTreatmentClass, setIrMedicalTreatmentClass] = useState("");
 
+  const isTreatmentLostTime = (val) => {
+    if (!val) return false;
+    if (Array.isArray(val)) return val.some(v => typeof v === "string" && v.toLowerCase().includes("lost time"));
+    if (typeof val === "string") {
+      if (val.trim().startsWith("[")) {
+        try {
+          const p = JSON.parse(val);
+          if (Array.isArray(p)) return p.some(v => typeof v === "string" && v.toLowerCase().includes("lost time"));
+        } catch {}
+      }
+      return val.toLowerCase().includes("lost time");
+    }
+    return false;
+  };
+
+  const isCategoryLostTime = (cats) => {
+    if (!cats) return false;
+    const arr = Array.isArray(cats) ? cats : [cats];
+    return arr.some(c => typeof c === "string" && c.toLowerCase().includes("lost time"));
+  };
+
   const [irAccidentCategories, setIrAccidentCategories] = useState([]);
   const [irInjuryTypes, setIrInjuryTypes] = useState([]);
   const [irInjuryOtherText, setIrInjuryOtherText] = useState("");
@@ -869,6 +998,7 @@ export default function IMDetails() {
     people: [], machine: [], method: [], materials: [], environment: [], measurement: []
   });
   const [fbTooltip, setFbTooltip] = useState(null);
+  const [showFishboneFiveWhysHelp, setShowFishboneFiveWhysHelp] = useState(false);
 
   const [invEffect, setInvEffect] = useState("");
   const [invProblem, setInvProblem] = useState("");
@@ -948,7 +1078,7 @@ export default function IMDetails() {
       if (isWaived && !hasIr) {
         targetStep = 1;
         targetStage = "HEADS_UP";
-        stepLabel = "Step 1: Heads-Up Notification (2hr)";
+        stepLabel = "Step 1: Heads-Up Notification (1hr)";
       } else if (isWaived && !hasInv) {
         targetStep = 2;
         targetStage = "INITIAL_REPORT";
@@ -1210,9 +1340,24 @@ export default function IMDetails() {
   };
 
   const handleIrCategoryToggle = (cat) => {
-    setIrCategories(cat ? [cat] : []);
+    const newCatList = cat ? [cat] : [];
+    setIrCategories(newCatList);
     if (irErrors?.irCategories) {
       setIrErrors(prev => ({ ...prev, irCategories: null }));
+    }
+    if (cat) {
+      const lower = String(cat).toLowerCase();
+      if (lower.includes("lost time")) {
+        setIrTreatmentProvided("Lost Time");
+        if (irErrors?.irTreatmentProvided) {
+          setIrErrors(prev => ({ ...prev, irTreatmentProvided: null }));
+        }
+      } else if (isTreatmentLostTime(irTreatmentProvided)) {
+        if (lower.includes("first aid")) setIrTreatmentProvided("First Aid");
+        else if (lower.includes("medical treatment")) setIrTreatmentProvided("Medical Treatment");
+        else if (lower.includes("restricted work")) setIrTreatmentProvided("Restricted Work");
+        else if (lower.includes("no treatment")) setIrTreatmentProvided("No Treatment");
+      }
     }
   };
 
@@ -1448,6 +1593,10 @@ export default function IMDetails() {
 
         const isInvApproved = Boolean(resData?.investigation?.reviewedBy || resData?.investigation?.approvedBy || (hasInvData && isClosedInc));
         setInvestigationApproved(isInvApproved);
+
+        // Auto-select default tab according to incident status
+        const defaultTab = determineIncidentDefaultTab(resData);
+        setActiveTab(defaultTab);
       } catch (err) {
         console.error("Failed to load incident details:", err);
       } finally {
@@ -1487,7 +1636,21 @@ export default function IMDetails() {
         setSelectedRooms(roomsArr);
       }
       setHuContractor(inc.contractorsInvolved || hu.contractorsInvolved || "");
-      const huCatList = hu.categories && Array.isArray(hu.categories) && hu.categories.length > 0 ? hu.categories : (inc.categories || []);
+      let huCatList = [];
+      if (Array.isArray(hu.categories) && hu.categories.length > 0) {
+        huCatList = hu.categories;
+      } else if (typeof hu.categories === "string" && hu.categories.trim()) {
+        try {
+          const parsed = JSON.parse(hu.categories);
+          huCatList = Array.isArray(parsed) ? parsed : [parsed];
+        } catch {
+          huCatList = [hu.categories];
+        }
+      } else if (hu.category) {
+        huCatList = [hu.category];
+      } else if (!ir?.submittedBy && !ir?.submittedTime && (!ir?.categories || ir.categories.length === 0)) {
+        huCatList = Array.isArray(inc.categories) ? inc.categories : (inc.category ? [inc.category] : []);
+      }
       setHuCategories(huCatList);
       const loadedAct = extractSevNum(hu.actualSeverity || inc.actualSeverity || "");
       const config = getCategorySeverityConfig(huCatList[0] || "", loadedAct);
@@ -1692,11 +1855,30 @@ export default function IMDetails() {
         if (ir.experienceInRole) setIrExperienceInRole(ir.experienceInRole);
         if (ir.workerActivity) setIrWorkerActivity(ir.workerActivity);
         if (ir.natureOfInjury) setIrNatureOfInjury(ir.natureOfInjury);
-        if (ir.treatmentProvided) setIrTreatmentProvided(ir.treatmentProvided);
-        if (ir.anticipatedAbsence) setIrAnticipatedAbsence(ir.anticipatedAbsence);
-        if (ir.easyCode) {
-          setIrEasyCode(ir.easyCode);
-          setInvEasyCode(prev => prev || ir.easyCode);
+        let loadedTreatment = "";
+        if (ir.treatmentProvided) {
+          let val = ir.treatmentProvided;
+          if (Array.isArray(val) && val.length > 0) val = val[0];
+          if (typeof val === "string") {
+            try {
+              const p = JSON.parse(val);
+              if (Array.isArray(p) && p.length > 0) val = p[0];
+            } catch {}
+          }
+          loadedTreatment = val || "";
+        } else if (ir.treatmentPrescribed) {
+          loadedTreatment = ir.treatmentPrescribed;
+        }
+        if (mappedCats.some(c => String(c).toLowerCase().includes("lost time"))) {
+          loadedTreatment = "Lost Time";
+        }
+        if (loadedTreatment) setIrTreatmentProvided(loadedTreatment);
+        const loadedAbsence = ir.anticipatedAbsence || inc.anticipatedAbsence || rawIncident?.anticipatedAbsence || "";
+        if (loadedAbsence) setIrAnticipatedAbsence(loadedAbsence);
+        const loadedEasy = ir.easyCode || inc.easyCode || rawIncident?.investigation?.easyCode || "";
+        if (loadedEasy) {
+          setIrEasyCode(loadedEasy);
+          setInvEasyCode(prev => prev || loadedEasy);
         }
         if (ir.medicalTreatmentClass) setIrMedicalTreatmentClass(ir.medicalTreatmentClass);
         if (ir.initialRootCause) setIrInitialRootCause(ir.initialRootCause);
@@ -2562,7 +2744,7 @@ export default function IMDetails() {
 
   // In a real application, these stages would be part of the incident object from API.
   const [stages] = useState({
-    headsUp: { label: "Heads-Up Notification (2hr)", priority: "CRITICAL", dueLabel: "23/06/2026 15:58" },
+    headsUp: { label: "Heads-Up Notification (1hr)", priority: "CRITICAL", dueLabel: "23/06/2026 15:58" },
     initialReport: { label: "Initial Incident Report (24hr)", priority: "HIGH", dueLabel: "24/06/2026 14:58" },
     investigation: { label: "Incident Investigation Report (7 days)", priority: "STANDARD", dueLabel: "30/06/2026 14:58" }
   });
@@ -2908,7 +3090,7 @@ export default function IMDetails() {
     if (baseDate && !isNaN(baseDate.getTime())) {
       const dHu = incident?.slaHeadsUpDue
         ? (parseUTCToDate(incident.slaHeadsUpDue) || new Date(incident.slaHeadsUpDue))
-        : new Date(baseDate.getTime() + 2 * 60 * 60 * 1000);
+        : new Date(baseDate.getTime() + 1 * 60 * 60 * 1000);
       const dIr = incident?.slaInitialDue
         ? (parseUTCToDate(incident.slaInitialDue) || new Date(incident.slaInitialDue))
         : new Date(baseDate.getTime() + 24 * 60 * 60 * 1000);
@@ -3379,7 +3561,7 @@ export default function IMDetails() {
   const huAudit = [];
   if (headsUpData && (headsUpData.submittedBy || headsUpData.signature)) {
     huAudit.push({
-      title: "Heads-Up Notification (2hr)", type: "SUBMITTED",
+      title: "Heads-Up Notification (1hr)", type: "SUBMITTED",
       user: headsUpData.submittedBy || incident?.reportedBy || "User", role: headsUpData.submitterRole || "Submitter",
       timestamp: headsUpData.submittedTime || headsUpData.createdTime || incident?.createdTime, signature: headsUpData.signature,
       iconSvg: <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>,
@@ -3390,7 +3572,7 @@ export default function IMDetails() {
     headsUpData.editHistory.forEach(ed => {
       const isReturned = ed.status === "RETURNED_FOR_REVISION" || (ed.action && String(ed.action).toLowerCase().includes("return"));
       huAudit.push({
-        title: "Heads-Up Notification (2hr)",
+        title: "Heads-Up Notification (1hr)",
         type: isReturned ? "RETURNED_FOR_REVISION" : "EDITED",
         user: ed.returnedBy || ed.editedBy || "User",
         role: ed.role || (isReturned ? "NNE Peer Reviewer" : "Submitter / Editor"),
@@ -3406,7 +3588,7 @@ export default function IMDetails() {
   }
   if (headsUpApproved) {
     huAudit.push({
-      title: "Heads-Up Notification (2hr)", type: "APPROVED",
+      title: "Heads-Up Notification (1hr)", type: "APPROVED",
       user: headsUpData?.approvedBy || "Reviewer", role: headsUpData?.approverRole || "NNE Peer Reviewer",
       timestamp: headsUpData?.approvedTime || headsUpData?.updatedTime, signature: headsUpData?.approverSignature || headsUpData?.signature,
       iconSvg: <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--color-safe, #10b981)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>,
@@ -3753,7 +3935,7 @@ export default function IMDetails() {
           },
           {
             id: "headsUp",
-            label: "Step 1: Heads-Up (2hr)",
+            label: "Step 1: Heads-Up (1hr)",
             icon: (
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="10" />
@@ -4046,7 +4228,7 @@ export default function IMDetails() {
                   </div>
                   {headsUpData?.lateSubmissionReason && (
                     <div style={{ gridColumn: "1 / -1", marginTop: 8, padding: "10px 14px", background: "#fff1f2", border: "1px solid #fecdd3", borderLeft: "4px solid #e11d48", borderRadius: "6px" }}>
-                      <div style={{ fontSize: "11px", fontWeight: 700, color: "#9f1239", textTransform: "uppercase", letterSpacing: "0.5px" }}>⚠️ Reason for Late Submission (2-Hour Deadline Exceeded)</div>
+                      <div style={{ fontSize: "11px", fontWeight: 700, color: "#9f1239", textTransform: "uppercase", letterSpacing: "0.5px" }}>⚠️ Reason for Late Submission (1-Hour Deadline Exceeded)</div>
                       <div style={{ fontSize: "13.5px", fontWeight: 600, color: "#881337", marginTop: "4px" }}>{headsUpData.lateSubmissionReason}</div>
                     </div>
                   )}
@@ -4430,7 +4612,7 @@ export default function IMDetails() {
                       <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                       <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
                     </svg>
-                    Edit: Heads-Up Notification (2hr)
+                    Edit: Heads-Up Notification (1hr)
                   </span>
                   <span className="inv-chip chip-draft" style={{ background: "rgba(59, 130, 246, 0.1)", color: "var(--accent-primary, #3b82f6)", borderColor: "rgba(59, 130, 246, 0.3)" }}>
                     Editing Active
@@ -5095,7 +5277,7 @@ export default function IMDetails() {
             <div className="mod-card mb-4">
               <div className="mod-card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                  <span className="mod-card-title">Step 1: Heads-Up Notification (2hr)</span>
+                  <span className="mod-card-title">Step 1: Heads-Up Notification (1hr)</span>
                   {isReopenedToStep1 ? (
                     <span className="inv-chip chip-inprogress" style={{ background: "#fef3c7", color: "#b45309", borderColor: "#fde68a" }}>
                       Reopened for Editing
@@ -5230,7 +5412,7 @@ export default function IMDetails() {
                     <label className="mod-form-label">Category</label>
                     <div className="readonly-box">
                       <span className="badge" style={{ background: "rgba(59, 130, 246, 0.1)", color: "#3b82f6", fontWeight: 700 }}>
-                        {huCategories[0] || incident.categories?.[0] || incident.category || "—"}
+                        {huCategories[0] || rawIncident?.headsUp?.categories?.[0] || rawIncident?.headsUp?.category || (initialReportSubmitted ? "—" : (incident.categories?.[0] || incident.category || "—"))}
                       </span>
                     </div>
                   </div>
@@ -5417,6 +5599,7 @@ export default function IMDetails() {
                       showSuccess("Incident Closed Successfully!");
                       const data = await getIncidentById(id);
                       setRawIncident(data?.data || data);
+                      setActiveTab("overview");
                     } catch (err) {
                       const msg = err.response?.data?.message || err.response?.data?.error || err.message || "Failed to close incident";
                       showError(Array.isArray(msg) ? msg[0] : msg);
@@ -5731,6 +5914,9 @@ export default function IMDetails() {
                     </button>
                   </div>
                 )}
+                <div style={{ width: "100%", fontSize: "13px", color: "#b45309", background: "#fef3c7", border: "1px solid #fde68a", padding: "10px 16px", borderRadius: "8px", fontWeight: "600", display: "flex", overflow: "hidden", whiteSpace: "nowrap", marginTop: "8px" }}>
+                  <marquee scrollamount="5">⚠️ Must be completed within 24 hours of the incident occurrence.</marquee>
+                </div>
               </div>
               {initialReportData?.lateSubmissionReason && (
                 <div style={{ margin: "16px 20px 0", padding: "12px 16px", background: "#fff1f2", border: "1px solid #fecdd3", borderLeft: "4px solid #e11d48", borderRadius: "6px" }}>
@@ -5752,7 +5938,7 @@ export default function IMDetails() {
                   <div className="fsec"><div className="fsec-title">A. Heads-Up Summary</div>
                     <div className="readonly-box">
                       <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                        <b>Incident Category:</b> {incident.categories?.[0] || incident.category || "—"}
+                        <b>Incident Category:</b> {huCategories[0] || rawIncident?.headsUp?.categories?.[0] || rawIncident?.headsUp?.category || (initialReportSubmitted ? "—" : (incident.categories?.[0] || incident.category || "—"))}
                         <span
                           role="button"
                           tabIndex={0}
@@ -6063,7 +6249,15 @@ export default function IMDetails() {
                   {(() => {
                     const activeIncidentCats = (irCategories.length > 0 ? irCategories : (incident?.categories || [])).map(c => String(c).toLowerCase());
                     const INJURY_CATS = ["no treatment injury", "first aid injury", "medical treatment injury", "restricted work injury", "lost time injury", "permanent disability", "fatality", "occupational illness", "personal injury"];
-                    const isInjuryIncident = activeIncidentCats.some(c => INJURY_CATS.includes(c));
+                    const isLostTimeCase = Boolean(
+                      isTreatmentLostTime(irTreatmentProvided) ||
+                      isCategoryLostTime(irCategories) ||
+                      activeIncidentCats.some(c => c.includes("lost time")) ||
+                      isCategoryLostTime(incident?.categories) ||
+                      isCategoryLostTime(incident?.category)
+                    );
+
+                    const isInjuryIncident = activeIncidentCats.some(c => INJURY_CATS.includes(c) || c.includes("injury") || c.includes("lost time")) || isLostTimeCase;
 
                     if (!isInjuryIncident) return null;
 
@@ -6078,31 +6272,80 @@ export default function IMDetails() {
                             <textarea className="mod-form-textarea" placeholder="e.g. Laceration to left hand, sprained ankle..." value={irNatureOfInjury} onChange={e => setIrNatureOfInjury(e.target.value)}></textarea>
                           </div>
                           <div className="grid-2">
-                            <div className="mod-form-group"><label className="mod-form-label">Treatment Provided</label>
-                              <select className="mod-form-select" value={irTreatmentProvided} onChange={e => setIrTreatmentProvided(e.target.value)}>
+                            <div className="mod-form-group">
+                              <label className="mod-form-label">
+                                Treatment Provided {isLostTimeCase && <span style={{ color: "#DC2626" }}>*</span>}
+                              </label>
+                              <select
+                                className={`mod-form-select ${irErrors.irTreatmentProvided ? "mod-input-error" : ""}`}
+                                style={{ borderColor: irErrors.irTreatmentProvided ? "#DC2626" : undefined }}
+                                value={Array.isArray(irTreatmentProvided) ? (irTreatmentProvided[0] || "") : (irTreatmentProvided || "")}
+                                onChange={e => {
+                                  const val = e.target.value;
+                                  setIrTreatmentProvided(val);
+                                  if (irErrors?.irTreatmentProvided) {
+                                    setIrErrors(prev => ({ ...prev, irTreatmentProvided: null }));
+                                  }
+                                }}
+                              >
                                 <option value="">Select...</option>
                                 {TREATMENT_PROVIDED.map(s => <option key={s} value={s}>{s}</option>)}
                               </select>
+                              {irErrors.irTreatmentProvided && (
+                                <span style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: "4px", display: "block" }}>
+                                  {irErrors.irTreatmentProvided}
+                                </span>
+                              )}
                             </div>
-                            {irTreatmentProvided === "Lost Time" && (
-                              <div className="mod-form-group"><label className="mod-form-label">ANTICIPATED ABSENCE FROM WORK</label>
-                                <input className="mod-form-input" placeholder="e.g. 3 days, 2 weeks, None, Unknown..." value={irAnticipatedAbsence} onChange={e => setIrAnticipatedAbsence(e.target.value)} />
+                            {isLostTimeCase && (
+                              <div className="mod-form-group">
+                                <label className="mod-form-label">
+                                  ANTICIPATED ABSENCE FROM WORK <span style={{ color: "#DC2626" }}>*</span>
+                                </label>
+                                <input
+                                  className={`mod-form-input ${irErrors.irAnticipatedAbsence ? "mod-input-error" : ""}`}
+                                  style={{ borderColor: irErrors.irAnticipatedAbsence ? "#DC2626" : undefined }}
+                                  placeholder="e.g. 3 days, 2 weeks, None, Unknown..."
+                                  value={irAnticipatedAbsence}
+                                  onChange={e => {
+                                    setIrAnticipatedAbsence(e.target.value);
+                                    if (irErrors.irAnticipatedAbsence) {
+                                      setIrErrors(prev => ({ ...prev, irAnticipatedAbsence: null }));
+                                    }
+                                  }}
+                                />
+                                {irErrors.irAnticipatedAbsence && (
+                                  <span style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: "4px", display: "block" }}>
+                                    {irErrors.irAnticipatedAbsence}
+                                  </span>
+                                )}
                               </div>
                             )}
                           </div>
-                          {irTreatmentProvided === "Lost Time" && (
+                          {isLostTimeCase && (
                             <div className="mod-form-group" style={{ marginTop: "12px" }}>
-                              <label className="mod-form-label">EASY Code / EASY Number</label>
+                              <label className="mod-form-label">
+                                EASY Code / EASY Number <span style={{ color: "#DC2626" }}>*</span>
+                              </label>
                               <input
                                 type="text"
-                                className="mod-form-input"
+                                className={`mod-form-input ${irErrors.irEasyCode ? "mod-input-error" : ""}`}
+                                style={{ borderColor: irErrors.irEasyCode ? "#DC2626" : undefined }}
                                 placeholder="e.g. EASY-2026-XXXX..."
                                 value={irEasyCode}
                                 onChange={e => {
                                   setIrEasyCode(e.target.value);
                                   setInvEasyCode(e.target.value);
+                                  if (irErrors.irEasyCode) {
+                                    setIrErrors(prev => ({ ...prev, irEasyCode: null }));
+                                  }
                                 }}
                               />
+                              {irErrors.irEasyCode && (
+                                <span style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: "4px", display: "block" }}>
+                                  {irErrors.irEasyCode}
+                                </span>
+                              )}
                               <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "4px" }}>
                                 Note: Detailed EASY documentation containing personal or health information must not be attached. Only the relevant EASY code/number may be reported.
                               </div>
@@ -6644,6 +6887,23 @@ export default function IMDetails() {
                               if (!irInjuryTypes || irInjuryTypes.length === 0) newErrors.irInjuryTypes = "Type of injury is required";
                               if (!bodyParts || bodyParts.length === 0) newErrors.bodyParts = "Injured body part is required";
                             }
+
+                            const isLostTime = Boolean(
+                              isTreatmentLostTime(irTreatmentProvided) ||
+                              activeIncidentCats.some(c => c.includes("lost time")) ||
+                              isCategoryLostTime(irCategories)
+                            );
+                            if (isLostTime) {
+                              if (!isTreatmentLostTime(irTreatmentProvided)) {
+                                newErrors.irTreatmentProvided = "Treatment provided must be 'Lost Time' for Lost Time Injury";
+                              }
+                              if (!irAnticipatedAbsence || !irAnticipatedAbsence.trim()) {
+                                newErrors.irAnticipatedAbsence = "Anticipated absence from work is required for Lost Time Injury";
+                              }
+                              if (!irEasyCode || !irEasyCode.trim()) {
+                                newErrors.irEasyCode = "EASY Code / EASY Number is required for Lost Time Injury";
+                              }
+                            }
                             
                             if (photos.length < 2) newErrors.photos = "A minimum of 2 photos are required";
 
@@ -6651,6 +6911,14 @@ export default function IMDetails() {
                               setIrErrors(newErrors);
                               if (newErrors.irLateReason) {
                                 showError(newErrors.irLateReason);
+                              } else if (newErrors.irAnticipatedAbsence && newErrors.irEasyCode) {
+                                showError("Anticipated absence from work and EASY number are required for Lost Time Injury.");
+                              } else if (newErrors.irAnticipatedAbsence) {
+                                showError(newErrors.irAnticipatedAbsence);
+                              } else if (newErrors.irEasyCode) {
+                                showError(newErrors.irEasyCode);
+                              } else if (newErrors.irTreatmentProvided) {
+                                showError(newErrors.irTreatmentProvided);
                               } else if (newErrors.photos && Object.keys(newErrors).length === 1) {
                                 showError("Please ensure at least 2 photos are added.");
                               } else if (newErrors.photos) {
@@ -6718,7 +6986,7 @@ export default function IMDetails() {
                             formData.append("treatmentPrescribed", irTreatmentProvided || "First aid");
                             formData.append("anticipatedAbsence", irAnticipatedAbsence || "0 days");
                             formData.append("treatmentProvided", JSON.stringify(irTreatmentProvided ? [irTreatmentProvided] : []));
-                            if (irEasyCode) formData.append("easyCode", irEasyCode);
+                            formData.append("easyCode", irEasyCode ? irEasyCode.trim() : "");
                             if (irMedicalTreatmentClass) formData.append("medicalTreatmentClass", irMedicalTreatmentClass);
 
                             // 5. Initial Assessment & Root Cause
@@ -7159,6 +7427,9 @@ export default function IMDetails() {
                     </button>
                   </div>
                 )}
+                <div style={{ width: "100%", fontSize: "13px", color: "#b45309", background: "#fef3c7", border: "1px solid #fde68a", padding: "10px 16px", borderRadius: "8px", fontWeight: "600", display: "flex", overflow: "hidden", whiteSpace: "nowrap", marginTop: "8px" }}>
+                  <marquee scrollamount="5">⚠️ Must be completed within 7 days of the incident occurrence.</marquee>
+                </div>
               </div>
               {investigationData?.lateSubmissionReason && (
                 <div style={{ margin: "16px 20px 0", padding: "12px 16px", background: "#fff1f2", border: "1px solid #fecdd3", borderLeft: "4px solid #e11d48", borderRadius: "6px" }}>
@@ -7370,13 +7641,82 @@ export default function IMDetails() {
                   </div>
 
                   {/* 4. Fishbone Analysis */}
-                  <div className="fsec"><div className="fsec-title">4. Fishbone Analysis – Cause and Effect</div>
+                  <div className="fsec">
+                    <div className="fsec-title" style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                      <span>4. Fishbone Analysis – Cause and Effect</span>
+                      <button
+                        type="button"
+                        onClick={() => setShowFishboneFiveWhysHelp(true)}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 5,
+                          background: "#eff6ff",
+                          color: "#2563eb",
+                          border: "1px solid #bfdbfe",
+                          borderRadius: "999px",
+                          padding: "2px 10px",
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          cursor: "pointer",
+                          transition: "all 0.15s ease"
+                        }}
+                        title="Click to view 5-Whys cause selection information"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="10" />
+                          <line x1="12" y1="16" x2="12" y2="12" />
+                          <line x1="12" y1="8" x2="12.01" y2="8" />
+                        </svg>
+                        <span>5-Whys Info</span>
+                      </button>
+                    </div>
                     <div className="fsec-note">Interactive Ishikawa diagram. Add causes under the six categories – People, Machine / Equipment, Method / Procedure, Materials, Environmental Conditions, Measurement.</div>
                     {renderFishboneSvg()}
                     <div style={{ marginTop: 12, padding: "12px 16px", background: "var(--bg-card, #ffffff)", border: "1px solid var(--border-color, #e2e8f0)", borderRadius: 8, display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.03)" }}>
-                      <div style={{ fontSize: 13, color: "var(--text-main, #0f172a)", display: "flex", alignItems: "center", gap: 8 }}>
-                        <span>ℹ️</span>
+                      <div style={{ fontSize: 13, color: "var(--text-main, #0f172a)", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                        <button
+                          type="button"
+                          onClick={() => setShowFishboneFiveWhysHelp(true)}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            width: 24,
+                            height: 24,
+                            borderRadius: "50%",
+                            background: "#2563eb",
+                            color: "#ffffff",
+                            border: "none",
+                            cursor: "pointer",
+                            boxShadow: "0 1px 3px rgba(37,99,235,0.3)",
+                            flexShrink: 0
+                          }}
+                          title="Click for 5-Whys cause selection details"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <circle cx="12" cy="12" r="10" />
+                            <line x1="12" y1="16" x2="12" y2="12" />
+                            <line x1="12" y1="8" x2="12.01" y2="8" />
+                          </svg>
+                        </button>
                         <span><b>Tick the box on any cause</b> to carry it into the 5 Whys analysis below. Scoring (1 Very Low – 5 Very High) prioritises identified causes by risk.</span>
+                        <button
+                          type="button"
+                          onClick={() => setShowFishboneFiveWhysHelp(true)}
+                          style={{
+                            background: "transparent",
+                            border: "none",
+                            color: "#2563eb",
+                            textDecoration: "underline",
+                            fontWeight: 700,
+                            cursor: "pointer",
+                            fontSize: "12px",
+                            padding: "0 2px"
+                          }}
+                        >
+                          Learn more
+                        </button>
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                         <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted, #64748b)", textTransform: "uppercase", letterSpacing: "0.5px", marginRight: 4 }}>Risk Level:</span>
@@ -7438,8 +7778,45 @@ export default function IMDetails() {
                                 }}
                               >
                                 <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-                                  <input type="checkbox" checked={cause.probable} onChange={() => toggleFishboneProbable(cat.key, i)} style={{ marginTop: 2, accentColor: "var(--color-risk, #e11d48)", width: 16, height: 16, cursor: "pointer" }} />
-                                  <span style={{ flex: 1, fontSize: 13, color: "var(--text-main)", lineHeight: 1.4, wordBreak: "break-all" }}>{cause.text}</span>
+                                  <input
+                                    type="checkbox"
+                                    id={`fb-cause-${cat.key}-${i}`}
+                                    checked={cause.probable}
+                                    onChange={() => toggleFishboneProbable(cat.key, i)}
+                                    style={{ marginTop: 2, accentColor: "var(--color-risk, #e11d48)", width: 17, height: 17, cursor: "pointer", flexShrink: 0 }}
+                                    title="Check this box to carry into 5-Whys analysis"
+                                  />
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <span style={{ fontSize: 13, color: "var(--text-main)", lineHeight: 1.4, wordBreak: "break-all", display: "block" }}>{cause.text}</span>
+                                    {!cause.probable ? (
+                                      <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 4 }}>
+                                        <span
+                                          onClick={() => toggleFishboneProbable(cat.key, i)}
+                                          style={{ fontSize: 11, color: "#64748b", cursor: "pointer", userSelect: "none", fontWeight: 500 }}
+                                          title="Check box to carry this cause into 5-Whys"
+                                        >
+                                          ☐ Check box for 5-Whys
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => { e.stopPropagation(); setShowFishboneFiveWhysHelp(true); }}
+                                          style={{ background: "transparent", border: "none", color: "#3b82f6", cursor: "pointer", padding: "0 2px", display: "inline-flex", alignItems: "center" }}
+                                          title="Click for 5-Whys guide"
+                                        >
+                                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <div style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 6 }}>
+                                        <span style={{ fontSize: 10, fontWeight: 800, color: "#fff", background: "var(--color-risk, #e11d48)", padding: "2px 8px", borderRadius: 10, letterSpacing: "0.4px" }}>
+                                          ✓ SELECTED FOR 5 WHYS
+                                        </span>
+                                        <span style={{ fontSize: 11, color: "var(--color-risk, #e11d48)", fontWeight: 600 }}>
+                                          (In Section 6 below)
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
                                   {(!investigationSubmitted || isEditingInvestigation) && (
                                     <button style={{ background: "var(--color-gray-bg, #f1f5f9)", border: "none", color: "var(--text-muted, #64748b)", cursor: "pointer", width: 24, height: 24, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }} onClick={() => removeFishboneCause(cat.key, i)}>×</button>
                                   )}
@@ -7495,11 +7872,6 @@ export default function IMDetails() {
                                     </span>
                                   )}
                                 </div>
-                                {cause.probable && (
-                                  <div style={{ marginTop: 12 }}>
-                                    <span style={{ fontSize: 10, fontWeight: 800, color: "#fff", background: "var(--color-risk, #e11d48)", padding: "4px 10px", borderRadius: 12, letterSpacing: "0.5px" }}>SELECTED FOR 5 WHYS</span>
-                                  </div>
-                                )}
                               </div>
                             );
                           })}
@@ -7569,16 +7941,67 @@ export default function IMDetails() {
                     </div>
                   </div>
 
-                  <div className="fsec"><div className="fsec-title">6. 5-Whys Root Cause Analysis <span style={{ color: "#DC2626", marginLeft: 4 }}>*</span></div>
+                  <div className="fsec" id="investigation-five-whys-section">
+                    <div className="fsec-title" style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                      <span>6. 5-Whys Root Cause Analysis <span style={{ color: "#DC2626", marginLeft: 4 }}>*</span></span>
+                      <button
+                        type="button"
+                        onClick={() => setShowFishboneFiveWhysHelp(true)}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 5,
+                          background: "#eff6ff",
+                          color: "#2563eb",
+                          border: "1px solid #bfdbfe",
+                          borderRadius: "999px",
+                          padding: "2px 10px",
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          cursor: "pointer",
+                          transition: "all 0.15s ease"
+                        }}
+                        title="Click to view instructions for selecting causes"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="10" />
+                          <line x1="12" y1="16" x2="12" y2="12" />
+                          <line x1="12" y1="8" x2="12.01" y2="8" />
+                        </svg>
+                        <span>How to Select Causes</span>
+                      </button>
+                    </div>
                     {invErrors.fiveWhys && <div style={{ fontSize: "0.8rem", color: "#DC2626", marginBottom: 8, fontWeight: 600 }}>{invErrors.fiveWhys}</div>}
                     {getProbableCauses().length === 0 ? (
-                      <div className="muted-empty" style={{ fontStyle: "italic", fontSize: 13, color: "var(--text-muted)", padding: "8px 0" }}>Tick the causes you want to analyse in the fishbone above to begin the 5-Whys analysis.</div>
+                      <div className="muted-empty" style={{ fontStyle: "normal", fontSize: 13, color: "var(--text-muted)", padding: "14px 18px", background: "#f8fafc", border: "1px dashed #cbd5e1", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ fontSize: 18 }}>ℹ️</span>
+                          <span>No causes selected yet. <strong>Tick the checkbox [✓]</strong> on any cause in the Fishbone diagram above to carry it into this 5-Whys analysis.</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setShowFishboneFiveWhysHelp(true)}
+                          style={{
+                            background: "#2563eb",
+                            color: "#fff",
+                            border: "none",
+                            borderRadius: 6,
+                            padding: "6px 14px",
+                            fontSize: 12,
+                            fontWeight: 600,
+                            cursor: "pointer"
+                          }}
+                        >
+                          View Selection Guide
+                        </button>
+                      </div>
                     ) : (
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                         {getProbableCauses().map(c => {
                           const whys = fiveWhys[c.id] || [];
+                          const hasCauseError = Boolean(invErrors[`why_${c.id}`] || [0, 1, 2, 3, 4].some(w => invErrors[`why_${c.id}_${w}`]));
                           return (
-                            <div key={c.id} style={{ border: invErrors[`why_${c.id}`] ? "1px solid #DC2626" : "1px solid var(--border-color)", padding: 16, borderRadius: 8, background: "var(--bg-card)" }}>
+                            <div key={c.id} style={{ border: hasCauseError ? "1px solid #DC2626" : "1px solid var(--border-color)", padding: 16, borderRadius: 8, background: "var(--bg-card)" }}>
                               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--border-color)", paddingBottom: 8, marginBottom: 12 }}>
                                 <span style={{ fontSize: 12, fontWeight: 800, color: "var(--text-main)", textTransform: "uppercase" }}>CAUSE: {c.text}</span>
                                 {c.score && (
@@ -7595,16 +8018,39 @@ export default function IMDetails() {
                                   </span>
                                 )}
                               </div>
-                              {invErrors[`why_${c.id}`] && <div style={{ fontSize: "0.75rem", color: "#DC2626", marginBottom: 12 }}>{invErrors[`why_${c.id}`]}</div>}
+                              {invErrors[`why_${c.id}`] && <div style={{ fontSize: "0.75rem", color: "#DC2626", marginBottom: 12, fontWeight: 600 }}>{invErrors[`why_${c.id}`]}</div>}
                               {[0, 1, 2, 3, 4].map(w => (
                                 <div key={w} className="mod-form-group" style={{ marginBottom: 12 }}>
-                                  <label className="mod-form-label">Why {w + 1}</label>
-                                  <input className="mod-form-input" value={whys[w] || ""} onChange={e => {
-                                    const newW = [...whys];
-                                    newW[w] = e.target.value;
-                                    setFiveWhys({ ...fiveWhys, [c.id]: newW });
-                                    if (invErrors[`why_${c.id}`]) setInvErrors({ ...invErrors, [`why_${c.id}`]: null, fiveWhys: null });
-                                  }} />
+                                  <label className="mod-form-label">
+                                    Why {w + 1} <span style={{ color: "#DC2626" }}>*</span>
+                                  </label>
+                                  <input
+                                    className={`mod-form-input ${invErrors[`why_${c.id}_${w}`] ? "mod-input-error" : ""}`}
+                                    style={{ borderColor: invErrors[`why_${c.id}_${w}`] ? "#DC2626" : undefined }}
+                                    placeholder={`Enter Why ${w + 1}...`}
+                                    value={whys[w] || ""}
+                                    onChange={e => {
+                                      const newW = [...whys];
+                                      newW[w] = e.target.value;
+                                      setFiveWhys({ ...fiveWhys, [c.id]: newW });
+                                      if (invErrors[`why_${c.id}_${w}`] || invErrors[`why_${c.id}`]) {
+                                        setInvErrors(prev => {
+                                          const next = { ...prev };
+                                          delete next[`why_${c.id}_${w}`];
+                                          const remainingWhyErrors = [0, 1, 2, 3, 4].some(i => i !== w && next[`why_${c.id}_${i}`]);
+                                          if (!remainingWhyErrors) delete next[`why_${c.id}`];
+                                          const anyWhyErrors = Object.keys(next).some(k => k.startsWith("why_"));
+                                          if (!anyWhyErrors) delete next.fiveWhys;
+                                          return next;
+                                        });
+                                      }
+                                    }}
+                                  />
+                                  {invErrors[`why_${c.id}_${w}`] && (
+                                    <span style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: "4px", display: "block" }}>
+                                      {invErrors[`why_${c.id}_${w}`]}
+                                    </span>
+                                  )}
                                 </div>
                               ))}
                             </div>
@@ -7959,10 +8405,10 @@ export default function IMDetails() {
                     return null;
                   })()}
 
-                  {/* 12. Lessons Learned & Prevention */}
-                  <div className="fsec"><div className="fsec-title">12. Lessons Learned</div>
+                  {/* 12. Incident Learning & Prevention */}
+                  <div className="fsec"><div className="fsec-title">12. Incident Learning</div>
                     <div className="mod-form-group" style={{ marginBottom: 16 }}><label className="mod-form-label" style={{ textTransform: "none", letterSpacing: "normal" }}>What was learned from this incident...</label>
-                      <textarea className="mod-form-textarea" value={invLessons} onChange={e => setInvLessons(e.target.value)}></textarea>
+                      <textarea className="mod-form-textarea" placeholder="Detail the incident learnings and prevention insights..." value={invLessons} onChange={e => setInvLessons(e.target.value)}></textarea>
                     </div>
 
                   </div>
@@ -8258,18 +8704,46 @@ export default function IMDetails() {
                     )}
 
                     {(isEditingInvestigation && investigationSubmitted) ? (
-                      <div style={{ border: "1px dashed #f59e0b", borderRadius: 8, padding: "16px", background: "var(--bg-dark)", maxWidth: 540, marginTop: 16 }}>
+                      <div id="investigation-editor-section" style={{ border: invErrors.invEditReason || invErrors.invEditorName ? "1px solid #DC2626" : "1px dashed #f59e0b", borderRadius: 8, padding: "16px", background: "var(--bg-dark)", maxWidth: 540, marginTop: 16 }}>
                         <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12, color: "#d97706", display: "flex", alignItems: "center", gap: 8 }}>
                           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
                           Editor Information & Revision Details
                         </div>
                         <div className="mod-form-group" style={{ marginBottom: 12 }}>
-                          <label className="mod-form-label">Edited By (Name) *</label>
-                          <input className="mod-form-input" value={invEditorName || getLoggedInUser() || ""} onChange={e => setInvEditorName(e.target.value)} />
+                          <label className="mod-form-label">Edited By (Name) <span style={{ color: "#DC2626" }}>*</span></label>
+                          <input
+                            className={`mod-form-input ${invErrors.invEditorName ? "mod-input-error" : ""}`}
+                            style={{ borderColor: invErrors.invEditorName ? "#DC2626" : undefined }}
+                            value={invEditorName || getLoggedInUser() || ""}
+                            onChange={e => {
+                              setInvEditorName(e.target.value);
+                              if (invErrors.invEditorName) setInvErrors(prev => ({ ...prev, invEditorName: null }));
+                            }}
+                          />
+                          {invErrors.invEditorName && (
+                            <span style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: "4px", display: "block" }}>
+                              {invErrors.invEditorName}
+                            </span>
+                          )}
                         </div>
                         <div className="mod-form-group">
-                          <label className="mod-form-label">Reason for Revision / What was edited *</label>
-                          <textarea className="mod-form-textarea" rows="2" placeholder="Briefly state what details were modified in this revision..." value={invEditReason} onChange={e => setInvEditReason(e.target.value)} />
+                          <label className="mod-form-label">Reason for Revision / What was edited <span style={{ color: "#DC2626" }}>*</span></label>
+                          <textarea
+                            className={`mod-form-textarea ${invErrors.invEditReason ? "mod-input-error" : ""}`}
+                            style={{ borderColor: invErrors.invEditReason ? "#DC2626" : undefined }}
+                            rows="2"
+                            placeholder="Briefly state what details were modified in this revision..."
+                            value={invEditReason}
+                            onChange={e => {
+                              setInvEditReason(e.target.value);
+                              if (invErrors.invEditReason) setInvErrors(prev => ({ ...prev, invEditReason: null }));
+                            }}
+                          />
+                          {invErrors.invEditReason && (
+                            <span style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: "4px", display: "block" }}>
+                              {invErrors.invEditReason}
+                            </span>
+                          )}
                         </div>
                       </div>
                     ) : investigationSubmitted ? (
@@ -8413,11 +8887,32 @@ export default function IMDetails() {
                           } else {
                             probableCausesList.forEach(c => {
                               const whys = fiveWhys[c.id] || [];
-                              if (!whys[0] || !whys[0].trim()) {
-                                newErrors[`why_${c.id}`] = "Please complete at least the first Why for this cause.";
-                                hasError = true;
+                              let causeHasEmptyWhy = false;
+                              for (let w = 0; w < 5; w++) {
+                                if (!whys[w] || !whys[w].trim()) {
+                                  newErrors[`why_${c.id}_${w}`] = `Why ${w + 1} is required for "${c.text}".`;
+                                  causeHasEmptyWhy = true;
+                                  hasError = true;
+                                }
+                              }
+                              if (causeHasEmptyWhy) {
+                                newErrors[`why_${c.id}`] = `All 5 Why fields must be completed for "${c.text}".`;
                               }
                             });
+                            if (Object.keys(newErrors).some(k => k.startsWith("why_"))) {
+                              newErrors.fiveWhys = "All 5 Why fields are required for each selected cause.";
+                            }
+                          }
+
+                          if (isEditingInvestigation && investigationSubmitted) {
+                            if (!invEditorName || !invEditorName.trim()) {
+                              newErrors.invEditorName = "Edited By (Name) is required.";
+                              hasError = true;
+                            }
+                            if (!invEditReason || !invEditReason.trim()) {
+                              newErrors.invEditReason = "Reason for revision / what was edited is required.";
+                              hasError = true;
+                            }
                           }
 
                           if (invCorrective.length === 0) {
@@ -8441,10 +8936,22 @@ export default function IMDetails() {
                             setInvErrors(newErrors);
                             if (newErrors.invLateReason) {
                               showError(newErrors.invLateReason);
+                            } else if (newErrors.invEditReason) {
+                              showError(newErrors.invEditReason);
+                            } else if (newErrors.invEditorName) {
+                              showError(newErrors.invEditorName);
+                            } else if (Object.keys(newErrors).some(k => k.startsWith("why_"))) {
+                              showError("Please complete all 5 Why fields for each selected cause.");
+                            } else if (newErrors.fiveWhys) {
+                              showError(newErrors.fiveWhys);
                             } else {
                               showError("Please complete all mandatory fields, including the investigation team and explanation for missing attachments.");
                             }
-                            if (newErrors.invTeam || Object.keys(newErrors).some(k => k.startsWith("inv_team_"))) {
+                            if (newErrors.invEditReason || newErrors.invEditorName) {
+                              document.getElementById("investigation-editor-section")?.scrollIntoView({ behavior: "smooth", block: "center" });
+                            } else if (newErrors.fiveWhys || Object.keys(newErrors).some(k => k.startsWith("why_"))) {
+                              document.getElementById("investigation-five-whys-section")?.scrollIntoView({ behavior: "smooth", block: "center" });
+                            } else if (newErrors.invTeam || Object.keys(newErrors).some(k => k.startsWith("inv_team_"))) {
                               document.getElementById("investigation-team-section")?.scrollIntoView({ behavior: "smooth", block: "center" });
                             }
                             return;
@@ -8519,8 +9026,8 @@ export default function IMDetails() {
                               ...((isEditingInvestigation && investigationSubmitted) ? {
                                 editedBy: invEditorName || getLoggedInUser(),
                                 editorRole: invEditorRole || "HSE Investigator / Editor",
-                                editReason: invEditReason || "Updated Investigation Report",
-                                editorSignature: invEditorSignature,
+                                editReason: invEditReason?.trim() || "Updated Investigation Report",
+                                ...(typeof invEditorSignature === "string" && invEditorSignature.trim() ? { editorSignature: invEditorSignature } : {})
                               } : {
                                 signatures: [
                                   {
@@ -8566,6 +9073,8 @@ export default function IMDetails() {
                             navigate("/incident-management/list");
                           } catch (err) {
                             console.error("Failed to submit investigation", err);
+                            const msg = err.response?.data?.message || err.message || "Failed to submit investigation report";
+                            showError(Array.isArray(msg) ? msg.join(", ") : msg);
                           }
                         }}>{(isEditingInvestigation && investigationSubmitted) ? "Update Investigation Report" : "Submit Investigation Report"}</button>
                         {(isEditingInvestigation && investigationSubmitted) && (
@@ -8927,7 +9436,7 @@ export default function IMDetails() {
                     onClick={async () => {
                       try {
                         const cats = (irCategories.length > 0 ? irCategories : (incident?.categories || [])).map(c => String(c).toLowerCase());
-                        const isLostTime = irTreatmentProvided === "Lost Time" || cats.some(c => c.includes("lost time"));
+                        const isLostTime = isTreatmentLostTime(irTreatmentProvided) || cats.some(c => c.includes("lost time"));
                         const hasEasy = Boolean((invEasyCode && invEasyCode.trim()) || (irEasyCode && irEasyCode.trim()) || (incident?.investigation?.easyCode && incident.investigation.easyCode.trim()) || (incident?.initialReport?.easyCode && incident.initialReport.easyCode.trim()));
                         if (isLostTime && !hasEasy) {
                           showError("Cannot close incident: Lost Time Injury requires an EASY report code/number to be entered before closure.");
@@ -8938,6 +9447,7 @@ export default function IMDetails() {
                         showSuccess("Incident Closed Successfully!");
                         const data = await getIncidentById(id);
                         setRawIncident(data?.data || data);
+                        setActiveTab("overview");
                       } catch (err) {
                         const msg = err.response?.data?.message || err.response?.data?.error || err.message || "Failed to close incident";
                         showError(Array.isArray(msg) ? msg[0] : msg);
@@ -9462,17 +9972,23 @@ export default function IMDetails() {
             ...(rawIncident?.incident || rawIncident || {}),
             headsUp: {
               ...(rawIncident?.headsUp || {}),
+              categories: (huCategories && huCategories.length > 0) ? huCategories : (rawIncident?.headsUp?.categories || (rawIncident?.headsUp?.category ? [rawIncident.headsUp.category] : [])),
+              category: huCategories?.[0] || rawIncident?.headsUp?.category || rawIncident?.headsUp?.categories?.[0] || "",
               submittedBy: rawIncident?.headsUp?.submittedBy || rawIncident?.incident?.reportedBy || "HSE Lead",
-              immediateActions: rawIncident?.headsUp?.immediateActions || rawIncident?.incident?.immediateActions || []
+              immediateActions: (huImmActions && huImmActions.length > 0) ? huImmActions : (rawIncident?.headsUp?.immediateActions || rawIncident?.incident?.immediateActions || [])
             },
             initialReport: hasInitialReportData ? {
               ...(rawIncident?.initialReport || {}),
+              categories: (irCategories && irCategories.length > 0) ? irCategories : (rawIncident?.initialReport?.categories || []),
               injuredPersonName: irInjuredName || rawIncident?.initialReport?.injuredPersonName,
               injuredPersonCompany: irInjuredCompany || rawIncident?.initialReport?.injuredPersonCompany,
               injuredPersonSupervisor: irInjuredSupervisor || rawIncident?.initialReport?.injuredPersonSupervisor,
               injuredPersonJobTitle: irInjuredJobTitle || rawIncident?.initialReport?.injuredPersonJobTitle,
               natureOfInjury: irNatureOfInjury || rawIncident?.initialReport?.natureOfInjury,
               treatmentProvided: irTreatmentProvided || rawIncident?.initialReport?.treatmentProvided,
+              treatmentPrescribed: irTreatmentProvided || rawIncident?.initialReport?.treatmentPrescribed,
+              anticipatedAbsence: irAnticipatedAbsence || rawIncident?.initialReport?.anticipatedAbsence,
+              easyCode: irEasyCode || rawIncident?.initialReport?.easyCode,
               actualSeverity: irActualSeverity || rawIncident?.initialReport?.actualSeverity,
               potentialSeverity: irPotentialSeverity || rawIncident?.initialReport?.potentialSeverity,
               bodyPartsInjured: bodyParts?.length ? bodyParts : rawIncident?.initialReport?.bodyPartsInjured,
@@ -9521,6 +10037,204 @@ export default function IMDetails() {
           onClose={() => setShowPdfExport(false)}
           targetForm={pdfTargetForm}
         />
+      )}
+
+      {/* 5-Whys Cause Selection Guidance Modal */}
+      {showFishboneFiveWhysHelp && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(15, 23, 42, 0.72)",
+            backdropFilter: "blur(6px)",
+            WebkitBackdropFilter: "blur(6px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 10000100,
+            padding: "24px 16px",
+            overflowY: "auto"
+          }}
+          onClick={() => setShowFishboneFiveWhysHelp(false)}
+        >
+          <div
+            style={{
+              position: "relative",
+              maxWidth: 620,
+              width: "100%",
+              backgroundColor: "var(--bg-card, #ffffff)",
+              borderRadius: "18px",
+              border: "1px solid var(--border-color, #e2e8f0)",
+              borderTop: "5px solid #2563eb",
+              boxShadow: "0 25px 60px -15px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(0, 0, 0, 0.05)",
+              maxHeight: "90vh",
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden"
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "20px 24px 18px",
+                borderBottom: "1px solid var(--border-color, #e2e8f0)",
+                backgroundColor: "var(--bg-card, #ffffff)",
+                flexShrink: 0
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                <div
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: "12px",
+                    background: "linear-gradient(135deg, rgba(37, 99, 235, 0.15), rgba(29, 78, 216, 0.25))",
+                    color: "#2563eb",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0
+                  }}
+                >
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="12" y1="16" x2="12" y2="12" />
+                    <line x1="12" y1="8" x2="12.01" y2="8" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: "17px", fontWeight: 700, color: "var(--text-main, #0f172a)" }}>
+                    5-Whys Root Cause Selection
+                  </h3>
+                  <div style={{ fontSize: "12.5px", color: "var(--text-muted, #64748b)", marginTop: 2 }}>
+                    How to carry Fishbone causes into the 5-Whys analysis
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowFishboneFiveWhysHelp(false)}
+                title="Close"
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: "50%",
+                  border: "none",
+                  backgroundColor: "var(--color-gray-bg, #f1f5f9)",
+                  color: "#64748b",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 18,
+                  fontWeight: 600,
+                  transition: "all 0.15s ease"
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: "22px 24px", overflowY: "auto", fontSize: "13.5px", color: "var(--text-main, #1e293b)", lineHeight: 1.6 }}>
+              {/* Highlight Announcement Box */}
+              <div
+                style={{
+                  padding: "16px 18px",
+                  background: "#eff6ff",
+                  border: "1px solid #bfdbfe",
+                  borderLeft: "4px solid #2563eb",
+                  borderRadius: "10px",
+                  marginBottom: "20px",
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: 14
+                }}
+              >
+                <span style={{ fontSize: "24px", lineHeight: 1 }}>☑️</span>
+                <div>
+                  <div style={{ fontWeight: 800, color: "#1e40af", fontSize: "14.5px", marginBottom: 4 }}>
+                    Check the Checkbox on Any Cause for 5-Whys
+                  </div>
+                  <div style={{ color: "#1e3a8a", fontSize: "13px", lineHeight: 1.5 }}>
+                    To analyse a cause in the <strong>5-Whys Root Cause Analysis</strong>, you must <strong>tick the checkbox [✓]</strong> next to the cause in the Fishbone diagram categories.
+                    Only checked causes will be carried forward into <strong>Section 6: 5-Whys Root Cause Analysis</strong>!
+                  </div>
+                </div>
+              </div>
+
+              {/* Step-by-Step Instructions */}
+              <div style={{ fontWeight: 800, fontSize: "14px", marginBottom: "12px", color: "var(--text-main, #0f172a)" }}>
+                Follow These Steps:
+              </div>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                  <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#f1f5f9", color: "#334155", fontWeight: 800, fontSize: "12.5px", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>1</div>
+                  <div>
+                    <strong style={{ color: "#0f172a" }}>Add Potential Causes:</strong> Enter potential contributing causes under any of the 6 Fishbone categories (People, Machine / Equipment, Method / Procedure, Materials, Environmental Conditions, Measurement) and click <kbd style={{ background: "#f1f5f9", padding: "2px 6px", borderRadius: 4, border: "1px solid #cbd5e1", fontSize: "12px" }}>+</kbd> or press <kbd style={{ background: "#f1f5f9", padding: "2px 6px", borderRadius: 4, border: "1px solid #cbd5e1", fontSize: "12px" }}>Enter</kbd>.
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                  <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#dbeafe", color: "#1d4ed8", fontWeight: 800, fontSize: "12.5px", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>2</div>
+                  <div>
+                    <strong style={{ color: "#1d4ed8" }}>Tick the Checkbox [✓]:</strong> Check the box next to any probable cause you want to analyse. Once checked, a <span style={{ background: "#e11d48", color: "#fff", fontSize: "10px", fontWeight: 800, padding: "2px 7px", borderRadius: 10 }}>SELECTED FOR 5 WHYS</span> badge will appear.
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                  <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#f1f5f9", color: "#334155", fontWeight: 800, fontSize: "12.5px", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>3</div>
+                  <div>
+                    <strong style={{ color: "#0f172a" }}>Score the Risk (1 to 5):</strong> Click the numbers 1 to 5 on the cause card to rate the risk severity from <strong>1 (Very Low Risk)</strong> up to <strong>5 (Very High Risk)</strong> to prioritize critical causes.
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                  <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#f1f5f9", color: "#334155", fontWeight: 800, fontSize: "12.5px", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>4</div>
+                  <div>
+                    <strong style={{ color: "#0f172a" }}>Complete 5-Whys Below:</strong> Scroll down to <strong>Section 6: 5-Whys Root Cause Analysis</strong> where a dedicated 5-Whys card is automatically created for each checked cause. All 5 Why questions must be completed before submitting the investigation.
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                padding: "14px 24px",
+                borderTop: "1px solid var(--border-color, #e2e8f0)",
+                backgroundColor: "var(--bg-card, #f8fafc)",
+                flexShrink: 0
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setShowFishboneFiveWhysHelp(false)}
+                className="mod-btn-primary"
+                style={{
+                  background: "#2563eb",
+                  color: "#ffffff",
+                  padding: "9px 24px",
+                  borderRadius: "8px",
+                  fontWeight: 700,
+                  fontSize: "13.5px",
+                  cursor: "pointer",
+                  border: "none",
+                  boxShadow: "0 2px 4px rgba(37,99,235,0.25)"
+                }}
+              >
+                Understood, Got it!
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Reopen Incident Modal */}

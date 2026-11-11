@@ -375,7 +375,7 @@ function IMCreate() {
     const timeStr = form.time || "00:00";
     const incDt = new Date(`${form.date}T${timeStr}:00`);
     if (isNaN(incDt.getTime())) return { isLate: false, deadline: null, deadlineStr: "" };
-    const deadline = new Date(incDt.getTime() + 2 * 60 * 60 * 1000);
+    const deadline = new Date(incDt.getTime() + 1 * 60 * 60 * 1000);
     const deadlineStr = deadline.toLocaleString("en-GB", {
       timeZone: "Europe/Copenhagen",
       day: "2-digit",
@@ -520,7 +520,7 @@ function IMCreate() {
 
     const sla = getHeadsUpSlaInfo();
     if (sla.isLate && !form.lateSubmissionReason?.trim()) {
-      errs.lateSubmissionReason = "Reason for late submission is required because the 2-hour deadline has passed.";
+      errs.lateSubmissionReason = "Reason for late submission is required because the 1-hour deadline has passed.";
     }
 
     form.immActions.forEach((act, idx) => {
@@ -1287,7 +1287,7 @@ function IMCreate() {
                 </div>
               </div>
 
-              {/* Late Submission Reason (Displayed if 2-hour deadline is exceeded) */}
+              {/* Late Submission Reason (Displayed if 1-hour deadline is exceeded) */}
               {getHeadsUpSlaInfo().isLate && (
                 <div style={{
                   marginTop: 20,
@@ -1299,10 +1299,10 @@ function IMCreate() {
                 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#9f1239", fontWeight: 700, fontSize: "14px", marginBottom: "6px" }}>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
-                    <span>2-Hour Deadline Exceeded (Deadline was {getHeadsUpSlaInfo().deadlineStr})</span>
+                    <span>1-Hour Deadline Exceeded (Deadline was {getHeadsUpSlaInfo().deadlineStr})</span>
                   </div>
                   <div style={{ fontSize: "13px", color: "#475569", marginBottom: "12px" }}>
-                    This Heads-Up Notification is being submitted after the required 2-hour SLA deadline. Please provide a mandatory reason for filling out the form late. An email will also be sent to the user who submits the incident.
+                    This Heads-Up Notification is being submitted after the required 1-hour SLA deadline. Please provide a mandatory reason for filling out the form late. An email will also be sent to the user who submits the incident.
                   </div>
                   <div className="mod-form-group full-width" style={{ marginBottom: 0 }}>
                     <label className="mod-form-label" style={{ fontWeight: 600, color: "#1e293b" }}>
@@ -1312,7 +1312,7 @@ function IMCreate() {
                       name="lateSubmissionReason"
                       rows="3"
                       className="mod-form-textarea"
-                      placeholder="Please specify why this Heads-Up Notification is being submitted after the 2-hour deadline..."
+                      placeholder="Please specify why this Heads-Up Notification is being submitted after the 1-hour deadline..."
                       value={form.lateSubmissionReason || ""}
                       onChange={(e) => {
                         setForm(prev => ({ ...prev, lateSubmissionReason: e.target.value }));

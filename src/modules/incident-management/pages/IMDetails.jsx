@@ -16,7 +16,7 @@ import { IncidentPdfExporter } from "../components/IncidentPdfExporter";
 import IncidentCategoryDropdown from "../components/IncidentCategoryDropdown";
 import IncidentCategoryReferenceTable, { INCIDENT_CATEGORY_MAP } from "../components/IncidentCategoryReferenceTable";
 import SeverityDropdown, { getCategorySeverityConfig } from "../components/SeverityDropdown";
-import { getDenmarkDateString, parseUTCToDate, formatToDenmark24Hour, formatToDenmark24HourObj } from "../../../utils/dateUtils";
+import { getDenmarkDateString, parseUTCToDate, parseCopenhagenDateTime, formatToDenmark24Hour, formatToDenmark24HourObj } from "../../../utils/dateUtils";
 import "../../../styles/module-shared.css";
 import "./IMDetails.css";
 import { AnalogTimePicker } from "./IMCreate";
@@ -3084,7 +3084,7 @@ export default function IMDetails() {
     if (createdStr) {
       baseDate = parseUTCToDate(createdStr) || new Date(createdStr);
     } else if (incDateStr) {
-      baseDate = new Date(`${incDateStr}T${incTimeStr}:00`);
+      baseDate = parseCopenhagenDateTime(incDateStr, incTimeStr) || new Date(`${incDateStr}T${incTimeStr}:00`);
     }
 
     if (baseDate && !isNaN(baseDate.getTime())) {

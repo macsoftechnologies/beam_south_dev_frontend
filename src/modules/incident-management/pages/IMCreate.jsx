@@ -14,6 +14,7 @@ import IncidentCategoryDropdown from "../components/IncidentCategoryDropdown";
 import IncidentCategoryReferenceTable from "../components/IncidentCategoryReferenceTable";
 import SeverityDropdown, { getCategorySeverityConfig } from "../components/SeverityDropdown";
 import { getModuleUserContext } from "../../../utils/modulePermissions";
+import { parseCopenhagenDateTime } from "../../../utils/dateUtils";
 
 export const AnalogTimePicker = ({ initialTime, onSave, onCancel }) => {
   const [hour, setHour] = useState(12);
@@ -373,8 +374,8 @@ function IMCreate() {
   const getHeadsUpSlaInfo = () => {
     if (!form.date) return { isLate: false, deadline: null, deadlineStr: "" };
     const timeStr = form.time || "00:00";
-    const incDt = new Date(`${form.date}T${timeStr}:00`);
-    if (isNaN(incDt.getTime())) return { isLate: false, deadline: null, deadlineStr: "" };
+    const incDt = parseCopenhagenDateTime(form.date, timeStr) || new Date(`${form.date}T${timeStr}:00`);
+    if (!incDt || isNaN(incDt.getTime())) return { isLate: false, deadline: null, deadlineStr: "" };
     const deadline = new Date(incDt.getTime() + 1 * 60 * 60 * 1000);
     const deadlineStr = deadline.toLocaleString("en-GB", {
       timeZone: "Europe/Copenhagen",

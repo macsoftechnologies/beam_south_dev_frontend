@@ -22,6 +22,53 @@ export const parseUTCToDate = (dateStr) => {
 };
 
 /**
+ * Parses a YYYY-MM-DD date string and HH:mm(:ss) time string as Europe/Copenhagen local time,
+ * returning the corresponding UTC Date object regardless of the browser's local timezone.
+ */
+export const parseCopenhagenDateTime = (dateStr, timeStr = "00:00") => {
+  if (!dateStr) return null;
+  const dateParts = String(dateStr).trim().split("-").map(Number);
+  if (dateParts.length !== 3 || dateParts.some(isNaN)) return null;
+  const [year, month, day] = dateParts;
+
+  const cleanTime = String(timeStr || "00:00").trim();
+  const timeParts = cleanTime.split(":").map(Number);
+  const hour = Number.isFinite(timeParts[0]) ? timeParts[0] : 0;
+  const minute = Number.isFinite(timeParts[1]) ? timeParts[1] : 0;
+  const second = Number.isFinite(timeParts[2]) ? timeParts[2] : 0;
+
+  const targetUtcGuess = Date.UTC(year, month - 1, day, hour, minute, second);
+  if (isNaN(targetUtcGuess)) return null;
+
+  const getCphAsUtc = (utcMs) => {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Europe/Copenhagen",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    }).formatToParts(new Date(utcMs));
+    const map = {};
+    for (const p of parts) {
+      if (p.type !== "literal") map[p.type] = Number(p.value);
+    }
+    const h = map.hour === 24 ? 0 : map.hour;
+    return Date.UTC(map.year, map.month - 1, map.day, h, map.minute, map.second);
+  };
+
+  const offset1 = getCphAsUtc(targetUtcGuess) - targetUtcGuess;
+  let resultMs = targetUtcGuess - offset1;
+  const offset2 = getCphAsUtc(resultMs) - resultMs;
+  if (offset2 !== offset1) {
+    resultMs = targetUtcGuess - offset2;
+  }
+  return new Date(resultMs);
+};
+
+/**
  * Returns the current/provided date as a YYYY-MM-DD string in Europe/Copenhagen timezone.
  */
 export const getDenmarkDateString = (date = new Date()) => {

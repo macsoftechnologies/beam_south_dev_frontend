@@ -184,16 +184,54 @@ export const exportIncidentPdf = async (incidentId, formType = "all", includeWit
 
 // ── Incident Notification Group API Methods ──
 
-// Get all members of the Incident Notification Group (GROUP_1 or GROUP_2)
+// Get all members of the Incident Notification Group (GROUP_1 or GROUP_2, excluding admin users)
 export const getIncidentNotificationGroup = async (group = "GROUP_1") => {
   const response = await api.get(`/notifications/incident-group?group=${group}`);
-  return response.data;
+  const data = response.data;
+  if (Array.isArray(data)) {
+    return data.filter((m) => {
+      const userType = String(m.userType || m.role || "").toLowerCase().trim();
+      if (userType === "admin" || userType.includes("admin")) return false;
+      const username = String(m.username || "").toLowerCase().trim();
+      if (
+        username === "admin" ||
+        username === "superadmin" ||
+        username.startsWith("admin-") ||
+        username.startsWith("admin_")
+      ) {
+        return false;
+      }
+      const name = String(m.name || "").toLowerCase().trim();
+      if (name === "admin" || name === "superadmin") return false;
+      return true;
+    });
+  }
+  return data;
 };
 
-// Get all available system users/employees for group assignment
+// Get all available system users/employees for group assignment (excluding admin users)
 export const getAvailableIncidentGroupUsers = async (group = "GROUP_1") => {
   const response = await api.get(`/notifications/incident-group/available-users?group=${group}`);
-  return response.data;
+  const data = response.data;
+  if (Array.isArray(data)) {
+    return data.filter((u) => {
+      const userType = String(u.userType || u.role || "").toLowerCase().trim();
+      if (userType === "admin" || userType.includes("admin")) return false;
+      const username = String(u.username || "").toLowerCase().trim();
+      if (
+        username === "admin" ||
+        username === "superadmin" ||
+        username.startsWith("admin-") ||
+        username.startsWith("admin_")
+      ) {
+        return false;
+      }
+      const name = String(u.name || "").toLowerCase().trim();
+      if (name === "admin" || name === "superadmin") return false;
+      return true;
+    });
+  }
+  return data;
 };
 
 // Add members to the group

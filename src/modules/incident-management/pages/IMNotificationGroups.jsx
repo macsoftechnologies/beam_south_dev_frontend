@@ -58,6 +58,29 @@ const PhoneIcon = () => (
   </svg>
 );
 
+// Helper to identify admin/superadmin accounts that shouldn't be added to notification groups
+const isAdminUser = (u) => {
+  if (!u) return false;
+  const userType = String(u.userType || u.role || "").toLowerCase().trim();
+  if (userType === "admin" || userType.includes("admin")) {
+    return true;
+  }
+  const username = String(u.username || "").toLowerCase().trim();
+  if (
+    username === "admin" ||
+    username === "superadmin" ||
+    username.startsWith("admin-") ||
+    username.startsWith("admin_")
+  ) {
+    return true;
+  }
+  const name = String(u.name || "").toLowerCase().trim();
+  if (name === "admin" || name === "superadmin") {
+    return true;
+  }
+  return false;
+};
+
 export default function IMNotificationGroups() {
   const navigate = useNavigate();
 
@@ -92,8 +115,10 @@ export default function IMNotificationGroups() {
         getIncidentNotificationGroup(targetGroup),
         getAvailableIncidentGroupUsers(targetGroup),
       ]);
-      setMembers(Array.isArray(membersData) ? membersData : []);
-      setAvailableUsers(Array.isArray(candidatesData) ? candidatesData : []);
+      const rawMembers = Array.isArray(membersData) ? membersData : [];
+      setMembers(rawMembers.filter((m) => !isAdminUser(m)));
+      const candidates = Array.isArray(candidatesData) ? candidatesData : [];
+      setAvailableUsers(candidates.filter((u) => !isAdminUser(u)));
     } catch (err) {
       console.error("Failed to load notification group data:", err);
       Swal.fire({
@@ -110,9 +135,11 @@ export default function IMNotificationGroups() {
     loadData(activeGroup);
   }, [activeGroup]);
 
-  // Filtered Members
+  // Filtered Members (strictly non-admin)
   const filteredMembers = useMemo(() => {
     return members.filter((m) => {
+      if (isAdminUser(m)) return false;
+
       const q = searchQuery.toLowerCase().trim();
       const matchQuery =
         !q ||
@@ -136,21 +163,24 @@ export default function IMNotificationGroups() {
     });
   }, [members, searchQuery, roleFilter, channelFilter]);
 
-  // Unique roles for filter dropdown
+  // Unique roles for filter dropdown (excluding Admin)
   const availableRoles = useMemo(() => {
     const set = new Set();
     members.forEach((m) => {
-      if (m.userType) set.add(m.userType);
+      if (m.userType && !isAdminUser(m) && !/admin/i.test(m.userType)) {
+        set.add(m.userType);
+      }
     });
     return Array.from(set);
   }, [members]);
 
-  // Metric counts
+  // Metric counts (non-admin only)
   const stats = useMemo(() => {
-    const total = members.length;
-    const emailCount = members.filter((m) => m.isEmailEnabled && m.email).length;
-    const smsCount = members.filter((m) => m.isSmsEnabled && m.phoneNumber).length;
-    const inAppCount = members.filter((m) => m.isInAppEnabled).length;
+    const nonAdmin = members.filter((m) => !isAdminUser(m));
+    const total = nonAdmin.length;
+    const emailCount = nonAdmin.filter((m) => m.isEmailEnabled && m.email).length;
+    const smsCount = nonAdmin.filter((m) => m.isSmsEnabled && m.phoneNumber).length;
+    const inAppCount = nonAdmin.filter((m) => m.isInAppEnabled).length;
     return { total, emailCount, smsCount, inAppCount };
   }, [members]);
 
@@ -218,9 +248,11 @@ export default function IMNotificationGroups() {
     }
   };
 
-  // Candidates for Add Modal
+  // Candidates for Add Modal (strictly non-admin users)
   const candidateUsers = useMemo(() => {
     return availableUsers.filter((u) => {
+      if (isAdminUser(u)) return false;
+
       const q = modalSearch.toLowerCase().trim();
       const matchQuery =
         !q ||
@@ -236,6 +268,18 @@ export default function IMNotificationGroups() {
       return matchQuery && matchRole;
     });
   }, [availableUsers, modalSearch, modalRoleFilter]);
+
+  // Distinct roles for Add Modal role filter (excluding Admin)
+  const modalAvailableRoles = useMemo(() => {
+    const set = new Set();
+    availableUsers.forEach((u) => {
+      if (u.userType && !isAdminUser(u) && !/admin/i.test(u.userType)) {
+        set.add(u.userType);
+      }
+    });
+    const rolesList = Array.from(set).sort();
+    return rolesList.length > 0 ? rolesList : ["Department", "Department1", "Site Manager"];
+  }, [availableUsers]);
 
   // Toggle user selection in Add Modal
   const handleToggleSelectUser = (userId) => {
@@ -807,10 +851,11 @@ export default function IMNotificationGroups() {
                   onChange={(e) => setModalRoleFilter(e.target.value)}
                 >
                   <option value="ALL">All Roles</option>
-                  <option value="Department">Department</option>
-                  <option value="Department1">Department1</option>
-                  <option value="Admin">Admin</option>
-                  <option value="Site Manager">Site Manager</option>
+                  {modalAvailableRoles.map((role) => (
+                    <option key={role} value={role}>
+                      {role}
+                    </option>
+                  ))}
                 </select>
               </div>
 

@@ -2401,6 +2401,25 @@ const getInitialPage = () => {
     return isDept || isDept1;
   };
 
+  const canUserClose = (row) => {
+    if (isAdmin || isMultiDept || isSubcontractor) return true;
+    if (!row) return false;
+    const pType = (row.permit_type || row.permitType || "").trim().toLowerCase();
+    const pUnder = (row.permit_under || row.permitUnder || "").trim().toLowerCase();
+
+    const isBothConstruction = (pUnder === "construction" && pType === "construction");
+    const isBothCommissioning = (pUnder === "commissioning" && pType === "commissioning");
+    const isMixed =
+      (pUnder === "construction" && pType === "commissioning") ||
+      (pUnder === "commissioning" && pType === "construction");
+
+    if (isBothConstruction) return isDept;
+    if (isBothCommissioning) return isDept1;
+    if (isMixed) return isDept || isDept1;
+
+    return isDept || isDept1;
+  };
+
   const proceedWithStatusChange = (row, status) => {
     const currentStatus = row?.Request_status || row?.request_status || "";
     const workingDateVal = row?.Working_Date || row?.workingDate || row?.working_date || "";
@@ -2467,6 +2486,20 @@ const getInitialPage = () => {
             return showError("Only COMM role can open Commissioning-only permits.");
           }
           return showError("You do not have permission to open this permit.");
+        }
+      }
+
+      if (status === "Closed") {
+        if (!canUserClose(row)) {
+          const pType = (row.permit_type || row.permitType || "").trim().toLowerCase();
+          const pUnder = (row.permit_under || row.permitUnder || "").trim().toLowerCase();
+          if (pUnder === "construction" && pType === "construction") {
+            return showError("Only CONM role can close Construction-only permits.");
+          }
+          if (pUnder === "commissioning" && pType === "commissioning") {
+            return showError("Only COMM role can close Commissioning-only permits.");
+          }
+          return showError("You do not have permission to close this permit.");
         }
       }
 
@@ -2690,6 +2723,17 @@ const getInitialPage = () => {
         payload.ConM_initials1 = modalTarget.ConM_initials1 || "";
       }
     } else if (nextStatus === "Closed") {
+      if (!isAdmin && !isMultiDept && !isSubcontractor && !canUserClose(modalTarget)) {
+        const pType = (modalTarget.permit_type || modalTarget.permitType || "").trim().toLowerCase();
+        const pUnder = (modalTarget.permit_under || modalTarget.permitUnder || "").trim().toLowerCase();
+        if (pUnder === "construction" && pType === "construction") {
+          return showError("Only CONM role can close Construction-only permits.");
+        }
+        if (pUnder === "commissioning" && pType === "commissioning") {
+          return showError("Only COMM role can close Commissioning-only permits.");
+        }
+        return showError("You do not have permission to close this permit.");
+      }
       if (!closeNote.trim()) return showError("Please enter closing notes / remarks.");
       payload.close_note = closeNote.trim();
       if (modalTarget.Hot_work === 1) {
@@ -2807,6 +2851,22 @@ const getInitialPage = () => {
       for (const r of targetRequests) {
         if (!canUserApprove(r, status)) {
           return showError(`Permit #${r.PermitNo || r.id}: You do not have permission to ${status === "Pre-Approved" ? "pre-approve" : "approve"} this permit.`);
+        }
+      }
+    }
+
+    if (status === "Closed" && !isAdmin && !isMultiDept && !isSubcontractor) {
+      for (const r of targetRequests) {
+        if (!canUserClose(r)) {
+          const pType = (r.permit_type || r.permitType || "").trim().toLowerCase();
+          const pUnder = (r.permit_under || r.permitUnder || "").trim().toLowerCase();
+          if (pUnder === "construction" && pType === "construction") {
+            return showError(`Permit #${r.PermitNo || r.id}: Only CONM role can close Construction-only permits.`);
+          }
+          if (pUnder === "commissioning" && pType === "commissioning") {
+            return showError(`Permit #${r.PermitNo || r.id}: Only COMM role can close Commissioning-only permits.`);
+          }
+          return showError(`Permit #${r.PermitNo || r.id}: You do not have permission to close this permit.`);
         }
       }
     }
@@ -3332,6 +3392,17 @@ const getInitialPage = () => {
           } else if (row.Request_status === "Approved") {
             promptApprovedAction(row);
           } else if (row.Request_status === "Opened") {
+            if (!canUserClose(row)) {
+              const pType = (row.permit_type || row.permitType || "").trim().toLowerCase();
+              const pUnder = (row.permit_under || row.permitUnder || "").trim().toLowerCase();
+              if (pUnder === "construction" && pType === "construction") {
+                return showError("Only CONM role can close Construction-only permits.");
+              }
+              if (pUnder === "commissioning" && pType === "commissioning") {
+                return showError("Only COMM role can close Commissioning-only permits.");
+              }
+              return showError("You do not have permission to close this permit.");
+            }
             handleStatusTransition(row, "Closed");
           }
         }

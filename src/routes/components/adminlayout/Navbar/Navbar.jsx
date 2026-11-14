@@ -603,7 +603,7 @@ function Navbar({ toggleSidebar, theme, onThemeChange }) {
     if (nextOpenState) {
       await fetchNotificationsList(1, false);
       try {
-        await markAllNotificationsRead();
+        await markAllNotificationsRead(activeModuleKey);
         setUnreadCount(0);
         setNotifications(prev => prev.map(n => ({ ...n, isRead: 1 })));
       } catch (e) {
@@ -614,7 +614,7 @@ function Navbar({ toggleSidebar, theme, onThemeChange }) {
 
   const handleMarkAllRead = async () => {
     try {
-      await markAllNotificationsRead();
+      await markAllNotificationsRead(activeModuleKey);
       setUnreadCount(0);
       setNotifications(prev => prev.map(n => ({ ...n, isRead: 1 })));
     } catch (e) {

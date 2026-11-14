@@ -1,20 +1,20 @@
 import api from "./api";
 
 /**
- * Get paginated list of notifications for the logged-in user.
+ * Get paginated list of notifications for the logged-in user with optional module filter.
  */
 export const getNotifications = async (page = 1, limit = 10, module = "") => {
-  const modQuery = module && module !== "all" ? `&module=${encodeURIComponent(module)}` : "";
-  const res = await api.get(`/notifications?page=${page}&limit=${limit}${modQuery}`);
+  const modParam = module ? `&module=${encodeURIComponent(module)}` : "";
+  const res = await api.get(`/notifications?page=${page}&limit=${limit}${modParam}`);
   return res.data;
 };
 
 /**
- * Get the unread notifications count for the logged-in user.
+ * Get the unread notifications count for the logged-in user with optional module filter.
  */
 export const getUnreadCount = async (module = "") => {
-  const modQuery = module && module !== "all" ? `?module=${encodeURIComponent(module)}` : "";
-  const res = await api.get(`/notifications/unread-count${modQuery}`);
+  const modParam = module ? `?module=${encodeURIComponent(module)}` : "";
+  const res = await api.get(`/notifications/unread-count${modParam}`);
   return res.data;
 };
 
@@ -27,10 +27,11 @@ export const markNotificationRead = async (id) => {
 };
 
 /**
- * Mark all notifications as read for the logged-in user.
+ * Mark all notifications as read for the logged-in user with optional module filter.
  */
-export const markAllNotificationsRead = async () => {
-  const res = await api.post("/notifications/read-all");
+export const markAllNotificationsRead = async (module = "") => {
+  const modParam = module ? `?module=${encodeURIComponent(module)}` : "";
+  const res = await api.post(`/notifications/read-all${modParam}`);
   return res.data;
 };
 

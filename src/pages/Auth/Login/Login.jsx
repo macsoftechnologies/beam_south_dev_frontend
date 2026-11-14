@@ -87,8 +87,6 @@ export default function Login() {
           maskedPhone: response.maskedPhone || "",
           maskedEmail: response.maskedEmail || "",
           moduleAccess: response.moduleAccess || "",
-          auth_token: response.auth_token,
-          access_token: response.access_token || response.auth_token,
         };
         localStorage.setItem("tempUser", JSON.stringify(tempUser));
 

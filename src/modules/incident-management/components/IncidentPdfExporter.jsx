@@ -1208,8 +1208,9 @@ export function IncidentPdfExporter({ incident, onClose, targetForm = "all" }) {
                     </tbody>
                   </table>
 
-                  {/* Corrective Actions (CAPA) */}
-                  <div style={{ fontSize: 12, fontWeight: 800, color: "#0f172a", marginBottom: 6 }}>Corrective & Preventive Actions (CAPA)</div>
+                  {/* Corrective Action */}
+                  <div style={{ fontSize: 12, fontWeight: 800, color: "#0f172a", marginBottom: 4 }}>10. Corrective Action</div>
+                  <div style={{ fontSize: 9.5, color: "#b91c1c", marginBottom: 8, fontStyle: "italic", fontWeight: 500 }}>An action taken to eliminate the cause of an incident or nonconformity and prevent it from happening again.</div>
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 9.5, marginBottom: 16 }}>
                     <thead>
                       <tr style={{ background: "#0f172a", color: "#fff" }}>

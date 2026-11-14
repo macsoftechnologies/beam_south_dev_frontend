@@ -182,19 +182,14 @@ export default function OTP() {
         return;
       }
 
-      let response = null;
-      try {
-        response = await verifyOtp({
-          otp: code,
-          user_id: tempUser.user_id
-        });
-      } catch (err) {
-        console.warn("verifyOtp API check bypassed on dev server:", err);
-      }
+      const response = await verifyOtp({
+        otp: code,
+        user_id: tempUser.user_id
+      });
 
       if (response && (response.statusCode === 200 || response.status === true)) {
         // Save token and user details to localStorage
-        const tokenVal = response.access_token || response.token || response.auth_token || response.data?.access_token || response.data?.token || tempUser.access_token || tempUser.auth_token;
+        const tokenVal = response.access_token || response.token || response.data?.access_token || response.data?.token;
         if (tokenVal) {
           localStorage.setItem("token", tokenVal);
         }
@@ -228,51 +223,16 @@ export default function OTP() {
           setLoading(false);
           navigateTo(targetRoute, true);
         }, 1000);
-      } else if (tempUser && tempUser.user_id) {
-        // Fallback for development server: allow any random OTP to authenticate
-        const tokenVal = tempUser.access_token || tempUser.auth_token;
-        if (tokenVal) {
-          localStorage.setItem("token", tokenVal);
-        }
 
-        const activeUser = {
-          id: tempUser.user_id,
-          username: tempUser.username,
-          role: tempUser.userType,
-          name: tempUser.username,
-          typeId: tempUser.typeId,
-          departId: tempUser.departId ?? null,
-          subContId: tempUser.subContId ?? null,
-          subcontractor_id: tempUser.subcontractor_id ?? tempUser.subContId ?? null,
-          subContractorName: tempUser.subContractorName || null,
-          companyName: tempUser.companyName || null,
-          company_name: tempUser.companyName || null,
-          obserId: tempUser.obserId ?? null,
-          moduleAccess: tempUser.moduleAccess || "permit-to-work,incident-management,safety-observations,safety-inspection,spot-checks",
-        };
-        localStorage.setItem("user", JSON.stringify(activeUser));
-        localStorage.setItem("UserType", activeUser.role);
-        localStorage.setItem("primaryUserType", activeUser.role);
-
-        // Clean up tempUser & redirect
-        localStorage.removeItem("tempUser");
-        clearPostLoginRedirect();
-
-        showSuccess("Authentication successful!");
-
-        setTimeout(() => {
-          setLoading(false);
-          navigateTo(targetRoute, true);
-        }, 1000);
       } else {
         setLoading(false);
-        const errMsg = response?.message || "Invalid OTP code";
+        const errMsg = response?.message || "Invalid OTP code. Please check and try again.";
         setError(errMsg);
         showError(errMsg);
       }
     } catch (err) {
       setLoading(false);
-      const errMsg = err.response?.data?.message || err.message || "An error occurred during verification";
+      const errMsg = err.response?.data?.message || err.message || "Invalid OTP code. Please check and try again.";
       setError(errMsg);
       showError(errMsg);
     }

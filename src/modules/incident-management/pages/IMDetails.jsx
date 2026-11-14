@@ -1264,13 +1264,13 @@ export default function IMDetails() {
     { key: "permitsToWork", label: "Permit to Work (PTW)" },
     { key: "safePlanOfAction", label: "Safe Plan of Action (SPA)" },
     { key: "evidenceForActionsTaken", label: "Evidence for Actions Taken" },
-    { key: "equipmentDataSheets", label: "Equipment data sheets (when applicable)" },
-    { key: "easyDocument", label: "EASY Document / EASY Code", isEasy: true },
-    { key: "otherRelevantDocumentation", label: "Other relevant documentation (when applicable)" },
-    { key: "wasteDisposalInvoice", label: "Waste Disposal Invoice (when applicable)" },
-    { key: "safetyDataSheet", label: "Safety Data Sheet (SDS) (when applicable)" },
-    { key: "soilAnalysisReports", label: "Soil analysis reports (when applicable)" },
-    { key: "waterAnalysisReports", label: "Water analysis reports (when applicable)" }
+    { key: "equipmentDataSheets", label: "Equipment data sheets" },
+    { key: "easyDocument", label: "EASY code numbering", isEasy: true },
+    { key: "otherRelevantDocumentation", label: "Other relevant documentation" },
+    { key: "wasteDisposalInvoice", label: "Waste Disposal Invoice (if applicable)", isEnvironmental: true },
+    { key: "safetyDataSheet", label: "Safety Data Sheet (SDS)", isEnvironmental: true },
+    { key: "soilAnalysisReports", label: "Soil analysis reports (if applicable)", isEnvironmental: true },
+    { key: "waterAnalysisReports", label: "Water analysis reports (if applicable)", isEnvironmental: true }
   ];
   const [invAttachments, setInvAttachments] = useState(() =>
     INV_MANDATORY_ATTACHMENTS.map(item => ({
@@ -1306,6 +1306,12 @@ export default function IMDetails() {
   const [invPropInsuranceClaim, setInvPropInsuranceClaim] = useState("");
   const [invPropPreventiveSafeguards, setInvPropPreventiveSafeguards] = useState("");
   const [fishboneInput, setFishboneInput] = useState({ people: "", machine: "", method: "", materials: "", environment: "", measurement: "" });
+
+  // Corrective Actions Info Popover / Note States
+  const [showCorrectiveInfo, setShowCorrectiveInfo] = useState(false);
+  const [hoverCorrectiveInfo, setHoverCorrectiveInfo] = useState(false);
+  const [showActionsTabInfo, setShowActionsTabInfo] = useState(false);
+  const [hoverActionsTabInfo, setHoverActionsTabInfo] = useState(false);
 
   // Corrective Actions Tab State
   const [actionsList, setActionsList] = useState([]);
@@ -6311,17 +6317,17 @@ export default function IMDetails() {
                   </div>
 
                   {/* F. Photos (Now E) */}
-                  <div className="fsec"><div className="fsec-title">E. Photos from the incident location <span style={{ color: "#DC2626" }}>*</span></div>
-                    <div className="fsec-note">Minimum of 2 photos. For environmental incidents, include one photo before the spill is contained and one after.</div>
+                  <div className="fsec"><div className="fsec-title">E. Photos & Attachments from the incident location <span style={{ color: "#DC2626" }}>*</span></div>
+                    <div className="fsec-note">Minimum of 2 photos or evidence attachments. For environmental incidents, include one photo before the spill is contained and one after.</div>
 
                     {irErrors.photos && <div style={{ fontSize: "0.85rem", color: "#DC2626", marginBottom: "8px", fontWeight: "bold" }}>{irErrors.photos}</div>}
 
-                    <input type="file" accept="image/*" multiple ref={fileInputRef} style={{ display: 'none' }} onChange={handleFileUpload} />
+                    <input type="file" accept="image/*,.pdf,.doc,.docx" multiple ref={fileInputRef} style={{ display: 'none' }} onChange={handleFileUpload} />
 
                     {!isCameraActive && (!initialReportSubmitted || isEditingInitialReport) && (
                       <div style={{ display: "flex", gap: "8px" }}>
                         <button className="mod-btn-outline" onClick={startCamera} style={{ padding: "4px 12px", fontSize: "12px" }}>Take Photo</button>
-                        <button className="mod-btn-outline" onClick={() => fileInputRef.current.click()} style={{ padding: "4px 12px", fontSize: "12px" }}>Upload File</button>
+                        <button className="mod-btn-outline" onClick={() => fileInputRef.current.click()} style={{ padding: "4px 12px", fontSize: "12px" }}>Upload Photo / Document</button>
                       </div>
                     )}
 
@@ -6343,14 +6349,26 @@ export default function IMDetails() {
                       {photos.length === 0 && !isCameraActive && (
                         <div className="photo-thumb" style={{ width: 100, height: 100, background: "var(--bg-dark)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)", fontSize: "11px", border: "1px solid var(--border-color)", borderRadius: 8 }}>No photos</div>
                       )}
-                      {photos.map((p, idx) => (
-                        <div key={idx} style={{ position: "relative", width: 120, height: 120, borderRadius: 8, overflow: "hidden", border: "1px solid var(--border-color)" }}>
-                          <img src={getAttachmentUrl(p)} alt={`Captured ${idx}`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                          {(!initialReportSubmitted || isEditingInitialReport) && (
-                            <button onClick={() => removePhoto(idx)} style={{ position: "absolute", top: 4, right: 4, background: "var(--color-risk)", color: "#fff", border: "none", borderRadius: "50%", width: 20, height: 20, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: 14, fontWeight: "bold" }}>×</button>
-                          )}
-                        </div>
-                      ))}
+                      {photos.map((p, idx) => {
+                        const isDoc = typeof p === 'string' && (p.includes('.pdf') || p.includes('application/pdf') || p.includes('.doc'));
+                        return (
+                          <div key={idx} style={{ position: "relative", width: 120, height: 120, borderRadius: 8, overflow: "hidden", border: "1px solid var(--border-color)", background: "#f8fafc", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            {isDoc ? (
+                              <div style={{ textAlign: "center", padding: 8 }}>
+                                <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 6px", borderRadius: 4, background: "#ef4444", color: "#fff" }}>PDF / DOC</span>
+                                <div style={{ fontSize: 10, color: "#334155", marginTop: 6, maxWidth: 100, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                  {typeof p === 'string' ? p.split('/').pop() : `Document ${idx + 1}`}
+                                </div>
+                              </div>
+                            ) : (
+                              <img src={getAttachmentUrl(p)} alt={`Captured ${idx}`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                            )}
+                            {(!initialReportSubmitted || isEditingInitialReport) && (
+                              <button onClick={() => removePhoto(idx)} style={{ position: "absolute", top: 4, right: 4, background: "var(--color-risk)", color: "#fff", border: "none", borderRadius: "50%", width: 20, height: 20, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: 14, fontWeight: "bold" }}>×</button>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
 
@@ -7669,7 +7687,7 @@ export default function IMDetails() {
                       <button className="mod-btn-outline" style={{ padding: "4px 12px", fontSize: "12px" }} onClick={addInvWitness}>+ Add Witness</button>
                     )}
                   </div>
-                    <div className="fsec-note">Witness statements are collected as part of the investigation. Attach the signed Witness Statement form under Mandatory Attachments.</div>
+                    <div className="fsec-note">Witness statements are collected as part of the investigation. Attach the signed Witness Statement form under Supporting Attachments.</div>
                     {invWitnesses.length === 0 ? <div className="muted-empty" style={{ fontStyle: "italic", fontSize: 13, color: "var(--text-muted)", padding: "8px 0" }}>No witnesses added yet.</div> : invWitnesses.map((w, i) => (
                       <div key={i} className="subcard" style={{ border: "1px solid var(--border-color)", padding: 16, borderRadius: 8, marginBottom: 12 }}>
                         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12, alignItems: "center" }}>
@@ -8278,11 +8296,93 @@ export default function IMDetails() {
                     ))}
                   </div>
 
-                  {/* 10. Corrective Actions & Preventive Actions */}
-                  <div className="fsec"><div className="fsec-title" style={{ justifyContent: "space-between", display: "flex" }}>
-                    <span>10. Corrective Actions & Preventive Actions <span style={{ color: "#DC2626", marginLeft: 4 }}>*</span></span>
+                  {/* 10. Corrective Action */}
+                  <div className="fsec"><div className="fsec-title" style={{ justifyContent: "space-between", display: "flex", alignItems: "center" }}>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+                      <span>10. Corrective Action <span style={{ color: "#DC2626", marginLeft: 2 }}>*</span></span>
+                      <span style={{ position: "relative", display: "inline-flex", alignItems: "center" }}>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setShowCorrectiveInfo(prev => !prev);
+                          }}
+                          onMouseEnter={() => setHoverCorrectiveInfo(true)}
+                          onMouseLeave={() => setHoverCorrectiveInfo(false)}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            width: "20px",
+                            height: "20px",
+                            borderRadius: "50%",
+                            border: (showCorrectiveInfo || hoverCorrectiveInfo) ? "1.5px solid #dc2626" : "1.5px solid #94a3b8",
+                            background: (showCorrectiveInfo || hoverCorrectiveInfo) ? "#fee2e2" : "#ffffff",
+                            color: (showCorrectiveInfo || hoverCorrectiveInfo) ? "#dc2626" : "#64748b",
+                            cursor: "pointer",
+                            padding: 0,
+                            transition: "all 0.15s ease",
+                            outline: "none"
+                          }}
+                          title="An action taken to eliminate the cause of an incident or nonconformity and prevent it from happening again."
+                          aria-label="Corrective Action Info"
+                        >
+                          <i className="ti ti-info-circle" style={{ fontSize: "14px", fontWeight: "bold" }}></i>
+                        </button>
+                        {hoverCorrectiveInfo && !showCorrectiveInfo && (
+                          <div
+                            style={{
+                              position: "absolute",
+                              top: "calc(100% + 8px)",
+                              left: "0",
+                              background: "#ffffff",
+                              border: "1px solid #fca5a5",
+                              boxShadow: "0 6px 16px rgba(185, 28, 28, 0.15)",
+                              borderRadius: "8px",
+                              padding: "10px 14px",
+                              zIndex: 100,
+                              width: "340px",
+                              maxWidth: "90vw",
+                              textTransform: "none",
+                              letterSpacing: "normal",
+                              fontWeight: "normal",
+                              fontSize: "12.5px",
+                              color: "#b91c1c",
+                              lineHeight: "1.5",
+                              pointerEvents: "none"
+                            }}
+                          >
+                            <div style={{ display: "flex", gap: "8px", alignItems: "flex-start" }}>
+                              <i className="ti ti-info-circle" style={{ fontSize: "16px", color: "#dc2626", marginTop: "1px", flexShrink: 0 }}></i>
+                              <span style={{ color: "#b91c1c", fontWeight: 600 }}>
+                                An action taken to eliminate the cause of an incident or nonconformity and prevent it from happening again.
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </span>
+                    </span>
                     <button className="mod-btn-outline" style={{ padding: "4px 12px", fontSize: "12px" }} onClick={addInvCorrective}>+ Add Action</button>
                   </div>
+                    {showCorrectiveInfo && (
+                      <div style={{
+                        background: "#fef2f2",
+                        border: "1px solid #fecaca",
+                        borderRadius: "8px",
+                        padding: "10px 14px",
+                        marginBottom: "14px",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "10px",
+                        color: "#b91c1c",
+                        fontSize: "13px",
+                        fontWeight: 600,
+                        animation: "fadeIn 0.2s ease"
+                      }}>
+                        <i className="ti ti-info-circle" style={{ fontSize: "18px", color: "#dc2626", flexShrink: 0 }}></i>
+                        <span>An action taken to eliminate the cause of an incident or nonconformity and prevent it from happening again.</span>
+                      </div>
+                    )}
                     {invErrors.correctiveActions && <div style={{ fontSize: "0.8rem", color: "#DC2626", marginBottom: 8, fontWeight: 600 }}>{invErrors.correctiveActions}</div>}
                     {invCorrective.length === 0 ? <div className="muted-empty" style={{ fontStyle: "italic", fontSize: 13, color: "var(--text-muted)", padding: "8px 0" }}>No actions added yet.</div> : invCorrective.map((c, i) => (
                       <div key={i} className="subcard" style={{ border: "1px solid var(--border-color)", padding: 16, borderRadius: 8, marginBottom: 12 }}>
@@ -8603,9 +8703,9 @@ export default function IMDetails() {
                     )}
                   </div>
 
-                  {/* 14. Mandatory Attachments */}
+                  {/* 14. Supporting Attachments */}
                   <div className="fsec" style={{ position: "relative" }}>
-                    <div className="fsec-title">14. Mandatory Attachments</div>
+                    <div className="fsec-title">14. Supporting Attachments</div>
                     <div className="fsec-note">Check required attachments and select documents or photos to attach. Attached files will be automatically appended to the official export PDF.</div>
 
                     <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
@@ -8614,7 +8714,20 @@ export default function IMDetails() {
                         const fileExt = item.fileName ? item.fileName.split('.').pop()?.toUpperCase() : '';
 
                         return (
-                          <div key={item.key} style={{ border: `1px solid ${item.checked ? '#93c5fd' : 'var(--border-color)'}`, borderRadius: 8, padding: '12px 16px', background: item.checked ? 'rgba(59, 130, 246, 0.03)' : 'var(--bg-card, #fff)', transition: 'all 0.15s ease' }}>
+                          <React.Fragment key={item.key}>
+                            {item.key === "wasteDisposalInvoice" && (
+                              <div style={{
+                                fontSize: "13.5px",
+                                fontWeight: 700,
+                                color: "var(--text-main)",
+                                marginTop: 14,
+                                marginBottom: 2,
+                                paddingLeft: 2
+                              }}>
+                                For environmental incidents:
+                              </div>
+                            )}
+                            <div style={{ border: `1px solid ${item.checked ? '#93c5fd' : 'var(--border-color)'}`,  borderRadius: 8, padding: '12px 16px', background: item.checked ? 'rgba(59, 130, 246, 0.03)' : 'var(--bg-card, #fff)', transition: 'all 0.15s ease' }}>
                             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
                               <label className="chk" style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13.5, fontWeight: item.checked ? 600 : 500, color: "var(--text-main)", cursor: isEditable ? "pointer" : "default" }}>
                                 <input
@@ -8701,6 +8814,28 @@ export default function IMDetails() {
                               </div>
                             )}
 
+                            {/* Optional Details for Other Relevant Documentation */}
+                            {item.key === "otherRelevantDocumentation" && item.checked && (
+                              <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px dashed #e2e8f0" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                                  <label style={{ fontSize: 13, fontWeight: 600, color: "var(--text-main)" }}>Document Details / Description:</label>
+                                  <input
+                                    type="text"
+                                    className="mod-form-input"
+                                    style={{ maxWidth: 360, height: 34, fontSize: 13, padding: "4px 10px" }}
+                                    placeholder="Specify document description..."
+                                    value={item.customText || ""}
+                                    disabled={!isEditable}
+                                    onChange={e => {
+                                      const updated = [...invAttachments];
+                                      updated[i] = { ...updated[i], customText: e.target.value };
+                                      setInvAttachments(updated);
+                                    }}
+                                  />
+                                </div>
+                              </div>
+                            )}
+
                             {/* File Selection / Upload Box when Checked and Editable */}
                             {item.checked && isEditable && (
                               <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px dashed #e2e8f0", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
@@ -8775,12 +8910,13 @@ export default function IMDetails() {
                               </div>
                             )}
                           </div>
+                          </React.Fragment>
                         );
                       })}
                     </div>
                     <div className="mod-form-group">
                       <label className="mod-form-label" style={{ textTransform: "none", letterSpacing: "normal" }}>Explanation for missing attachments <span style={{ color: "#DC2626" }}>*</span></label>
-                      <textarea className="mod-form-textarea" style={invErrors.missingExplain ? { borderColor: "#DC2626" } : {}} placeholder="Explain any missing mandatory attachments..." value={invMissingExplain} onChange={e => { setInvMissingExplain(e.target.value); if (invErrors.missingExplain) setInvErrors({ ...invErrors, missingExplain: null }); }}></textarea>
+                      <textarea className="mod-form-textarea" style={invErrors.missingExplain ? { borderColor: "#DC2626" } : {}} placeholder="Explain any missing supporting attachments..." value={invMissingExplain} onChange={e => { setInvMissingExplain(e.target.value); if (invErrors.missingExplain) setInvErrors({ ...invErrors, missingExplain: null }); }}></textarea>
                       {invErrors.missingExplain && <div style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: 4 }}>{invErrors.missingExplain}</div>}
                     </div>
                   </div>
@@ -9503,7 +9639,68 @@ export default function IMDetails() {
           <div className="mod-card">
             <div className="mod-card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                <span className="mod-card-title">Corrective &amp; Preventive Actions</span>
+                <span className="mod-card-title">Corrective Action</span>
+                <span style={{ position: "relative", display: "inline-flex", alignItems: "center" }}>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setShowActionsTabInfo(prev => !prev);
+                    }}
+                    onMouseEnter={() => setHoverActionsTabInfo(true)}
+                    onMouseLeave={() => setHoverActionsTabInfo(false)}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: "20px",
+                      height: "20px",
+                      borderRadius: "50%",
+                      border: (showActionsTabInfo || hoverActionsTabInfo) ? "1.5px solid #dc2626" : "1.5px solid #94a3b8",
+                      background: (showActionsTabInfo || hoverActionsTabInfo) ? "#fee2e2" : "#ffffff",
+                      color: (showActionsTabInfo || hoverActionsTabInfo) ? "#dc2626" : "#64748b",
+                      cursor: "pointer",
+                      padding: 0,
+                      transition: "all 0.15s ease",
+                      outline: "none"
+                    }}
+                    title="An action taken to eliminate the cause of an incident or nonconformity and prevent it from happening again."
+                    aria-label="Corrective Action Info"
+                  >
+                    <i className="ti ti-info-circle" style={{ fontSize: "14px", fontWeight: "bold" }}></i>
+                  </button>
+                  {hoverActionsTabInfo && !showActionsTabInfo && (
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: "calc(100% + 8px)",
+                        left: "0",
+                        background: "#ffffff",
+                        border: "1px solid #fca5a5",
+                        boxShadow: "0 6px 16px rgba(185, 28, 28, 0.15)",
+                        borderRadius: "8px",
+                        padding: "10px 14px",
+                        zIndex: 100,
+                        width: "340px",
+                        maxWidth: "90vw",
+                        textTransform: "none",
+                        letterSpacing: "normal",
+                        fontWeight: "normal",
+                        fontSize: "12.5px",
+                        color: "#b91c1c",
+                        lineHeight: "1.5",
+                        pointerEvents: "none"
+                      }}
+                    >
+                      <div style={{ display: "flex", gap: "8px", alignItems: "flex-start" }}>
+                        <i className="ti ti-info-circle" style={{ fontSize: "16px", color: "#dc2626", marginTop: "1px", flexShrink: 0 }}></i>
+                        <span style={{ color: "#b91c1c", fontWeight: 600 }}>
+                          An action taken to eliminate the cause of an incident or nonconformity and prevent it from happening again.
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </span>
                 {!isNneUser() && (
                   <span style={{ fontSize: "11px", color: "var(--text-muted)", fontStyle: "italic", background: "var(--bg-dark)", padding: "3px 8px", borderRadius: "4px", border: "1px solid var(--border-color)", fontWeight: 600 }}>
                     NNE Department Access Only (Read-Only)
@@ -9584,6 +9781,24 @@ export default function IMDetails() {
                 )}
               </div>
             </div>
+            {showActionsTabInfo && (
+              <div style={{
+                background: "#fef2f2",
+                border: "1px solid #fecaca",
+                borderRadius: "8px",
+                padding: "10px 14px",
+                margin: "12px 16px 0",
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                color: "#b91c1c",
+                fontSize: "13px",
+                fontWeight: 600
+              }}>
+                <i className="ti ti-info-circle" style={{ fontSize: "18px", color: "#dc2626", flexShrink: 0 }}></i>
+                <span>An action taken to eliminate the cause of an incident or nonconformity and prevent it from happening again.</span>
+              </div>
+            )}
             {isNneUser() && showAddAction && !isClosed && (
               <div id="action-item-form" style={{ padding: "16px", borderBottom: "1px solid var(--border-color)", background: "var(--bg-dark)" }}>
                 {editingActionId && (

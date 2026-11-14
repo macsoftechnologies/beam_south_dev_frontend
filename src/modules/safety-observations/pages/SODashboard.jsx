@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { OBSERVATIONS, SAFETY_CATEGORIES, SO_RISK_LEVELS, SO_STATUSES } from "../data/observations";
+import { SAFETY_CATEGORIES, SO_RISK_LEVELS, SO_STATUSES } from "../data/observations";
 import observationService from "../../../services/observationService";
 import { getBuildings, getContractors } from "../../../services/authService";
 import { getModuleUserContext } from "../../../utils/modulePermissions";
@@ -185,7 +185,7 @@ const StatCard = ({ label, value, sub, foot, accent = "#131E40", valColor, icon 
 
 // ── Data Processing ──
 const processSOData = (data) => {
-  const now = new Date('2026-06-28');
+  const now = new Date();
   
   let thisWeek = 0, lastWeek = 0, thisMonth = 0, lastMonth = 0;
   const contractorMap = {};
@@ -254,9 +254,9 @@ const processSOData = (data) => {
   const kpiCompliance = contractorKPIs.length > 0 ? Math.round((meetingKPI / contractorKPIs.length) * 100) : 0;
 
   const bodyParts = [
-    { part: 'R. Hand', count: 4 }, { part: 'L. Forearm', count: 3 },
-    { part: 'Lower Back', count: 3 }, { part: 'R. Foot', count: 2 },
-    { part: 'Head', count: 1 }
+    { part: 'R. Hand', count: 0 }, { part: 'L. Forearm', count: 0 },
+    { part: 'Lower Back', count: 0 }, { part: 'R. Foot', count: 0 },
+    { part: 'Head', count: 0 }
   ];
 
   return {
@@ -582,27 +582,11 @@ export default function SODashboard() {
 
         if (statsRes) setServerStats(statsRes);
 
-        let rawList = Array.isArray(listRes) ? listRes : (listRes?.data || []);
-        if (rawList.length === 0 && !isContractor) {
-          rawList = OBSERVATIONS;
-        } else if (rawList.length === 0 && isContractor && myContractorName) {
-          rawList = OBSERVATIONS.filter(o => {
-            const cName = o.contractor || o.assignedContractorName || '';
-            return cName.toLowerCase().includes(myContractorName.toLowerCase());
-          });
-        }
-        if (rawList === OBSERVATIONS) {
-          if (selectedBuildings.length > 0) {
-            rawList = rawList.filter(o => selectedBuildings.some(b => (o.building || o.buildingName || '').toLowerCase() === b.toLowerCase()));
-          }
-          if (selectedContractors.length > 0) {
-            rawList = rawList.filter(o => selectedContractors.some(c => (o.contractor || o.assignedContractorName || '').toLowerCase().includes(c.toLowerCase())));
-          }
-        }
+        const rawList = Array.isArray(listRes) ? listRes : (listRes?.data || []);
         setObservationsList(rawList);
       } catch (err) {
         console.error("Failed to load SO Dashboard data:", err);
-        setObservationsList(isContractor && myContractorName ? OBSERVATIONS.filter(o => (o.contractor || o.assignedContractorName || '').toLowerCase().includes(myContractorName.toLowerCase())) : OBSERVATIONS);
+        setObservationsList([]);
       } finally {
         setLoading(false);
       }
@@ -626,7 +610,7 @@ export default function SODashboard() {
   }, [observationsList, serverStats, isContractor, contractorId, myContractorName]);
 
   const filteredDeepDive = useMemo(() => {
-    let source = observationsList.length > 0 ? observationsList : OBSERVATIONS;
+    let source = observationsList;
     if (isContractor) {
       source = source.filter(o => {
         if (contractorId && (String(o.assignedContractorId) === String(contractorId) || String(o.createdByContractorId) === String(contractorId))) return true;
@@ -661,7 +645,7 @@ export default function SODashboard() {
 
   // ── Contractor-wise Stats (Type & Status breakdown) ──
   const contractorStats = useMemo(() => {
-    const src = observationsList.length > 0 ? observationsList : OBSERVATIONS;
+    const src = observationsList;
     const map = {};
     src.forEach(obs => {
       const cName = obs.assignedContractorName || obs.contractor || 'Unassigned';

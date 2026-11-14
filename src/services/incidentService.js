@@ -86,7 +86,7 @@ export const uploadImages = async (formData) => {
   return response.data;
 };
 
-// Upload single mandatory attachment file (PDF, Image, Doc)
+// Upload single supporting attachment file (PDF, Image, Doc)
 export const uploadIncidentAttachment = async (file) => {
   const formData = new FormData();
   formData.append("file", file);

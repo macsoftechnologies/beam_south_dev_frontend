@@ -614,7 +614,7 @@ function IMList() {
 
   // Pipeline Stages
   const pipelineStages = [
-    { key: "HEADS_UP", statLabel: "Heads-Up", match: ["Heads-Up", "HEADS_UP"], label: "Heads-Up (2h)", color: "var(--text-main)", bg: "var(--color-gray-bg)" },
+    { key: "HEADS_UP", statLabel: "Heads-Up", match: ["Heads-Up", "HEADS_UP"], label: "Heads-Up (1h)", color: "var(--text-main)", bg: "var(--color-gray-bg)" },
     { key: "INITIAL_REPORT", statLabel: "Initial", match: ["Initial", "INITIAL_REPORT"], label: "Initial Report (24h)", color: "var(--color-caution)", bg: "var(--color-caution-bg)" },
     { key: "INVESTIGATION", statLabel: "Investigation", match: ["Investigation", "INVESTIGATION"], label: "Investigation (7d)", color: "var(--text-muted)", bg: "var(--color-gray-bg)" },
     { key: "CLOSED", statLabel: "Closed", match: ["Closed", "CLOSED"], label: "Closed", color: "var(--color-safe)", bg: "var(--color-safe-bg)" }
@@ -863,7 +863,7 @@ function IMList() {
             title="Click to clear stage filter"
           >
             Status: {
-              filters.stage === "HEADS_UP" ? "Heads-Up (2h)" :
+              filters.stage === "HEADS_UP" ? "Heads-Up (1h)" :
                 filters.stage === "INITIAL_REPORT" ? "Initial Report (24h)" :
                   filters.stage === "INVESTIGATION" ? "Investigation (7d)" :
                     filters.stage === "REOPENED" ? "Reopened" : filters.stage
@@ -999,7 +999,7 @@ function IMList() {
                   >
                     <option value="">All</option>
                     <option value="OPEN">Open</option>
-                    <option value="HEADS_UP">Heads-Up (2h)</option>
+                    <option value="HEADS_UP">Heads-Up (1h)</option>
                     <option value="INITIAL_REPORT">Initial Report (24h)</option>
                     <option value="INVESTIGATION">Investigation (7d)</option>
                     <option value="CLOSED">Closed</option>

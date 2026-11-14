@@ -180,6 +180,22 @@ export const deleteZone = async (id) => {
 
 export const getBuildings = async (page = 1, limit = 100) => {
     const res = await api.get(`/buildings?page=${page}&limit=${limit}`);
+    if (res?.data) {
+        const sortFn = (a, b) => {
+            const nameA = a?.building_name || a?.name || '';
+            const nameB = b?.building_name || b?.name || '';
+            return nameA.localeCompare(nameB, undefined, { numeric: true, sensitivity: 'base' });
+        };
+        if (Array.isArray(res.data.data)) {
+            res.data.data.sort(sortFn);
+        } else if (Array.isArray(res.data.data?.rows)) {
+            res.data.data.rows.sort(sortFn);
+        } else if (Array.isArray(res.data?.rows)) {
+            res.data.rows.sort(sortFn);
+        } else if (Array.isArray(res.data)) {
+            res.data.sort(sortFn);
+        }
+    }
     return res.data;
 };
 

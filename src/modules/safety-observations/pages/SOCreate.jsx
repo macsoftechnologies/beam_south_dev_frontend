@@ -84,6 +84,7 @@ function SOCreate() {
   const isAdmin = modCtx.isAdmin;
   const isDeptOrAdmin = (isAdmin || isDepartment || !isContractor) && !isContractor;
   const userRole = isContractor ? "CONTRACTOR" : (isAdmin ? "ADMIN" : "DEPARTMENT");
+  const rawRole = (modCtx.effectiveRole || localStorage.getItem("UserType") || currentUser?.role || "").toUpperCase();
 
   // If in edit mode, fetch observation details to prefill form
   useEffect(() => {
@@ -200,7 +201,10 @@ function SOCreate() {
         }
 
         const rawBuildings = buildingsRes?.data?.rows || buildingsRes?.data || buildingsRes || [];
-        setBuildingsList(Array.isArray(rawBuildings) ? rawBuildings : []);
+        const sortedBuildings = Array.isArray(rawBuildings)
+          ? [...rawBuildings].sort((a, b) => (a.building_name || a.name || "").localeCompare(b.building_name || b.name || "", undefined, { numeric: true, sensitivity: 'base' }))
+          : [];
+        setBuildingsList(sortedBuildings);
 
         const rawFloors = floorsRes?.data?.rows || floorsRes?.data || floorsRes || [];
         setFloorsList(Array.isArray(rawFloors) ? rawFloors : []);
@@ -502,7 +506,7 @@ const dataURLtoBlob = (dataurl) => {
         formData.append("existingPhotos", JSON.stringify(existingPhotos));
         formData.append("editedByUserId", currentUser.id || "");
         formData.append("editedByUserName", currentUser.username || currentUser.name || "Department User");
-        formData.append("editedByUserRole", rawRole ? rawRole.toUpperCase() : "DEPARTMENT");
+        formData.append("editedByUserRole", rawRole || userRole || "DEPARTMENT");
         formData.append("editRemarks", "Observation details updated by department user.");
 
         await observationService.updateObservation(id, formData);
@@ -909,7 +913,7 @@ const dataURLtoBlob = (dataurl) => {
                 }}
               >
                 <option value="">Select Building</option>
-                {buildingsList.map((item) => (
+                {[...buildingsList].sort((a, b) => (a.building_name || a.name || "").localeCompare(b.building_name || b.name || "", undefined, { numeric: true, sensitivity: 'base' })).map((item) => (
                   <option key={item.build_id || item.id} value={item.build_id || item.id}>
                     {item.building_name || item.name}
                   </option>

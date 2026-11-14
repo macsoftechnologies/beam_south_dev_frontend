@@ -414,7 +414,11 @@ function IMCreate() {
           getRooms(1, 20000),
           getContractors(1, 1000)
         ]);
-        setBuildingsList(buildingsRes?.data ?? []);
+        const rawBuildings = buildingsRes?.data ?? [];
+        const sortedBuildings = Array.isArray(rawBuildings)
+          ? [...rawBuildings].sort((a, b) => (a.building_name || a.name || "").localeCompare(b.building_name || b.name || "", undefined, { numeric: true, sensitivity: 'base' }))
+          : [];
+        setBuildingsList(sortedBuildings);
         setFloorsList(floorsRes?.data ?? []);
         setRoomsList(roomsRes?.data?.rows ?? roomsRes?.data ?? roomsRes ?? []);
         setContractorsList(contractorsRes?.data?.rows ?? contractorsRes?.data ?? contractorsRes ?? []);
@@ -698,10 +702,12 @@ function IMCreate() {
       />
 
       <div className="mod-card">
-        <div className="mod-card-header">
-          <h3 className="mod-card-title">1. Location & Identification <span style={{ color: "#DC2626" }}>*</span></h3>
-          {errors.api && <div style={{ color: "#DC2626", marginTop: "8px", fontSize: "0.875rem" }}>{errors.api}</div>}
-          <div style={{ fontSize: "13px", color: "#b45309", background: "#fef3c7", border: "1px solid #fde68a", padding: "10px 16px", borderRadius: "8px", fontWeight: "600", display: "flex", overflow: "hidden", whiteSpace: "nowrap", marginTop: "8px" }}>
+        <div className="mod-card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
+          <div>
+            <h3 className="mod-card-title">1. Location & Identification <span style={{ color: "#DC2626" }}>*</span></h3>
+            {errors.api && <div style={{ color: "#DC2626", marginTop: "8px", fontSize: "0.875rem" }}>{errors.api}</div>}
+          </div>
+          <div style={{ width: "100%", fontSize: "13px", color: "#b45309", background: "#fef3c7", border: "1px solid #fde68a", padding: "10px 16px", borderRadius: "8px", fontWeight: "600", display: "flex", overflow: "hidden", whiteSpace: "nowrap", marginTop: "8px" }}>
             <marquee scrollamount="5">⚠️ Must be completed within 1 hour of the incident occurrence.</marquee>
           </div>
         </div>
@@ -817,7 +823,7 @@ function IMCreate() {
                       }}
                     >
                       <option value="">Select Building</option>
-                      {buildingsList.map((item) => (
+                      {[...buildingsList].sort((a, b) => (a.building_name || a.name || "").localeCompare(b.building_name || b.name || "", undefined, { numeric: true, sensitivity: 'base' })).map((item) => (
                         <option key={item.build_id} value={item.build_id}>
                           {item.building_name}
                         </option>

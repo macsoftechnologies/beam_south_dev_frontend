@@ -795,6 +795,15 @@ export default function SODashboard() {
         </div>
       </div>
 
+      {/* ── KPIs ── */}
+      <div className="dash-kpis">
+        <StatCard label="This Week" value={agg.thisWeek || 0} accent="#131E40" icon="eye" sub="observations logged" foot={<><TrendPill pct={pctChange(agg.thisWeek || 0, agg.lastWeek || 0)} /> <span style={{marginLeft: 4, color:'var(--text-muted)'}}>vs last week</span></>} />
+        <StatCard label="This Month" value={agg.thisMonth || 0} accent="#131E40" icon="calendar" sub="month to date" foot={<><TrendPill pct={pctChange(agg.thisMonth || 0, agg.lastMonth || 0)} /> <span style={{marginLeft: 4, color:'var(--text-muted)'}}>vs last month</span></>} />
+        <StatCard label="Weekly Average" value={Number(agg.weeklyAvg || 0).toFixed(1)} accent="#7BBE97" valColor="#7BBE97" icon="activity" sub="over last 8 weeks" />
+        <StatCard label="Total Observations" value={agg.total || 0} accent="#583C66" valColor="#583C66" icon="layers" sub="all time" />
+        <StatCard label="Last Week" value={agg.lastWeek || 0} accent="#8A8F9F" icon="clock" sub="complete week total" />
+      </div>
+
       {/* ── Filters ── */}
       <div className="dash-filters">
         <span className="dfl">Buildings</span>
@@ -879,15 +888,6 @@ export default function SODashboard() {
             &times; Clear
           </button>
         )}
-      </div>
-
-      {/* ── KPIs ── */}
-      <div className="dash-kpis">
-        <StatCard label="This Week" value={agg.thisWeek || 0} accent="#131E40" icon="eye" sub="observations logged" foot={<><TrendPill pct={pctChange(agg.thisWeek || 0, agg.lastWeek || 0)} /> <span style={{marginLeft: 4, color:'var(--text-muted)'}}>vs last week</span></>} />
-        <StatCard label="This Month" value={agg.thisMonth || 0} accent="#131E40" icon="calendar" sub="month to date" foot={<><TrendPill pct={pctChange(agg.thisMonth || 0, agg.lastMonth || 0)} /> <span style={{marginLeft: 4, color:'var(--text-muted)'}}>vs last month</span></>} />
-        <StatCard label="Weekly Average" value={Number(agg.weeklyAvg || 0).toFixed(1)} accent="#7BBE97" valColor="#7BBE97" icon="activity" sub="over last 8 weeks" />
-        <StatCard label="Total Observations" value={agg.total || 0} accent="#583C66" valColor="#583C66" icon="layers" sub="all time" />
-        <StatCard label="Last Week" value={agg.lastWeek || 0} accent="#8A8F9F" icon="clock" sub="complete week total" />
       </div>
 
       {/* ── Statistics Panels (Observation Status & Contractor Statistics) ── */}

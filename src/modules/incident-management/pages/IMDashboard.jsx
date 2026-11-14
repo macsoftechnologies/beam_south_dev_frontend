@@ -876,10 +876,10 @@ export default function IMDashboard() {
       types: typeList,
       typesTotal: typeList.reduce((acc, curr) => acc + curr.count, 0),
       pipeline: [
-        { label: 'Heads-Up', count: pipeCount['Heads-Up'], color: '#C07D10' },
-        { label: 'Initial', count: pipeCount['Initial'], color: '#E32B50' },
-        { label: 'Investigation', count: pipeCount['Investigation'], color: 'var(--accent-primary, #3B82F6)' },
-        { label: 'Closed', count: pipeCount['Closed'], color: '#A1A5B3' }
+        { key: 'HEADS_UP', label: 'Heads-Up', count: pipeCount['Heads-Up'], color: '#C07D10' },
+        { key: 'INITIAL_REPORT', label: 'Initial', count: pipeCount['Initial'], color: '#E32B50' },
+        { key: 'INVESTIGATION', label: 'Investigation', count: pipeCount['Investigation'], color: 'var(--accent-primary, #3B82F6)' },
+        { key: 'CLOSED', label: 'Closed', count: pipeCount['Closed'], color: '#A1A5B3' }
       ]
     };
   }, [displayedIncidents, serverStats, isContractor]);
@@ -964,14 +964,33 @@ export default function IMDashboard() {
   const filteredIncidents = useMemo(() => {
     return displayedIncidents.filter(r => {
       // Stage filter
-      if (stageFilter !== 'all') {
-        let s = r.pipeline || r.stage || 'Heads-Up';
-        if (s === 'INITIAL_REPORT') s = 'Initial';
-        if (s === 'INVESTIGATION') s = 'Investigation';
-        if (s === 'CLOSED') s = 'Closed';
-        if (s === 'HEADS_UP') s = 'Heads-Up';
-        if (stageFilter === 'active' && s === 'Closed') return false;
-        if (stageFilter !== 'active' && s !== stageFilter && s !== stageFilter.split(' ')[0]) return false;
+      if (stageFilter && stageFilter !== 'all') {
+        const isClosed = r.status === 'closed' || r.status === 'Closed' || r.pipeline === 'Closed' || r.stage === 'CLOSED';
+        const logs = r.reopenLogs || r.reopenedLogs || r.reopenHistory || [];
+        const isReopened = !isClosed && (r.reopened || r.isReopened || logs.length > 0 || r.stage === 'REOPENED');
+
+        if (stageFilter === 'OPEN' || stageFilter === 'active' || stageFilter === 'open') {
+          if (isClosed) return false;
+        } else if (stageFilter === 'CLOSED' || stageFilter === 'Closed') {
+          if (!isClosed) return false;
+        } else if (stageFilter === 'REOPENED' || stageFilter === 'Reopened') {
+          if (!isReopened) return false;
+        } else if (stageFilter === 'HEADS_UP' || stageFilter === 'Heads-Up') {
+          if (isClosed) return false;
+          const s = r.pipeline || r.stage || 'Heads-Up';
+          if (s !== 'HEADS_UP' && s !== 'Heads-Up') return false;
+        } else if (stageFilter === 'INITIAL_REPORT' || stageFilter === 'Initial') {
+          if (isClosed) return false;
+          const s = r.pipeline || r.stage || '';
+          if (s !== 'INITIAL_REPORT' && s !== 'INITIAL' && s !== 'Initial') return false;
+        } else if (stageFilter === 'INVESTIGATION' || stageFilter === 'Investigation') {
+          if (isClosed) return false;
+          const s = r.pipeline || r.stage || '';
+          if (s !== 'INVESTIGATION' && s !== 'Investigation') return false;
+        } else {
+          const s = r.pipeline || r.stage || '';
+          if (s !== stageFilter) return false;
+        }
       }
 
       // Body Part filter
@@ -1139,8 +1158,10 @@ export default function IMDashboard() {
           <div className="pipe-flow">
             {agg.pipeline.map(s => {
               const safeColor = s.color === '#131E40' ? 'var(--accent-primary, #3B82F6)' : s.color;
+              const cardKey = s.key || (s.label === 'Heads-Up' ? 'HEADS_UP' : s.label === 'Initial' ? 'INITIAL_REPORT' : s.label === 'Investigation' ? 'INVESTIGATION' : s.label === 'Closed' ? 'CLOSED' : s.label);
+              const isCardActive = stageFilter === cardKey || stageFilter === s.label;
               return (
-                <div key={s.label} className={`pstage ${stageFilter === s.label ? 'active' : ''}`} onClick={() => setStageFilter(stageFilter === s.label ? 'all' : s.label)}>
+                <div key={s.label} className={`pstage ${isCardActive ? 'active' : ''}`} onClick={() => setStageFilter(isCardActive ? 'all' : cardKey)}>
                   <span className="pdot" style={{ background: safeColor }} />
                   <div>
                     <div className="pl">{s.label}</div>
@@ -1447,13 +1468,25 @@ export default function IMDashboard() {
                 Clear Stage
               </button>
             )}
-            <select value={stageFilter} onChange={e => setStageFilter(e.target.value)} style={{ padding: '7px 10px', border: '1px solid var(--border-color)', borderRadius: '8px', fontSize: '12px', background: 'var(--bg-card)', color: 'var(--text-main)', height: '32px' }}>
-              <option value="all">All Stages</option>
-              <option value="active">Active Only</option>
-              <option value="Heads-Up">Heads-Up Review</option>
-              <option value="Initial">Initial Report Review</option>
-              <option value="Investigation">Investigation Review</option>
-              <option value="Closed">Closed</option>
+            <select
+              value={
+                stageFilter === 'Heads-Up' ? 'HEADS_UP' :
+                stageFilter === 'Initial' ? 'INITIAL_REPORT' :
+                stageFilter === 'Investigation' ? 'INVESTIGATION' :
+                stageFilter === 'Closed' ? 'CLOSED' :
+                stageFilter === 'active' ? 'OPEN' :
+                stageFilter === '' ? 'all' : stageFilter
+              }
+              onChange={e => setStageFilter(e.target.value)}
+              style={{ padding: '7px 10px', border: '1px solid var(--border-color)', borderRadius: '8px', fontSize: '12px', background: 'var(--bg-card)', color: 'var(--text-main)', height: '32px' }}
+            >
+              <option value="all">All</option>
+              <option value="OPEN">Open</option>
+              <option value="HEADS_UP">Heads-Up (1h)</option>
+              <option value="INITIAL_REPORT">Initial Report (24h)</option>
+              <option value="INVESTIGATION">Investigation (7d)</option>
+              <option value="CLOSED">Closed</option>
+              <option value="REOPENED">Reopened</option>
             </select>
           </div>
         </div>

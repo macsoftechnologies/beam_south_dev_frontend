@@ -1346,6 +1346,21 @@ export default function IMDetails() {
       setIrErrors(prev => ({ ...prev, irCategories: null }));
     }
     if (cat) {
+      const config = getCategorySeverityConfig(cat, irActualSeverity);
+      let nextActual = config.isActualFixed ? config.actualValue : (irActualSeverity === "N/A" ? "" : irActualSeverity);
+      let nextPotential = config.isPotentialFixed ? "N/A" : (irPotentialSeverity === "N/A" ? "" : irPotentialSeverity);
+      if (nextPotential && nextPotential !== "N/A" && !config.allowedPotentialLevels.includes(Number(nextPotential))) {
+        nextPotential = "";
+      }
+      setIrActualSeverity(nextActual);
+      setIrPotentialSeverity(nextPotential);
+      if (irErrors?.irActualSeverity) {
+        setIrErrors(prev => ({ ...prev, irActualSeverity: null }));
+      }
+      if (irErrors?.irPotentialSeverity) {
+        setIrErrors(prev => ({ ...prev, irPotentialSeverity: null }));
+      }
+
       const lower = String(cat).toLowerCase();
       if (lower.includes("lost time")) {
         setIrTreatmentProvided("Lost Time");
@@ -1465,7 +1480,11 @@ export default function IMDetails() {
         ]);
         const rawC = cRes?.data?.rows || cRes?.data || cRes?.subContractors || cRes || [];
         setContractorsList(Array.isArray(rawC) ? rawC : []);
-        setBuildingsList(bRes?.data || []);
+        const rawB = bRes?.data?.rows || bRes?.data || bRes || [];
+        const sortedB = Array.isArray(rawB)
+          ? [...rawB].sort((a, b) => (a.building_name || a.name || "").localeCompare(b.building_name || b.name || "", undefined, { numeric: true, sensitivity: 'base' }))
+          : [];
+        setBuildingsList(sortedB);
         setFloorsList(fRes?.data || []);
         setRoomsList(rRes?.data?.rows || rRes?.data || rRes || []);
       } catch (err) {
@@ -2439,9 +2458,10 @@ export default function IMDetails() {
       showError("Cannot add or edit action items because the incident is closed.");
       return;
     }
-    if (!newAction.action || !newAction.responsible || !newAction.attachmentUrl) {
-      if (!newAction.attachmentUrl) {
-        showError("An attachment is required for Corrective Actions.");
+    const isCompletedStatus = String(newAction.status || "").toUpperCase() === "COMPLETED";
+    if (!newAction.action || !newAction.responsible || (isCompletedStatus && !newAction.attachmentUrl)) {
+      if (isCompletedStatus && !newAction.attachmentUrl) {
+        showError("An attachment is required for Completed Corrective Actions.");
       } else {
         showError("Action Description and Owner are required.");
       }
@@ -4744,7 +4764,7 @@ export default function IMDetails() {
                       }}
                     >
                       <option value="">Select Building / Area</option>
-                      {buildingsList.map((b) => (
+                      {[...buildingsList].sort((a, b) => (a.building_name || a.name || "").localeCompare(b.building_name || b.name || "", undefined, { numeric: true, sensitivity: 'base' })).map((b) => (
                         <option key={b.build_id || b.id} value={b.build_id || b.id}>
                           {b.building_name}
                         </option>
@@ -5977,7 +5997,10 @@ export default function IMDetails() {
                           </svg>
                         </span>
                       </div>
-                      <div><b>Severity:</b> {incident.actualSeverity || incident.severity || "—"}</div>
+                      <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", alignItems: "center" }}>
+                        <span><b>Actual Severity:</b> {huActualSeverity && huActualSeverity !== "N/A" ? <SevPill level={huActualSeverity} /> : (incident.actualSeverity ? <SevPill level={incident.actualSeverity} /> : <SevPill level="N/A" />)}</span>
+                        <span><b>Potential Severity:</b> {huPotentialSeverity ? <SevPill level={huPotentialSeverity} /> : (incident.potentialSeverity ? <SevPill level={incident.potentialSeverity} /> : <span style={{ color: "var(--text-muted)" }}>—</span>)}</span>
+                      </div>
                       <div><b>Location:</b> {incident.buildingName ? `${incident.buildingName}${incident.floorLevel ? ' - ' + incident.floorLevel : ''}` : (incident.building || incident.location || "—")}</div>
                       <div><b>Description:</b> {headsUpData?.descriptionWhatHappened || headsUpData?.whatHappened || headsUpData?.descriptionConsequence || incident.description || incident.details || "—"}</div>
                     </div>
@@ -6052,6 +6075,92 @@ export default function IMDetails() {
                         <input className="mod-form-input" placeholder="Specify other incident category..." value={irCategoriesOther} onChange={e => setIrCategoriesOther(e.target.value)} />
                       </div>
                     )}
+
+                    {(() => {
+                      const currentIrCat = irCategories[0] || "";
+                      const irSevConfig = getCategorySeverityConfig(currentIrCat, irActualSeverity);
+                      const effActual = irSevConfig.isActualFixed ? irSevConfig.actualValue : (irActualSeverity === "N/A" ? "" : irActualSeverity);
+                      const effPotential = irSevConfig.isPotentialFixed ? "N/A" : (irPotentialSeverity === "N/A" ? "" : irPotentialSeverity);
+                      const isDisabled = (!isEditingInitialReport && initialReportSubmitted) || (isReopenedToStep2 && isContractorUser());
+
+                      return (
+                        <>
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "16px", marginTop: "16px" }}>
+                            <div className="mod-form-group">
+                              <label className="mod-form-label">
+                                Actual Severity Assessment {!irSevConfig.isActualNA && <span style={{ color: "#DC2626" }}>*</span>}
+                              </label>
+                              <SeverityDropdown
+                                id="ir-actual-severity-dropdown"
+                                value={effActual}
+                                onChange={(val) => {
+                                  const newConfig = getCategorySeverityConfig(currentIrCat, val);
+                                  setIrActualSeverity(val);
+                                  if (newConfig.isPotentialFixed) {
+                                    setIrPotentialSeverity("N/A");
+                                  } else if (irPotentialSeverity === "N/A" || (irPotentialSeverity && !newConfig.allowedPotentialLevels.includes(Number(irPotentialSeverity)))) {
+                                    setIrPotentialSeverity("");
+                                  }
+                                  if (irErrors?.irActualSeverity) {
+                                    setIrErrors(prev => ({ ...prev, irActualSeverity: null }));
+                                  }
+                                }}
+                                placeholder="Select Actual Severity"
+                                disabled={isDisabled || irSevConfig.isActualFixed}
+                                allowedLevels={irSevConfig.allowedActualLevels}
+                              />
+                              <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "4px" }}>
+                                what actually happened
+                                {irSevConfig.noteActual && (
+                                  <span style={{ color: "#DC2626", fontWeight: 600, marginLeft: "6px" }}>• {irSevConfig.noteActual}</span>
+                                )}
+                              </div>
+                              {irErrors?.irActualSeverity && (
+                                <span style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: "4px", display: "block" }}>{irErrors.irActualSeverity}</span>
+                              )}
+                            </div>
+
+                            <div className="mod-form-group">
+                              <label className="mod-form-label">
+                                Potential Severity Assessment {!irSevConfig.isPotentialFixed && <span style={{ color: "#DC2626" }}>*</span>}
+                              </label>
+                              <SeverityDropdown
+                                id="ir-potential-severity-dropdown"
+                                value={effPotential}
+                                onChange={(val) => {
+                                  setIrPotentialSeverity(val);
+                                  if (irErrors?.irPotentialSeverity) {
+                                    setIrErrors(prev => ({ ...prev, irPotentialSeverity: null }));
+                                  }
+                                }}
+                                placeholder="Select Potential Severity"
+                                disabled={isDisabled || irSevConfig.isPotentialFixed}
+                                allowedLevels={irSevConfig.allowedPotentialLevels}
+                              />
+                              <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "4px" }}>
+                                what could realistically have happened under slightly different circumstances
+                                {irSevConfig.notePotential && (
+                                  <span style={{ color: "#DC2626", fontWeight: 600, marginLeft: "6px" }}>• {irSevConfig.notePotential}</span>
+                                )}
+                              </div>
+                              {irErrors?.irPotentialSeverity && (
+                                <span style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: "4px", display: "block" }}>{irErrors.irPotentialSeverity}</span>
+                              )}
+                            </div>
+                          </div>
+
+                          {(() => {
+                            const isHipo = Number(effActual) >= 4 || Number(effPotential) >= 4;
+                            return isHipo ? (
+                              <div style={{ marginTop: "12px", padding: "10px 14px", background: "rgba(227, 43, 80, 0.1)", border: "1px solid rgba(227, 43, 80, 0.3)", borderRadius: "6px", color: "#E32B50", fontSize: "13px", fontWeight: 600, display: "flex", alignItems: "center", gap: "8px" }}>
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
+                                Critical Incident — Level 3 / Escalated Investigation Protocol Applies.
+                              </div>
+                            ) : null;
+                          })()}
+                        </>
+                      );
+                    })()}
                   </div>
 
                   {(() => {
@@ -6300,25 +6409,16 @@ export default function IMDetails() {
                             {isLostTimeCase && (
                               <div className="mod-form-group">
                                 <label className="mod-form-label">
-                                  ANTICIPATED ABSENCE FROM WORK <span style={{ color: "#DC2626" }}>*</span>
+                                  ANTICIPATED ABSENCE FROM WORK
                                 </label>
                                 <input
-                                  className={`mod-form-input ${irErrors.irAnticipatedAbsence ? "mod-input-error" : ""}`}
-                                  style={{ borderColor: irErrors.irAnticipatedAbsence ? "#DC2626" : undefined }}
+                                  className="mod-form-input"
                                   placeholder="e.g. 3 days, 2 weeks, None, Unknown..."
                                   value={irAnticipatedAbsence}
                                   onChange={e => {
                                     setIrAnticipatedAbsence(e.target.value);
-                                    if (irErrors.irAnticipatedAbsence) {
-                                      setIrErrors(prev => ({ ...prev, irAnticipatedAbsence: null }));
-                                    }
                                   }}
                                 />
-                                {irErrors.irAnticipatedAbsence && (
-                                  <span style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: "4px", display: "block" }}>
-                                    {irErrors.irAnticipatedAbsence}
-                                  </span>
-                                )}
                               </div>
                             )}
                           </div>
@@ -6881,6 +6981,18 @@ export default function IMDetails() {
                             if (!irDescription?.trim()) newErrors.irDescription = "Incident description is required";
                             if (!irInitialRootCause?.trim()) newErrors.irInitialRootCause = "Initial root cause is required";
                             if (!irCategories || irCategories.length === 0) newErrors.irCategories = "Incident category is required";
+
+                            const currentSubmitCat = irCategories[0] || "";
+                            const submitSevConfig = getCategorySeverityConfig(currentSubmitCat, irActualSeverity);
+                            const effActualSubmit = submitSevConfig.isActualFixed ? submitSevConfig.actualValue : (irActualSeverity === "N/A" ? "" : irActualSeverity);
+                            const effPotentialSubmit = submitSevConfig.isPotentialFixed ? "N/A" : (irPotentialSeverity === "N/A" ? "" : irPotentialSeverity);
+
+                            if (!submitSevConfig.isActualNA && (!effActualSubmit || effActualSubmit === "N/A")) {
+                              newErrors.irActualSeverity = "Actual severity is required";
+                            }
+                            if (!submitSevConfig.isPotentialFixed && (!effPotentialSubmit || effPotentialSubmit === "N/A")) {
+                              newErrors.irPotentialSeverity = "Potential severity is required";
+                            }
                             
                             if (isInjuryIncident) {
                               if (!irAccidentCategories || irAccidentCategories.length === 0) newErrors.irAccidentCategories = "Type of accident category is required";
@@ -6897,9 +7009,6 @@ export default function IMDetails() {
                               if (!isTreatmentLostTime(irTreatmentProvided)) {
                                 newErrors.irTreatmentProvided = "Treatment provided must be 'Lost Time' for Lost Time Injury";
                               }
-                              if (!irAnticipatedAbsence || !irAnticipatedAbsence.trim()) {
-                                newErrors.irAnticipatedAbsence = "Anticipated absence from work is required for Lost Time Injury";
-                              }
                               if (!irEasyCode || !irEasyCode.trim()) {
                                 newErrors.irEasyCode = "EASY Code / EASY Number is required for Lost Time Injury";
                               }
@@ -6911,10 +7020,10 @@ export default function IMDetails() {
                               setIrErrors(newErrors);
                               if (newErrors.irLateReason) {
                                 showError(newErrors.irLateReason);
-                              } else if (newErrors.irAnticipatedAbsence && newErrors.irEasyCode) {
-                                showError("Anticipated absence from work and EASY number are required for Lost Time Injury.");
-                              } else if (newErrors.irAnticipatedAbsence) {
-                                showError(newErrors.irAnticipatedAbsence);
+                              } else if (newErrors.irActualSeverity) {
+                                showError(newErrors.irActualSeverity);
+                              } else if (newErrors.irPotentialSeverity) {
+                                showError(newErrors.irPotentialSeverity);
                               } else if (newErrors.irEasyCode) {
                                 showError(newErrors.irEasyCode);
                               } else if (newErrors.irTreatmentProvided) {
@@ -6962,13 +7071,13 @@ export default function IMDetails() {
                             }
 
                             // 2. Severities & Flags
-                            const finalActSev = extractSevNum(irActualSeverity || huActualSeverity || incident?.actualSeverity || "1") || "1";
-                            const finalPotSev = extractSevNum(irPotentialSeverity || huPotentialSeverity || incident?.potentialSeverity || "1") || "1";
+                            const finalActSev = effActualSubmit && effActualSubmit !== "N/A" ? String(effActualSubmit) : (submitSevConfig.isActualNA ? "N/A" : "1");
+                            const finalPotSev = effPotentialSubmit && effPotentialSubmit !== "N/A" ? String(effPotentialSubmit) : "1";
                             
                             formData.append("actualSeverity", finalActSev);
                             formData.append("potentialSeverity", finalPotSev);
 
-                            const isHipo = Number(finalPotSev) >= 4 || Number(finalActSev) >= 4;
+                            const isHipo = Number(finalPotSev) >= 4 || (finalActSev !== "N/A" && Number(finalActSev) >= 4);
                             formData.append("isHipo", String(isHipo));
                             formData.append("hasInjuryIllness", String(!isEnvIncident && !isPropDamageIncident && !irInjuryNotApplicable));
 
@@ -9527,7 +9636,9 @@ export default function IMDetails() {
                   <div className="mod-form-group" style={{ gridColumn: "1 / -1", marginTop: "4px" }}>
                     <label className="mod-form-label" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>
-                      Attachment (Document / Photo) <span style={{ color: "var(--color-risk, #ef4444)" }}>*</span>
+                      Attachment (Document / Photo) {String(newAction.status || "").toUpperCase() === "COMPLETED" && (
+                        <span style={{ color: "var(--color-risk, #ef4444)" }}>*</span>
+                      )}
                     </label>
                     {newAction.attachmentUrl ? (
                       <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "8px 14px", borderRadius: "8px", background: "var(--bg-card, #fff)", border: "1px solid var(--border-color)", width: "fit-content", maxWidth: "100%", flexWrap: "wrap" }}>

@@ -188,14 +188,6 @@ export function IncidentPdfExporter({ incident, onClose, targetForm = "all" }) {
     ir?.category || "",
   ].filter(Boolean);
 
-  if (ir?.treatmentProvided && Array.isArray(ir.treatmentProvided)) {
-    ir.treatmentProvided.forEach(t => {
-      if (Array.isArray(t)) irRawCategories.push(...t);
-      else if (t) irRawCategories.push(t);
-    });
-  }
-  if (ir?.treatmentPrescribed) irRawCategories.push(ir.treatmentPrescribed);
-
   const hasEnvInitial = Boolean(
     (ir?.environmentalDetails && typeof ir.environmentalDetails === 'object' && Object.keys(ir.environmentalDetails).length > 0) ||
     ir?.spillSubstance
@@ -241,12 +233,69 @@ export function IncidentPdfExporter({ incident, onClose, targetForm = "all" }) {
 
   const irCatsStr = irRawCategories.map(c => String(c).toLowerCase());
   const isInitialCategory = (catName) => {
-    const lower = catName.toLowerCase();
+    const lower = catName.toLowerCase().trim();
     if (lower === 'loss time' || lower === 'lost time') {
       return irCatsStr.some(c => c.includes('loss time') || c.includes('lost time') || c.includes('lti'));
     }
+    if (lower === 'no treatment' || lower === 'no treatment injury') {
+      return irCatsStr.some(c => c === 'no treatment' || c === 'no treatment injury' || c.includes('no treatment'));
+    }
+    if (lower === 'medical treatment' || lower === 'medical treatment injury') {
+      return irCatsStr.some(c => (c === 'medical treatment' || c === 'medical treatment injury' || c.includes('medical treatment')) && !c.includes('no treatment'));
+    }
+    if (lower === 'first aid' || lower === 'first aid injury') {
+      return irCatsStr.some(c => c.includes('first aid'));
+    }
+    if (lower === 'restricted work' || lower === 'restricted work injury') {
+      return irCatsStr.some(c => c.includes('restricted work') || c.includes('rwi'));
+    }
     return irCatsStr.some(c => c.includes(lower));
   };
+
+  // Initial Report Treatment Provided (Form 2)
+  const irRawTreatments = [];
+  if (ir?.treatmentProvided && Array.isArray(ir.treatmentProvided)) {
+    ir.treatmentProvided.forEach(t => {
+      if (Array.isArray(t)) irRawTreatments.push(...t);
+      else if (t) irRawTreatments.push(t);
+    });
+  } else if (ir?.treatmentProvided) {
+    irRawTreatments.push(ir.treatmentProvided);
+  }
+  if (ir?.treatmentPrescribed && !irRawTreatments.includes(ir.treatmentPrescribed)) {
+    irRawTreatments.push(ir.treatmentPrescribed);
+  }
+  if (ir?.medicalTreatmentClass && !irRawTreatments.includes(ir.medicalTreatmentClass)) {
+    irRawTreatments.push(ir.medicalTreatmentClass);
+  }
+
+  const irTreatmentsStr = irRawTreatments.map(t => String(t).toLowerCase());
+  const isInitialTreatment = (treatmentName) => {
+    const lower = treatmentName.toLowerCase().trim();
+    if (lower === 'no treatment') {
+      return irTreatmentsStr.some(t => t === 'no treatment' || t === 'none' || t === 'nil' || t === 'none reported');
+    }
+    if (lower === 'first aid') {
+      return irTreatmentsStr.some(t => t === 'first aid' || t.includes('first aid'));
+    }
+    if (lower === 'medical treatment') {
+      return irTreatmentsStr.some(t => (t === 'medical treatment' || t.includes('medical treatment') || t.includes('medical center') || t.includes('off-site treatment') || t === 'medical') && !t.includes('no treatment'));
+    }
+    if (lower === 'restricted work') {
+      return irTreatmentsStr.some(t => t === 'restricted work' || t.includes('restricted work') || t === 'rwi' || t.includes('light duties'));
+    }
+    if (lower === 'lost time' || lower === 'loss time') {
+      return irTreatmentsStr.some(t => t.includes('lost time') || t.includes('loss time') || t.includes('hospitalization') || t === 'lti');
+    }
+    return irTreatmentsStr.some(t => t.includes(lower));
+  };
+
+  const standardTreatments = ['no treatment', 'first aid', 'medical treatment', 'restricted work', 'lost time', 'loss time', 'hospitalization'];
+  const initialOtherTreatments = Array.from(new Set(irRawTreatments.filter(t => {
+    const lower = String(t).toLowerCase().trim();
+    if (!lower) return false;
+    return !standardTreatments.some(std => lower.includes(std));
+  })));
 
   // Overall categories
   const allIncidentCats = Array.from(new Set([...huCatsStr, ...irCatsStr]));
@@ -927,6 +976,36 @@ export function IncidentPdfExporter({ incident, onClose, targetForm = "all" }) {
                               <span key={c} style={{ marginRight: 10 }}>
                                 <span style={{ color: "#0284c7", fontWeight: 700, marginRight: 4 }}>✓</span>
                                 <span style={{ fontWeight: 700 }}>{c}</span>
+                              </span>
+                            ))}
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+
+                  {/* Treatment Provided */}
+                  <div style={{ fontSize: 12, fontWeight: 800, color: "#0f172a", marginBottom: 6 }}>Treatment Provided</div>
+                  <div style={{ fontSize: 9.5, fontStyle: "italic", color: "#64748b", marginBottom: 6 }}>
+                    Select all that apply. Initial medical or first aid treatment provided.
+                  </div>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 9.5, marginBottom: 14 }}>
+                    <tbody>
+                      <tr>
+                        <td style={{ width: "20%", padding: 6, border: "1px solid #cbd5e1" }}><Checkbox checked={isInitialTreatment("No Treatment")} label="No Treatment" /></td>
+                        <td style={{ width: "20%", padding: 6, border: "1px solid #cbd5e1" }}><Checkbox checked={isInitialTreatment("First Aid")} label="First Aid" /></td>
+                        <td style={{ width: "20%", padding: 6, border: "1px solid #cbd5e1" }}><Checkbox checked={isInitialTreatment("Medical Treatment")} label="Medical Treatment" /></td>
+                        <td style={{ width: "20%", padding: 6, border: "1px solid #cbd5e1" }}><Checkbox checked={isInitialTreatment("Restricted Work")} label="Restricted Work" /></td>
+                        <td style={{ width: "20%", padding: 6, border: "1px solid #cbd5e1" }}><Checkbox checked={isInitialTreatment("Lost Time")} label="Lost Time" /></td>
+                      </tr>
+                      {initialOtherTreatments.length > 0 && (
+                        <tr>
+                          <td colSpan="5" style={{ background: "#f8fafc", padding: "4px 8px", border: "1px solid #cbd5e1" }}>
+                            <span style={{ color: "#475569", fontSize: 8.5, fontWeight: 700, marginRight: 6 }}>Other Treatment:</span>
+                            {initialOtherTreatments.map(t => (
+                              <span key={t} style={{ marginRight: 10 }}>
+                                <span style={{ color: "#0284c7", fontWeight: 700, marginRight: 4 }}>✓</span>
+                                <span style={{ fontWeight: 700 }}>{t}</span>
                               </span>
                             ))}
                           </td>

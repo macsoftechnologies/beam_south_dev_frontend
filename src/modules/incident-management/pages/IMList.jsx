@@ -149,7 +149,9 @@ const StatusTracker = ({ inc, pipeline, isPendingClosure: initialIsPendingClosur
       inc.initialReport.signature ||
       inc.initialReport.submittedTime ||
       inc.initialReport.injuredPersonName ||
-      inc.initialReport.approvedBy
+      inc.initialReport.approvedBy ||
+      inc.initialReport.description ||
+      (Array.isArray(inc.initialReport.immediateActions) && inc.initialReport.immediateActions.length > 0)
     )
   );
   const [realHasInitialReport, setRealHasInitialReport] = React.useState(initialHasInitialReport);
@@ -214,7 +216,9 @@ const StatusTracker = ({ inc, pipeline, isPendingClosure: initialIsPendingClosur
             data.initialReport.signature ||
             data.initialReport.submittedTime ||
             data.initialReport.injuredPersonName ||
-            data.initialReport.approvedBy
+            data.initialReport.approvedBy ||
+            data.initialReport.description ||
+            (Array.isArray(data.initialReport.immediateActions) && data.initialReport.immediateActions.length > 0)
           )
         );
         if (hasIr !== realHasInitialReport) {

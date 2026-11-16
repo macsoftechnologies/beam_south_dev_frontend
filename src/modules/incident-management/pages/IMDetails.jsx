@@ -161,6 +161,7 @@ export const determineIncidentDefaultTab = (resData) => {
     irData.signature ||
     irData.submittedTime ||
     irData.injuredPersonName ||
+    irData.approvedBy ||
     irData.description
   );
   const isIrApproved = Boolean(irData.approvedBy);
@@ -172,7 +173,9 @@ export const determineIncidentDefaultTab = (resData) => {
     (invData.signatures && Array.isArray(invData.signatures) && invData.signatures.length > 0) ||
     (invData.problemStatement && invData.problemStatement.trim().length > 0) ||
     (invData.investigationDetails && invData.investigationDetails.trim().length > 0) ||
-    (invData.submittedBy && invData.submittedBy !== "User" && invData.submittedBy !== "Investigator")
+    (invData.submittedBy && invData.submittedBy !== "User" && invData.submittedBy !== "Investigator") ||
+    invData.reviewedBy ||
+    invData.approvedBy
   );
   const isInvApproved = Boolean(invData.reviewedBy || invData.approvedBy);
   const isInvWaived = Boolean(isNoFurther && !hasInvData);
@@ -1057,18 +1060,26 @@ export default function IMDetails() {
       );
       const hasIr = Boolean(
         initialReportSubmitted ||
+        initialReportApproved ||
         (irObj && (
           (irObj.submittedBy && irObj.submittedBy !== "User") ||
           irObj.signature ||
           irObj.submittedTime ||
-          irObj.injuredPersonName
+          irObj.injuredPersonName ||
+          irObj.approvedBy ||
+          irObj.description ||
+          (Array.isArray(irObj.immediateActions) && irObj.immediateActions.length > 0)
         ))
       );
       const hasInv = Boolean(
+        investigationSubmitted ||
+        investigationApproved ||
         (invObj?.signatures && Array.isArray(invObj.signatures) && invObj.signatures.length > 0) ||
         (invObj?.problemStatement && invObj.problemStatement.trim().length > 0) ||
         (invObj?.investigationDetails && invObj.investigationDetails.trim().length > 0) ||
-        (invObj?.submittedBy && invObj.submittedBy !== "User" && invObj.submittedBy !== "Investigator")
+        (invObj?.submittedBy && invObj.submittedBy !== "User" && invObj.submittedBy !== "Investigator") ||
+        invObj?.reviewedBy ||
+        invObj?.approvedBy
       );
 
       let targetStep = 3;
@@ -1593,7 +1604,10 @@ export default function IMDetails() {
             (resData.initialReport.submittedBy && resData.initialReport.submittedBy !== "User") ||
             resData.initialReport.signature ||
             resData.initialReport.submittedTime ||
-            resData.initialReport.injuredPersonName
+            resData.initialReport.injuredPersonName ||
+            resData.initialReport.approvedBy ||
+            resData.initialReport.description ||
+            (Array.isArray(resData.initialReport.immediateActions) && resData.initialReport.immediateActions.length > 0)
           )
         );
         const isIrSubmitted = Boolean(hasIrData);
@@ -1608,7 +1622,9 @@ export default function IMDetails() {
           (resData?.investigation?.signatures && Array.isArray(resData.investigation.signatures) && resData.investigation.signatures.length > 0) ||
           (resData?.investigation?.problemStatement && resData.investigation.problemStatement.trim().length > 0) ||
           (resData?.investigation?.investigationDetails && resData.investigation.investigationDetails.trim().length > 0) ||
-          (resData?.investigation?.submittedBy && resData.investigation.submittedBy !== "User" && resData.investigation.submittedBy !== "Investigator")
+          (resData?.investigation?.submittedBy && resData.investigation.submittedBy !== "User" && resData.investigation.submittedBy !== "Investigator") ||
+          resData?.investigation?.reviewedBy ||
+          resData?.investigation?.approvedBy
         );
         const isInvStarted = Boolean(hasInvData);
         setInvestigationStarted(isInvStarted);
@@ -1719,8 +1735,28 @@ export default function IMDetails() {
       setHuSubmittedTime(hu.submittedTime || inc.createdTime || "");
       if (hu.lateSubmissionReason) setHuLateReason(hu.lateSubmissionReason);
       const noFurther = Boolean(rawIncident?.incident?.noFurtherInvestigation || rawIncident?.noFurtherInvestigation || inc?.noFurtherInvestigation || hu?.noFurtherInvestigation || ir?.noFurtherInvestigation);
-      setHuNoFurtherInvestigation(Boolean(hu.noFurtherInvestigation || noFurther));
-      setIrNoFurtherInvestigation(Boolean(ir.noFurtherInvestigation || noFurther));
+      const hasIrDataLoaded = Boolean(
+        (ir && typeof ir === "object" && (
+          (ir.submittedBy && ir.submittedBy !== "User") ||
+          ir.signature ||
+          ir.submittedTime ||
+          ir.injuredPersonName ||
+          ir.description ||
+          ir.approvedBy ||
+          (Array.isArray(ir.immediateActions) && ir.immediateActions.length > 0)
+        )) ||
+        rawIncident?.initialReport?.submittedBy ||
+        rawIncident?.initialReport?.signature ||
+        rawIncident?.initialReport?.approvedBy ||
+        rawIncident?.initialReport?.description
+      );
+
+      // If Initial Report has data, Heads-Up did not waive Step 2 (or Step 2 was filled/completed)
+      const huWaived = Boolean(hu?.noFurtherInvestigation) || (noFurther && !hasIrDataLoaded);
+      const irWaived = Boolean(ir?.noFurtherInvestigation) || (noFurther && hasIrDataLoaded);
+
+      setHuNoFurtherInvestigation(Boolean(huWaived && !hasIrDataLoaded));
+      setIrNoFurtherInvestigation(Boolean(irWaived));
 
       // 1. Prefill Contractor / Company
       const contractor = hu.contractorsInvolved || hu.contractor || inc.contractorsInvolved || inc.contractor;
@@ -2826,19 +2862,29 @@ export default function IMDetails() {
 
   const hasInitialReportData = Boolean(
     initialReportSubmitted ||
+    initialReportApproved ||
     (initialReportData && (
       (initialReportData.submittedBy && initialReportData.submittedBy !== "User") ||
       initialReportData.signature ||
       initialReportData.submittedTime ||
-      initialReportData.injuredPersonName
+      initialReportData.injuredPersonName ||
+      initialReportData.approvedBy ||
+      initialReportData.description ||
+      (Array.isArray(initialReportData.immediateActions) && initialReportData.immediateActions.length > 0)
     ))
   );
 
   const hasInvestigationData = Boolean(
-    (investigationData?.signatures && Array.isArray(investigationData.signatures) && investigationData.signatures.length > 0) ||
-    (investigationData?.problemStatement && investigationData.problemStatement.trim().length > 0) ||
-    (investigationData?.investigationDetails && investigationData.investigationDetails.trim().length > 0) ||
-    (investigationData?.submittedBy && investigationData.submittedBy !== "User" && investigationData.submittedBy !== "Investigator")
+    investigationSubmitted ||
+    investigationApproved ||
+    (investigationData && (
+      (investigationData?.signatures && Array.isArray(investigationData.signatures) && investigationData.signatures.length > 0) ||
+      (investigationData?.problemStatement && investigationData.problemStatement.trim().length > 0) ||
+      (investigationData?.investigationDetails && investigationData.investigationDetails.trim().length > 0) ||
+      (investigationData?.submittedBy && investigationData.submittedBy !== "User" && investigationData.submittedBy !== "Investigator") ||
+      investigationData?.reviewedBy ||
+      investigationData?.approvedBy
+    ))
   );
 
   // Identify which step was waived (if any)
@@ -2918,7 +2964,7 @@ export default function IMDetails() {
       if (isNoFurtherInvestigation && !hasInitialReportData && !isReopenedToStep2) {
         return { label: "WAIVED", state: "waived", chipClass: "chip-waived" };
       }
-      if (initialReportApproved) {
+      if (initialReportApproved || (isClosed && hasInitialReportData)) {
         return { label: "COMPLETED", state: "done", chipClass: "chip-approved" };
       }
       if (hasInitialReportData || initialReportSubmitted) {
@@ -5603,7 +5649,7 @@ export default function IMDetails() {
           )}
 
           {/* Direct Close Section if Heads-Up is Approved and No Further Investigation Required */}
-          {headsUpApproved && (huNoFurtherInvestigation || incident.noFurtherInvestigation) && !isClosed && !isContractorUser() && (
+          {headsUpApproved && (huNoFurtherInvestigation || incident.noFurtherInvestigation) && !hasInitialReportData && !isClosed && (isNneUser() || isAdminUser()) && !isContractorUser() && !isObserverUser() && (
             <div className="mod-card mb-4" style={{ marginTop: 24, borderTop: "3px solid #10b981", background: "rgba(16, 185, 129, 0.04)" }}>
               <div className="mod-card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
                 <div>
@@ -5765,7 +5811,7 @@ export default function IMDetails() {
         </div>
 
         <div className={`inc-tab-panel ${activeTab === "initialReport" ? "active" : ""}`}>
-          {(huNoFurtherInvestigation || (incident.noFurtherInvestigation && !initialReportSubmitted && !initialReportData?.submittedBy)) ? (
+          {((waivedAtStep === 1 || (isNoFurtherInvestigation && !hasInitialReportData && !initialReportSubmitted && !initialReportApproved)) && !isReopenedToStep2) ? (
             <div className="mod-card">
               <div className="mod-card-body" style={{ padding: "40px 24px", textAlign: "center" }}>
                 <div style={{ width: 64, height: 64, borderRadius: "50%", background: "#ecfdf5", color: "#10b981", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 28, border: "2px solid #a7f3d0" }}>
@@ -5798,7 +5844,7 @@ export default function IMDetails() {
                       ↺ Reopen Incident
                     </button>
                   )}
-                  {headsUpApproved && !isClosed && (
+                  {headsUpApproved && !isClosed && (isNneUser() || isAdminUser()) && !isContractorUser() && !isObserverUser() && (
                     <button
                       className="mod-btn-primary im-btn-primary"
                       style={{ background: "var(--color-risk, #dc2626)", padding: "8px 20px", fontSize: "13px", fontWeight: 700 }}
@@ -7352,7 +7398,7 @@ export default function IMDetails() {
                 )}
 
                 {/* Direct Close Section if Initial Report is Approved and No Further Investigation Required */}
-                {initialReportApproved && (irNoFurtherInvestigation || huNoFurtherInvestigation || incident.noFurtherInvestigation) && !isClosed && !isContractorUser() && (
+                {initialReportApproved && (irNoFurtherInvestigation || huNoFurtherInvestigation || incident.noFurtherInvestigation) && !isClosed && (isNneUser() || isAdminUser()) && !isContractorUser() && !isObserverUser() && (
                   <div className="mod-card mb-4" style={{ marginTop: 24, borderTop: "3px solid #10b981", background: "rgba(16, 185, 129, 0.04)" }}>
                     <div className="mod-card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
                       <div>
@@ -7391,7 +7437,7 @@ export default function IMDetails() {
         </div>
 
         <div className={`inc-tab-panel ${activeTab === "investigation" ? "active" : ""}`}>
-          {(isNoFurtherInvestigation || huNoFurtherInvestigation || irNoFurtherInvestigation || incident?.noFurtherInvestigation) && !hasInvestigationData ? (
+          {((isNoFurtherInvestigation || huNoFurtherInvestigation || irNoFurtherInvestigation || incident?.noFurtherInvestigation || waivedAtStep) && !hasInvestigationData && !isReopenedToStep3) ? (
             <div className="mod-card">
               <div className="mod-card-body" style={{ padding: "40px 24px", textAlign: "center" }}>
                 <div style={{ width: 64, height: 64, borderRadius: "50%", background: "#ecfdf5", color: "#10b981", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 28, border: "2px solid #a7f3d0" }}>
@@ -7399,7 +7445,7 @@ export default function IMDetails() {
                 </div>
                 <h3 style={{ fontSize: "18px", fontWeight: 700, color: "#065f46", margin: "0 0 8px 0" }}>Stage 3 Investigation Report Waived</h3>
                 <p style={{ color: "#047857", fontSize: "14px", maxWidth: "600px", margin: "0 auto 24px", lineHeight: "1.5" }}>
-                  This incident was marked as <strong>"No further investigation required"</strong>. Detailed 7-day Stage 3 Investigation (5-Whys, Fishbone, RCA) is waived and not required.
+                  This incident was marked as <strong>"No further investigation required"</strong>{hasInitialReportData ? " at the Initial Report stage" : " at the Heads-Up Notification stage"}. Detailed 7-day Stage 3 Investigation (5-Whys, Fishbone, RCA) is waived and not required.
                 </p>
                 <div style={{ display: "flex", justifyContent: "center", gap: "12px", flexWrap: "wrap" }}>
                   <button
@@ -7424,7 +7470,7 @@ export default function IMDetails() {
                       ↺ Reopen Incident
                     </button>
                   )}
-                  {(headsUpApproved || initialReportApproved) && !isClosed && (
+                  {(headsUpApproved || initialReportApproved) && !isClosed && (isNneUser() || isAdminUser()) && !isContractorUser() && !isObserverUser() && (
                     <button
                       className="mod-btn-primary im-btn-primary"
                       style={{ background: "var(--color-risk, #dc2626)", padding: "8px 20px", fontSize: "13px", fontWeight: 700 }}
@@ -9735,7 +9781,7 @@ export default function IMDetails() {
                     Reopen Incident
                   </button>
                 )}
-                {!isContractorUser() && !isObserverUser() && !isClosed && (
+                {(isNneUser() || isAdminUser()) && !isContractorUser() && !isObserverUser() && !isClosed && (
                   <button
                     className="mod-btn-primary im-btn-primary"
                     style={{ background: "var(--color-risk)", padding: "6px 16px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}

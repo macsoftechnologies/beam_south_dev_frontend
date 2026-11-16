@@ -90,11 +90,15 @@ export function IncidentPdfExporter({ incident, onClose, targetForm = "all" }) {
   const ir = incident.initialReport || incident.initial_report || {};
   const inv = incident.investigation || incident.incident_investigation || {};
 
-  const isNoFurtherInvestigation = Boolean(
-    incident.noFurtherInvestigation ||
-    hu.noFurtherInvestigation ||
-    ir.noFurtherInvestigation
-  );
+  const isTruthy = (v) => v === true || v === 1 || v === '1' || String(v).toLowerCase() === 'true';
+  const isNoFurtherInvestigation = isTruthy(incident.noFurtherInvestigation) ||
+    isTruthy(incident.no_further_investigation) ||
+    isTruthy(hu.noFurtherInvestigation) ||
+    isTruthy(hu.no_further_investigation) ||
+    isTruthy(ir.noFurtherInvestigation) ||
+    isTruthy(ir.no_further_investigation) ||
+    isTruthy(incident.incident?.noFurtherInvestigation) ||
+    isTruthy(incident.incident?.no_further_investigation);
 
   const hasHeadsUp = true;
   const hasInitialReport = Boolean(
@@ -103,10 +107,11 @@ export function IncidentPdfExporter({ incident, onClose, targetForm = "all" }) {
       ir.signature ||
       ir.submittedTime ||
       (ir.injuredPersonName && String(ir.injuredPersonName).trim().length > 0) ||
-      (ir.id && !isNoFurtherInvestigation && (incident.stage === 'INITIAL_REPORT' || incident.stage === 'INVESTIGATION' || incident.stage === 'CLOSED') && ir.submittedTime)
+      ir.id ||
+      (incident.stage === 'INITIAL_REPORT' || incident.stage === 'INVESTIGATION' || incident.stage === 'CLOSED')
     )
   );
-  const hasInvestigation = Boolean(
+  const hasInvestigation = !isNoFurtherInvestigation && Boolean(
     inv && (
       (inv.problemStatement && String(inv.problemStatement).trim().length > 0) ||
       (inv.problem && String(inv.problem).trim().length > 0) ||
@@ -127,11 +132,15 @@ export function IncidentPdfExporter({ incident, onClose, targetForm = "all" }) {
   } else if (activeFormTab === 'initialReport' || activeFormTab === '2') {
     includeForm2 = true;
   } else if (activeFormTab === 'investigation' || activeFormTab === '3') {
-    includeForm3 = true;
+    includeForm3 = !isNoFurtherInvestigation;
   } else {
     includeForm1 = true;
     includeForm2 = hasInitialReport;
-    includeForm3 = hasInvestigation;
+    includeForm3 = !isNoFurtherInvestigation && hasInvestigation;
+  }
+
+  if (isNoFurtherInvestigation) {
+    includeForm3 = false;
   }
 
   let p1 = 0, p2 = 0, p3 = 0, pageCounter = 0;
@@ -315,8 +324,8 @@ export function IncidentPdfExporter({ incident, onClose, targetForm = "all" }) {
     const caseName = incident.caseNumber || incident.id || "Incident";
     const suffix = activeFormTab === 'headsUp' || activeFormTab === '1' ? '_Form1_HeadsUp'
       : activeFormTab === 'initialReport' || activeFormTab === '2' ? '_Form2_InitialReport'
-      : activeFormTab === 'investigation' || activeFormTab === '3' ? '_Form3_Investigation'
-      : '_All_Forms_Report';
+        : activeFormTab === 'investigation' || activeFormTab === '3' ? '_Form3_Investigation'
+          : '_All_Forms_Report';
 
     // If we have the backend PDF blob URL, download it directly
     if (pdfBlobUrl) {
@@ -394,13 +403,13 @@ export function IncidentPdfExporter({ incident, onClose, targetForm = "all" }) {
   let closureList = [];
 
   if (typeof incident.reopenLogs === 'string') {
-    try { reopenList = JSON.parse(incident.reopenLogs); } catch (e) {}
+    try { reopenList = JSON.parse(incident.reopenLogs); } catch (e) { }
   } else if (Array.isArray(incident.reopenLogs)) {
     reopenList = incident.reopenLogs;
   }
 
   if (typeof incident.closureHistory === 'string') {
-    try { closureList = JSON.parse(incident.closureHistory); } catch (e) {}
+    try { closureList = JSON.parse(incident.closureHistory); } catch (e) { }
   } else if (Array.isArray(incident.closureHistory)) {
     closureList = incident.closureHistory;
   }
@@ -563,8 +572,8 @@ export function IncidentPdfExporter({ incident, onClose, targetForm = "all" }) {
             <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, display: "flex", alignItems: "center", gap: "8px" }}>
               {activeFormTab === 'headsUp' || activeFormTab === '1' ? 'Form 1: Heads-Up Notification'
                 : activeFormTab === 'initialReport' || activeFormTab === '2' ? 'Form 2: Initial Incident Report'
-                : activeFormTab === 'investigation' || activeFormTab === '3' ? 'Form 3: Incident Investigation Report'
-                : 'Official Incident Document Viewer'}
+                  : activeFormTab === 'investigation' || activeFormTab === '3' ? 'Form 3: Incident Investigation Report'
+                    : 'Official Incident Document Viewer'}
             </h3>
             <p style={{ margin: 0, fontSize: 11.5, color: "#94a3b8" }}>
               {incident.caseNumber || (incident.id ? `INC-2026-${String(incident.id).padStart(4, '0')}` : "Incident")} — {incident.title || hu.title || "Details"}
@@ -599,7 +608,7 @@ export function IncidentPdfExporter({ incident, onClose, targetForm = "all" }) {
             onClick={handleDownloadPdf}
             style={{ background: "#10b981", color: "#fff", border: "none", padding: "8px 16px", borderRadius: 6, fontWeight: 700, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
           >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
             Download PDF
           </button>
           <button
@@ -679,7 +688,7 @@ export function IncidentPdfExporter({ incident, onClose, targetForm = "all" }) {
           </button>
         )}
 
-        {hasInvestigation && (
+        {!isNoFurtherInvestigation && hasInvestigation && (
           <button
             type="button"
             onClick={() => setActiveFormTab("investigation")}
@@ -1228,7 +1237,7 @@ export function IncidentPdfExporter({ incident, onClose, targetForm = "all" }) {
                       {(Array.isArray(inv.chronologyOfEvents) && inv.chronologyOfEvents.length > 0) ? (
                         inv.chronologyOfEvents.map((ev, idx) => (
                           <tr key={idx}>
-                            <td style={{ padding: 6, border: "1px solid #cbd5e1", fontWeight: 600 }}>{ev.time || ev.date || `Step ${idx+1}`}</td>
+                            <td style={{ padding: 6, border: "1px solid #cbd5e1", fontWeight: 600 }}>{ev.time || ev.date || `Step ${idx + 1}`}</td>
                             <td style={{ padding: 6, border: "1px solid #cbd5e1" }}>{ev.description || ev.event || "—"}</td>
                           </tr>
                         ))

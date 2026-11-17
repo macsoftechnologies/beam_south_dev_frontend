@@ -91,14 +91,64 @@ export function IncidentPdfExporter({ incident, onClose, targetForm = "all" }) {
   const inv = incident.investigation || incident.incident_investigation || {};
 
   const isTruthy = (v) => v === true || v === 1 || v === '1' || String(v).toLowerCase() === 'true';
-  const isNoFurtherInvestigation = isTruthy(incident.noFurtherInvestigation) ||
-    isTruthy(incident.no_further_investigation) ||
-    isTruthy(hu.noFurtherInvestigation) ||
-    isTruthy(hu.no_further_investigation) ||
-    isTruthy(ir.noFurtherInvestigation) ||
-    isTruthy(ir.no_further_investigation) ||
-    isTruthy(incident.incident?.noFurtherInvestigation) ||
-    isTruthy(incident.incident?.no_further_investigation);
+
+  const formatTimestamp = (dStr) => {
+    if (!dStr) return "—";
+    try {
+      const d = new Date(dStr);
+      if (isNaN(d.getTime())) return String(dStr).replace('T', ' ');
+      return d.toLocaleString('en-GB', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      }).replace(',', '');
+    } catch (e) {
+      return String(dStr);
+    }
+  };
+
+  // Step 1: Was waiver checked at Heads-Up?
+  const isStep1Waived = isTruthy(hu.noFurtherInvestigation) || isTruthy(hu.no_further_investigation);
+  let step1WaiverUser = "";
+  let step1WaiverTime = null;
+  if (isStep1Waived) {
+    step1WaiverTime = hu.approvedTime || hu.approved_time || hu.updatedTime || hu.updated_time || hu.submittedTime || hu.submitted_time;
+    step1WaiverUser = hu.approvedBy
+      ? `${hu.approvedBy}${hu.approverRole && !hu.approvedBy.includes(hu.approverRole) ? ` (${hu.approverRole})` : ''}`
+      : (hu.approverRole || hu.approver_role || hu.submittedBy || 'Site HSE Lead');
+  }
+  const step1WaiverFormattedDate = step1WaiverTime ? formatTimestamp(step1WaiverTime) : "—";
+
+  // Step 2: Was waiver checked at Initial Report?
+  const isStep2Waived = isTruthy(ir.noFurtherInvestigation) || isTruthy(ir.no_further_investigation) ||
+    (!isStep1Waived && (isTruthy(incident.noFurtherInvestigation) || isTruthy(incident.no_further_investigation)));
+  let step2WaiverUser = "";
+  let step2WaiverTime = null;
+  if (isStep2Waived) {
+    step2WaiverTime = ir.approvedTime || ir.approved_time || ir.updatedTime || ir.updated_time || ir.submittedTime || ir.submitted_time || incident.closedTime || incident.closed_time;
+    step2WaiverUser = ir.approvedBy
+      ? `${ir.approvedBy}${ir.approverRole && !ir.approvedBy.includes(ir.approverRole) ? ` (${ir.approverRole})` : ''}`
+      : (ir.approverRole || ir.approver_role || ir.submittedBy || incident.closedBy || incident.closed_by || 'Site HSE Approver');
+
+    if (!step2WaiverTime && (incident.closureHistory || incident.closure_history)) {
+      let ch = incident.closureHistory || incident.closure_history;
+      if (typeof ch === 'string') {
+        try { ch = JSON.parse(ch); } catch (e) { }
+      }
+      if (Array.isArray(ch) && ch.length > 0) {
+        const lastC = ch[ch.length - 1];
+        step2WaiverTime = lastC.closedTime || lastC.closed_time || lastC.timestamp;
+        if (!step2WaiverUser) step2WaiverUser = lastC.closedBy || lastC.closed_by;
+      }
+    }
+  }
+  const step2WaiverFormattedDate = step2WaiverTime ? formatTimestamp(step2WaiverTime) : "—";
+
+  // Overall waiver status
+  const isNoFurtherInvestigation = isStep1Waived || isStep2Waived;
 
   const hasHeadsUp = true;
   const hasInitialReport = Boolean(
@@ -711,7 +761,7 @@ export function IncidentPdfExporter({ incident, onClose, targetForm = "all" }) {
         {isNoFurtherInvestigation && (
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "6px", fontSize: "11.5px", color: "#34d399", background: "rgba(16, 185, 129, 0.15)", padding: "3px 10px", borderRadius: "6px", border: "1px solid rgba(16, 185, 129, 0.3)" }}>
             <span>✓</span>
-            <span>No Further Investigation Required</span>
+            <span>No Further Investigation Required (Waived by {isStep2Waived && !isStep1Waived ? step2WaiverUser : step1WaiverUser})</span>
           </div>
         )}
       </div>
@@ -797,6 +847,18 @@ export function IncidentPdfExporter({ incident, onClose, targetForm = "all" }) {
                       <tr>
                         <td style={{ background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Contractor(s) involved:</td>
                         <td colSpan="3" style={{ padding: 6, border: "1px solid #cbd5e1" }}>{incident.contractor || hu.contractorsInvolved || hu.contractor || "—"}</td>
+                      </tr>
+                      <tr>
+                        <td style={{ background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Further Investigation:</td>
+                        <td colSpan="3" style={{ padding: 6, border: "1px solid #cbd5e1", fontWeight: 600 }}>
+                          {isStep1Waived ? (
+                            <span style={{ color: "#059669" }}>
+                              Not Required (Waived) &bull; Waived by: <strong>{step1WaiverUser}</strong> ({step1WaiverFormattedDate})
+                            </span>
+                          ) : (
+                            <span style={{ color: "#2563eb" }}>Required</span>
+                          )}
+                        </td>
                       </tr>
                     </tbody>
                   </table>
@@ -889,8 +951,25 @@ export function IncidentPdfExporter({ incident, onClose, targetForm = "all" }) {
                       </tr>
                       <tr>
                         <td style={{ background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Approved By:</td>
-                        <td style={{ padding: 6, border: "1px solid #cbd5e1", fontWeight: 600 }}>{hu.reviewedBy || incident.approvedBy || "Superadmin"}</td>
+                        <td style={{ padding: 6, border: "1px solid #cbd5e1", fontWeight: 600 }}>
+                          {hu.approvedBy
+                            ? `${hu.approvedBy}${hu.approverRole && !hu.approvedBy.includes(hu.approverRole) ? ` (${hu.approverRole})` : ''}`
+                            : hu.reviewedBy || incident.approvedBy || "Site HSE Manager"}
+                        </td>
                       </tr>
+                      {isStep1Waived && (
+                        <tr>
+                          <td style={{ background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Further Investigation:</td>
+                          <td style={{ padding: 6, border: "1px solid #cbd5e1" }}>
+                            <div>
+                              <div style={{ fontWeight: 700, color: "#059669" }}>✓ No Further Investigation Required (Waived)</div>
+                              <div style={{ fontSize: "8.5px", color: "#475569", marginTop: "2px" }}>
+                                <strong>Waived By:</strong> {step1WaiverUser} &nbsp;|&nbsp; <strong>Waived On:</strong> {step1WaiverFormattedDate}
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
 
@@ -949,6 +1028,22 @@ export function IncidentPdfExporter({ incident, onClose, targetForm = "all" }) {
                       <tr>
                         <td style={{ background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Contractor(s) involved:</td>
                         <td colSpan="3" style={{ padding: 6, border: "1px solid #cbd5e1" }}>{incident.contractor || hu.contractorsInvolved || hu.contractor || "—"}</td>
+                      </tr>
+                      <tr>
+                        <td style={{ background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Further Investigation:</td>
+                        <td colSpan="3" style={{ padding: 6, border: "1px solid #cbd5e1", fontWeight: 600 }}>
+                          {isStep2Waived ? (
+                            <span style={{ color: "#059669" }}>
+                              Not Required (Waived) &bull; Waived by: <strong>{step2WaiverUser}</strong> ({step2WaiverFormattedDate})
+                            </span>
+                          ) : (isStep1Waived ? (
+                            <span style={{ color: "#059669" }}>
+                              Not Required (Waived at Step 1 by {step1WaiverUser})
+                            </span>
+                          ) : (
+                            <span style={{ color: "#2563eb" }}>Required (Stage 3 Investigation within 7 days)</span>
+                          ))}
+                        </td>
                       </tr>
                     </tbody>
                   </table>
@@ -1145,7 +1240,39 @@ export function IncidentPdfExporter({ incident, onClose, targetForm = "all" }) {
                       </tr>
                       <tr>
                         <td style={{ background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Approved By:</td>
-                        <td style={{ padding: 6, border: "1px solid #cbd5e1", fontWeight: 600 }}>{ir.approvedBy || "HSE Director"}</td>
+                        <td style={{ padding: 6, border: "1px solid #cbd5e1", fontWeight: 600 }}>
+                          {ir.approvedBy
+                            ? `${ir.approvedBy}${ir.approverRole && !ir.approvedBy.includes(ir.approverRole) ? ` (${ir.approverRole})` : ''}`
+                            : (ir.approverRole || "Site HSE Manager")}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style={{ background: "#0f172a", color: "#fff", fontWeight: 700, padding: 6, border: "1px solid #0f172a" }}>Further Investigation:</td>
+                        <td style={{ padding: 6, border: "1px solid #cbd5e1" }}>
+                          {isStep2Waived ? (
+                            <div>
+                              <div style={{ fontWeight: 700, color: "#059669", fontSize: "10px" }}>
+                                ✓ No further investigation required (Incident can be closed after approval)
+                              </div>
+                              <div style={{ fontSize: "9px", color: "#334155", marginTop: "2px" }}>
+                                <strong>Waived By:</strong> {step2WaiverUser} &nbsp;|&nbsp; <strong>Waived On:</strong> {step2WaiverFormattedDate}
+                              </div>
+                            </div>
+                          ) : (isStep1Waived ? (
+                            <div>
+                              <div style={{ fontWeight: 700, color: "#059669", fontSize: "10px" }}>
+                                ✓ No further investigation required (Waived at Heads-Up)
+                              </div>
+                              <div style={{ fontSize: "9px", color: "#334155", marginTop: "2px" }}>
+                                <strong>Waived By:</strong> {step1WaiverUser} &nbsp;|&nbsp; <strong>Waived On:</strong> {step1WaiverFormattedDate}
+                              </div>
+                            </div>
+                          ) : (
+                            <span style={{ fontWeight: 600, color: "#2563eb" }}>
+                              Further investigation required (Stage 3 Investigation within 7 days)
+                            </span>
+                          ))}
+                        </td>
                       </tr>
                     </tbody>
                   </table>

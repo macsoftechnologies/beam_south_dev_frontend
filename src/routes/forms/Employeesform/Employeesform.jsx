@@ -32,15 +32,54 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [roleId, setRoleId] = useState("");
   const [companyName, setCompanyName] = useState("");
-  const [subContId, setSubContId] = useState("");
+  const [subContId, setSubContId] = useState(() => {
+    if (isEdit && initialData && initialData.subContId !== undefined && initialData.subContId !== null) {
+      return String(initialData.subContId);
+    }
+    return "";
+  });
   const [departId, setDepartId] = useState("");
   const [obserId, setObserId] = useState("");
   const [access, setAccess] = useState(true);
-  const [selectedModules, setSelectedModules] = useState([
-    "permit-to-work",
-  ]);
-  const [moduleUserTypes, setModuleUserTypes] = useState({
-    "permit-to-work": "Department",
+  const [selectedModules, setSelectedModules] = useState(() => {
+    if (isEdit && initialData) {
+      const rawModules = initialData.moduleAccess || initialData.module_access;
+      if (rawModules) {
+        const parsedMap = parseModuleAccess(rawModules);
+        const mods = Object.keys(parsedMap);
+        if (mods.length > 0) return mods;
+      }
+    }
+    return ["permit-to-work"];
+  });
+  const [moduleUserTypes, setModuleUserTypes] = useState(() => {
+    if (isEdit && initialData) {
+      const rawUserType = initialData.userType || "";
+      const initialTypes = rawUserType
+        ? (typeof rawUserType === "string" ? rawUserType.split(",") : Array.isArray(rawUserType) ? rawUserType : [rawUserType])
+        : [];
+      const rawModules = initialData.moduleAccess || initialData.module_access;
+      if (rawModules) {
+        const parsedMap = parseModuleAccess(rawModules);
+        const mods = Object.keys(parsedMap);
+        const typeMap = {};
+        mods.forEach((m) => {
+          let role = parsedMap[m] || initialTypes[0] || "Department";
+          if (m === "safety-inspection" && role === "Subcontractor") {
+            role = "Department";
+          } else if (m !== "permit-to-work" && role === "Department1") {
+            role = "Department";
+          }
+          typeMap[m] = role;
+        });
+        if (!typeMap["permit-to-work"] && initialTypes[0]) {
+          typeMap["permit-to-work"] = initialTypes[0];
+        }
+        return typeMap;
+      }
+      return { "permit-to-work": initialTypes[0] || "Department" };
+    }
+    return { "permit-to-work": "Department" };
   });
   const [email, setEmail] = useState("");
   const [enableEmailOtp, setEnableEmailOtp] = useState(false);
@@ -93,7 +132,9 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
         ? (typeof rawUserType === "string" ? rawUserType.split(",") : Array.isArray(rawUserType) ? rawUserType : [rawUserType])
         : [];
 
-      setCompanyName(initialData.companyName || "");
+      const isPureContractor = initialTypes.includes("Subcontractor") && !initialTypes.includes("Department") && !initialTypes.includes("Department1");
+      const initCompName = (isPureContractor && initialData.companyName === "NNE") ? "" : (initialData.companyName || "");
+      setCompanyName(initCompName);
       setSubContId(initialData.subContId !== undefined && initialData.subContId !== null ? String(initialData.subContId) : "");
       setDepartId(initialData.departId !== undefined && initialData.departId !== null ? String(initialData.departId) : "");
       setObserId(initialData.obserId !== undefined && initialData.obserId !== null ? String(initialData.obserId) : "");
@@ -169,12 +210,25 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
   // Show "Select Contractor" when Contractor is selected in any module dropdown
   const shouldShowContractor = hasContractor;
 
-  // Automatically default companyName if Department selected and no Contractor selected
+  // Synchronize companyName based on role types and selected contractor
   useEffect(() => {
-    if (hasDepartment && !hasContractor && !companyName) {
-      setCompanyName("NNE");
+    if (hasContractor && subContId && subcontractorList.length > 0) {
+      const matched = subcontractorList.find((s) => String(s.id) === String(subContId));
+      if (matched?.subContractorName) {
+        if (!companyName || companyName === "NNE" || !hasDepartment) {
+          setCompanyName(matched.subContractorName);
+        }
+      }
+    } else if (hasDepartment && !hasContractor) {
+      if (!companyName || (subcontractorList.length > 0 && subcontractorList.some((s) => s.subContractorName === companyName))) {
+        setCompanyName("NNE");
+      }
+    } else if (!hasDepartment && hasContractor && !subContId) {
+      if (companyName === "NNE") {
+        setCompanyName("");
+      }
     }
-  }, [hasDepartment, hasContractor, companyName]);
+  }, [hasDepartment, hasContractor, subContId, subcontractorList, companyName]);
 
   // Cleanup selection IDs if types are no longer in selected modules
   useEffect(() => {
@@ -325,6 +379,16 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
 
     const resolvedObserId = obserId || (hasObserver ? (departId || 1) : null);
 
+    const matchedContractor = subcontractorList.find((s) => String(s.id) === String(subContId));
+    let finalCompanyName = companyName;
+    if (hasContractor && matchedContractor) {
+      if (!finalCompanyName || finalCompanyName === "NNE" || !hasDepartment) {
+        finalCompanyName = matchedContractor.subContractorName;
+      }
+    } else if (hasDepartment && !hasContractor) {
+      finalCompanyName = finalCompanyName || "NNE";
+    }
+
     const payload = {
       badgeId: employeeBadgeId,
       employeeName: employeeName,
@@ -333,7 +397,7 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
       otpNotificationType,
       roleId: roleId ? Number(roleId) : 4,
       userType: activeEmployeeTypes.join(","),
-      companyName: companyName || (hasDepartment && !hasContractor ? "NNE" : ""),
+      companyName: finalCompanyName,
       subContId: shouldShowContractor && subContId ? Number(subContId) : null,
       departId: shouldShowDepartment && departId ? Number(departId) : null,
       obserId: hasObserver ? Number(resolvedObserId || 1) : null,

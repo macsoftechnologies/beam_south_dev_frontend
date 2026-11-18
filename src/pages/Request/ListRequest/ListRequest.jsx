@@ -1663,6 +1663,7 @@ const getInitialPage = () => {
   const [rejectReason, setRejectReason] = useState("");
   const [cancelReason, setCancelReason] = useState("");
   const [closeNote, setCloseNote] = useState("");
+  const [closeReason, setCloseReason] = useState("");
   const [submitStatusOverride, setSubmitStatusOverride] = useState(null);
   const [closingImageFiles, setClosingImageFiles] = useState([]);
 
@@ -2420,6 +2421,149 @@ const getInitialPage = () => {
     return isDept || isDept1;
   };
 
+  const getPermitZoneStatusChangeInfo = useCallback((row) => {
+    if (!row) {
+      return {
+        isChanged: false,
+        currentStatuses: [],
+        currentStatusLabels: [],
+        permitUnderLabel: "",
+      };
+    }
+
+    const statusLabelMap = {
+      UC: "Construction",
+      C: "Commissioning",
+      HO: "Hand Over",
+    };
+
+    const permitUnderRaw = (row.permit_under || row.permitUnder || "").toString().trim();
+    const permitUnderNorm = permitUnderRaw.toLowerCase();
+    const expectedZoneStatus =
+      permitUnderNorm === "commissioning"
+        ? "C"
+        : permitUnderNorm === "construction"
+          ? "UC"
+          : null;
+
+    const matchedZones = [];
+    const seenIds = new Set();
+    const tryAddZone = (z) => {
+      if (!z) return;
+      const zId = String(z.id ?? z.zoneStatusId ?? "");
+      if (!zId || seenIds.has(zId)) return;
+      seenIds.add(zId);
+      matchedZones.push(z);
+    };
+
+    const rowBuildingId = row.Building_Id ?? row.building_id;
+    const rawZoneId = row.Zone_Id ?? row.zone_id;
+
+    // 1. Match directly by Zone_Id
+    if (rawZoneId !== undefined && rawZoneId !== null && String(rawZoneId).trim() !== "") {
+      const ids = String(rawZoneId)
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      ids.forEach((idStr) => {
+        let match = zonesList.find(
+          (z) =>
+            String(z.id ?? z.zoneStatusId) === idStr &&
+            (!rowBuildingId || !z.building_id || String(z.building_id) === String(rowBuildingId))
+        );
+        if (!match) {
+          match = zonesList.find((z) => String(z.id ?? z.zoneStatusId) === idStr);
+        }
+        tryAddZone(match);
+      });
+    }
+
+    // 2. Fallback: match via Room_Nos -> roomsList -> zone_id
+    if (matchedZones.length === 0 && roomsList.length > 0 && zonesList.length > 0) {
+      const rawRooms = row.Room_Nos ?? row.room_nos ?? row.room_names ?? "";
+      const roomTokens = String(rawRooms)
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (roomTokens.length > 0) {
+        const lowerTokens = new Set(roomTokens.map((t) => t.toLowerCase()));
+        roomsList.forEach((r) => {
+          const bMatch = !rowBuildingId || !r.building_id || String(r.building_id) === String(rowBuildingId);
+          if (!bMatch) return;
+          const rId = String(r.room_id ?? r.id ?? "").toLowerCase();
+          const rName = String(r.room_name ?? r.roomName ?? "").trim().toLowerCase();
+          if (lowerTokens.has(rId) || lowerTokens.has(rName)) {
+            const zMatch = zonesList.find((z) => String(z.id ?? z.zoneStatusId) === String(r.zone_id));
+            tryAddZone(zMatch);
+          }
+        });
+      }
+    }
+
+    // 3. Fallback: match via zone_name / zone string within the same building
+    if (matchedZones.length === 0 && zonesList.length > 0) {
+      const rawZoneNames =
+        typeof row.zone_name === "string" && row.zone_name.trim()
+          ? row.zone_name
+          : typeof row.zone === "string" && row.zone.trim()
+            ? row.zone
+            : "";
+      if (rawZoneNames && rawZoneNames !== "—") {
+        const nameTokens = rawZoneNames
+          .split(",")
+          .map((s) => s.trim().toLowerCase())
+          .filter(Boolean);
+        nameTokens.forEach((zNameLower) => {
+          const zMatch = zonesList.find(
+            (z) =>
+              String(z.zone ?? z.zone_name ?? "").trim().toLowerCase() === zNameLower &&
+              (!rowBuildingId || !z.building_id || String(z.building_id) === String(rowBuildingId))
+          );
+          tryAddZone(zMatch);
+        });
+      }
+    }
+
+    let uniqueStatuses = [];
+    if (matchedZones.length > 0) {
+      uniqueStatuses = Array.from(
+        new Set(
+          matchedZones
+            .map((z) => (z.status || "").toString().toUpperCase().trim())
+            .filter(Boolean)
+        )
+      );
+    } else if (row.current_zone_status) {
+      uniqueStatuses = Array.from(
+        new Set(
+          String(row.current_zone_status)
+            .split(",")
+            .map((s) => s.toUpperCase().trim())
+            .filter(Boolean)
+        )
+      );
+    }
+
+    const hasHO = uniqueStatuses.includes("HO");
+    const hasMixed = uniqueStatuses.length > 1;
+    const hasMismatch =
+      expectedZoneStatus !== null &&
+      uniqueStatuses.length === 1 &&
+      uniqueStatuses[0] !== expectedZoneStatus;
+
+    const isChanged =
+      uniqueStatuses.length > 0
+        ? hasHO || hasMixed || hasMismatch
+        : Boolean(row.is_zone_status_changed);
+
+    return {
+      isChanged,
+      currentStatuses: uniqueStatuses,
+      currentStatusLabels: uniqueStatuses.map((s) => statusLabelMap[s] || s),
+      permitUnderLabel: permitUnderRaw || "Original Status",
+    };
+  }, [zonesList, roomsList]);
+
   const proceedWithStatusChange = (row, status) => {
     const currentStatus = row?.Request_status || row?.request_status || "";
     const workingDateVal = row?.Working_Date || row?.workingDate || row?.working_date || "";
@@ -2434,6 +2578,7 @@ const getInitialPage = () => {
     setRejectReason("");
     setCancelReason("");
     setCloseNote("");
+    setCloseReason("");
     setClosingImageFiles([]);
     setOpenActionType(isWorkingDateToday ? "Open" : "Cancel");
     setApproveActionType(canApproveThis ? "Approve" : "Reject");
@@ -2458,6 +2603,25 @@ const getInitialPage = () => {
 
     const permitType = row.permit_type || "";
     const permitUnder = row.permit_under || "";
+
+    // Zone status change protection when closing an Opened permit:
+    // Restrict non-admin users and allow only Admin to close with a close reason.
+    if (status === "Closed" && currentStatus.toLowerCase().trim() === "opened") {
+      const zoneChangeInfo = getPermitZoneStatusChangeInfo(row);
+      if (zoneChangeInfo.isChanged) {
+        if (!isAdmin) {
+          const statusText =
+            zoneChangeInfo.currentStatusLabels.length > 0
+              ? ` (${zoneChangeInfo.currentStatusLabels.join(", ")})`
+              : "";
+          return showError(
+            `Cannot close this permit because the zone status has changed${statusText} from ${zoneChangeInfo.permitUnderLabel}. Only an Admin can close this permit with a close reason.`
+          );
+        }
+        proceedWithStatusChange(row, "Closed");
+        return;
+      }
+    }
 
     // Role based validations for Pre-Approved, Approved, Opened, and Rejected transitions
     if (!isAdmin && !isMultiDept && !isSubcontractor) {
@@ -2723,37 +2887,62 @@ const getInitialPage = () => {
         payload.ConM_initials1 = modalTarget.ConM_initials1 || "";
       }
     } else if (nextStatus === "Closed") {
-      if (!isAdmin && !isMultiDept && !isSubcontractor && !canUserClose(modalTarget)) {
-        const pType = (modalTarget.permit_type || modalTarget.permitType || "").trim().toLowerCase();
-        const pUnder = (modalTarget.permit_under || modalTarget.permitUnder || "").trim().toLowerCase();
-        if (pUnder === "construction" && pType === "construction") {
-          return showError("Only CONM role can close Construction-only permits.");
+      const targetCurStatus = (modalTarget?.Request_status || modalTarget?.request_status || "").toLowerCase().trim();
+      const targetZoneChangeInfo =
+        targetCurStatus === "opened"
+          ? getPermitZoneStatusChangeInfo(modalTarget)
+          : { isChanged: false, currentStatusLabels: [], permitUnderLabel: "" };
+
+      if (targetZoneChangeInfo.isChanged) {
+        if (!isAdmin) {
+          const statusText =
+            targetZoneChangeInfo.currentStatusLabels.length > 0
+              ? ` (${targetZoneChangeInfo.currentStatusLabels.join(", ")})`
+              : "";
+          return showError(
+            `Cannot close this permit because the zone status has changed${statusText} from ${targetZoneChangeInfo.permitUnderLabel}. Only an Admin can close this permit with a close reason.`
+          );
         }
-        if (pUnder === "commissioning" && pType === "commissioning") {
-          return showError("Only COMM role can close Commissioning-only permits.");
+        if (!closeReason.trim()) {
+          return showError("Please enter a close reason for closing this permit after zone status change.");
         }
-        return showError("You do not have permission to close this permit.");
-      }
-      if (!closeNote.trim()) return showError("Please enter closing notes / remarks.");
-      payload.close_note = closeNote.trim();
-      if (modalTarget.Hot_work === 1) {
-        if (hHeatSource === "" || hHeatSource === null || hHeatSource === undefined) {
-          return showError("Please inspect the work area for smoldering materials or residual heat.");
+        payload.close_reason = closeReason.trim();
+        if (closeNote.trim()) {
+          payload.close_note = closeNote.trim();
         }
-        if (hWorkplaceCheck === "" || hWorkplaceCheck === null || hWorkplaceCheck === undefined) {
-          return showError("Please confirm if all tools and equipment have been removed.");
+      } else {
+        if (!isAdmin && !isMultiDept && !isSubcontractor && !canUserClose(modalTarget)) {
+          const pType = (modalTarget.permit_type || modalTarget.permitType || "").trim().toLowerCase();
+          const pUnder = (modalTarget.permit_under || modalTarget.permitUnder || "").trim().toLowerCase();
+          if (pUnder === "construction" && pType === "construction") {
+            return showError("Only CONM role can close Construction-only permits.");
+          }
+          if (pUnder === "commissioning" && pType === "commissioning") {
+            return showError("Only COMM role can close Commissioning-only permits.");
+          }
+          return showError("You do not have permission to close this permit.");
         }
-        if (hFireDetectors === "" || hFireDetectors === null || hFireDetectors === undefined) {
-          return showError("Please confirm if the area has been cleaned and restored.");
+        if (!closeNote.trim()) return showError("Please enter closing notes / remarks.");
+        payload.close_note = closeNote.trim();
+        if (modalTarget.Hot_work === 1) {
+          if (hHeatSource === "" || hHeatSource === null || hHeatSource === undefined) {
+            return showError("Please inspect the work area for smoldering materials or residual heat.");
+          }
+          if (hWorkplaceCheck === "" || hWorkplaceCheck === null || hWorkplaceCheck === undefined) {
+            return showError("Please confirm if all tools and equipment have been removed.");
+          }
+          if (hFireDetectors === "" || hFireDetectors === null || hFireDetectors === undefined) {
+            return showError("Please confirm if the area has been cleaned and restored.");
+          }
+          if (!hStartTime || !hEndTime) {
+            return showError("Please specify check start and end times.");
+          }
+          payload.h_heat_source = String(hHeatSource);
+          payload.h_workplace_check = String(hWorkplaceCheck);
+          payload.h_fire_detectors = String(hFireDetectors);
+          payload.h_start_time = hStartTime;
+          payload.h_end_time = hEndTime;
         }
-        if (!hStartTime || !hEndTime) {
-          return showError("Please specify check start and end times.");
-        }
-        payload.h_heat_source = String(hHeatSource);
-        payload.h_workplace_check = String(hWorkplaceCheck);
-        payload.h_fire_detectors = String(hFireDetectors);
-        payload.h_start_time = hStartTime;
-        payload.h_end_time = hEndTime;
       }
     } else if (nextStatus === "Pre-Approved" || nextStatus === "Approved") {
       if (!initials.trim()) return showError("Initials signature is required.");
@@ -3354,6 +3543,11 @@ const getInitialPage = () => {
       // Status chip render
       const statusClass = `status-badge status-badge--${row.Request_status?.toLowerCase().replace(" ", "-")}`;
 
+      const rowZoneChangeInfo =
+        row.Request_status === "Opened"
+          ? getPermitZoneStatusChangeInfo(row)
+          : { isChanged: false, currentStatusLabels: [], permitUnderLabel: "" };
+
       const handleStatusClick = () => {
         if (isObserver) return;
         // If status is Draft, click opens edit form
@@ -3392,6 +3586,19 @@ const getInitialPage = () => {
           } else if (row.Request_status === "Approved") {
             promptApprovedAction(row);
           } else if (row.Request_status === "Opened") {
+            if (rowZoneChangeInfo.isChanged) {
+              if (!isAdmin) {
+                const statusText =
+                  rowZoneChangeInfo.currentStatusLabels.length > 0
+                    ? ` (${rowZoneChangeInfo.currentStatusLabels.join(", ")})`
+                    : "";
+                return showError(
+                  `Cannot close this permit because the zone status has changed${statusText} from ${rowZoneChangeInfo.permitUnderLabel}. Only an Admin can close this permit with a close reason.`
+                );
+              }
+              handleStatusTransition(row, "Closed");
+              return;
+            }
             if (!canUserClose(row)) {
               const pType = (row.permit_type || row.permitType || "").trim().toLowerCase();
               const pUnder = (row.permit_under || row.permitUnder || "").trim().toLowerCase();
@@ -3408,11 +3615,19 @@ const getInitialPage = () => {
         }
       };
 
+      const statusTooltip =
+        row.Request_status === "Opened" && rowZoneChangeInfo.isChanged
+          ? isAdmin
+            ? `Zone status changed (${rowZoneChangeInfo.currentStatusLabels.join(", ")}) — click to close as Admin with a close reason`
+            : `Zone status changed (${rowZoneChangeInfo.currentStatusLabels.join(", ")}) — only Admin can close this permit`
+          : undefined;
+
       const statusCell = (
         <span
           className={statusClass}
           onClick={isObserver ? undefined : handleStatusClick}
           style={{ cursor: isObserver ? "default" : "pointer" }}
+          title={statusTooltip}
         >
           {row.Request_status}
         </span>
@@ -3501,7 +3716,26 @@ const getInitialPage = () => {
         operationsCell
       };
     });
-  }, [requests, selectedIds, contractors, buildingsList, isSubcontractor, canBulkAction, isAdmin, currentUser, isDept, isDept1, isMultiDept, checkIfHideCheckbox]);
+  }, [requests, selectedIds, contractors, buildingsList, isSubcontractor, canBulkAction, isAdmin, currentUser, isDept, isDept1, isMultiDept, checkIfHideCheckbox, getPermitZoneStatusChangeInfo]);
+
+  const modalZoneChangeInfo = useMemo(() => {
+    if (
+      modalStatus === "Closed" &&
+      modalTarget &&
+      !Array.isArray(modalTarget) &&
+      (modalTarget.Request_status || modalTarget.request_status || "").toLowerCase().trim() === "opened"
+    ) {
+      return getPermitZoneStatusChangeInfo(modalTarget);
+    }
+    return {
+      isChanged: false,
+      currentStatuses: [],
+      currentStatusLabels: [],
+      permitUnderLabel: "",
+    };
+  }, [modalStatus, modalTarget, getPermitZoneStatusChangeInfo]);
+
+  const isAdminZoneChangeClose = modalStatus === "Closed" && isAdmin && modalZoneChangeInfo.isChanged;
 
   const totalPages = Math.ceil(totalCount / limit);
 
@@ -4280,7 +4514,27 @@ const getInitialPage = () => {
               )}
 
               {/* Closing Confirmation Declaration */}
-              {modalStatus === "Closed" && (
+              {modalStatus === "Closed" && isAdminZoneChangeClose && (
+                <div style={{
+                  background: "rgba(245, 158, 11, 0.14)",
+                  borderLeft: "4px solid #f59e0b",
+                  padding: "12px 16px",
+                  borderRadius: "6px",
+                  marginBottom: "16px",
+                  color: "var(--text-h, inherit)",
+                  fontSize: "13px",
+                  fontWeight: "500",
+                  lineHeight: "1.5"
+                }}>
+                  <div style={{ fontWeight: "700", marginBottom: "4px", color: "#f59e0b" }}>
+                    Zone Status Changed — Admin Close Override
+                  </div>
+                  This permit was created under <strong>{modalZoneChangeInfo.permitUnderLabel}</strong>, but the zone status is now{" "}
+                  <strong>{modalZoneChangeInfo.currentStatusLabels.join(", ") || "Changed"}</strong>. Regular users are restricted from closing this permit. Please enter a close reason below to close it as Admin.
+                </div>
+              )}
+
+              {modalStatus === "Closed" && !isAdminZoneChangeClose && (
                 <div style={{
                   background: "rgba(16, 185, 129, 0.12)",
                   borderLeft: "4px solid #10b981",
@@ -4482,11 +4736,34 @@ const getInitialPage = () => {
                 </div>
               )}
 
+              {/* Admin Close Reason (when zone status changed) */}
+              {isAdminZoneChangeClose && (
+                <div className="df-field" style={{ marginBottom: "16px" }}>
+                  <label className="df-label">
+                    Close Reason <span className="df-required">*</span>
+                  </label>
+                  <textarea
+                    required
+                    placeholder="Enter reason for closing this permit after zone status change..."
+                    className="df-textarea"
+                    rows={3}
+                    value={closeReason}
+                    onChange={(e) => setCloseReason(e.target.value)}
+                  />
+                </div>
+              )}
+
               {/* Close Checklist note */}
               {modalStatus === "Closed" && (
                 <div className="df-field" style={{ marginBottom: "16px" }}>
                   <label className="df-label">
-                    Closing Notes / Remarks <span className="df-required">*</span>
+                    {isAdminZoneChangeClose ? (
+                      <>Closing Notes / Remarks (Optional)</>
+                    ) : (
+                      <>
+                        Closing Notes / Remarks <span className="df-required">*</span>
+                      </>
+                    )}
                   </label>
                   <textarea
                     placeholder="Enter comments on close-out checklists..."
@@ -4570,7 +4847,7 @@ const getInitialPage = () => {
               )}
 
               {/* Hot Work closing check list */}
-              {modalStatus === "Closed" && modalTarget.Hot_work === 1 && (
+              {modalStatus === "Closed" && !isAdminZoneChangeClose && modalTarget.Hot_work === 1 && (
                 <div style={{ border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px", padding: "16px", background: "rgba(255,255,255,0.02)", marginBottom: "16px" }}>
                   <h4 style={{ color: "#00e5a0", fontSize: "13px", margin: "0 0 12px 0", textTransform: "uppercase", letterSpacing: "0.5px" }}>Hot Work Closing Workplace Check</h4>
 
@@ -4728,19 +5005,21 @@ const getInitialPage = () => {
               </button>
               {modalStatus === "Closed" ? (
                 <>
-                  <button
-                    type="submit"
-                    className="df-btn df-btn--secondary"
-                    onClick={() => setSubmitStatusOverride("Opened")}
-                  >
-                    Update Status
-                  </button>
+                  {!isAdminZoneChangeClose && (
+                    <button
+                      type="submit"
+                      className="df-btn df-btn--secondary"
+                      onClick={() => setSubmitStatusOverride("Opened")}
+                    >
+                      Update Status
+                    </button>
+                  )}
                   <button
                     type="submit"
                     className="df-btn df-btn--submit"
                     onClick={() => setSubmitStatusOverride("Closed")}
                   >
-                    Close Permit
+                    {isAdminZoneChangeClose ? "Close Permit (Admin Override)" : "Close Permit"}
                   </button>
                 </>
               ) : (((modalStatus === "Pre-Approved" || modalStatus === "Approved") && approveActionType === "Reject") || modalStatus === "Rejected") ? (

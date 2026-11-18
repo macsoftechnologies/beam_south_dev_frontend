@@ -1600,7 +1600,7 @@ const Reports = () => {
       "Start_Time", "End_Time", "Night_Shift", "New_End_Time", "Request_status", "Notes",
       "Working_Date", "Day", "New_Date", "New_Day", "CoNM_initials", "CoMM_initials",
       "Opening_Person_Name", "Opening_Time", "Closing_Person_Name", "Closing_Time",
-      "Reject_Reason", "Cancel_Reason"
+      "Reject_Reason", "Cancel_Reason", "Close_Reason"
     ];
 
     const rows = tableData.map(x => {
@@ -1641,7 +1641,8 @@ const Reports = () => {
         Closing_Person_Name: x.closed_by || x.close_note || x.check_out_user || "",
         Closing_Time: formatReportTime(x.close_time || x.check_out_time || x.h_end_time),
         Reject_Reason: x.reject_reason || "",
-        Cancel_Reason: x.cancel_reason || ""
+        Cancel_Reason: x.cancel_reason || "",
+        Close_Reason: x.close_reason || ""
       };
 
       return headers.map(header => {
@@ -1759,7 +1760,7 @@ const Reports = () => {
       "Start_Time", "End_Time", "Night_Shift", "New_End_Time", "Request_status", "Notes",
       "Working_Date", "Day", "New_Date", "New_Day", "CoNM_initials", "CoMM_initials",
       "Opening_Person_Name", "Opening_Time", "Closing_Person_Name", "Closing_Time",
-      "Reject_Reason", "Cancel_Reason"
+      "Reject_Reason", "Cancel_Reason", "Close_Reason"
     ];
 
     const rowsData = tableData.map(x => {
@@ -1800,7 +1801,8 @@ const Reports = () => {
         Closing_Person_Name: x.closed_by || x.close_note || x.check_out_user || "",
         Closing_Time: formatReportTime(x.close_time || x.check_out_time || x.h_end_time),
         Reject_Reason: x.reject_reason || "",
-        Cancel_Reason: x.cancel_reason || ""
+        Cancel_Reason: x.cancel_reason || "",
+        Close_Reason: x.close_reason || ""
       };
     });
 

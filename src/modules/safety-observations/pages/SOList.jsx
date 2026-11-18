@@ -153,13 +153,14 @@ function SOList() {
 
   const handleDownloadPdf = async (e, obsItem) => {
     e.stopPropagation();
+    if (!obsItem || downloadingObsId === obsItem.id) return;
     try {
       setDownloadingObsId(obsItem.id);
       const fileName = `${obsItem.observationNumber || `SO-${obsItem.id}`}_Safety_Observation.pdf`;
       await observationService.downloadObservationPdf(obsItem.id, fileName, obsItem);
     } catch (err) {
       console.error("Failed to download observation PDF:", err);
-      alert("Failed to download Observation PDF.");
+      alert(err?.message || "Failed to download Observation PDF.");
     } finally {
       setDownloadingObsId(null);
     }

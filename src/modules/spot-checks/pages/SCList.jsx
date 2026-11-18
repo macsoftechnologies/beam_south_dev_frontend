@@ -97,6 +97,7 @@ export default function SCList() {
 
   const [filter, setFilter] = useState({ q: '', compliance: '', building: '', company: '' });
   const [isDeleting, setIsDeleting] = useState(false);
+  const [downloadingId, setDownloadingId] = useState(null);
 
   // Dropdown option lists
   const [buildingsList, setBuildingsList] = useState([]);
@@ -216,6 +217,7 @@ export default function SCList() {
 
   const handleDownloadPdf = async (r, e) => {
     e.stopPropagation();
+    if (!r || downloadingId === r.id) return;
     const result = await Swal.fire({
       title: "Include Attached Files?",
       text: "Do you want to combine attached document files into the exported PDF? (Selecting 'No' will still display all attachment details on the form without appending the document files).",
@@ -234,6 +236,7 @@ export default function SCList() {
     }
 
     const includeAttachments = result.isConfirmed;
+    setDownloadingId(r.id);
     try {
       await spotCheckService.downloadSpotCheckPdf(r.id, `${r.spotCheckRef || `SC-${r.id}`}_HSE_Spot_Check.pdf`, includeAttachments);
       showSuccess("PDF export downloaded successfully");
@@ -242,6 +245,8 @@ export default function SCList() {
       showError("Failed to export PDF directly. Opening browser preview...");
       const pdfUrl = spotCheckService.getPdfUrl(r.id, includeAttachments);
       window.open(pdfUrl, '_blank');
+    } finally {
+      setDownloadingId(null);
     }
   };
 
@@ -534,10 +539,11 @@ export default function SCList() {
                             e.currentTarget.style.color = "#0ea5e9";
                             e.currentTarget.style.borderColor = "rgba(14, 165, 233, 0.3)";
                           }}
-                          title="Download PDF"
+                          title={downloadingId === r.id ? "Downloading PDF..." : "Download PDF"}
                           onClick={(e) => handleDownloadPdf(r, e)}
+                          disabled={downloadingId === r.id}
                         >
-                          <i className="ti ti-download"></i>
+                          <i className={downloadingId === r.id ? "ti ti-loader ti-spin" : "ti ti-download"}></i>
                         </button>
                         {isAdmin && !isReadOnly && (
                           <button

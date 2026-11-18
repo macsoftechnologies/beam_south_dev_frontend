@@ -13,10 +13,11 @@ export default function SCView() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+  const [pdfDownloadLabel, setPdfDownloadLabel] = useState("Exporting...");
   const [selectedPreviewImage, setSelectedPreviewImage] = useState(null);
 
   const handleDownloadPdf = async () => {
-    if (!spotCheck) return;
+    if (!spotCheck || isDownloadingPdf) return;
 
     const result = await Swal.fire({
       title: "Include Attached Files?",
@@ -38,9 +39,12 @@ export default function SCView() {
     const includeAttachments = result.isConfirmed;
 
     setIsDownloadingPdf(true);
+    setPdfDownloadLabel("Generating...");
     try {
       const fileName = `${spotCheck.spotCheckRef || `SC-${spotCheck.id}`}_HSE_Spot_Check.pdf`;
-      await spotCheckService.downloadSpotCheckPdf(spotCheck.id, fileName, includeAttachments);
+      await spotCheckService.downloadSpotCheckPdf(spotCheck.id, fileName, includeAttachments, (progress) => {
+        if (progress?.label) setPdfDownloadLabel(progress.label);
+      });
       showSuccess("PDF export downloaded successfully");
     } catch (err) {
       console.error('Failed to download spot check PDF:', err);
@@ -49,6 +53,7 @@ export default function SCView() {
       window.open(pdfUrl, '_blank');
     } finally {
       setIsDownloadingPdf(false);
+      setPdfDownloadLabel("Exporting...");
     }
   };
 
@@ -212,7 +217,7 @@ export default function SCView() {
             disabled={isDownloadingPdf}
           >
             <i className={`ti ${isDownloadingPdf ? 'ti-loader ti-spin' : 'ti-download'}`}></i>
-            {isDownloadingPdf ? 'Exporting...' : 'Export'}
+            {isDownloadingPdf ? pdfDownloadLabel : 'Export'}
           </button>
         </div>
       </div>

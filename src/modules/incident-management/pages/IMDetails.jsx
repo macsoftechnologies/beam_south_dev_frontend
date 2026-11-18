@@ -17,6 +17,7 @@ import IncidentCategoryDropdown from "../components/IncidentCategoryDropdown";
 import IncidentCategoryReferenceTable, { INCIDENT_CATEGORY_MAP } from "../components/IncidentCategoryReferenceTable";
 import SeverityDropdown, { getCategorySeverityConfig } from "../components/SeverityDropdown";
 import { getDenmarkDateString, parseUTCToDate, parseCopenhagenDateTime, formatToDenmark24Hour, formatToDenmark24HourObj } from "../../../utils/dateUtils";
+import { triggerBlobDownload } from "../../../utils/pdfDownload";
 import "../../../styles/module-shared.css";
 import "./IMDetails.css";
 import { AnalogTimePicker } from "./IMCreate";
@@ -601,7 +602,9 @@ export default function IMDetails() {
   const [loading, setLoading] = useState(true);
   const [contractorsList, setContractorsList] = useState([]);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [pdfDownloadLabel, setPdfDownloadLabel] = useState("Downloading...");
   const [downloadingForm, setDownloadingForm] = useState(null);
+  const [formDownloadLabel, setFormDownloadLabel] = useState("Downloading...");
   const [showPdfExport, setShowPdfExport] = useState(false);
   const [pdfTargetForm, setPdfTargetForm] = useState("all");
 
@@ -696,19 +699,14 @@ export default function IMDetails() {
 
     try {
       setDownloadingPdf(true);
+      setPdfDownloadLabel("Generating...");
       showSuccess("Downloading incident PDF report from backend...");
-      const blobData = await exportIncidentPdf(incId, "all", includeWitnesses, includeAttachments);
+      const blobData = await exportIncidentPdf(incId, "all", includeWitnesses, includeAttachments, (progress) => {
+        if (progress?.label) setPdfDownloadLabel(progress.label);
+      });
 
-      const blob = new Blob([blobData], { type: "application/pdf" });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
       const caseNo = incObj?.caseNumber || incObj?.id || id;
-      link.setAttribute("download", `Incident_Report_${caseNo}_All_Forms.pdf`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
+      triggerBlobDownload(blobData, `Incident_Report_${caseNo}_All_Forms.pdf`);
     } catch (err) {
       console.error("Failed to download PDF from backend:", err);
       showError("Could not download PDF from backend API directly. Opening exporter preview...");
@@ -716,6 +714,7 @@ export default function IMDetails() {
       setShowPdfExport(true);
     } finally {
       setDownloadingPdf(false);
+      setPdfDownloadLabel("Downloading...");
     }
   };
 
@@ -783,26 +782,22 @@ export default function IMDetails() {
 
     try {
       setDownloadingForm(formKey);
+      setFormDownloadLabel("Generating...");
       showSuccess(`Downloading ${formTitle} PDF...`);
-      const blobData = await exportIncidentPdf(incId, formKey, includeWitnesses, includeAttachments);
+      const blobData = await exportIncidentPdf(incId, formKey, includeWitnesses, includeAttachments, (progress) => {
+        if (progress?.label) setFormDownloadLabel(progress.label);
+      });
 
-      const blob = new Blob([blobData], { type: "application/pdf" });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
       const caseNo = incObj?.caseNumber || incObj?.id || id;
       const suffix = formKey === "headsUp" ? "Form1_HeadsUp" : formKey === "initialReport" ? "Form2_InitialReport" : "Form3_Investigation";
-      link.setAttribute("download", `Incident_Report_${caseNo}_${suffix}.pdf`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
+      triggerBlobDownload(blobData, `Incident_Report_${caseNo}_${suffix}.pdf`);
     } catch (err) {
       console.error(`Failed to download ${formKey} PDF from backend:`, err);
       setPdfTargetForm(formKey);
       setShowPdfExport(true);
     } finally {
       setDownloadingForm(null);
+      setFormDownloadLabel("Downloading...");
     }
   };
 
@@ -3878,7 +3873,7 @@ export default function IMDetails() {
               <polyline points="7 10 12 15 17 10" />
               <line x1="12" x2="12" y1="15" y2="3" />
             </svg>
-            {downloadingPdf ? "Downloading..." : "Export PDF"}
+            {downloadingPdf ? pdfDownloadLabel : "Export PDF"}
           </button>
 
           {isClosed && (isNneUser() || isAdminUser()) && !isContractorUser() && (
@@ -5432,7 +5427,7 @@ export default function IMDetails() {
                           <polyline points="7 10 12 15 17 10"></polyline>
                           <line x1="12" y1="15" x2="12" y2="3"></line>
                         </svg>
-                        {downloadingForm === "headsUp" ? "Downloading..." : "Download Form 1 PDF"}
+                        {downloadingForm === "headsUp" ? formDownloadLabel : "Download Form 1 PDF"}
                       </button>
                     </>
                   )}
@@ -5983,7 +5978,7 @@ export default function IMDetails() {
                         <polyline points="7 10 12 15 17 10"></polyline>
                         <line x1="12" y1="15" x2="12" y2="3"></line>
                       </svg>
-                      {downloadingForm === "initialReport" ? "Downloading..." : "Download Form 2 PDF"}
+                      {downloadingForm === "initialReport" ? formDownloadLabel : "Download Form 2 PDF"}
                     </button>
                   </div>
                 )}
@@ -6052,7 +6047,7 @@ export default function IMDetails() {
                       </div>
                       <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", alignItems: "center" }}>
                         <span><b>Actual Severity:</b> {huActualSeverity && huActualSeverity !== "N/A" ? <SevPill level={huActualSeverity} /> : (incident.actualSeverity ? <SevPill level={incident.actualSeverity} /> : <SevPill level="N/A" />)}</span>
-                        <span><b>Potential Severity:</b> {huPotentialSeverity ? <SevPill level={huPotentialSeverity} /> : (incident.potentialSeverity ? <SevPill level={incident.potentialSeverity} /> : <span style={{ color: "var(--text-muted)" }}>—</span>)}</span>
+                        <span><b>Potential Severity:</b> {huPotentialSeverity && huPotentialSeverity !== "N/A" ? <SevPill level={huPotentialSeverity} /> : (incident.potentialSeverity ? <SevPill level={incident.potentialSeverity} /> : <SevPill level="N/A" />)}</span>
                       </div>
                       <div><b>Location:</b> {incident.buildingName ? `${incident.buildingName}${incident.floorLevel ? ' - ' + incident.floorLevel : ''}` : (incident.building || incident.location || "—")}</div>
                       <div><b>Description:</b> {headsUpData?.descriptionWhatHappened || headsUpData?.whatHappened || headsUpData?.descriptionConsequence || incident.description || incident.details || "—"}</div>
@@ -7135,14 +7130,20 @@ export default function IMDetails() {
                               formData.append("existingPhotos", JSON.stringify(existingPhotos));
                             }
 
-                            // 2. Severities & Flags
-                            const finalActSev = effActualSubmit && effActualSubmit !== "N/A" ? String(effActualSubmit) : (submitSevConfig.isActualNA ? "N/A" : "1");
-                            const finalPotSev = effPotentialSubmit && effPotentialSubmit !== "N/A" ? String(effPotentialSubmit) : "1";
+                            // 2. Severities & Flags (omit N/A severities: Actual=N/A for Near Miss, Potential=N/A for Fatality)
+                            const isActualNA = submitSevConfig.isActualNA || effActualSubmit === "N/A";
+                            const isPotentialNA = (submitSevConfig.isPotentialFixed && submitSevConfig.fixedPotentialValue === "N/A") || effPotentialSubmit === "N/A";
+                            const finalActSev = !isActualNA && effActualSubmit ? String(effActualSubmit) : "";
+                            const finalPotSev = !isPotentialNA && effPotentialSubmit ? String(effPotentialSubmit) : "";
 
-                            formData.append("actualSeverity", finalActSev);
-                            formData.append("potentialSeverity", finalPotSev);
+                            if (finalActSev) {
+                              formData.append("actualSeverity", finalActSev);
+                            }
+                            if (finalPotSev) {
+                              formData.append("potentialSeverity", finalPotSev);
+                            }
 
-                            const isHipo = Number(finalPotSev) >= 4 || (finalActSev !== "N/A" && Number(finalActSev) >= 4);
+                            const isHipo = (finalPotSev ? Number(finalPotSev) >= 4 : false) || (finalActSev ? Number(finalActSev) >= 4 : false);
                             formData.append("isHipo", String(isHipo));
                             formData.append("hasInjuryIllness", String(!isEnvIncident && !isPropDamageIncident && !irInjuryNotApplicable));
 
@@ -7564,7 +7565,7 @@ export default function IMDetails() {
                         <polyline points="7 10 12 15 17 10"></polyline>
                         <line x1="12" y1="15" x2="12" y2="3"></line>
                       </svg>
-                      {downloadingForm === "investigation" ? "Downloading..." : "Download Form 3 PDF"}
+                      {downloadingForm === "investigation" ? formDownloadLabel : "Download Form 3 PDF"}
                     </button>
                   </div>
                 )}

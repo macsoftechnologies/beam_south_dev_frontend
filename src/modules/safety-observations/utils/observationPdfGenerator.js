@@ -1,6 +1,7 @@
 import html2pdf from "html2pdf.js";
 import nneLogoImg from "../../../assets/images/nne_logo.png";
 import projectLogoImg from "../../../assets/images/Logo.jpeg";
+import { API_BASE_URL } from "../../../services/api";
 
 /**
  * Client-side PDF generator for Safety Observations
@@ -31,37 +32,94 @@ export async function generateObservationClientPdf(data, fileName = "Safety_Obse
     if (!p) return "";
     if (typeof p !== "string") return "";
     if (p.startsWith("data:") || p.startsWith("blob:")) return p;
+    if (p.startsWith("http://") || p.startsWith("https://")) return p;
+    const baseUrl = (API_BASE_URL || import.meta.env?.VITE_API_BASE_URL || "").replace(/\/+$/, "");
+    const cleanPath = p.replace(/^\/+/, "");
+    if (cleanPath.startsWith("location-maps/") || cleanPath.startsWith("uploads/")) {
+      return `${baseUrl}/${cleanPath}`;
+    }
     const filename = p.split("/").pop().split("\\").pop();
-    const baseUrl = (import.meta.env?.VITE_API_BASE_URL || 'https://api.beam.safesiteworks.com/development/m3south').replace(/\/+$/, '');
-    return p.startsWith("http")
-      ? p
-      : `${baseUrl}/observations/${filename}`;
+    return `${baseUrl}/observations/${filename}`;
   };
 
-  const toBase64 = async (url) => {
-    if (!url || url.startsWith("data:")) return url;
-    try {
-      const res = await fetch(url, { mode: "cors" });
-      if (!res.ok) return url;
-      const blob = await res.blob();
-      return new Promise((resolve) => {
+  const imageCache = new Map();
+
+  const compressBlobToDataUrl = (blob, maxDim = 800, quality = 0.75) =>
+    new Promise((resolve) => {
+      const objectUrl = URL.createObjectURL(blob);
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const nw = img.naturalWidth || 0;
+          const nh = img.naturalHeight || 0;
+          if (!nw || !nh) {
+            URL.revokeObjectURL(objectUrl);
+            resolve("");
+            return;
+          }
+          const scale = Math.min(1, maxDim / Math.max(nw, nh));
+          const tw = Math.max(1, Math.round(nw * scale));
+          const th = Math.max(1, Math.round(nh * scale));
+          const canvas = document.createElement("canvas");
+          canvas.width = tw;
+          canvas.height = th;
+          const ctx = canvas.getContext("2d");
+          if (ctx) {
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, tw, th);
+            ctx.drawImage(img, 0, 0, tw, th);
+            const dataUrl = canvas.toDataURL("image/jpeg", quality);
+            URL.revokeObjectURL(objectUrl);
+            resolve(dataUrl);
+            return;
+          }
+        } catch {
+          // Fall through to FileReader below
+        }
+        URL.revokeObjectURL(objectUrl);
         const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result);
-        reader.onerror = () => resolve(url);
+        reader.onloadend = () => resolve(reader.result || "");
+        reader.onerror = () => resolve("");
         reader.readAsDataURL(blob);
-      });
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        resolve("");
+      };
+      img.src = objectUrl;
+    });
+
+  const toBase64 = async (url, maxDim = 800) => {
+    if (!url || url.startsWith("data:")) return url;
+    const cacheKey = `${url}:${maxDim}`;
+    if (imageCache.has(cacheKey)) return imageCache.get(cacheKey);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10000);
+    try {
+      const res = await fetch(url, { mode: "cors", signal: controller.signal });
+      if (!res.ok) {
+        imageCache.set(cacheKey, "");
+        return "";
+      }
+      const blob = await res.blob();
+      const dataUrl = await compressBlobToDataUrl(blob, maxDim, 0.75);
+      imageCache.set(cacheKey, dataUrl || "");
+      return dataUrl || "";
     } catch {
-      return url;
+      imageCache.set(cacheKey, "");
+      return "";
+    } finally {
+      clearTimeout(timer);
     }
   };
 
   const rawPhotos = parseArray(obs.photos);
   const rawResolutionPhotos = parseArray(obs.resolutionPhotos);
 
-  const photos = (await Promise.all(rawPhotos.map((p) => toBase64(resolvePhotoUrl(p))))).filter(Boolean);
-  const resolutionPhotos = (await Promise.all(rawResolutionPhotos.map((p) => toBase64(resolvePhotoUrl(p))))).filter(Boolean);
-  const closureSignature = obs.closureSignature ? await toBase64(resolvePhotoUrl(obs.closureSignature)) : "";
-  const locationMapImage = obs.locationMapImage ? await toBase64(resolvePhotoUrl(obs.locationMapImage)) : "";
+  const photos = (await Promise.all(rawPhotos.map((p) => toBase64(resolvePhotoUrl(p), 600)))).filter(Boolean);
+  const resolutionPhotos = (await Promise.all(rawResolutionPhotos.map((p) => toBase64(resolvePhotoUrl(p), 600)))).filter(Boolean);
+  const closureSignature = obs.closureSignature ? await toBase64(resolvePhotoUrl(obs.closureSignature), 400) : "";
+  const locationMapImage = obs.locationMapImage ? await toBase64(resolvePhotoUrl(obs.locationMapImage), 1200) : "";
 
   let closedByName = obs.closedBy;
   if (!closedByName || closedByName.trim() === "HSE Department" || closedByName.trim() === "HSE Lead / Site Manager") {
@@ -95,7 +153,7 @@ export async function generateObservationClientPdf(data, fileName = "Safety_Obse
   const resolvedHistory = await Promise.all(
     rawHistory.map(async (log) => {
       const logPhotos = parseArray(log.photos);
-      const resolvedLogPhotos = (await Promise.all(logPhotos.map((p) => toBase64(resolvePhotoUrl(p))))).filter(Boolean);
+      const resolvedLogPhotos = (await Promise.all(logPhotos.map((p) => toBase64(resolvePhotoUrl(p), 480)))).filter(Boolean);
       return {
         ...log,
         resolvedLogPhotos,
@@ -125,12 +183,18 @@ export async function generateObservationClientPdf(data, fileName = "Safety_Obse
     }
   };
 
+  const statusText = String(obs.status || "OPEN").toUpperCase();
+  const isClosed = statusText === "CLOSED";
+  const statusBg = isClosed ? "#dcfce7" : statusText === "REJECTED" ? "#fee2e2" : "#fef3c7";
+  const statusColor = isClosed ? "#15803d" : statusText === "REJECTED" ? "#b91c1c" : "#b45309";
+  const statusBorder = isClosed ? "#86efac" : statusText === "REJECTED" ? "#fca5a5" : "#fde68a";
+
   const container = document.createElement("div");
   container.style.position = "fixed";
-  container.style.left = "0px";
+  container.style.left = "-10000px";
   container.style.top = "0px";
   container.style.width = "210mm";
-  container.style.zIndex = "99999";
+  container.style.zIndex = "-1";
   container.style.opacity = "1";
   container.style.pointerEvents = "none";
   container.style.background = "#ffffff";
@@ -150,7 +214,7 @@ export async function generateObservationClientPdf(data, fileName = "Safety_Obse
         </td>
         <td style="width: 50%; text-align: center; vertical-align: middle;">
           <div style="font-size: 17px; font-weight: 800; color: #0f172a; text-transform: uppercase; letter-spacing: 0.5px;">Safety Observation Report</div>
-          <div style="font-size: 11px; color: #64748b; font-weight: 600; margin-top: 2px;">Official Closed Record &amp; Verification Sign-off</div>
+          <div style="font-size: 11px; color: #64748b; font-weight: 600; margin-top: 2px;">Official HSE Record &bull; Ref: ${obsRef}</div>
         </td>
         <td style="width: 25%; text-align: right; vertical-align: middle;">
           <img src="${projectLogoImg}" style="height: 36px; object-fit: contain;" alt="Project Logo" onerror="this.style.display='none'" />
@@ -170,7 +234,7 @@ export async function generateObservationClientPdf(data, fileName = "Safety_Obse
         </td>
         <td style="width: 50%; padding-left: 6px;">
           <div style="border: 1px solid #cbd5e1; background: #f8fafc; padding: 7px 10px; border-radius: 4px;">
-            <b>Status:</b> <span style="display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 10px; font-weight: 700; background: #dcfce7; color: #15803d; border: 1px solid #86efac; text-transform: uppercase;">CLOSED</span><br />
+            <b>Status:</b> <span style="display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 10px; font-weight: 700; background: ${statusBg}; color: ${statusColor}; border: 1px solid ${statusBorder}; text-transform: uppercase;">${statusText}</span><br />
             <b>Type:</b> <span style="display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 10px; font-weight: 700; background: ${isPositive ? "#dcfce7" : "#fee2e2"}; color: ${isPositive ? "#15803d" : "#b91c1c"}; border: 1px solid ${isPositive ? "#86efac" : "#fca5a5"}; text-transform: uppercase;">${isPositive ? "Positive" : "Needs Attention"}</span><br />
             <b>Risk Level:</b> <span style="font-weight: 700;">${obs.riskLevel || "MEDIUM"}</span>
           </div>

@@ -290,7 +290,7 @@ export default function SIList() {
 
   const handleDownloadPdf = async (e, inspection) => {
     e.stopPropagation();
-    if (!inspection) return;
+    if (!inspection || downloadingId === inspection.id) return;
     setDownloadingId(inspection.id);
     try {
       const refName = inspection.inspectionNumber || `SI-${inspection.id}`;

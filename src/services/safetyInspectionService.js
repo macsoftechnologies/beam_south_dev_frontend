@@ -1,4 +1,5 @@
 import api from "./api";
+import { downloadPdfFromApi } from "../utils/pdfDownload";
 
 /**
  * Service for Safety Inspections (SI) module API integrations.
@@ -90,22 +91,14 @@ export const safetyInspectionService = {
    * Download Safety Inspection official PDF directly
    * @param {string|number} id
    * @param {string} fileName
+   * @param {Function} [onProgress]
    */
-  async downloadInspectionPdf(id, fileName = "Safety_Inspection.pdf") {
-    const response = await api.get(`safety-inspections/${id}/download-pdf`, {
-      responseType: "blob",
+  async downloadInspectionPdf(id, fileName = "Safety_Inspection.pdf", onProgress = null) {
+    return await downloadPdfFromApi(`safety-inspections/${id}/download-pdf`, fileName, {
+      onProgress,
+      initialTimeoutMs: 90000,
+      stallTimeoutMs: 30000,
     });
-
-    const blob = new Blob([response.data], { type: "application/pdf" });
-    const blobUrl = window.URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = blobUrl;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    window.URL.revokeObjectURL(blobUrl);
-    return true;
   },
 };
 

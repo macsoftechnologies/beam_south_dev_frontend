@@ -1,4 +1,5 @@
 import api from "./api";
+import { downloadPdfFromApi } from "../utils/pdfDownload";
 
 /**
  * Service for Spot Checks (SC) module API integrations.
@@ -76,20 +77,14 @@ export const spotCheckService = {
    * @param {string|number} id
    * @param {string} fileName
    * @param {boolean} includeAttachments
+   * @param {Function} [onProgress]
    */
-  async downloadSpotCheckPdf(id, fileName = 'HSE_Spot_Check.pdf', includeAttachments = true) {
-    const response = await api.get(`spot-checks/${id}/download-pdf`, {
+  async downloadSpotCheckPdf(id, fileName = 'HSE_Spot_Check.pdf', includeAttachments = true, onProgress = null) {
+    return await downloadPdfFromApi(`spot-checks/${id}/download-pdf`, fileName, {
       params: { includeAttachments },
-      responseType: 'blob',
+      onProgress,
+      initialTimeoutMs: 90000,
+      stallTimeoutMs: 30000,
     });
-    const blob = new Blob([response.data], { type: 'application/pdf' });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', fileName);
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.URL.revokeObjectURL(url);
   },
 };

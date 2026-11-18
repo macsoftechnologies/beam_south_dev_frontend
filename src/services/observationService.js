@@ -1,4 +1,5 @@
 import api from "./api";
+import { downloadPdfFromApi } from "../utils/pdfDownload";
 
 /**
  * Service for Safety Observations (SO) module API integrations.
@@ -132,24 +133,19 @@ export const observationService = {
    * @param {string|number} id
    * @param {string} fileName
    * @param {Object} [obsData]
+   * @param {Function} [onProgress]
    */
-  async downloadObservationPdf(id, fileName = "Safety_Observation.pdf", obsData = null) {
+  async downloadObservationPdf(id, fileName = "Safety_Observation.pdf", obsData = null, onProgress = null) {
     try {
-      const response = await api.get(`observations/${id}/download-pdf`, {
-        responseType: "blob",
+      await downloadPdfFromApi(`observations/${id}/download-pdf`, fileName, {
+        onProgress,
       });
-      const blob = new Blob([response.data], { type: "application/pdf" });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", fileName);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
       return true;
     } catch (err) {
       console.warn("Backend PDF download failed, using client-side generator fallback:", err);
+      if (typeof onProgress === "function") {
+        onProgress({ phase: "fallback", percent: null, loaded: 0, total: 0, label: "Preparing PDF..." });
+      }
       const details = obsData || (await this.getObservationDetails(id));
       const { generateObservationClientPdf } = await import("../modules/safety-observations/utils/observationPdfGenerator");
       return await generateObservationClientPdf(details, fileName);

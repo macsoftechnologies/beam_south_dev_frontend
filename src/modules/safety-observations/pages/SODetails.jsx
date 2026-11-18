@@ -39,6 +39,7 @@ function SODetails() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+  const [pdfDownloadLabel, setPdfDownloadLabel] = useState("Downloading...");
 
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
   const modCtx = useMemo(() => getModuleUserContext("safety-observations", currentUser), [currentUser]);
@@ -287,16 +288,20 @@ function SODetails() {
   };
 
   const handleDownloadPdf = async () => {
-    if (!obs) return;
+    if (!obs || isDownloadingPdf) return;
     try {
       setIsDownloadingPdf(true);
+      setPdfDownloadLabel("Generating...");
       const fileName = `${obs.observationNumber || `SO-${obs.id}`}_Safety_Observation.pdf`;
-      await observationService.downloadObservationPdf(obs.id, fileName, data);
+      await observationService.downloadObservationPdf(obs.id, fileName, data, (progress) => {
+        if (progress?.label) setPdfDownloadLabel(progress.label);
+      });
     } catch (err) {
       console.error("Download observation PDF failed:", err);
-      alert("Failed to download Observation PDF.");
+      alert(err?.message || "Failed to download Observation PDF.");
     } finally {
       setIsDownloadingPdf(false);
+      setPdfDownloadLabel("Downloading...");
     }
   };
 
@@ -356,7 +361,7 @@ function SODetails() {
               <polyline points="7 10 12 15 17 10" />
               <line x1="12" y1="15" x2="12" y2="3" />
             </svg>
-            {isDownloadingPdf ? "Downloading..." : "Download PDF"}
+            {isDownloadingPdf ? pdfDownloadLabel : "Download PDF"}
           </button>
 
           {/* Department & Admin Edit Observation Option (or creator contractor if currently assigned, disabled when CLOSED or ESCALATED) */}
@@ -532,7 +537,7 @@ function SODetails() {
               <polyline points="7 10 12 15 17 10" />
               <line x1="12" y1="15" x2="12" y2="3" />
             </svg>
-            {isDownloadingPdf ? "Downloading..." : "Download PDF"}
+            {isDownloadingPdf ? pdfDownloadLabel : "Download PDF"}
           </button>
         </div>
       )}

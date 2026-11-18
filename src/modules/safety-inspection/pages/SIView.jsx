@@ -39,6 +39,7 @@ export default function SIView() {
   const [error, setError] = useState(null);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+  const [pdfDownloadLabel, setPdfDownloadLabel] = useState("Downloading...");
 
   // Observation preview modal state
   const [selectedObs, setSelectedObs] = useState(null);
@@ -175,12 +176,15 @@ export default function SIView() {
   };
 
   const handleDownloadPdf = async () => {
-    if (!inspection) return;
+    if (!inspection || isDownloadingPdf) return;
     setIsDownloadingPdf(true);
+    setPdfDownloadLabel("Generating...");
     try {
       const refName = inspection.inspectionNumber || `SI-${inspection.id}`;
       const fileName = `${refName}_Safety_Inspection.pdf`;
-      await safetyInspectionService.downloadInspectionPdf(inspection.id, fileName);
+      await safetyInspectionService.downloadInspectionPdf(inspection.id, fileName, (progress) => {
+        if (progress?.label) setPdfDownloadLabel(progress.label);
+      });
       showSuccess("Inspection PDF downloaded successfully");
     } catch (err) {
       console.error("Failed to download inspection PDF:", err);
@@ -189,6 +193,7 @@ export default function SIView() {
       window.open(pdfUrl, '_blank');
     } finally {
       setIsDownloadingPdf(false);
+      setPdfDownloadLabel("Downloading...");
     }
   };
 
@@ -403,7 +408,7 @@ export default function SIView() {
           )}
           <button className="siview-btn-download" onClick={handleDownloadPdf} disabled={isDownloadingPdf}>
             <i className={`ti ${isDownloadingPdf ? 'ti-loader ti-spin' : 'ti-download'}`}></i>
-            {isDownloadingPdf ? 'Downloading...' : 'Download'}
+            {isDownloadingPdf ? pdfDownloadLabel : 'Download'}
           </button>
         </div>
       </div>

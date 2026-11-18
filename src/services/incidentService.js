@@ -1,4 +1,5 @@
 import api from "./api";
+import { fetchPdfBlob } from "../utils/pdfDownload";
 
 // Create Heads-Up Notification (Stage 1)
 export const createHeadsUp = async (data) => {
@@ -159,7 +160,13 @@ export const getIncidentStats = async (filters = {}) => {
 };
 
 // Export / Download Incident PDF from backend (all or specific form: headsUp, initialReport, investigation)
-export const exportIncidentPdf = async (incidentId, formType = "all", includeWitnesses = false, includeAttachments = true) => {
+export const exportIncidentPdf = async (
+  incidentId,
+  formType = "all",
+  includeWitnesses = false,
+  includeAttachments = true,
+  onProgress = null
+) => {
   const params = new URLSearchParams();
   if (formType && formType !== "all") params.append("form", formType);
   if (includeWitnesses) params.append("includeWitnesses", "true");
@@ -167,16 +174,18 @@ export const exportIncidentPdf = async (incidentId, formType = "all", includeWit
   if (includeAttachments !== undefined) params.append("includeAttachments", includeAttachments ? "true" : "false");
   const query = params.toString() ? `?${params.toString()}` : "";
   try {
-    const response = await api.get(`/incidents/${incidentId}/export-pdf${query}`, {
-      responseType: "blob"
+    return await fetchPdfBlob(`/incidents/${incidentId}/export-pdf${query}`, {
+      onProgress,
+      initialTimeoutMs: 90000,
+      stallTimeoutMs: 30000,
     });
-    return response.data;
   } catch (err) {
     if (err.response?.status === 404) {
-      const response = await api.get(`/incidents/${incidentId}/export-pdf/${query}`, {
-        responseType: "blob"
+      return await fetchPdfBlob(`/incidents/${incidentId}/export-pdf/${query}`, {
+        onProgress,
+        initialTimeoutMs: 90000,
+        stallTimeoutMs: 30000,
       });
-      return response.data;
     }
     throw err;
   }

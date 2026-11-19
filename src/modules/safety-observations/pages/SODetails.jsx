@@ -8,12 +8,37 @@ import { API_BASE_URL } from "../../../services/api";
 import { formatToDenmark24Hour } from "../../../utils/dateUtils";
 import "../../../styles/module-shared.css";
 
+const getFileAttachmentInfo = (p) => {
+  if (!p) return { isDoc: false, type: "FILE", name: "File", color: "#64748b", bg: "#f1f5f9" };
+  const rawUrl = typeof p === "object" ? (p.name || p.data || p.url || "") : String(p);
+  const lower = rawUrl.toLowerCase();
+  const name = (typeof p === "object" && p.name) ? p.name : (rawUrl.split("/").pop().split("\\").pop() || rawUrl);
+
+  if (lower.includes(".pdf") || lower.includes("application/pdf")) {
+    return { isDoc: true, type: "PDF", name, color: "#dc2626", bg: "#fef2f2", border: "#fecaca" };
+  }
+  if (lower.includes(".pptx") || lower.includes(".ppt") || lower.includes("presentationml") || lower.includes("powerpoint")) {
+    return { isDoc: true, type: "PPT", name, color: "#ea580c", bg: "#fff7ed", border: "#fed7aa" };
+  }
+  if (lower.includes(".docx") || lower.includes(".doc") || lower.includes("wordprocessingml") || lower.includes("msword")) {
+    return { isDoc: true, type: "DOC", name, color: "#2563eb", bg: "#eff6ff", border: "#bfdbfe" };
+  }
+  if (lower.includes(".xlsx") || lower.includes(".xls") || lower.includes("spreadsheetml") || lower.includes("excel") || lower.includes(".csv")) {
+    return { isDoc: true, type: "EXCEL", name, color: "#16a34a", bg: "#f0fdf4", border: "#bbf7d0" };
+  }
+  if (lower.includes(".txt") || lower.includes("text/plain")) {
+    return { isDoc: true, type: "TXT", name, color: "#475569", bg: "#f8fafc", border: "#e2e8f0" };
+  }
+  return { isDoc: false, type: "IMG", name, color: "#3b82f6", bg: "#f8fafc", border: "#e2e8f0" };
+};
+
 function SODetails() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [data, setData] = useState(null); // { observation, history }
   const [loading, setLoading] = useState(true);
   const [contractorsList, setContractorsList] = useState([]);
+  const [failedImages, setFailedImages] = useState({});
 
   // Modals state
   const [showReviewModal, setShowReviewModal] = useState(false);
@@ -630,24 +655,99 @@ function SODetails() {
           {Array.isArray(obs.photos) && obs.photos.length > 0 && (
             <div className="mod-card mb-4">
               <div className="mod-card-header">
-                <span className="mod-card-title">Observation Photos ({obs.photos.length})</span>
+                <span className="mod-card-title">Observation Photos & Attachments ({obs.photos.length})</span>
               </div>
               <div className="mod-card-body" style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
                 {obs.photos.map((photo, idx) => {
                   const filename = String(photo).split("/").pop().split("\\").pop();
                   const baseUrl = API_BASE_URL.endsWith("/") ? API_BASE_URL.slice(0, -1) : API_BASE_URL;
                   const src = photo.startsWith("http") ? photo : `${baseUrl}/observations/${filename}`;
+                  const docInfo = getFileAttachmentInfo(filename || photo);
+                  const isFailed = failedImages[`obs_${idx}`];
+                  const showAsDoc = docInfo.isDoc || isFailed;
+
                   return (
-                    <a key={idx} href={src} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
-                      <img
-                        src={src}
-                        alt={`Attachment ${idx + 1}`}
-                        style={{ width: 130, height: 130, objectFit: "cover", borderRadius: 8, border: "1px solid var(--border-color)", cursor: "pointer" }}
-                        onError={(e) => {
-                          e.target.onerror = null;
-                          e.target.src = "https://via.placeholder.com/130?text=Photo+Unavailable";
+                    <a
+                      key={idx}
+                      href={src}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ textDecoration: "none", color: "inherit" }}
+                      title="Click to view / download"
+                    >
+                      <div
+                        style={{
+                          position: "relative",
+                          width: 130,
+                          height: 130,
+                          borderRadius: 8,
+                          overflow: "hidden",
+                          border: "1px solid var(--border-color)",
+                          background: showAsDoc ? (docInfo.bg || "#f8fafc") : "#f8fafc",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          cursor: "pointer",
+                          transition: "all 0.15s ease",
+                          padding: showAsDoc ? 8 : 0,
+                          boxSizing: "border-box"
                         }}
-                      />
+                      >
+                        {showAsDoc ? (
+                          <div style={{ textAlign: "center", width: "100%", padding: 4 }}>
+                            <span
+                              style={{
+                                fontSize: 11,
+                                fontWeight: 700,
+                                padding: "3px 8px",
+                                borderRadius: 4,
+                                background: docInfo.color || "#ef4444",
+                                color: "#fff",
+                                display: "inline-block"
+                              }}
+                            >
+                              {docInfo.type || "PDF / DOC"}
+                            </span>
+                            <div
+                              style={{
+                                fontSize: 11,
+                                fontWeight: 500,
+                                color: "#334155",
+                                marginTop: 8,
+                                maxWidth: 114,
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                                margin: "8px auto 0"
+                              }}
+                              title={docInfo.name}
+                            >
+                              {docInfo.name || `Attachment ${idx + 1}`}
+                            </div>
+                            <span
+                              style={{
+                                fontSize: 10,
+                                color: "var(--accent-primary, #2563eb)",
+                                marginTop: 6,
+                                display: "block",
+                                textDecoration: "underline",
+                                fontWeight: 600
+                              }}
+                            >
+                              Click to open
+                            </span>
+                          </div>
+                        ) : (
+                          <img
+                            src={src}
+                            alt={`Attachment ${idx + 1}`}
+                            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                            onError={() => {
+                              setFailedImages((prev) => ({ ...prev, [`obs_${idx}`]: true }));
+                            }}
+                          />
+                        )}
+                      </div>
                     </a>
                   );
                 })}
@@ -740,17 +840,45 @@ function SODetails() {
                               const filename = String(photo).split("/").pop().split("\\").pop();
                               const baseUrl = API_BASE_URL.endsWith("/") ? API_BASE_URL.slice(0, -1) : API_BASE_URL;
                               const src = photo.startsWith("http") ? photo : `${baseUrl}/observations/${filename}`;
+                              const docInfo = getFileAttachmentInfo(filename || photo);
+                              const isFailed = failedImages[`log_${log.id}_${pIdx}`];
+                              const showAsDoc = docInfo.isDoc || isFailed;
+
                               return (
-                                <a key={pIdx} href={src} target="_blank" rel="noopener noreferrer">
-                                  <img
-                                    src={src}
-                                    alt={`Log photo ${pIdx + 1}`}
-                                    style={{ width: 54, height: 54, objectFit: "cover", borderRadius: 6, border: "1px solid var(--border-color)" }}
-                                    onError={(e) => {
-                                      e.target.onerror = null;
-                                      e.target.src = "https://via.placeholder.com/54?text=Img";
+                                <a key={pIdx} href={src} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none", color: "inherit" }} title="Click to view / download">
+                                  <div
+                                    style={{
+                                      width: 58,
+                                      height: 58,
+                                      borderRadius: 6,
+                                      overflow: "hidden",
+                                      border: "1px solid var(--border-color)",
+                                      background: showAsDoc ? (docInfo.bg || "#f8fafc") : "#f8fafc",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      padding: showAsDoc ? 3 : 0,
+                                      boxSizing: "border-box"
                                     }}
-                                  />
+                                  >
+                                    {showAsDoc ? (
+                                      <div style={{ textAlign: "center", width: "100%" }}>
+                                        <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 4px", borderRadius: 3, background: docInfo.color || "#ef4444", color: "#fff", display: "inline-block" }}>
+                                          {docInfo.type}
+                                        </span>
+                                        <span style={{ fontSize: 8, color: "var(--accent-primary, #2563eb)", marginTop: 2, display: "block", textDecoration: "underline" }}>
+                                          Open
+                                        </span>
+                                      </div>
+                                    ) : (
+                                      <img
+                                        src={src}
+                                        alt={`Log photo ${pIdx + 1}`}
+                                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                                        onError={() => setFailedImages((prev) => ({ ...prev, [`log_${log.id}_${pIdx}`]: true }))}
+                                      />
+                                    )}
+                                  </div>
                                 </a>
                               );
                             })}
@@ -796,7 +924,7 @@ function SODetails() {
               <input
                 type="file"
                 multiple
-                accept="image/*,.pdf"
+                accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.csv"
                 style={{ fontSize: 13 }}
                 onChange={(e) => {
                   const files = Array.from(e.target.files);

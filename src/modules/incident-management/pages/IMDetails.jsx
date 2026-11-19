@@ -36,6 +36,47 @@ const getAttachmentUrl = (url) => {
   return `${baseUrl}/${clean}`;
 };
 
+const getFileAttachmentInfo = (p) => {
+  if (!p) return { isDoc: false, type: "FILE", name: "File", color: "#64748b", bg: "#f1f5f9" };
+  const rawUrl = typeof p === "object" ? (p.name || p.data || "") : String(p);
+  const lower = rawUrl.toLowerCase();
+  const name = (typeof p === "object" && p.name) ? p.name : (rawUrl.split("/").pop() || rawUrl);
+
+  if (lower.includes(".pdf") || lower.includes("application/pdf")) {
+    return { isDoc: true, type: "PDF", name, color: "#dc2626", bg: "#fef2f2", border: "#fecaca" };
+  }
+  if (lower.includes(".pptx") || lower.includes(".ppt") || lower.includes("presentationml") || lower.includes("powerpoint")) {
+    return { isDoc: true, type: "PPT", name, color: "#ea580c", bg: "#fff7ed", border: "#fed7aa" };
+  }
+  if (lower.includes(".docx") || lower.includes(".doc") || lower.includes("wordprocessingml") || lower.includes("msword")) {
+    return { isDoc: true, type: "DOC", name, color: "#2563eb", bg: "#eff6ff", border: "#bfdbfe" };
+  }
+  if (lower.includes(".xlsx") || lower.includes(".xls") || lower.includes("spreadsheetml") || lower.includes("excel") || lower.includes(".csv")) {
+    return { isDoc: true, type: "EXCEL", name, color: "#16a34a", bg: "#f0fdf4", border: "#bbf7d0" };
+  }
+  if (lower.includes(".txt") || lower.includes("text/plain")) {
+    return { isDoc: true, type: "TXT", name, color: "#475569", bg: "#f8fafc", border: "#e2e8f0" };
+  }
+  return { isDoc: false, type: "IMG", name, color: "#3b82f6", bg: "#f8fafc", border: "#e2e8f0" };
+};
+
+const getExtensionFromMime = (mime, defaultExt = ".jpg") => {
+  const m = (mime || "").toLowerCase();
+  if (m.includes("pdf")) return ".pdf";
+  if (m.includes("presentationml")) return ".pptx";
+  if (m.includes("powerpoint")) return ".ppt";
+  if (m.includes("wordprocessingml")) return ".docx";
+  if (m.includes("msword")) return ".doc";
+  if (m.includes("spreadsheetml")) return ".xlsx";
+  if (m.includes("excel")) return ".xls";
+  if (m.includes("jpeg") || m.includes("jpg")) return ".jpg";
+  if (m.includes("png")) return ".png";
+  if (m.includes("webp")) return ".webp";
+  if (m.includes("plain")) return ".txt";
+  if (m.includes("csv")) return ".csv";
+  return defaultExt;
+};
+
 const INCIDENT_CATEGORIES = [
   "Near Miss",
   "No Treatment Injury",
@@ -963,6 +1004,7 @@ export default function IMDetails() {
   // Camera & Photos for Step 2
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [photos, setPhotos] = useState([]);
+  const [failedImages, setFailedImages] = useState({});
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -1232,11 +1274,20 @@ export default function IMDetails() {
     const seen = new Set();
     const result = [];
     (list || []).forEach(p => {
-      if (!p || typeof p !== "string") return;
+      if (!p) return;
+      if (typeof p === "object" && p.data) {
+        const key = p.name ? p.name.toLowerCase() : `obj_${p.data.length}_${p.data.substring(0, 100)}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          result.push(p);
+        }
+        return;
+      }
+      if (typeof p !== "string") return;
       const trimmed = p.trim();
       if (!trimmed) return;
       let key = trimmed;
-      if (trimmed.startsWith("data:image")) {
+      if (trimmed.startsWith("data:")) {
         key = `data_${trimmed.length}_${trimmed.substring(0, 100)}`;
       } else {
         const clean = trimmed.split("?")[0].replace(/\\/g, "/");
@@ -2399,7 +2450,11 @@ export default function IMDetails() {
       Promise.all(files.map(file => {
         return new Promise((resolve) => {
           const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result);
+          reader.onloadend = () => resolve({
+            data: reader.result,
+            name: file.name,
+            type: file.type || ''
+          });
           reader.readAsDataURL(file);
         });
       })).then(results => {
@@ -3528,7 +3583,7 @@ export default function IMDetails() {
     }
     filename = filename.replace(/^\/+/, "");
 
-    const baseUrl = (import.meta.env?.VITE_API_BASE_URL || 'https://api.beam.safesiteworks.com/development/m3south').replace(/\/+$/, '');
+    const baseUrl = (import.meta.env?.VITE_API_BASE_URL || 'https://api.beam.safesiteworks.com/m3south').replace(/\/+$/, '');
     return `${baseUrl}/signatures/${filename}`;
   };
 
@@ -6364,7 +6419,7 @@ export default function IMDetails() {
 
                     {irErrors.photos && <div style={{ fontSize: "0.85rem", color: "#DC2626", marginBottom: "8px", fontWeight: "bold" }}>{irErrors.photos}</div>}
 
-                    <input type="file" accept="image/*,.pdf,.doc,.docx" multiple ref={fileInputRef} style={{ display: 'none' }} onChange={handleFileUpload} />
+                    <input type="file" accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.csv" multiple ref={fileInputRef} style={{ display: 'none' }} onChange={handleFileUpload} />
 
                     {!isCameraActive && (!initialReportSubmitted || isEditingInitialReport) && (
                       <div style={{ display: "flex", gap: "8px" }}>
@@ -6392,21 +6447,66 @@ export default function IMDetails() {
                         <div className="photo-thumb" style={{ width: 100, height: 100, background: "var(--bg-dark)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)", fontSize: "11px", border: "1px solid var(--border-color)", borderRadius: 8 }}>No photos</div>
                       )}
                       {photos.map((p, idx) => {
-                        const isDoc = typeof p === 'string' && (p.includes('.pdf') || p.includes('application/pdf') || p.includes('.doc'));
+                        const docInfo = getFileAttachmentInfo(p);
+                        const fileSrc = typeof p === "object" ? p.data : getAttachmentUrl(p);
+                        const isFailed = failedImages[`ir_${idx}`];
+                        const showAsDoc = docInfo.isDoc || isFailed;
                         return (
-                          <div key={idx} style={{ position: "relative", width: 120, height: 120, borderRadius: 8, overflow: "hidden", border: "1px solid var(--border-color)", background: "#f8fafc", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                            {isDoc ? (
-                              <div style={{ textAlign: "center", padding: 8 }}>
-                                <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 6px", borderRadius: 4, background: "#ef4444", color: "#fff" }}>PDF / DOC</span>
-                                <div style={{ fontSize: 10, color: "#334155", marginTop: 6, maxWidth: 100, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                  {typeof p === 'string' ? p.split('/').pop() : `Document ${idx + 1}`}
+                          <div
+                            key={idx}
+                            style={{
+                              position: "relative",
+                              width: 120,
+                              height: 120,
+                              borderRadius: 8,
+                              overflow: "hidden",
+                              border: "1px solid var(--border-color)",
+                              background: showAsDoc ? (docInfo.bg || "#f8fafc") : "#f8fafc",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              cursor: "pointer",
+                              transition: "all 0.15s ease"
+                            }}
+                            onClick={() => {
+                              if (typeof fileSrc === "string" && fileSrc && fileSrc !== "#") {
+                                window.open(fileSrc, "_blank");
+                              }
+                            }}
+                            title="Click to view / download"
+                          >
+                            {showAsDoc ? (
+                              <div style={{ textAlign: "center", padding: 8, width: "100%" }}>
+                                <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 6px", borderRadius: 4, background: docInfo.color || "#ef4444", color: "#fff", display: "inline-block" }}>
+                                  {docInfo.type || "DOC / PDF"}
+                                </span>
+                                <div style={{ fontSize: 10, color: "#334155", marginTop: 6, maxWidth: 104, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", margin: "6px auto 0" }}>
+                                  {docInfo.name || `Document ${idx + 1}`}
                                 </div>
+                                <span style={{ fontSize: 9, color: "var(--accent-primary, #2563eb)", marginTop: 4, display: "block", textDecoration: "underline" }}>
+                                  Click to open
+                                </span>
                               </div>
                             ) : (
-                              <img src={getAttachmentUrl(p)} alt={`Captured ${idx}`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                              <img
+                                src={fileSrc}
+                                alt={`Captured ${idx}`}
+                                onError={() => setFailedImages(prev => ({ ...prev, [`ir_${idx}`]: true }))}
+                                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                              />
                             )}
                             {(!initialReportSubmitted || isEditingInitialReport) && (
-                              <button onClick={() => removePhoto(idx)} style={{ position: "absolute", top: 4, right: 4, background: "var(--color-risk)", color: "#fff", border: "none", borderRadius: "50%", width: 20, height: 20, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: 14, fontWeight: "bold" }}>×</button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  removePhoto(idx);
+                                }}
+                                style={{ position: "absolute", top: 4, right: 4, background: "var(--color-risk, #dc2626)", color: "#fff", border: "none", borderRadius: "50%", width: 20, height: 20, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: 14, fontWeight: "bold", zIndex: 10 }}
+                                title="Remove attachment"
+                              >
+                                ×
+                              </button>
                             )}
                           </div>
                         );
@@ -7112,13 +7212,21 @@ export default function IMDetails() {
                               formData.append("submittedById", String(loggedInUserObj.id));
                             }
 
-                            // 1. Photos
+                            // 1. Photos & Documents
                             const existingPhotos = [];
                             photos.forEach((p, idx) => {
                               if (typeof p === "string" && p.startsWith("data:")) {
                                 const blob = dataURLtoBlob(p);
                                 if (blob) {
-                                  formData.append("photos", blob, `photo_${idx + 1}.png`);
+                                  const ext = getExtensionFromMime(blob.type, ".jpg");
+                                  formData.append("photos", blob, `attachment_${idx + 1}${ext}`);
+                                }
+                              } else if (p && typeof p === "object" && p.data && p.data.startsWith("data:")) {
+                                const blob = dataURLtoBlob(p.data);
+                                if (blob) {
+                                  const origExt = p.name ? ("." + p.name.split(".").pop().toLowerCase()) : "";
+                                  const ext = origExt && origExt.length <= 5 ? origExt : getExtensionFromMime(blob.type, ".jpg");
+                                  formData.append("photos", blob, p.name || `attachment_${idx + 1}${ext}`);
                                 }
                               } else if (p instanceof File || p instanceof Blob) {
                                 formData.append("photos", p);
@@ -8643,14 +8751,18 @@ export default function IMDetails() {
                     {(!investigationSubmitted || isEditingInvestigation) && (
                       <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
                         <button type="button" className="mod-btn-outline" style={{ fontSize: 13 }} onClick={startInvCamera}>Take Photo</button>
-                        <button type="button" className="mod-btn-outline" style={{ fontSize: 13 }} onClick={() => invFileInputRef.current?.click()}>Upload File</button>
-                        <input type="file" ref={invFileInputRef} accept="image/*" multiple style={{ display: "none" }} onChange={(e) => {
+                        <button type="button" className="mod-btn-outline" style={{ fontSize: 13 }} onClick={() => invFileInputRef.current?.click()}>Upload Photo / Document</button>
+                        <input type="file" ref={invFileInputRef} accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.csv" multiple style={{ display: "none" }} onChange={(e) => {
                           const files = e.target.files;
                           if (!files) return;
                           Array.from(files).forEach(f => {
                             const reader = new FileReader();
                             reader.onload = (ev) => {
-                              if (invPhotos.length < 20) setInvPhotos(prev => [...prev, ev.target.result]);
+                              if (invPhotos.length < 20) setInvPhotos(prev => [...prev, {
+                                data: ev.target.result,
+                                name: f.name,
+                                type: f.type || ''
+                              }]);
                             };
                             reader.readAsDataURL(f);
                           });
@@ -8693,23 +8805,72 @@ export default function IMDetails() {
                     </div>
                     {invPhotos.length > 0 ? (
                       <div className="photo-grid" style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 12 }}>
-                        {invPhotos.map((p, i) => (
-                          <div key={i} className="photo-thumb" style={{ position: "relative", width: 96, height: 96, borderRadius: 8, overflow: "hidden", border: "1px solid var(--border-color)", background: "var(--bg-dark)" }}>
-                            <img
-                              src={getAttachmentUrl(p)}
-                              alt={`photo ${i + 1}`}
-                              style={{ width: "100%", height: "100%", objectFit: "cover", cursor: "pointer" }}
-                              onClick={() => {
-                                const fullUrl = getAttachmentUrl(p);
-                                if (fullUrl) window.open(fullUrl, '_blank');
+                        {invPhotos.map((p, i) => {
+                          const docInfo = getFileAttachmentInfo(p);
+                          const fileSrc = typeof p === "object" ? p.data : getAttachmentUrl(p);
+                          const isFailed = failedImages[`inv_${i}`];
+                          const showAsDoc = docInfo.isDoc || isFailed;
+                          return (
+                            <div
+                              key={i}
+                              className="photo-thumb"
+                              style={{
+                                position: "relative",
+                                width: 100,
+                                height: 100,
+                                borderRadius: 8,
+                                overflow: "hidden",
+                                border: "1px solid var(--border-color)",
+                                background: showAsDoc ? (docInfo.bg || "#f8fafc") : "var(--bg-dark)",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                cursor: "pointer",
+                                transition: "all 0.15s ease"
                               }}
-                              title="Click to view full image"
-                            />
-                            {(!investigationSubmitted || isEditingInvestigation) && (
-                              <button type="button" style={{ position: "absolute", top: 2, right: 2, width: 20, height: 20, borderRadius: "50%", border: "none", background: "var(--color-risk, #ef4444)", color: "#fff", cursor: "pointer", fontSize: 12, lineHeight: 1 }} onClick={() => setInvPhotos(invPhotos.filter((_, idx) => idx !== i))}>×</button>
-                            )}
-                          </div>
-                        ))}
+                              onClick={() => {
+                                if (typeof fileSrc === "string" && fileSrc && fileSrc !== "#") {
+                                  window.open(fileSrc, "_blank");
+                                }
+                              }}
+                              title="Click to view / download"
+                            >
+                              {showAsDoc ? (
+                                <div style={{ textAlign: "center", padding: 6, width: "100%" }}>
+                                  <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 5px", borderRadius: 4, background: docInfo.color || "#ef4444", color: "#fff", display: "inline-block" }}>
+                                    {docInfo.type || "DOC / PDF"}
+                                  </span>
+                                  <div style={{ fontSize: 9, color: "#334155", marginTop: 4, maxWidth: 86, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", margin: "4px auto 0" }}>
+                                    {docInfo.name || `File ${i + 1}`}
+                                  </div>
+                                  <span style={{ fontSize: 8.5, color: "var(--accent-primary, #2563eb)", marginTop: 2, display: "block", textDecoration: "underline" }}>
+                                    Open
+                                  </span>
+                                </div>
+                              ) : (
+                                <img
+                                  src={fileSrc}
+                                  alt={`photo ${i + 1}`}
+                                  onError={() => setFailedImages(prev => ({ ...prev, [`inv_${i}`]: true }))}
+                                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                                />
+                              )}
+                              {(!investigationSubmitted || isEditingInvestigation) && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setInvPhotos(invPhotos.filter((_, idx) => idx !== i));
+                                  }}
+                                  style={{ position: "absolute", top: 2, right: 2, width: 20, height: 20, borderRadius: "50%", border: "none", background: "var(--color-risk, #ef4444)", color: "#fff", cursor: "pointer", fontSize: 12, lineHeight: 1, zIndex: 10 }}
+                                  title="Remove attachment"
+                                >
+                                  ×
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     ) : (
                       investigationSubmitted && !isEditingInvestigation && (
@@ -8878,7 +9039,7 @@ export default function IMDetails() {
                                       type="file"
                                       style={{ display: "none" }}
                                       disabled={item.uploading}
-                                      accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,.xlsx"
+                                      accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.csv"
                                       onChange={async (e) => {
                                         const file = e.target.files?.[0];
                                         if (!file) return;
@@ -9244,7 +9405,7 @@ export default function IMDetails() {
                             const userName = invInvName || getLoggedInUser() || "Investigator";
                             const payload = {
                               investigationDetails: invDetails,
-                              photos: invPhotos,
+                              photos: invPhotos.map(p => typeof p === "object" && p.data ? p.data : p),
                               problemStatement: invProblem,
                               effectDescription: invEffect,
                               effect: invEffect,
@@ -9937,7 +10098,7 @@ export default function IMDetails() {
                           }}
                         >
                           {actionFileUploading ? "Uploading..." : "Replace"}
-                          <input type="file" style={{ display: "none" }} onChange={handleActionFileUpload} disabled={actionFileUploading} />
+                          <input type="file" accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.csv" style={{ display: "none" }} onChange={handleActionFileUpload} disabled={actionFileUploading} />
                         </label>
                         <button
                           type="button"
@@ -9969,10 +10130,10 @@ export default function IMDetails() {
                         >
                           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
                           {actionFileUploading ? "Uploading..." : "Attach File / Photo"}
-                          <input type="file" style={{ display: "none" }} onChange={handleActionFileUpload} disabled={actionFileUploading} />
+                          <input type="file" accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.csv" style={{ display: "none" }} onChange={handleActionFileUpload} disabled={actionFileUploading} />
                         </label>
                         <span style={{ fontSize: "11px", color: "var(--text-muted)", fontStyle: "italic" }}>
-                          Supports PDF, JPG, PNG, WEBP, DOCX
+                          Supports Images, PDF, Word, PowerPoint, Excel, and Text files
                         </span>
                       </div>
                     )}

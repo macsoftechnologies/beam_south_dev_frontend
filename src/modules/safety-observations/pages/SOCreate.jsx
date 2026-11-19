@@ -46,6 +46,7 @@ function SOCreate() {
   const isEditMode = Boolean(id);
   const [isLoadingDetails, setIsLoadingDetails] = useState(isEditMode);
   const [existingPhotos, setExistingPhotos] = useState([]);
+  const [failedImages, setFailedImages] = useState({});
 
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [tempTime, setTempTime] = useState("");
@@ -1038,7 +1039,7 @@ const dataURLtoBlob = (dataurl) => {
               </button>
             </div>
 
-            <input type="file" ref={fileInputRef} multiple accept="image/*,.pdf" style={{ display: "none" }} onChange={handleFileSelect} />
+            <input type="file" ref={fileInputRef} multiple accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.csv" style={{ display: "none" }} onChange={handleFileSelect} />
 
             {isCameraActive && (
               <div style={{ marginTop: 12 }}>
@@ -1068,10 +1069,30 @@ const dataURLtoBlob = (dataurl) => {
                     const filename = String(photo).split("/").pop().split("\\").pop();
                     const src = photo.startsWith("http") || photo.startsWith("data:")
                       ? photo
-                      : `https://api.beam.safesiteworks.com/development/m3south/observations/${filename}`;
+                      : `https://api.beam.safesiteworks.com/m3south/observations/${filename}`;
+                    const docInfo = getFileAttachmentInfo(filename || photo);
+                    const isFailed = failedImages[`exist_${idx}`];
+                    const showAsDoc = docInfo.isDoc || isFailed;
+
                     return (
-                      <div key={idx} style={{ position: "relative", width: 72, height: 72, borderRadius: 7, overflow: "hidden", border: "1px solid var(--border-color)" }}>
-                        <img src={src} alt="Existing Observation" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      <div key={idx} style={{ position: "relative", width: 72, height: 72, borderRadius: 7, overflow: "hidden", border: "1px solid var(--border-color)", background: showAsDoc ? (docInfo.bg || "#f8fafc") : "#f8fafc", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        {showAsDoc ? (
+                          <div style={{ textAlign: "center", width: "100%", padding: 4 }}>
+                            <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 4px", borderRadius: 3, background: docInfo.color || "#ef4444", color: "#fff", display: "inline-block" }}>
+                              {docInfo.type}
+                            </span>
+                            <div style={{ fontSize: 8, color: "#334155", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 2 }} title={docInfo.name}>
+                              {docInfo.name}
+                            </div>
+                          </div>
+                        ) : (
+                          <img
+                            src={src}
+                            alt="Existing Observation"
+                            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                            onError={() => setFailedImages((prev) => ({ ...prev, [`exist_${idx}`]: true }))}
+                          />
+                        )}
                         <button
                           type="button"
                           onClick={() => setExistingPhotos((prev) => prev.filter((_, i) => i !== idx))}

@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import PageHeader from "../../../components/common/PageHeader/PageHeader";
 import { observationService } from "../../../services/observationService";
 import { getContractors, getBuildings, getRooms, getFloors } from "../../../services/authService";
+import { API_BASE_URL } from "../../../services/api";
 import { getModuleUserContext } from "../../../utils/modulePermissions";
 import { OBSERVATION_CATEGORIES_TREE, SAFETY_CATEGORIES } from "../data/observations";
 import FloorDrawing from "../../../pages/Request/FloorDrawing/FloorDrawing";
@@ -38,6 +39,30 @@ const initialForm = {
   floorLevel: "",
   specificLocation: "",
   immediateActionTaken: "",
+};
+
+const getFileAttachmentInfo = (p) => {
+  if (!p) return { isDoc: false, type: "FILE", name: "File", color: "#64748b", bg: "#f1f5f9" };
+  const rawUrl = typeof p === "object" ? (p.name || p.data || p.url || "") : String(p);
+  const lower = rawUrl.toLowerCase();
+  const name = (typeof p === "object" && p.name) ? p.name : (rawUrl.split("/").pop().split("\\").pop() || rawUrl);
+
+  if (lower.includes(".pdf") || lower.includes("application/pdf")) {
+    return { isDoc: true, type: "PDF", name, color: "#dc2626", bg: "#fef2f2", border: "#fecaca" };
+  }
+  if (lower.includes(".pptx") || lower.includes(".ppt") || lower.includes("presentationml") || lower.includes("powerpoint")) {
+    return { isDoc: true, type: "PPT", name, color: "#ea580c", bg: "#fff7ed", border: "#fed7aa" };
+  }
+  if (lower.includes(".docx") || lower.includes(".doc") || lower.includes("wordprocessingml") || lower.includes("msword")) {
+    return { isDoc: true, type: "DOC", name, color: "#2563eb", bg: "#eff6ff", border: "#bfdbfe" };
+  }
+  if (lower.includes(".xlsx") || lower.includes(".xls") || lower.includes("spreadsheetml") || lower.includes("excel") || lower.includes(".csv")) {
+    return { isDoc: true, type: "EXCEL", name, color: "#16a34a", bg: "#f0fdf4", border: "#bbf7d0" };
+  }
+  if (lower.includes(".txt") || lower.includes("text/plain")) {
+    return { isDoc: true, type: "TXT", name, color: "#475569", bg: "#f8fafc", border: "#e2e8f0" };
+  }
+  return { isDoc: false, type: "IMG", name, color: "#3b82f6", bg: "#f8fafc", border: "#e2e8f0" };
 };
 
 function SOCreate() {
@@ -337,20 +362,20 @@ function SOCreate() {
     }
   }, [building, level, buildingsList]);
 
-const dataURLtoBlob = (dataurl) => {
-  if (!dataurl || typeof dataurl !== 'string') return null;
-  const arr = dataurl.split(',');
-  if (arr.length < 2) return null;
-  const mimeMatch = arr[0].match(/:(.*?);/);
-  const mime = mimeMatch ? mimeMatch[1] : 'image/png';
-  const bstr = atob(arr[1]);
-  let n = bstr.length;
-  const u8arr = new Uint8Array(n);
-  while (n--) {
-    u8arr[n] = bstr.charCodeAt(n);
-  }
-  return new Blob([u8arr], { type: mime });
-};
+  const dataURLtoBlob = (dataurl) => {
+    if (!dataurl || typeof dataurl !== 'string') return null;
+    const arr = dataurl.split(',');
+    if (arr.length < 2) return null;
+    const mimeMatch = arr[0].match(/:(.*?);/);
+    const mime = mimeMatch ? mimeMatch[1] : 'image/png';
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new Blob([u8arr], { type: mime });
+  };
 
   const startCamera = async () => {
     setIsCameraActive(true);
@@ -616,9 +641,9 @@ const dataURLtoBlob = (dataurl) => {
           { label: "Safety Observations", link: "/safety-observations/list" },
           ...(isEditMode
             ? [
-                { label: form.observationNumber || `SO-${id}`, link: `/safety-observations/details/${id}` },
-                { label: "Edit Details" },
-              ]
+              { label: form.observationNumber || `SO-${id}`, link: `/safety-observations/details/${id}` },
+              { label: "Edit Details" },
+            ]
             : [{ label: "New Observation" }]),
         ]}
       />
@@ -1067,9 +1092,10 @@ const dataURLtoBlob = (dataurl) => {
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                   {existingPhotos.map((photo, idx) => {
                     const filename = String(photo).split("/").pop().split("\\").pop();
+                    const baseUrl = (API_BASE_URL || "").endsWith("/") ? API_BASE_URL.slice(0, -1) : (API_BASE_URL || "");
                     const src = photo.startsWith("http") || photo.startsWith("data:")
                       ? photo
-                      : `https://api.beam.safesiteworks.com/m3south/observations/${filename}`;
+                      : (baseUrl ? `${baseUrl}/observations/${filename}` : `https://api.beam.safesiteworks.com/development/m3south/observations/${filename}`);
                     const docInfo = getFileAttachmentInfo(filename || photo);
                     const isFailed = failedImages[`exist_${idx}`];
                     const showAsDoc = docInfo.isDoc || isFailed;
@@ -1077,14 +1103,14 @@ const dataURLtoBlob = (dataurl) => {
                     return (
                       <div key={idx} style={{ position: "relative", width: 72, height: 72, borderRadius: 7, overflow: "hidden", border: "1px solid var(--border-color)", background: showAsDoc ? (docInfo.bg || "#f8fafc") : "#f8fafc", display: "flex", alignItems: "center", justifyContent: "center" }}>
                         {showAsDoc ? (
-                          <div style={{ textAlign: "center", width: "100%", padding: 4 }}>
+                          <a href={src} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none", color: "inherit", textAlign: "center", width: "100%", padding: 4 }} title="Click to view">
                             <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 4px", borderRadius: 3, background: docInfo.color || "#ef4444", color: "#fff", display: "inline-block" }}>
                               {docInfo.type}
                             </span>
                             <div style={{ fontSize: 8, color: "#334155", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 2 }} title={docInfo.name}>
                               {docInfo.name}
                             </div>
-                          </div>
+                          </a>
                         ) : (
                           <img
                             src={src}
@@ -1113,6 +1139,7 @@ const dataURLtoBlob = (dataurl) => {
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
+                            zIndex: 5,
                           }}
                         >
                           &times;
@@ -1131,35 +1158,52 @@ const dataURLtoBlob = (dataurl) => {
                   {isEditMode ? `New Photos To Add (${photoPreviews.length}):` : `Selected Photos (${photoPreviews.length}):`}
                 </div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                  {photoPreviews.map((src, idx) => (
-                    <div key={idx} style={{ position: "relative", width: 72, height: 72, borderRadius: 7, overflow: "hidden", border: "1px solid var(--border-color)" }}>
-                      <img src={src} alt="New upload" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-                      <button
-                        type="button"
-                        onClick={() => removePhoto(idx)}
-                        title="Remove photo"
-                        style={{
-                          position: "absolute",
-                          top: 2,
-                          right: 2,
-                          width: 18,
-                          height: 18,
-                          borderRadius: "50%",
-                          border: "none",
-                          background: "rgba(0,0,0,0.6)",
-                          color: "#fff",
-                          fontSize: 12,
-                          lineHeight: 1,
-                          cursor: "pointer",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                        }}
-                      >
-                        &times;
-                      </button>
-                    </div>
-                  ))}
+                  {photoPreviews.map((src, idx) => {
+                    const fileObj = photoFiles[idx];
+                    const docInfo = getFileAttachmentInfo(fileObj || src);
+                    const showAsDoc = docInfo.isDoc;
+                    return (
+                      <div key={idx} style={{ position: "relative", width: 72, height: 72, borderRadius: 7, overflow: "hidden", border: "1px solid var(--border-color)", background: showAsDoc ? (docInfo.bg || "#f8fafc") : "#f8fafc", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        {showAsDoc ? (
+                          <div style={{ textAlign: "center", width: "100%", padding: 4 }}>
+                            <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 4px", borderRadius: 3, background: docInfo.color || "#ef4444", color: "#fff", display: "inline-block" }}>
+                              {docInfo.type}
+                            </span>
+                            <div style={{ fontSize: 8, color: "#334155", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 2 }}>
+                              {docInfo.name}
+                            </div>
+                          </div>
+                        ) : (
+                          <img src={src} alt="New upload" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => removePhoto(idx)}
+                          title="Remove photo"
+                          style={{
+                            position: "absolute",
+                            top: 2,
+                            right: 2,
+                            width: 18,
+                            height: 18,
+                            borderRadius: "50%",
+                            border: "none",
+                            background: "rgba(0,0,0,0.6)",
+                            color: "#fff",
+                            fontSize: 12,
+                            lineHeight: 1,
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            zIndex: 5,
+                          }}
+                        >
+                          &times;
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -1185,8 +1229,8 @@ const dataURLtoBlob = (dataurl) => {
                   ? "Saving Changes..."
                   : "Submitting..."
                 : isEditMode
-                ? "Save Changes"
-                : "Submit Observation"}
+                  ? "Save Changes"
+                  : "Submit Observation"}
             </button>
           </div>
         </form>

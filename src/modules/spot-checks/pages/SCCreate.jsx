@@ -379,25 +379,61 @@ export default function SCCreate() {
     setForm({ ...form, attachments: atts });
   };
 
-  const handleAttachmentFileChange = (index, e) => {
+  const compressImage = (file, maxWidth = 1280, maxHeight = 1280, quality = 0.75) => {
+    return new Promise((resolve) => {
+      if (!file.type || !file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = (ev) => resolve({ dataUrl: ev.target?.result, sizeKb: (file.size / 1024).toFixed(1) + ' KB' });
+        reader.readAsDataURL(file);
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const img = new Image();
+        img.onload = () => {
+          let { width, height } = img;
+          if (width > maxWidth || height > maxHeight) {
+            const ratio = Math.min(maxWidth / width, maxHeight / height);
+            width = Math.round(width * ratio);
+            height = Math.round(height * ratio);
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL('image/jpeg', quality);
+          const sizeKb = (Math.round((dataUrl.length * 3) / 4) / 1024).toFixed(1) + ' KB';
+          resolve({ dataUrl, sizeKb });
+        };
+        img.onerror = () => {
+          resolve({ dataUrl: ev.target?.result, sizeKb: (file.size / 1024).toFixed(1) + ' KB' });
+        };
+        img.src = ev.target?.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleAttachmentFileChange = async (index, e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (uploadEvent) => {
-      const base64Url = uploadEvent.target?.result;
+    try {
+      const { dataUrl, sizeKb } = await compressImage(file);
       const atts = [...form.attachments];
       atts[index] = {
         ...atts[index],
         fileName: file.name,
-        fileSize: (file.size / 1024).toFixed(1) + ' KB',
-        fileType: file.type,
-        previewUrl: base64Url,
+        fileSize: sizeKb,
+        fileType: file.type?.startsWith('image/') ? 'image/jpeg' : file.type,
+        previewUrl: dataUrl,
         attached: "Yes"
       };
       setForm(prev => ({ ...prev, attachments: atts }));
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      console.error("Failed to process attachment file", err);
+    }
   };
 
   const handleRemoveAttachmentFile = (index, e) => {

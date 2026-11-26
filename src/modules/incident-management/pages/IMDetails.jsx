@@ -7273,6 +7273,7 @@ export default function IMDetails() {
                             if (irMedicalTreatmentClass) formData.append("medicalTreatmentClass", irMedicalTreatmentClass);
 
                             // 5. Initial Assessment & Root Cause
+                            if (irDescription?.trim()) formData.append("description", irDescription.trim());
                             if (irInitialRootCause) formData.append("initialRootCause", irInitialRootCause);
                             if (irEnvironmentalConditions) formData.append("environmentalConditions", irEnvironmentalConditions);
                             if (irEquipmentInvolved) {
@@ -10503,6 +10504,7 @@ export default function IMDetails() {
                 rawIncident?.incident?.noFurtherInvestigation
               ),
               categories: (irCategories && irCategories.length > 0) ? irCategories : (rawIncident?.initialReport?.categories || []),
+              description: irDescription || rawIncident?.initialReport?.description,
               injuredPersonName: irInjuredName || rawIncident?.initialReport?.injuredPersonName,
               injuredPersonCompany: irInjuredCompany || rawIncident?.initialReport?.injuredPersonCompany,
               injuredPersonSupervisor: irInjuredSupervisor || rawIncident?.initialReport?.injuredPersonSupervisor,

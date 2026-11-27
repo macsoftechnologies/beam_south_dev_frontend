@@ -101,6 +101,7 @@ function SOCreate() {
   const [photoPreviews, setPhotoPreviews] = useState([]);
 
   const [isCameraActive, setIsCameraActive] = useState(false);
+  const [cameraFacing, setCameraFacing] = useState("environment");
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
@@ -381,9 +382,10 @@ function SOCreate() {
   };
 
   const startCamera = async () => {
+    setCameraFacing("environment");
     setIsCameraActive(true);
     try {
-      const stream = await getPreferredCameraStream();
+      const stream = await getPreferredCameraStream("environment");
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -392,6 +394,24 @@ function SOCreate() {
       console.error("Error accessing camera:", err);
       alert("Could not access camera.");
       setIsCameraActive(false);
+    }
+  };
+
+  const turnCamera = async () => {
+    const nextFacing = cameraFacing === "environment" ? "user" : "environment";
+    setCameraFacing(nextFacing);
+    try {
+      const stream = await getPreferredCameraStream(nextFacing, streamRef.current);
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+    } catch (err) {
+      console.error("Error switching camera:", err);
+      alert("Could not switch camera.");
+      streamRef.current = null;
+      setIsCameraActive(false);
+      setCameraFacing("environment");
     }
   };
 
@@ -407,6 +427,7 @@ function SOCreate() {
       streamRef.current = null;
     }
     setIsCameraActive(false);
+    setCameraFacing("environment");
   };
 
   const capturePhoto = () => {
@@ -1090,9 +1111,12 @@ function SOCreate() {
                 <div style={{ width: "100%", maxWidth: 480, height: 280, background: "#000", borderRadius: 8, overflow: "hidden", position: "relative" }}>
                   <video ref={videoRef} autoPlay playsInline style={{ width: "100%", height: "100%", objectFit: "cover" }}></video>
                 </div>
-                <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
                   <button type="button" className="mod-btn-primary" style={{ padding: "4px 12px", fontSize: 13 }} onClick={capturePhoto}>
                     Capture
+                  </button>
+                  <button type="button" className="mod-btn-outline" style={{ padding: "4px 12px", fontSize: 13 }} onClick={turnCamera}>
+                    Turn Camera
                   </button>
                   <button type="button" className="mod-btn-outline" style={{ padding: "4px 12px", fontSize: 13 }} onClick={stopCamera}>
                     Stop Camera

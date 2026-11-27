@@ -190,6 +190,7 @@ export default function SafetyIssueModal({
   const [photoFiles, setPhotoFiles] = useState([]);
   const [photoPreviews, setPhotoPreviews] = useState([]);
   const [isCameraActive, setIsCameraActive] = useState(false);
+  const [cameraFacing, setCameraFacing] = useState("environment");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Form State
@@ -418,9 +419,10 @@ export default function SafetyIssueModal({
   };
 
   const startCamera = async () => {
+    setCameraFacing("environment");
     setIsCameraActive(true);
     try {
-      const stream = await getPreferredCameraStream();
+      const stream = await getPreferredCameraStream("environment");
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -429,6 +431,24 @@ export default function SafetyIssueModal({
       console.error("Error accessing camera:", err);
       alert("Could not access camera.");
       setIsCameraActive(false);
+    }
+  };
+
+  const turnCamera = async () => {
+    const nextFacing = cameraFacing === "environment" ? "user" : "environment";
+    setCameraFacing(nextFacing);
+    try {
+      const stream = await getPreferredCameraStream(nextFacing, streamRef.current);
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+    } catch (err) {
+      console.error("Error switching camera:", err);
+      alert("Could not switch camera.");
+      streamRef.current = null;
+      setIsCameraActive(false);
+      setCameraFacing("environment");
     }
   };
 
@@ -444,6 +464,7 @@ export default function SafetyIssueModal({
       streamRef.current = null;
     }
     setIsCameraActive(false);
+    setCameraFacing("environment");
   };
 
   const capturePhoto = () => {
@@ -1050,9 +1071,12 @@ export default function SafetyIssueModal({
                 <div style={{ width: "100%", maxWidth: 480, height: 280, background: "#000", borderRadius: 8, overflow: "hidden", position: "relative" }}>
                   <video ref={videoRef} autoPlay playsInline style={{ width: "100%", height: "100%", objectFit: "cover" }}></video>
                 </div>
-                <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
                   <button type="button" className="sim-btn-submit" style={{ padding: "4px 12px", fontSize: 13 }} onClick={capturePhoto}>
                     Capture
+                  </button>
+                  <button type="button" className="sim-btn-cancel" style={{ padding: "4px 12px", fontSize: 13 }} onClick={turnCamera}>
+                    Turn Camera
                   </button>
                   <button type="button" className="sim-btn-cancel" style={{ padding: "4px 12px", fontSize: 13 }} onClick={stopCamera}>
                     Stop Camera

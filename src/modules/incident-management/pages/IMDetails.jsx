@@ -1005,6 +1005,7 @@ export default function IMDetails() {
 
   // Camera & Photos for Step 2
   const [isCameraActive, setIsCameraActive] = useState(false);
+  const [cameraFacing, setCameraFacing] = useState("environment");
   const [photos, setPhotos] = useState([]);
   const [failedImages, setFailedImages] = useState({});
   const videoRef = useRef(null);
@@ -1311,6 +1312,7 @@ export default function IMDetails() {
     }
   }, [photos]);
   const [isInvCameraActive, setIsInvCameraActive] = useState(false);
+  const [invCameraFacing, setInvCameraFacing] = useState("environment");
   const invVideoRef = useRef(null);
   const invCanvasRef = useRef(null);
   const invFileInputRef = useRef(null);
@@ -2372,9 +2374,10 @@ export default function IMDetails() {
   };
 
   const startCamera = async () => {
+    setCameraFacing("environment");
     setIsCameraActive(true);
     try {
-      const stream = await getPreferredCameraStream();
+      const stream = await getPreferredCameraStream("environment");
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -2386,12 +2389,31 @@ export default function IMDetails() {
     }
   };
 
+  const turnCamera = async () => {
+    const nextFacing = cameraFacing === "environment" ? "user" : "environment";
+    setCameraFacing(nextFacing);
+    try {
+      const stream = await getPreferredCameraStream(nextFacing, streamRef.current);
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+    } catch (err) {
+      console.error("Error switching camera:", err);
+      alert("Could not switch camera.");
+      streamRef.current = null;
+      setIsCameraActive(false);
+      setCameraFacing("environment");
+    }
+  };
+
   const stopCamera = () => {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
       streamRef.current = null;
     }
     setIsCameraActive(false);
+    setCameraFacing("environment");
   };
 
   const capturePhoto = () => {
@@ -2415,9 +2437,10 @@ export default function IMDetails() {
   };
 
   const startInvCamera = async () => {
+    setInvCameraFacing("environment");
     setIsInvCameraActive(true);
     try {
-      const stream = await getPreferredCameraStream();
+      const stream = await getPreferredCameraStream("environment");
       invStreamRef.current = stream;
       if (invVideoRef.current) {
         invVideoRef.current.srcObject = stream;
@@ -2429,12 +2452,31 @@ export default function IMDetails() {
     }
   };
 
+  const turnInvCamera = async () => {
+    const nextFacing = invCameraFacing === "environment" ? "user" : "environment";
+    setInvCameraFacing(nextFacing);
+    try {
+      const stream = await getPreferredCameraStream(nextFacing, invStreamRef.current);
+      invStreamRef.current = stream;
+      if (invVideoRef.current) {
+        invVideoRef.current.srcObject = stream;
+      }
+    } catch (err) {
+      console.error("Error switching camera:", err);
+      alert("Could not switch camera.");
+      invStreamRef.current = null;
+      setIsInvCameraActive(false);
+      setInvCameraFacing("environment");
+    }
+  };
+
   const stopInvCamera = () => {
     if (invStreamRef.current) {
       invStreamRef.current.getTracks().forEach(track => track.stop());
       invStreamRef.current = null;
     }
     setIsInvCameraActive(false);
+    setInvCameraFacing("environment");
   };
 
   const captureInvPhoto = () => {
@@ -6469,9 +6511,10 @@ export default function IMDetails() {
                           <video ref={videoRef} autoPlay playsInline style={{ width: "100%", height: "100%", objectFit: "cover" }}></video>
                           <canvas ref={canvasRef} style={{ display: 'none' }}></canvas>
                         </div>
-                        <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 12 }}>
-                          <button onClick={capturePhoto} style={{ background: "var(--accent-primary)", color: "#fff", border: "none", borderRadius: 6, padding: "6px 16px", fontWeight: 700, cursor: "pointer" }}>Capture</button>
-                          <button className="mod-btn-outline" onClick={stopCamera} style={{ padding: "6px 16px" }}>Stop Camera</button>
+                        <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 12, flexWrap: "wrap" }}>
+                          <button type="button" onClick={capturePhoto} style={{ background: "var(--accent-primary)", color: "#fff", border: "none", borderRadius: 6, padding: "6px 16px", fontWeight: 700, cursor: "pointer" }}>Capture</button>
+                          <button type="button" className="mod-btn-outline" onClick={turnCamera} style={{ padding: "6px 16px" }}>Turn Camera</button>
+                          <button type="button" className="mod-btn-outline" onClick={stopCamera} style={{ padding: "6px 16px" }}>Stop Camera</button>
                         </div>
                         <div style={{ fontSize: 13, color: photos.length > 10 ? "#DC2626" : "var(--text-muted)", marginTop: 8 }}>{photos.length}/10 files (max 20 MB each)</div>
                       </div>
@@ -8821,7 +8864,7 @@ export default function IMDetails() {
                     {isInvCameraActive && (
                       <div className="cam-wrap" style={{ marginTop: 12 }}>
                         <video ref={invVideoRef} autoPlay playsInline style={{ width: "100%", maxWidth: 420, borderRadius: 8, background: "#000" }}></video>
-                        <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                        <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
                           <button type="button" className="mod-btn-primary im-btn-primary" style={{ padding: "4px 12px", fontSize: 13 }} onClick={() => {
                             if (invPhotos.length >= 20) {
                               showError("Maximum 20 photos are allowed for Incident Investigation.");
@@ -8836,13 +8879,8 @@ export default function IMDetails() {
                             const data = c.toDataURL('image/jpeg', 0.8);
                             setInvPhotos([...invPhotos, data]);
                           }}>Capture</button>
-                          <button type="button" className="mod-btn-outline" style={{ padding: "4px 12px", fontSize: 13 }} onClick={() => {
-                            setIsInvCameraActive(false);
-                            if (invStreamRef.current) {
-                              invStreamRef.current.getTracks().forEach(t => t.stop());
-                              invStreamRef.current = null;
-                            }
-                          }}>Stop Camera</button>
+                          <button type="button" className="mod-btn-outline" style={{ padding: "4px 12px", fontSize: 13 }} onClick={turnInvCamera}>Turn Camera</button>
+                          <button type="button" className="mod-btn-outline" style={{ padding: "4px 12px", fontSize: 13 }} onClick={stopInvCamera}>Stop Camera</button>
                         </div>
                         <canvas ref={invCanvasRef} style={{ display: "none" }}></canvas>
                       </div>

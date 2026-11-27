@@ -18,6 +18,7 @@ import IncidentCategoryReferenceTable, { INCIDENT_CATEGORY_MAP } from "../compon
 import SeverityDropdown, { getCategorySeverityConfig } from "../components/SeverityDropdown";
 import { getDenmarkDateString, parseUTCToDate, parseCopenhagenDateTime, formatToDenmark24Hour, formatToDenmark24HourObj } from "../../../utils/dateUtils";
 import { triggerBlobDownload } from "../../../utils/pdfDownload";
+import { validateUploadFiles, extractApiErrorMessage } from "../../../utils/fileUploadValidation";
 import "../../../styles/module-shared.css";
 import "./IMDetails.css";
 import { AnalogTimePicker } from "./IMCreate";
@@ -2393,6 +2394,12 @@ export default function IMDetails() {
   };
 
   const capturePhoto = () => {
+    if (photos.length >= 10) {
+      const msg = "Maximum 10 files are allowed for Incident Initial Report photos & attachments.";
+      setIrErrors(prev => ({ ...prev, photos: msg }));
+      showError(msg);
+      return;
+    }
     if (videoRef.current && canvasRef.current) {
       const video = videoRef.current;
       const canvas = canvasRef.current;
@@ -2430,6 +2437,10 @@ export default function IMDetails() {
   };
 
   const captureInvPhoto = () => {
+    if (invPhotos.length >= 20) {
+      showError("Maximum 20 photos are allowed for Incident Investigation.");
+      return;
+    }
     if (invVideoRef.current && invCanvasRef.current) {
       const video = invVideoRef.current;
       const canvas = invCanvasRef.current;
@@ -2438,15 +2449,25 @@ export default function IMDetails() {
       const ctx = canvas.getContext('2d');
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       const dataUrl = canvas.toDataURL('image/png');
-      if (invPhotos.length < 20) {
-        setInvPhotos([...invPhotos, dataUrl]);
-      }
+      setInvPhotos([...invPhotos, dataUrl]);
     }
   };
 
   const handleFileUpload = (e) => {
-    const files = Array.from(e.target.files);
+    const files = Array.from(e.target.files || []);
     if (files.length > 0) {
+      const { valid, errorMessage } = validateUploadFiles(files, {
+        existingCount: photos.length,
+        maxFiles: 10,
+        maxFileSizeMB: 20,
+        label: "Incident Initial Report photos & attachments",
+      });
+      if (!valid) {
+        setIrErrors(prev => ({ ...prev, photos: errorMessage }));
+        showError(errorMessage);
+        e.target.value = null;
+        return;
+      }
       Promise.all(files.map(file => {
         return new Promise((resolve) => {
           const reader = new FileReader();
@@ -2510,6 +2531,16 @@ export default function IMDetails() {
   const handleActionFileUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const { valid, errorMessage } = validateUploadFiles([file], {
+      maxFiles: 1,
+      maxFileSizeMB: 20,
+      label: "Incident Action Item attachment",
+    });
+    if (!valid) {
+      showError(errorMessage);
+      e.target.value = null;
+      return;
+    }
     setActionFileUploading(true);
     try {
       const res = await uploadIncidentAttachment(file);
@@ -2528,7 +2559,7 @@ export default function IMDetails() {
       showSuccess("File attached successfully!");
     } catch (err) {
       console.error("Failed to upload action attachment", err);
-      showError("Failed to upload file attachment.");
+      showError(extractApiErrorMessage(err, "Failed to upload file attachment."));
     } finally {
       setActionFileUploading(false);
       e.target.value = null;
@@ -6415,16 +6446,19 @@ export default function IMDetails() {
 
                   {/* F. Photos (Now E) */}
                   <div className="fsec"><div className="fsec-title">E. Photos & Attachments from the incident location <span style={{ color: "#DC2626" }}>*</span></div>
-                    <div className="fsec-note">Minimum of 2 photos or evidence attachments. For environmental incidents, include one photo before the spill is contained and one after.</div>
+                    <div className="fsec-note">Minimum of 2 and maximum of 10 files (max 20 MB per file). Supported: JPG, PNG, WEBP, GIF, HEIC, PDF, DOC, DOCX, PPT, PPTX, XLS, XLSX, TXT, CSV. For environmental incidents, include one photo before the spill is contained and one after.</div>
 
                     {irErrors.photos && <div style={{ fontSize: "0.85rem", color: "#DC2626", marginBottom: "8px", fontWeight: "bold" }}>{irErrors.photos}</div>}
 
                     <input type="file" accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.csv" multiple ref={fileInputRef} style={{ display: 'none' }} onChange={handleFileUpload} />
 
                     {!isCameraActive && (!initialReportSubmitted || isEditingInitialReport) && (
-                      <div style={{ display: "flex", gap: "8px" }}>
+                      <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
                         <button className="mod-btn-outline" onClick={startCamera} style={{ padding: "4px 12px", fontSize: "12px" }}>Take Photo</button>
                         <button className="mod-btn-outline" onClick={() => fileInputRef.current.click()} style={{ padding: "4px 12px", fontSize: "12px" }}>Upload Photo / Document</button>
+                        <span style={{ fontSize: "12px", color: photos.length > 10 ? "#DC2626" : "var(--text-muted)", fontWeight: photos.length > 10 ? 700 : 500 }}>
+                          {photos.length}/10 files (max 20 MB each)
+                        </span>
                       </div>
                     )}
 
@@ -6438,7 +6472,7 @@ export default function IMDetails() {
                           <button onClick={capturePhoto} style={{ background: "var(--accent-primary)", color: "#fff", border: "none", borderRadius: 6, padding: "6px 16px", fontWeight: 700, cursor: "pointer" }}>Capture</button>
                           <button className="mod-btn-outline" onClick={stopCamera} style={{ padding: "6px 16px" }}>Stop Camera</button>
                         </div>
-                        <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 8 }}>{photos.length}/20 photos</div>
+                        <div style={{ fontSize: 13, color: photos.length > 10 ? "#DC2626" : "var(--text-muted)", marginTop: 8 }}>{photos.length}/10 files (max 20 MB each)</div>
                       </div>
                     )}
 
@@ -7175,6 +7209,7 @@ export default function IMDetails() {
                             }
 
                             if (photos.length < 2) newErrors.photos = "A minimum of 2 photos are required";
+                            else if (photos.length > 10) newErrors.photos = `Maximum 10 files are allowed for Incident Initial Report photos & attachments (currently ${photos.length}). Please remove ${photos.length - 10} file(s) before submitting.`;
 
                             if (Object.keys(newErrors).length > 0) {
                               setIrErrors(newErrors);
@@ -7189,9 +7224,9 @@ export default function IMDetails() {
                               } else if (newErrors.irTreatmentProvided) {
                                 showError(newErrors.irTreatmentProvided);
                               } else if (newErrors.photos && Object.keys(newErrors).length === 1) {
-                                showError("Please ensure at least 2 photos are added.");
+                                showError(newErrors.photos);
                               } else if (newErrors.photos) {
-                                showError("Please fill out all mandatory fields and ensure at least 2 photos are added.");
+                                showError(photos.length > 10 ? newErrors.photos : "Please fill out all mandatory fields and ensure at least 2 photos are added.");
                               } else {
                                 showError("Please fill out all mandatory fields.");
                               }
@@ -8748,18 +8783,29 @@ export default function IMDetails() {
 
                   {/* 13. Photos */}
                   <div className="fsec"><div className="fsec-title">13. Photos from the incident location</div>
-                    <div className="fsec-note">Photos from initial incident report are automatically included. You may add additional photos if available (optional). For environmental incidents, include one photo before the spill is contained/treated and one after.</div>
+                    <div className="fsec-note">Photos from initial incident report are automatically included. You may add additional photos if available (optional, up to 20 files total, max 20 MB per file). For environmental incidents, include one photo before the spill is contained/treated and one after.</div>
                     {(!investigationSubmitted || isEditingInvestigation) && (
                       <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
                         <button type="button" className="mod-btn-outline" style={{ fontSize: 13 }} onClick={startInvCamera}>Take Photo</button>
                         <button type="button" className="mod-btn-outline" style={{ fontSize: 13 }} onClick={() => invFileInputRef.current?.click()}>Upload Photo / Document</button>
                         <input type="file" ref={invFileInputRef} accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.csv" multiple style={{ display: "none" }} onChange={(e) => {
-                          const files = e.target.files;
-                          if (!files) return;
-                          Array.from(files).forEach(f => {
+                          const files = Array.from(e.target.files || []);
+                          if (files.length === 0) return;
+                          const { valid, errorMessage } = validateUploadFiles(files, {
+                            existingCount: invPhotos.length,
+                            maxFiles: 20,
+                            maxFileSizeMB: 20,
+                            label: "Incident Investigation photos",
+                          });
+                          if (!valid) {
+                            showError(errorMessage);
+                            e.target.value = '';
+                            return;
+                          }
+                          files.forEach(f => {
                             const reader = new FileReader();
                             reader.onload = (ev) => {
-                              if (invPhotos.length < 20) setInvPhotos(prev => [...prev, {
+                              setInvPhotos(prev => [...prev, {
                                 data: ev.target.result,
                                 name: f.name,
                                 type: f.type || ''
@@ -8776,6 +8822,10 @@ export default function IMDetails() {
                         <video ref={invVideoRef} autoPlay playsInline style={{ width: "100%", maxWidth: 420, borderRadius: 8, background: "#000" }}></video>
                         <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                           <button type="button" className="mod-btn-primary im-btn-primary" style={{ padding: "4px 12px", fontSize: 13 }} onClick={() => {
+                            if (invPhotos.length >= 20) {
+                              showError("Maximum 20 photos are allowed for Incident Investigation.");
+                              return;
+                            }
                             const v = invVideoRef.current;
                             const c = invCanvasRef.current;
                             if (!v || !c) return;
@@ -8783,7 +8833,7 @@ export default function IMDetails() {
                             c.width = w; c.height = h;
                             c.getContext('2d').drawImage(v, 0, 0, w, h);
                             const data = c.toDataURL('image/jpeg', 0.8);
-                            if (invPhotos.length < 20) setInvPhotos([...invPhotos, data]);
+                            setInvPhotos([...invPhotos, data]);
                           }}>Capture</button>
                           <button type="button" className="mod-btn-outline" style={{ padding: "4px 12px", fontSize: 13 }} onClick={() => {
                             setIsInvCameraActive(false);
@@ -8797,7 +8847,7 @@ export default function IMDetails() {
                       </div>
                     )}
                     <div className="photo-count" style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 8, display: "flex", alignItems: "center", gap: 10 }}>
-                      <span>{invPhotos.length}/20 photos</span>
+                      <span>{invPhotos.length}/20 photos (max 20 MB each)</span>
                       {invPhotos.length > 0 && (
                         <span style={{ fontSize: 11, background: "#ecfdf5", color: "#059669", padding: "2px 8px", borderRadius: 4, fontWeight: 600, border: "1px solid #a7f3d0" }}>
                           ✓ Incident photos included
@@ -9044,6 +9094,16 @@ export default function IMDetails() {
                                       onChange={async (e) => {
                                         const file = e.target.files?.[0];
                                         if (!file) return;
+                                        const { valid, errorMessage } = validateUploadFiles([file], {
+                                          maxFiles: 1,
+                                          maxFileSizeMB: 20,
+                                          label: "Incident Investigation attachment",
+                                        });
+                                        if (!valid) {
+                                          showError(errorMessage);
+                                          e.target.value = "";
+                                          return;
+                                        }
                                         try {
                                           const updatedUploading = [...invAttachments];
                                           updatedUploading[i] = { ...updatedUploading[i], uploading: true };
@@ -9071,18 +9131,20 @@ export default function IMDetails() {
                                           showSuccess(`Attached ${fileName} successfully!`);
                                         } catch (err) {
                                           console.error("Failed to upload attachment file:", err);
-                                          showError("Failed to upload attachment. Please try again.");
+                                          showError(extractApiErrorMessage(err, "Failed to upload attachment. Please try again."));
                                           setInvAttachments(prev => {
                                             const next = [...prev];
                                             next[i] = { ...next[i], uploading: false };
                                             return next;
                                           });
+                                        } finally {
+                                          e.target.value = "";
                                         }
                                       }}
                                     />
                                   </label>
                                   <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
-                                    {item.fileUrl ? `Attached: ${item.fileName} (${item.fileSize ? Math.round(item.fileSize / 1024) + ' KB' : 'Saved'})` : "Supports PDF, JPG, PNG, WEBP, DOCX"}
+                                    {item.fileUrl ? `Attached: ${item.fileName} (${item.fileSize ? Math.round(item.fileSize / 1024) + ' KB' : 'Saved'})` : "Supports PDF, JPG, PNG, WEBP, DOCX (1 file, max 20 MB)"}
                                   </span>
                                 </div>
                               )}

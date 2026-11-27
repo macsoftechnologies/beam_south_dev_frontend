@@ -9,6 +9,7 @@ import { getBuildings, getRooms, getFloors, getEmployees } from "../../../servic
 import { safetyInspectionService } from "../../../services/safetyInspectionService";
 import { showSuccess, showError } from "../../../components/common/Toast/Toast";
 import { getModuleUserContext } from "../../../utils/modulePermissions";
+import { validateUploadFiles, extractApiErrorMessage } from "../../../utils/fileUploadValidation";
 import "./SICreate.css";
 
 // The 20 standard safety inspection items
@@ -319,10 +320,21 @@ export default function SICreate() {
   };
 
   const handleFileChange = async (e) => {
-    const files = e.target.files;
-    if (!files || files.length === 0 || activeUploadIdx === null) return;
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0 || activeUploadIdx === null) return;
 
-    const localFiles = Array.from(files).map(file => ({
+    const { valid, errorMessage } = validateUploadFiles(files, {
+      maxFiles: 10,
+      maxFileSizeMB: 25,
+      label: "Safety Inspection upload",
+    });
+    if (!valid) {
+      showError(errorMessage);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
+    const localFiles = files.map(file => ({
       file,
       previewUrl: URL.createObjectURL(file),
       serverUrl: null
@@ -334,7 +346,7 @@ export default function SICreate() {
     }));
 
     try {
-      const res = await safetyInspectionService.uploadPhotos(Array.from(files));
+      const res = await safetyInspectionService.uploadPhotos(files);
       if (res?.urls && res.urls.length > 0) {
         setItemPhotos(prev => {
           const current = [...(prev[activeUploadIdx] || [])];
@@ -350,7 +362,7 @@ export default function SICreate() {
       }
     } catch (err) {
       console.error("Failed to upload photos", err);
-      alert("Failed to upload attachment photo");
+      showError(extractApiErrorMessage(err, "Failed to upload attachment photo"));
       setItemPhotos(prev => {
         const current = [...(prev[activeUploadIdx] || [])];
         current.splice(-localFiles.length, localFiles.length);
@@ -895,8 +907,9 @@ export default function SICreate() {
                           </span>
                           <div className="si-tooltip">Attachments</div>
                           {openPaperclipIdx === idx && (
-                            <div className="si-popover-menu si-paperclip-menu" style={{ minWidth: '190px' }} onClick={(e) => e.stopPropagation()}>
+                            <div className="si-popover-menu si-paperclip-menu" style={{ minWidth: '210px' }} onClick={(e) => e.stopPropagation()}>
                               <div className="si-dropdown-item" onClick={() => { handleFileUploadClick(idx); setOpenInfoIdx(null); }}><i className="ti ti-upload"></i> Upload from computer</div>
+                              <div style={{ fontSize: '11px', color: '#64748b', padding: '4px 12px 6px' }}>Max 10 files per upload, up to 25 MB each</div>
                             </div>
                           )}
                         </div>

@@ -205,6 +205,7 @@ import {
 } from "../../../services/requestService";
 import { API_BASE_URL } from "../../../services/api";
 import { showSuccess, showError, showDeleteConfirm, showDeleteSuccess } from "../../../components/common/Toast/Toast";
+import { validateUploadFiles } from "../../../utils/fileUploadValidation";
 import Table from "../../../components/common/Table/Table";
 import Modal from "../../../components/common/Modal/Modal";
 import "./ListRequest.css";
@@ -4776,19 +4777,31 @@ const getInitialPage = () => {
               {/* Close-Out Image upload */}
               {modalStatus === "Closed" && (
                 <div className="df-field" style={{ marginBottom: "16px" }}>
-                  <label className="df-label">Close-Out Pictures</label>
+                  <label className="df-label">Close-Out Pictures (Max 10 images, up to 25 MB per file)</label>
                   <div style={{ display: "flex", gap: "12px", alignItems: "center", marginBottom: "12px" }}>
                     <input
                       type="file"
                       multiple
                       accept=".jpg,.jpeg,.png"
                       onChange={(e) => {
-                        const files = Array.from(e.target.files);
+                        const files = Array.from(e.target.files || []);
+                        const { valid, errorMessage } = validateUploadFiles(files, {
+                          existingCount: closingImageFiles.length,
+                          maxFiles: 10,
+                          maxFileSizeMB: 25,
+                          label: "Permit Close-Out pictures",
+                        });
+                        if (!valid) {
+                          showError(errorMessage);
+                          e.target.value = "";
+                          return;
+                        }
                         const newFiles = files.map((file) => ({
                           file,
                           preview: URL.createObjectURL(file)
                         }));
                         setClosingImageFiles((prev) => [...prev, ...newFiles]);
+                        e.target.value = "";
                       }}
                       id="close-image-upload"
                       style={{ display: "none" }}

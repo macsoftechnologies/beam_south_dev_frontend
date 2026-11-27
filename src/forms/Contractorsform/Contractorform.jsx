@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { API_BASE_URL } from "../../services/api";
+import { showError } from "../../components/common/Toast/Toast";
+import { validateUploadFiles } from "../../utils/fileUploadValidation";
 import "../../forms/styles/forms.css";
 
 function Contractorform({ onClose, initialData, isEdit, onSubmit }) {
@@ -29,6 +31,17 @@ function Contractorform({ onClose, initialData, isEdit, onSubmit }) {
   const handleLogoChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    const { valid, errorMessage } = validateUploadFiles([file], {
+      maxFiles: 1,
+      maxFileSizeMB: 2,
+      label: "Contractor logo",
+    });
+    if (!valid) {
+      showError(errorMessage);
+      e.target.value = "";
+      return;
+    }
 
     setLogoFile(file);
 

@@ -383,6 +383,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { HotWorks, ElectricalSystems, substanceChemical, WorkingAtHight, ConfinedSpace, ExcavationWorks, Craneslifting, electrical_works, mechanical1, testingequipment } from "../../../config/logos";
 import { HardHat, SpecificGloves, Safetyshoes, HighVisibility, Longpants, Eyeprotection, Fallprotection, Hearingprotection, Respiratoryprotection } from "../../../config/safetyIcons";
 import { getModuleUserContext, parseModuleAccess, isUserAdmin } from "../../../utils/modulePermissions";
+import { validateUploadFiles, extractApiErrorMessage } from "../../../utils/fileUploadValidation";
 
 const ELECTRICAL_WORKS_SELECT = [
   { id: "1", ElectricalWorksval: "Yes" },
@@ -617,6 +618,18 @@ function NewRequest() {
   const handleFileChange = async (e) => {
     if (e.target.files && e.target.files.length > 0) {
       const newFiles = Array.from(e.target.files);
+      const maxFiles = isEditMode ? 20 : 10;
+      const { valid, errorMessage } = validateUploadFiles(newFiles, {
+        existingCount: isEditMode ? 0 : uploadedFiles.length,
+        maxFiles,
+        maxFileSizeMB: 25,
+        label: "Work Permit RAMS attachments",
+      });
+      if (!valid) {
+        showError(errorMessage);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        return;
+      }
       if (isEditMode) {
         // Upload immediately in edit mode
         const fd = new FormData();
@@ -634,13 +647,14 @@ function NewRequest() {
             setExistingFiles(res.files.map(mapFileItem).filter(Boolean));
           }
         } catch (err) {
-          showError("Failed to upload file attachment.");
+          showError(extractApiErrorMessage(err, "Failed to upload file attachment."));
         }
       } else {
         // In creation mode, store locally
         setUploadedFiles((prev) => [...prev, ...newFiles]);
       }
     }
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleRemoveFile = async (index, fileId) => {
@@ -3020,6 +3034,11 @@ function NewRequest() {
                 >
                   Add Files
                 </button>
+                <div style={{ fontSize: "12px", color: "#64748b", marginTop: "6px" }}>
+                  {isEditMode
+                    ? "Max 20 files per upload, up to 25 MB per file"
+                    : `Max 10 files (${uploadedFiles.length}/10), up to 25 MB per file`}
+                </div>
                 <input
                   type="file"
                   ref={fileInputRef}

@@ -6,6 +6,8 @@ import { ZONE_MAPPING } from "../../../data/zones";
 import { BUILDINGS } from "../../../data/buildings";
 import { getBuildings, getRooms, getFloors, getContractors } from "../../../services/authService";
 import { observationService } from "../../../services/observationService";
+import { showError } from "../Toast/Toast";
+import { validateUploadFiles, extractApiErrorMessage } from "../../../utils/fileUploadValidation";
 import "./SafetyIssueModal.css";
 
 export const SAFETY_SUBCATEGORIES = {
@@ -444,6 +446,10 @@ export default function SafetyIssueModal({
   };
 
   const capturePhoto = () => {
+    if (photoFiles.length >= 10) {
+      showError("Maximum 10 files are allowed per Safety Observation.");
+      return;
+    }
     if (videoRef.current && canvasRef.current) {
       const video = videoRef.current;
       const canvas = canvasRef.current;
@@ -465,11 +471,23 @@ export default function SafetyIssueModal({
   };
 
   const handleFileSelect = (e) => {
-    const files = Array.from(e.target.files);
+    const files = Array.from(e.target.files || []);
+    const { valid, errorMessage } = validateUploadFiles(files, {
+      existingCount: photoFiles.length,
+      maxFiles: 10,
+      maxFileSizeMB: 20,
+      label: "Safety Observations",
+    });
+    if (!valid) {
+      showError(errorMessage);
+      e.target.value = "";
+      return;
+    }
     files.forEach((file) => {
       setPhotoFiles((prev) => [...prev, file]);
       setPhotoPreviews((prev) => [...prev, URL.createObjectURL(file)]);
     });
+    e.target.value = "";
   };
 
   const removePhoto = (idx) => {
@@ -573,7 +591,7 @@ export default function SafetyIssueModal({
       onClose();
     } catch (err) {
       console.error("Failed to submit safety issue:", err);
-      alert(err?.response?.data?.message || "Failed to create safety observation.");
+      showError(extractApiErrorMessage(err, "Failed to create safety observation."));
     } finally {
       setIsSubmitting(false);
     }
@@ -993,7 +1011,7 @@ export default function SafetyIssueModal({
                   <line x1="12" x2="12" y1="3" y2="15" />
                 </svg>
                 <div style={{ fontSize: 13, color: "var(--text-main, #334155)" }}>Click to select photo files</div>
-                <div style={{ fontSize: 11, color: "var(--text-muted, #94a3b8)" }}>JPG, PNG, WEBP, PDF up to 20MB</div>
+                <div style={{ fontSize: 11, color: "var(--text-muted, #94a3b8)" }}>JPG, PNG, WEBP, PDF — Max 10 files, up to 20 MB per file ({photoFiles.length}/10)</div>
               </div>
 
               <button

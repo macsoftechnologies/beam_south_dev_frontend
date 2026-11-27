@@ -6,6 +6,8 @@ import { getContractors } from "../../../services/authService";
 import { getModuleUserContext } from "../../../utils/modulePermissions";
 import { API_BASE_URL } from "../../../services/api";
 import { formatToDenmark24Hour } from "../../../utils/dateUtils";
+import { showError } from "../../../components/common/Toast/Toast";
+import { validateUploadFiles, extractApiErrorMessage } from "../../../utils/fileUploadValidation";
 import "../../../styles/module-shared.css";
 
 const getFileAttachmentInfo = (p) => {
@@ -203,7 +205,7 @@ function SODetails() {
       setReviewPhotoPreviews([]);
       fetchDetails();
     } catch (err) {
-      alert(err.response?.data?.message || "Failed to submit contractor review.");
+      showError(extractApiErrorMessage(err, "Failed to submit contractor review."));
     } finally {
       setActionSubmitting(false);
     }
@@ -920,17 +922,29 @@ function SODetails() {
 
             {/* Photo Attachments for Review */}
             <div className="mod-form-group" style={{ marginTop: 14 }}>
-              <label className="mod-form-label">Attach Photos / Supporting Proof (Optional)</label>
+              <label className="mod-form-label">Attach Photos / Supporting Proof (Optional — Max 10 files, up to 20 MB per file)</label>
               <input
                 type="file"
                 multiple
                 accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.csv"
                 style={{ fontSize: 13 }}
                 onChange={(e) => {
-                  const files = Array.from(e.target.files);
+                  const files = Array.from(e.target.files || []);
+                  const { valid, errorMessage } = validateUploadFiles(files, {
+                    existingCount: reviewPhotoFiles.length,
+                    maxFiles: 10,
+                    maxFileSizeMB: 20,
+                    label: "Safety Observation review attachments",
+                  });
+                  if (!valid) {
+                    showError(errorMessage);
+                    e.target.value = "";
+                    return;
+                  }
                   setReviewPhotoFiles((prev) => [...prev, ...files]);
                   const newPreviews = files.map((f) => URL.createObjectURL(f));
                   setReviewPhotoPreviews((prev) => [...prev, ...newPreviews]);
+                  e.target.value = "";
                 }}
               />
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>

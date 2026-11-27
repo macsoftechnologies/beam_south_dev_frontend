@@ -132,9 +132,7 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
         ? (typeof rawUserType === "string" ? rawUserType.split(",") : Array.isArray(rawUserType) ? rawUserType : [rawUserType])
         : [];
 
-      const isPureContractor = initialTypes.includes("Subcontractor") && !initialTypes.includes("Department") && !initialTypes.includes("Department1");
-      const initCompName = (isPureContractor && initialData.companyName === "NNE") ? "" : (initialData.companyName || "");
-      setCompanyName(initCompName);
+      setCompanyName(initialData.companyName || "");
       setSubContId(initialData.subContId !== undefined && initialData.subContId !== null ? String(initialData.subContId) : "");
       setDepartId(initialData.departId !== undefined && initialData.departId !== null ? String(initialData.departId) : "");
       setObserId(initialData.obserId !== undefined && initialData.obserId !== null ? String(initialData.obserId) : "");
@@ -210,26 +208,6 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
   // Show "Select Contractor" when Contractor is selected in any module dropdown
   const shouldShowContractor = hasContractor;
 
-  // Synchronize companyName based on role types and selected contractor
-  useEffect(() => {
-    if (hasContractor && subContId && subcontractorList.length > 0) {
-      const matched = subcontractorList.find((s) => String(s.id) === String(subContId));
-      if (matched?.subContractorName) {
-        if (!companyName || companyName === "NNE" || !hasDepartment) {
-          setCompanyName(matched.subContractorName);
-        }
-      }
-    } else if (hasDepartment && !hasContractor) {
-      if (!companyName || (subcontractorList.length > 0 && subcontractorList.some((s) => s.subContractorName === companyName))) {
-        setCompanyName("NNE");
-      }
-    } else if (!hasDepartment && hasContractor && !subContId) {
-      if (companyName === "NNE") {
-        setCompanyName("");
-      }
-    }
-  }, [hasDepartment, hasContractor, subContId, subcontractorList, companyName]);
-
   // Cleanup selection IDs if types are no longer in selected modules
   useEffect(() => {
     if (!shouldShowContractor && subContId) {
@@ -298,15 +276,8 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
     setSubContId(selectedId);
 
     const matched = subcontractorList.find((s) => String(s.id) === String(selectedId));
-    if (matched) {
-      setCompanyName(matched.subContractorName);
-      if (hasDepartment && matched.departId) {
-        setDepartId(matched.departId);
-      }
-    } else {
-      if (!hasDepartment) {
-        setCompanyName("");
-      }
+    if (matched && hasDepartment && matched.departId) {
+      setDepartId(matched.departId);
     }
   };
 
@@ -320,6 +291,11 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
 
     if (selectedModules.length === 0) {
       showError("Please select at least one Module Access permission");
+      return;
+    }
+
+    if (!companyName || !companyName.trim()) {
+      showError("Company Name is mandatory");
       return;
     }
 
@@ -379,15 +355,7 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
 
     const resolvedObserId = obserId || (hasObserver ? (departId || 1) : null);
 
-    const matchedContractor = subcontractorList.find((s) => String(s.id) === String(subContId));
-    let finalCompanyName = companyName;
-    if (hasContractor && matchedContractor) {
-      if (!finalCompanyName || finalCompanyName === "NNE" || !hasDepartment) {
-        finalCompanyName = matchedContractor.subContractorName;
-      }
-    } else if (hasDepartment && !hasContractor) {
-      finalCompanyName = finalCompanyName || "NNE";
-    }
+    const finalCompanyName = companyName.trim();
 
     const payload = {
       badgeId: employeeBadgeId,
@@ -499,13 +467,16 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
 
         {/* Company Name */}
         <div className="df-field">
-          <label className="df-label">Company Name</label>
+          <label className="df-label">
+            Company Name <span className="df-required">*</span>
+          </label>
           <input
             type="text"
             className="df-input"
             value={companyName}
             onChange={(e) => setCompanyName(e.target.value)}
             placeholder="Company Name"
+            required
           />
         </div>
 
@@ -593,7 +564,7 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
                 Select access and assign specific user type per module
               </span>
             </div>
-            
+
             <div className="df-modules-grid">
               {MODULE_OPTIONS.map((mod) => {
                 const isChecked = selectedModules.includes(mod.id);
@@ -635,21 +606,20 @@ function Employeesform({ onClose, initialData, isEdit, onSubmit }) {
                               currentRole === "Observer"
                                 ? "rgba(99, 102, 241, 0.15)"
                                 : currentRole === "Subcontractor"
-                                ? "rgba(245, 158, 11, 0.15)"
-                                : "rgba(16, 185, 129, 0.15)",
+                                  ? "rgba(245, 158, 11, 0.15)"
+                                  : "rgba(16, 185, 129, 0.15)",
                             color:
                               currentRole === "Observer"
                                 ? "#4f46e5"
                                 : currentRole === "Subcontractor"
-                                ? "#d97706"
-                                : "#059669",
-                            border: `1px solid ${
-                              currentRole === "Observer"
+                                  ? "#d97706"
+                                  : "#059669",
+                            border: `1px solid ${currentRole === "Observer"
                                 ? "rgba(99, 102, 241, 0.35)"
                                 : currentRole === "Subcontractor"
-                                ? "rgba(245, 158, 11, 0.35)"
-                                : "rgba(16, 185, 129, 0.35)"
-                            }`,
+                                  ? "rgba(245, 158, 11, 0.35)"
+                                  : "rgba(16, 185, 129, 0.35)"
+                              }`,
                           }}
                         >
                           {getUserTypeLabel(currentRole, mod.id)}

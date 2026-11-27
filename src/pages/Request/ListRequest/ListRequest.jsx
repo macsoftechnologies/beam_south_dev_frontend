@@ -2946,26 +2946,24 @@ const getInitialPage = () => {
       }
     } else if (nextStatus === "Pre-Approved" || nextStatus === "Approved") {
       if (!initials.trim()) return showError("Initials signature is required.");
-      const permitType = modalTarget.permit_type || "";
-      const permitUnder = modalTarget.permit_under || "";
+      const permitType = (modalTarget.permit_type || modalTarget.permitType || "").trim().toLowerCase();
+      const permitUnder = (modalTarget.permit_under || modalTarget.permitUnder || "").trim().toLowerCase();
 
       if (nextStatus === "Pre-Approved") {
-        if (permitType === "Construction" && permitUnder === "Commissioning") {
+        if (permitType === "construction" && permitUnder === "commissioning") {
           payload.ConM_initials = initials.trim();
-        } else if (permitType === "Commissioning" && permitUnder === "Construction") {
+        } else if (permitType === "commissioning" && permitUnder === "construction") {
           payload.CoMM_initials = initials.trim();
         }
       } else if (nextStatus === "Approved") {
-        if (permitType === "Commissioning" && permitUnder === "Commissioning") {
+        if (permitType === "commissioning" && permitUnder === "commissioning") {
           payload.CoMM_initials = initials.trim();
-        } else if (permitType === "Construction" && permitUnder === "Construction") {
+        } else if (permitType === "construction" && permitUnder === "construction") {
           payload.ConM_initials = initials.trim();
-        } else if (permitType === "Construction" && permitUnder === "Commissioning") {
+        } else if (permitType === "construction" && permitUnder === "commissioning") {
           payload.CoMM_initials = initials.trim();
-          payload.ConM_initials = modalTarget.ConM_initials || "";
-        } else if (permitType === "Commissioning" && permitUnder === "Construction") {
+        } else if (permitType === "commissioning" && permitUnder === "construction") {
           payload.ConM_initials = initials.trim();
-          payload.CoMM_initials = modalTarget.CoMM_initials || "";
         }
       }
     }
@@ -3105,9 +3103,9 @@ const getInitialPage = () => {
     } else {
       if (initials.trim()) {
         payload.initials = initials.trim();
-        payload.ConM_initials = initials.trim();
-        payload.CoMM_initials = initials.trim();
-        payload.ConM_initials1 = initials.trim();
+        if (modalStatus === "Opened") {
+          payload.ConM_initials1 = initials.trim();
+        }
       }
     }
 

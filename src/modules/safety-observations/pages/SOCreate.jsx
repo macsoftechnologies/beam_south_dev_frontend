@@ -13,6 +13,7 @@ import { BUILDINGS } from "../../../data/buildings";
 import { AnalogTimePicker } from "../../incident-management/pages/IMCreate";
 import { showError } from "../../../components/common/Toast/Toast";
 import { validateUploadFiles, extractApiErrorMessage } from "../../../utils/fileUploadValidation";
+import { getPreferredCameraStream } from "../../../utils/cameraUtils";
 import "../../../styles/module-shared.css";
 
 const defaultProjectName = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '').toLowerCase().includes('north')
@@ -382,7 +383,7 @@ function SOCreate() {
   const startCamera = async () => {
     setIsCameraActive(true);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      const stream = await getPreferredCameraStream();
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;

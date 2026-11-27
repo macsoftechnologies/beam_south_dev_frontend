@@ -8,6 +8,7 @@ import { getBuildings, getRooms, getFloors, getContractors } from "../../../serv
 import { observationService } from "../../../services/observationService";
 import { showError } from "../Toast/Toast";
 import { validateUploadFiles, extractApiErrorMessage } from "../../../utils/fileUploadValidation";
+import { getPreferredCameraStream } from "../../../utils/cameraUtils";
 import "./SafetyIssueModal.css";
 
 export const SAFETY_SUBCATEGORIES = {
@@ -419,7 +420,7 @@ export default function SafetyIssueModal({
   const startCamera = async () => {
     setIsCameraActive(true);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      const stream = await getPreferredCameraStream();
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;

@@ -542,7 +542,7 @@ export default function SCCreate() {
         ...form,
         projectName: defaultProj,
         safetyIssueRef: finalSafetyIssueRef || form.safetyIssueRef,
-        date: sanitizeDateVal(form.date) || todayDenmark,
+        date: getDenmarkTodayDate(),
         briefingDate: form.chk2_1 === "Yes" ? sanitizeDateVal(form.briefingDate) : null,
         briefingTime: form.chk2_1 === "Yes" ? (form.briefingTime || "") : "",
         conductedBy: form.chk2_1 === "Yes" ? (form.conductedBy || "") : "",
@@ -665,7 +665,17 @@ export default function SCCreate() {
               </tr>
               <tr>
                 <td className="sc-td-label">Date</td>
-                <td><input type="date" className="mod-form-input" name="date" value={form.date} onChange={handleChange} /></td>
+                <td>
+                  <input
+                    type="date"
+                    className="mod-form-input"
+                    name="date"
+                    value={todayDenmark}
+                    disabled
+                    readOnly
+                    style={{ cursor: "not-allowed", backgroundColor: "var(--bg-card-hover, #f1f5f9)", color: "var(--text-main)" }}
+                  />
+                </td>
                 <td className="sc-td-label">Time</td>
                 <td>
                   <input

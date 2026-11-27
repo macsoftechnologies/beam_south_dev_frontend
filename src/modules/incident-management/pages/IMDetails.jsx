@@ -19,6 +19,7 @@ import SeverityDropdown, { getCategorySeverityConfig } from "../components/Sever
 import { getDenmarkDateString, parseUTCToDate, parseCopenhagenDateTime, formatToDenmark24Hour, formatToDenmark24HourObj } from "../../../utils/dateUtils";
 import { triggerBlobDownload } from "../../../utils/pdfDownload";
 import { validateUploadFiles, extractApiErrorMessage } from "../../../utils/fileUploadValidation";
+import { getPreferredCameraStream } from "../../../utils/cameraUtils";
 import "../../../styles/module-shared.css";
 import "./IMDetails.css";
 import { AnalogTimePicker } from "./IMCreate";
@@ -2373,7 +2374,7 @@ export default function IMDetails() {
   const startCamera = async () => {
     setIsCameraActive(true);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      const stream = await getPreferredCameraStream();
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -2416,7 +2417,7 @@ export default function IMDetails() {
   const startInvCamera = async () => {
     setIsInvCameraActive(true);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      const stream = await getPreferredCameraStream();
       invStreamRef.current = stream;
       if (invVideoRef.current) {
         invVideoRef.current.srcObject = stream;
